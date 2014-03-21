@@ -1,0 +1,684 @@
+module ietf-restconf {
+     namespace "urn:ietf:params:xml:ns:yang:ietf-restconf";
+     prefix "restconf";
+
+     import ietf-yang-types { prefix yang; }
+     import ietf-inet-types { prefix inet; }
+ 
+     organization
+       "IETF NETCONF (Network Configuration) Working Group";
+
+     contact
+       "Editor:   Andy Bierman
+                  <mailto:andy@yumaworks.com>
+
+        Editor:   Martin Bjorklund
+                  <mailto:mbj@tail-f.com>
+
+        Editor:   Kent Watsen
+                  <mailto:kwatsen@juniper.net>
+
+        Editor:   Rex Fernando
+                  <mailto:rex@cisco.com>";
+
+     description
+       "This module contains conceptual YANG specifications
+        for the YANG Patch and error content that is used in
+        RESTCONF protocol messages. A conceptual container
+        representing the RESTCONF API nodes (media type
+        application/yang.api).
+
+        Note that the YANG definitions within this module do not
+        represent configuration data of any kind.
+        The YANG grouping statements provide a normative syntax
+        for XML and JSON message encoding purposes.
+        Copyright (c) 2013 IETF Trust and the persons identified as
+        authors of the code.  All rights reserved.
+
+        Redistribution and use in source and binary forms, with or
+        without modification, is permitted pursuant to, and subject
+        to the license terms contained in, the Simplified BSD License
+        set forth in Section 4.c of the IETF Trust's Legal Provisions
+        Relating to IETF Documents
+        (http://trustee.ietf.org/license-info).
+
+        This version of this YANG module is part of RFC XXXX; see
+        the RFC itself for full legal notices.";
+
+     // RFC Ed.: replace XXXX with actual RFC number and remove this
+     // note.
+
+     // RFC Ed.: remove this note
+     // Note: extracted from draft-bierman-netconf-restconf-02.txt
+
+     // RFC Ed.: update the date below with the date of RFC publication
+     // and remove this note.
+     revision 2013-10-19 {
+       description
+         "Initial revision.";
+       reference
+         "RFC XXXX: RESTCONF Protocol.";
+     }
+
+     typedef data-resource-identifier {
+       type string {
+         length "1 .. max";
+       }
+       description
+         "Contains a Data Resource Identifier formatted string
+          to identify a specific data node. The data node that
+          uses this data type SHOULD define the document root
+          for data resource identifiers.  The default document
+          root is the target datastore conceptual root node.
+          Data resource identifiers are defined relative to
+          this document root.";
+       reference
+         "RFC XXXX: [sec. 5.3.1.1 ABNF For Data Resource Identifiers]";
+     }
+
+     // this typedef is TBD; not currently used
+     typedef datastore-identifier {
+       type union {
+         type enumeration {
+           enum candidate {
+             description
+               "Identifies the NETCONF shared candidate datastore.";
+             reference
+               "RFC 6241, section 8.3";
+           }
+           enum running {
+             description
+               "Identifies the NETCONF running datastore.";
+             reference
+               "RFC 6241, section 5.1";
+           }
+           enum startup {
+             description
+               "Identifies the NETCONF startup datastore.";
+             reference
+               "RFC 6241, section 8.7";
+           }
+         }
+         type string;
+       }
+       description
+         "Contains a string to identify a specific datastore.
+          The enumerated datastore identifier values are
+          reserved for standard datastore names.";
+     }
+
+     typedef revision-identifier {
+       type string {
+         pattern '\d{4}-\d{2}-\d{2}';
+       }
+       description
+         "Represents a specific date in YYYY-MM-DD format.
+          TBD: make pattern more precise to exclude leading zeros.";
+     }
+
+     grouping yang-patch {
+       description
+         "A grouping that contains a YANG container
+          representing the syntax and semantics of a
+          YANG Patch edit request message.";
+
+       container yang-patch {
+         description
+           "Represents a conceptual sequence of datastore edits,
+            called a patch. Each patch is given a client-assigned
+            patch identifier. Each edit MUST be applied
+            in ascending order, and all edits MUST be applied.
+            If any errors occur, then the target datastore MUST NOT
+            be changed by the patch operation.
+
+            A patch MUST be validated by the server to be a
+            well-formed message before any of the patch edits
+            are validated or attempted.
+
+            YANG datastore validation (defined in RFC 6020, section 
+            8.3.3) is performed after all edits have been
+            individually validated.
+
+            It is possible for a datastore constraint violation to occur
+            due to any node in the datastore, including nodes not
+            included in the edit list. Any validation errors MUST
+            be reported in the reply message.";
+
+         reference
+           "RFC 6020, section 8.3.";
+
+         leaf patch-id {
+           type string;
+           description
+             "An arbitrary string provided by the client to identify
+              the entire patch.  This value SHOULD be present in any
+              audit logging records generated by the server for the
+              patch. Error messages returned by the server pertaining
+              to this patch will be identified by this patch-id value.";
+         }
+
+         leaf comment {
+           type string {
+             length "0 .. 1024";
+           }
+           description
+             "An arbitrary string provided by the client to describe
+              the entire patch.  This value SHOULD be present in any
+              audit logging records generated by the server for the
+              patch.";
+         }
+
+         list edit {
+           key edit-id;
+           ordered-by user;
+
+           description
+             "Represents one edit within the YANG Patch
+              request message.";
+           leaf edit-id {
+             type string;
+             description
+               "Arbitrary string index for the edit.
+                Error messages returned by the server pertaining
+                to a specific edit will be identified by this
+                value.";
+           }
+
+           leaf operation {
+             type enumeration {
+               enum create {
+                 description
+                   "The target data node is created using the
+                    supplied value, only if it does not already
+                    exist.";
+               }
+               enum delete {
+                 description
+                   "Delete the target node, only if the data resource
+                    currently exists, otherwise return an error.";
+               }
+               enum insert {
+                 description
+                   "Insert the supplied value into a user-ordered
+                    list or leaf-list entry. The target node must
+                    represent a new data resource.";
+               }
+               enum merge {
+                 description
+                   "The supplied value is merged with the target data
+                    node.";
+               }
+               enum move {
+                 description
+                   "Move the target node. Reorder a user-ordered
+                    list or leaf-list. The target node must represent
+                    an existing data resource.";
+               }
+               enum replace {
+                 description
+                   "The supplied value is used to replace the target
+                    data node.";
+               }
+               enum remove {
+                 description
+                   "Delete the target node if it currently exists.";
+               }
+             }
+             mandatory true;
+             description
+               "The datastore operation requested for the associated
+                edit entry";
+           }
+
+           leaf target {
+             type data-resource-identifier;
+             mandatory true;
+             description
+               "Identifies the target data resource for the edit
+                operation.";
+           }
+
+           leaf point {
+             when "(../operation = 'insert' or " +
+               "../operation = 'move') and " +
+               "(../where = 'before' or ../where = 'after')" {
+               description
+                 "Point leaf only applies for insert or move
+                  operations, before or after an existing entry.";
+             }
+             type data-resource-identifier;
+             description
+               "The absolute URL path for the data node that is being
+                used as the insertion point or move point for the
+                target of this edit entry.";
+           }
+
+           leaf where {
+             when "../operation = 'insert' or ../operation = 'move'" {
+               description
+                 "Where leaf only applies for insert or move
+                  operations.";
+             }
+             type enumeration {
+               enum before {
+                 description
+                   "Insert or move a data node before the data resource
+                    identified by the 'point' parameter.";
+               }
+               enum after {
+                 description
+                   "Insert or move a data node after the data resource
+                    identified by the 'point' parameter.";
+               }
+               enum first {
+                 description
+                   "Insert or move a data node so it becomes ordered
+                    as the first entry.";
+               }
+               enum last {
+                 description
+                   "Insert or move a data node so it becomes ordered
+                    as the last entry.";
+               }
+
+             }
+             default last;
+             description
+               "Identifies where a data resource will be inserted or
+                moved. YANG only allows these operations for
+                list and leaf-list data nodes that are ordered-by
+                user.";
+           }
+
+           anyxml value {
+             when "(../operation = 'create' or " +
+               "../operation = 'merge' " +
+               "or ../operation = 'replace' or " +
+               "../operation = 'insert')" {
+               description
+                 "Value node only used for create, merge,
+                  replace, and insert operations";
+             }
+             description
+               "Value used for this edit operation.";
+           }
+         }
+       }
+
+     } // grouping yang-patch
+
+
+     grouping yang-patch-status {
+
+       description
+         "A grouping that contains a YANG container
+          representing the syntax and semantics of
+          YANG Patch status response message.";
+
+       container yang-patch-status {
+         description
+           "A container representing the response message
+            sent by the server after a YANG Patch edit
+            request message has been processed.";
+
+         leaf patch-id {
+           type string;
+           description
+             "The patch-id value used in the request";
+         }
+
+         choice global-status {
+           description
+             "Report global errors or complete success.
+              If there is no case selected then errors
+              are reported in the edit-status container.";
+
+           case global-errors {
+             uses errors;
+             description
+               "This container will be present if global
+                errors unrelated to a specific edit occurred.";
+           }
+           leaf ok {
+             type empty;
+             description
+               "This leaf will be present if the request succeeded
+                and there are no errors reported in the edit-status
+                container.";
+           }
+         }
+
+         container edit-status {
+           description
+             "This container will be present if there are
+              edit-specific status responses to report.";
+
+           list edit {
+             key edit-id;
+
+             description
+               "Represents a list of status responses,
+                corresponding to edits in the YANG Patch
+                request message.  If an edit entry was
+                skipped or not reached by the server,
+                then this list will not contain a corresponding
+                entry for that edit.";
+
+             leaf edit-id {
+               type string;
+                description
+                  "Response status is for the edit list entry
+                   with this edit-id value.";
+             }
+             choice edit-status-choice {
+               description
+                 "A choice between different types of status
+                  responses for each edit entry.";
+               leaf ok {
+                 type empty;
+                 description
+                   "This edit entry was invoked without any
+                    errors detected by the server associated
+                    with this edit.";
+               }
+               leaf location {
+                 type inet:uri;
+                 description
+                   "Contains the Location header value that would be
+                    returned if this edit causes a new resource to be
+                    created. If the edit identified by the same edit-id
+                    value was successfully invoked and a new resource
+                    was created, then this field will be returned
+                    instead of 'ok'.";
+               }
+               case errors {
+                 uses errors;
+                 description
+                   "The server detected errors associated with the
+                     edit identified by the same edit-id value.";
+               }
+             }
+           }
+         }
+       }
+     }  // grouping yang-patch-status
+
+
+     grouping errors {
+
+       description
+         "A grouping that contains a YANG container
+          representing the syntax and semantics of a
+          YANG Patch errors report within a response message.";
+
+       container errors {
+         config false;  // needed so list error does not need a key
+         description
+           "Represents an error report returned by the server if
+            a request results in an error.";
+
+         list error {
+           description
+             "An entry containing information about one
+              specific error that occurred while processing
+              a RESTCONF request.";
+           reference "RFC 6241, Section 4.3";
+
+           leaf error-type {
+             type enumeration {
+               enum transport {
+                 description "The transport layer";
+               }
+               enum rpc {
+                 description "The rpc or notification layer";
+               }
+               enum protocol {
+                 description "The protocol operation layer";
+               }
+               enum application {
+                 description "The server application layer";
+               }
+             }
+             mandatory true;
+             description
+               "The protocol layer where the error occurred.";
+           }
+
+           leaf error-tag {
+             type string;
+             mandatory true;
+             description
+               "The enumerated error tag.";
+           }
+
+           leaf error-app-tag {
+             type string;
+             description
+               "The application-specific error tag.";
+           }
+
+           leaf error-path {
+             type data-resource-identifier;
+             description
+               "The target data resource identifier associated
+                with the error, if any.";
+           }
+           leaf error-message {
+             type string;
+             description
+               "A message describing the error.";
+           }
+
+           container error-info {
+              description
+                "A container allowing additional information
+                 to be included in the error report.";
+              // arbitrary anyxml content here
+           }
+         }
+       }
+     } // grouping errors
+
+
+     grouping restconf {
+
+       description
+         "A grouping that contains a YANG container
+          representing the syntax and semantics of
+          the RESTCONF API resource.";
+
+       container restconf {
+         description
+           "Conceptual container representing the
+            application/yang.api resource type.";
+
+         container config {
+           description
+             "Container representing the application/yang.datastore
+              resource type. Represents the conceptual root of the
+              unified configuration datastore containing YANG data
+              nodes. The child nodes of this container are
+              configuration data resources (application/yang.data)
+              defined as top-level YANG data nodes from the modules
+              advertised by the server in /restconf/modules.";
+         }
+
+         container operational {
+           description
+             "Container representing the application/yang.datastore
+              resource type. Represents the conceptual root of the
+              operational data supported by the server.  The child
+              nodes of this container are operational data resources
+              (application/yang.data) defined as top-level
+              YANG data nodes from the modules advertised by
+              the server in /restconf/modules.";
+         }
+
+         container modules {
+           description
+             "Contains a list of module description entries.
+              These modules are currently loaded into the server.";
+
+           list module {
+             key "name revision";
+             description
+               "Each entry represents one module currently
+                supported by the server.";
+
+             leaf name {
+               type yang:yang-identifier;
+               description "The YANG module name.";
+             }
+             leaf revision {
+               type union {
+                 type revision-identifier;
+                 type string { length 0; }
+               }
+               description
+                 "The YANG module revision date. An empty string is
+                  used if no revision statement is present in the
+                  YANG module.";
+             }
+             leaf namespace {
+               type inet:uri;
+               mandatory true;
+               description
+                 "The XML namespace identifier for this module.";
+             }
+             leaf-list feature {
+               type yang:yang-identifier;
+               description
+                 "List of YANG feature names from this module that are
+                  supported by the server.";
+             }
+             leaf-list deviation {
+               type yang:yang-identifier;
+               description
+                 "List of YANG deviation module names used by this
+                  server to modify the conformance of the module
+                  associated with this entry.";
+             }
+           }
+         }
+
+         container operations {
+           description
+             "Container for all operation resources
+              (application/yang.operation),
+
+              Each resource is represented as an empty leaf with the
+              name of the RPC operation from the YANG rpc statement.
+
+              E.g.;
+
+                 POST /restconf/operations/show-log-errors
+
+                 leaf show-log-errors {
+                   type empty;
+                 }
+             ";
+         }
+
+         container streams {
+           description
+             "Container representing the notification event streams
+              supported by the server.";
+            reference
+              "RFC 5277, Section 3.4, <streams> element.";
+
+           list stream {
+             key name;
+             description
+               "Each entry describes an event stream supported by
+                the server.";
+
+             leaf name {
+               type string;
+               description "The stream name";
+               reference "RFC 5277, Section 3.4, <name> element.";
+             }
+
+             leaf description {
+               type string;
+               description "Description of stream content";
+               reference
+                 "RFC 5277, Section 3.4, <description> element.";
+             }
+
+             leaf replay-support {
+               type boolean;
+               description
+                 "Indicates if replay buffer supported for this stream";
+               reference
+                 "RFC 5277, Section 3.4, <replaySupport> element.";
+             }
+
+             leaf replay-log-creation-time {
+               type yang:date-and-time;
+               description
+                 "Indicates the time the replay log for this stream
+                  was created.";
+               reference
+                 "RFC 5277, Section 3.4, <replayLogCreationTime>
+                  element.";
+             }
+
+             leaf events {
+               type empty;
+               description
+                 "Represents the entry point for establishing
+                  notification delivery via server sent events.";
+             }
+           }
+         }
+
+         leaf version {
+           type enumeration {
+             enum "1.0" {
+               description
+                 "Version 1.0 of the RESTCONF protocol.";
+             }
+           }
+           config false;
+           description
+             "Contains the RESTCONF protocol version.";
+         }
+       }
+     }  // grouping restconf
+
+
+     grouping notification {
+       description
+         "Contains the notification message wrapper definition.";
+
+       container notification {
+         description
+           "RESTCONF notification message wrapper.";
+         leaf event-time {
+           type yang:date-and-time;
+           mandatory true;
+           description
+             "The time the event was generated by the
+              event source.";
+           reference
+             "RFC 5277, section 4, <eventTime> element.";
+         }
+
+         /* The YANG-specific notification container is encoded
+          * after the 'event-time' element.  The format
+          * corresponds to the notificationContent element
+          * in RFC 5277, section 4. For example:
+          *
+          *  module example-one {
+          *     ...
+          *     notification event1 { ... }
+          *
+          *  }
+          *
+          *  Encoded as element 'event1' in the namespace
+          *  for module 'example-one'.
+          */
+       }
+     }  // grouping notification
+
+   }

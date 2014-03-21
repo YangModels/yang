@@ -1,0 +1,190 @@
+// vi: set smarttab et sw=4 tabstop=4:
+module config {
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:controller:config";
+    prefix "config";
+
+
+    description
+         "This module contains the base YANG definitions for NS-OS
+         configuration subsystem. The system modeled revolves around two
+         major concepts: modules and services.";
+
+    revision "2013-04-05" {
+        description
+            "Reworked to give modules their own space.";
+    }
+
+    revision "2013-04-03" {
+        description
+            "Initial revision.";
+    }
+
+    extension java-class {
+        description
+            "YANG language extension carrying the fully-qualified name of
+             a Java class. Code generation tools use the provided reference
+             to tie a specific construct to its Java representation.";
+
+        argument "name";
+    }
+
+    extension required-identity {
+        description
+            "YANG language extension which indicates that a particular
+             leafref, which points to a identityref, should additionally
+             require the target node is actually set to a descendant to
+             of a particular identity.
+
+             This is a workaround to two YANG deficiencies:
+             1) not being able to leafref instances of identityref
+             2) not being able to refine an identityref
+
+             This extension takes one argument, name, which MUST be the name
+             of an identity. Furthermore, that identity MUST be based,
+             directly or indirectly, on the identity, which is referenced by
+             the leaf reference, which is annotated with this extension.";
+
+        argument "name";
+    }
+
+    extension inner-state-bean {
+        description
+            "YANG language extension which indicates that a particular
+             list located under module's state should be treated as a list
+             of child state beans instead of just an ordinary list attribute";
+    }
+
+    extension provided-service {
+        description
+            "YANG language extension which indicates that a particular
+            module provides certain service. This extension can be placed
+            on identities that are based on module-type. Zero or more services
+            can be provided.
+            This extension takes one argument - name - which MUST be the name
+            of an identity. Furthermore, this identity MUST be based on
+            service-type.";
+
+        argument "name";
+    }
+
+    extension java-name-prefix {
+        description
+            "YANG language extension carrying java simple class name prefix
+            that will be taken into account when generating java code from
+            identities that are based on module-type.";
+            argument "java-prefix";
+    }
+
+    identity module-type {
+        description
+            "Module identity base type. All module identities must be derived
+            from this type. A module type uniquely defines a single atomic
+            component, such as an application. Each such component is assumed
+            to have its unique, stable and versioned configuration structure.";
+    }
+
+    identity service-type {
+        description
+            "Service identity base type. All service identities must be
+             derived from this type. A service type uniquely defines a single
+             atomic API contract, such as a Java interface, a set of C
+             function declarations, or similar.
+
+             If the service type has a corresponding Java interface, the name
+             of that interface should be attached to the derived identity MUST
+             include a java-class keyword, whose name argument points to that
+             interface.";
+    }
+
+    typedef service-type-ref {
+        description
+            "Internal type of references to service type identity.";
+
+        type identityref {
+            base service-type;
+        }
+    }
+
+    grouping service-ref {
+        description
+            "Type of references to a particular service instance. This type
+             can be used when defining module configuration to refer to a
+             particular service instance. Containers using this grouping
+             should not define anything else. The run-time implementation
+             is expected to inject a reference to the service as the value
+             of the container.";
+
+        leaf type {
+            description
+                "Type of the service being referenced. Users of this grouping
+                 should refine this leaf with required-identity pointing to
+                 the actual service-type which is actually required.";
+
+            mandatory true;
+            type service-type-ref;
+        }
+
+        leaf name {
+            mandatory true;
+            type leafref {
+                path "/config:services/config:service[config:type=current()/../type]/config:instance/config:name";
+            }
+        }
+    }
+
+    container modules {
+        description
+            "Top level container encapsulating configuration of all modules.";
+
+        list module {
+            key "name";
+            leaf name {
+                description "Unique module instance name";
+                type string;
+                mandatory true;
+            }
+
+            leaf type {
+                type identityref {
+                    base module-type;
+                }
+                mandatory true;
+            }
+
+            choice configuration {
+                mandatory true;
+                config true;
+            }
+
+            choice state {
+                config false;
+            }
+        }
+    }
+
+
+    container services {
+        list service {
+            key "type";
+            leaf type {
+                type service-type-ref;
+            }
+            list instance {
+                key "name";
+                leaf name {
+                    type string;
+                }
+
+                leaf provider {
+                    mandatory true;
+                    type leafref {
+                        path "/modules/module/name";
+                    }
+                }
+            }
+        }
+    }
+
+
+}
