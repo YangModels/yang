@@ -1,0 +1,188 @@
+module brocade-rtm {
+  namespace "urn:brocade.com:mgmt:brocade-rtm";
+  prefix rtm;
+
+  import brocade-rbridge {
+    prefix rbridge;
+  }
+  import brocade-common-def {
+    prefix common-def;
+  }
+  import brocade-vcs {
+    prefix vcs;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import brocade-vrf {
+    prefix vrf;
+  }
+
+  organization "Brocade Communications Systems, Inc.";
+  contact
+    "Brocade Communications Systems, Inc.
+     Postal: 130 Holger Way
+             San Jose, CA 95134
+              U.S.A
+     Tel: +1-408-333-8000
+     E-mail: support@Brocade.com 
+     web: www.brocade.com.";
+  description
+    "This management module is for IP Routes.";
+
+  revision 2011-09-28 {
+    description
+      "Initial version of this management module.";
+  }
+
+  typedef nexthop-id-type {
+    description
+      "Nexthop entry ID";
+    type uint32;
+  }
+
+  grouping route-attrib {
+    container route-attributes {
+      leaf metric {
+        type uint32 {
+          range "1..16" {
+            error-message "% Error: Value out of range at '^' marker";
+          }
+        }
+      }
+      leaf distance {
+        type uint32 {
+          range "1..254" {
+            error-message "% Error: Value out of range at '^' marker";
+          }
+        }
+      }
+      leaf tag {
+        type uint32;
+        description
+          "Tag can be configured to filter the static routes
+           for route redistribution.
+           Default value is 0, indicating no tag.";
+      }
+    }
+  }
+
+  grouping rtm-cmds {
+    container rtm-config {
+      leaf router-id {
+        type inet:ipv4-address;
+      }
+      leaf load-sharing {
+        type uint32 {
+          range "1..8" {
+            error-message "% Error: Value out of range at '^' marker";
+          }
+        }
+      }
+      uses rtm-route-config;
+    }
+  }
+
+  grouping rtm-route-config {
+    container route {
+      leaf next-hop-enable-default {
+        type empty;
+      }
+      leaf next-hop-recursion {
+        type uint32 {
+          range "0..10" {
+            error-message "% Error: Value out of range at '^' marker";
+          }
+        }
+        default "3";
+      }
+      list next-hop {
+        key "proto";
+        leaf proto {
+          type enumeration {
+            enum "ospf" {
+              value 1;
+            }
+            enum "bgp" {
+              value 2;
+            }
+          }
+        }
+      }
+      list static-route-nh {
+        key "static-route-dest static-route-next-hop";
+        leaf static-route-dest {
+          type inet:ipv4-prefix;
+        }
+        leaf static-route-next-hop {
+          type inet:ipv4-address;
+        }
+        uses route-attrib;
+      }
+      list static-route-nh-vrf {
+        key "static-route-next-vrf-dest next-hop-vrf static-route-next-hop";
+        leaf static-route-next-vrf-dest {
+          type inet:ipv4-prefix;
+        }
+        leaf next-hop-vrf {
+          type string;
+        }
+        leaf static-route-next-hop {
+          type inet:ipv4-address;
+        }
+      }
+      list static-route-oif {
+        key
+          "static-route-dest 
+           static-route-oif-type static-route-oif-name";
+        leaf static-route-dest {
+          type inet:ipv4-prefix;
+        }
+        leaf static-route-oif-type {
+          type enumeration {
+            enum "tengigabitethernet" {
+              value 1;
+            }
+            enum "gigabitethernet" {
+              value 2;
+            }
+            enum "port-channel" {
+              value 3;
+            }
+            enum "ve" {
+              value 4;
+            }
+            enum "null" {
+              value 5;
+            }
+            enum "fortygigabitethernet" {
+              value 6;
+            }
+          }
+        }
+        leaf static-route-oif-name {
+          type string {
+            length "1..16";
+          }
+        }
+        uses route-attrib;
+      }
+    }
+  }
+
+  augment "/rbridge:rbridge-id/rbridge:ip" {
+    when "/vcs:vcsmode/vcs:vcs-mode = \"true\"";
+    uses rtm-cmds;
+  }
+  augment "/common-def:ip" {
+    when "/vcs:vcsmode/vcs:vcs-mode = \"false\"";
+    uses rtm-cmds;
+  }
+  augment "/rbridge:rbridge-id/vrf:vrf/vrf:address-family/vrf:ipv4" {
+    container ip {
+      description
+        "rtm commands";
+      uses rtm-route-config;
+    }
+  }
+}
