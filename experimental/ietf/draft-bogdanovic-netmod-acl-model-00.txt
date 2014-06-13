@@ -1,0 +1,784 @@
+
+
+
+
+NETMOD WG                                                  D. Bogdanovic
+Internet-Draft                                          Juniper Networks
+Intended status: Informational                             K. Sreenivasa
+Expires: December 14, 2014                 Brocade Communications System
+                                                                D. Blair
+                                                           Cisco Systems
+                                                           June 12, 2014
+
+
+                             ACL YANG model
+                  draft-bogdanovic-netmod-acl-model-00
+
+Abstract
+
+   This document describes information and data model of Access Control
+   List (ACL) basic building blocks.
+
+Status of This Memo
+
+   This Internet-Draft is submitted in full conformance with the
+   provisions of BCP 78 and BCP 79.
+
+   Internet-Drafts are working documents of the Internet Engineering
+   Task Force (IETF).  Note that other groups may also distribute
+   working documents as Internet-Drafts.  The list of current Internet-
+   Drafts is at http://datatracker.ietf.org/drafts/current/.
+
+   Internet-Drafts are draft documents valid for a maximum of six months
+   and may be updated, replaced, or obsoleted by other documents at any
+   time.  It is inappropriate to use Internet-Drafts as reference
+   material or to cite them other than as "work in progress."
+
+   This Internet-Draft will expire on December 14, 2014.
+
+Copyright Notice
+
+   Copyright (c) 2014 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+
+
+Bogdanovic, et al.      Expires December 14, 2014               [Page 1]
+
+Internet-Draft               ACL YANG model                    June 2014
+
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   2
+     1.1.  Definitions and Acronyms  . . . . . . . . . . . . . . . .   3
+   2.  Problem Statement . . . . . . . . . . . . . . . . . . . . . .   3
+   3.  Design of the ACL Model . . . . . . . . . . . . . . . . . . .   4
+     3.1.  Linux nftables  . . . . . . . . . . . . . . . . . . . . .   4
+     3.2.  ACL Modules . . . . . . . . . . . . . . . . . . . . . . .   5
+   4.  ACL YANG Models . . . . . . . . . . . . . . . . . . . . . . .   6
+     4.1.  IETF-ACL module . . . . . . . . . . . . . . . . . . . . .   6
+     4.2.  Packet Header module  . . . . . . . . . . . . . . . . . .   7
+     4.3.  A company proprietary module example  . . . . . . . . . .  10
+     4.4.  An ACL Example  . . . . . . . . . . . . . . . . . . . . .  11
+   5.  Security Considerations . . . . . . . . . . . . . . . . . . .  12
+   6.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .  13
+   7.  Acknowledgements  . . . . . . . . . . . . . . . . . . . . . .  13
+   8.  Change log [RFC Editor: Please remove]  . . . . . . . . . . .  13
+   9.  References  . . . . . . . . . . . . . . . . . . . . . . . . .  13
+   Authors' Addresses  . . . . . . . . . . . . . . . . . . . . . . .  14
+
+1.  Introduction
+
+   Access Control List (ACL) is one of the basic elements to configure
+   device forwarding behavior.  It is used in many networking concepts
+   such as Policy Based Routing, Firewalls etc.
+
+   An ACL is an ordered set of rules that is used to filter traffic on a
+   networking device.  Each rule is represented by an Access Control
+   Entry (ACE).
+
+   Each ACE has a group of match criteria and a group of action
+   criteria.
+
+   The match criteria consist of packet header matching and metadata
+   matching.
+
+   o Packet header matches apply to fields visible in the packet such as
+   address or class of service or port numbers.
+
+   o Metadata matching applies to fields associated with the packet but
+   not in the packet header such as input interface, packet length, or
+   source or destination prefix length.
+
+   The actions specify what to do with the packet when the matching
+   criteria is met.  These can be any sort of thing from logging to rate
+   limiting or dropping to simply forwarding.  The list of potential
+   actions is endless depending on the innovations of the networked
+   devices.
+
+
+
+Bogdanovic, et al.      Expires December 14, 2014               [Page 2]
+
+Internet-Draft               ACL YANG model                    June 2014
+
+
+1.1.  Definitions and Acronyms
+
+   ACE: Access Control Entry
+
+   ACL: Access Control List
+
+   AFI: Address Field Identifier
+
+   ARP: Address Resolution Protocol
+
+   CoS: Class of Service
+
+   DSCP: Differentiated Services Code Point
+
+   ICMP: Internet Control Message Protocol
+
+   IGMP: Internet Group Management Protocol
+
+   IP: Internet Protocol
+
+   IPv4: Internet Protocol version 4
+
+   IPv6: Internet Protocol version 6
+
+   MAC: Media Access Control
+
+   QoS: Quality of Service
+
+   TCP: Transmission Control Protocol
+
+   ToS: Type of Service
+
+   TTL: Time To Live
+
+   UDP: User Datagram Protocol
+
+   VLAN: Virtual Local Area Network
+
+   VRF: Virtual Routing and Forwarding
+
+2.  Problem Statement
+
+   This document defines a YANG [RFC6020] data model for the
+   configuration of ACLs.  It is very important that model can be easily
+   reused between vendors and between different applications.
+
+   ACL implementations in every device may vary greatly in terms of the
+   filter constructs and Actions that they support.  Therefore, acl YANG
+
+
+
+Bogdanovic, et al.      Expires December 14, 2014               [Page 3]
+
+Internet-Draft               ACL YANG model                    June 2014
+
+
+   Module makes extensive use of the "feature" construct which allows
+   implementations to support those ACL configuration features that lie
+   within their capabilities.
+
+3.  Design of the ACL Model
+
+   Although different vendors have different ACL data models, there is a
+   common understanding of what an access list is.  An access list
+   contains an ordered list of rules called access list entries - ACEs.
+   Actions on the first matching ACE are applied with no processing of
+   subsequent ACEs.  Each ACE has a group of match criteria and a group
+   of action criteria.  The match criteria consist of packet header
+   matching and metadata matching.  Packet header matches apply to
+   fields visible in the packet such as address or class of service or
+   port numbers.  Metadata matching applies to fields associated with
+   the packet, but not in the packet header such as input interface,
+   packet length, or source or destination prefix length.  The actions
+   can be any sort of thing from logging to rate limiting or dropping to
+   simply forwarding.  The list of potential actions is endless
+   depending on the innovations of the networked devices.  There is a
+   default ACE which applies if a packet does not match any of the other
+   ACEs.  There is overall operational state for the ACL and operational
+   state for each ACE, and depending on the action, operational state
+   for each action.  Access-lists can also have notifications such as
+   logging, configuration changing, activation state changes, (TBD).
+   The ACL can be applied to targets within the device which may be
+   interfaces of a networked device, applications or features running in
+   the device, or other objects.  When applied to interfaces of the
+   networked device, the ACL is applied in a direction which indicates
+   if it should be applied to packet entering (input) or leaving the
+   device (output).
+
+   This draft tries to address the commonalities between all vendors and
+   create a common model, which can be augmented with proprietary
+   models.  The base model is very simple and with this design we hope
+   to achieve needed flexibility for each vendor to extend the base
+   model.
+
+3.1.  Linux nftables
+
+   As Linux platform is becoming more popular as networking platform,
+   the Linux data model is changing.  Previously ACLs in Linux were
+   highly protocol specific and different utilities were used for it
+   (iptables, ip6tables, arptables, ebtables).  Recently, this has
+   changed and a single utility, nftables, has been provided.  This
+   utility follows very similarly the same base model as proposed in
+   this draft.  The nftables support input and output ACEs and each ACE
+   can be defined with match and action.
+
+
+
+Bogdanovic, et al.      Expires December 14, 2014               [Page 4]
+
+Internet-Draft               ACL YANG model                    June 2014
+
+
+3.2.  ACL Modules
+
+   There are three YANG modules in the model.  The first module, "ietf-
+   acl", defines generic ACL aspects which are common to all ACLs
+   regardless of their type or vendor.  In effect, the module can be
+   viewed as providing a generic ACL "superclass".  It imports module
+   "packet-headers" into the match container.  The packet headers can be
+   extended with different types and fragments.  Existing packet headers
+   module can be easily extended support IPFIX [RFC5101] or some future
+   standard or proprietary model.  The hierarchical tree shows the basic
+   model with imported packet headers.
+
+      module: ietf-acl
+         +--rw access-list
+            +--rw acl-name?              string
+            +--rw access-list-entries* [rule-name]
+               +--rw rule-name    string
+               +--rw matches
+               |  +--rw destination-ipv4-address?   inet:ipv4-address
+               |  +--rw source-ipv4-address?        inet:ipv4-address
+               |  +--rw ipv4-dscp?                  inet:dscp
+               |  +--rw destination-address?        inet:ipv6-address
+               |  +--rw source-address?             inet:ipv6-address
+               |  +--rw flow-label?                 inet:ipv6-flow-label
+               |  +--rw ipv6-dscp?                  inet:dscp
+               |  +--rw destination-prefix?         inet:ip-prefix
+               |  +--rw source-prefix?              inet:ip-prefix
+               |  +--rw input-interface?            string
+               +--rw actions
+                  +--rw (packet-handling)?
+                     +--:(deny)
+                     |  +--rw deny?     empty
+                     +--:(permit)
+                        +--rw permit?   empty
+
+   Two other module "newco-acl" is example of company proprietary model,
+   that augments the ietf-acl module with definitions that are specific
+   to match criteria and company proprietary extensions to match and
+   action criteria.  The model below is shown just an example and it is
+   expected from vendors to create their own propietary models, based on
+   the example below.
+
+
+
+
+
+
+
+
+
+
+Bogdanovic, et al.      Expires December 14, 2014               [Page 5]
+
+Internet-Draft               ACL YANG model                    June 2014
+
+
+    module: newco-acl
+    augment /ietf-acl:access-list/ietf-acl:access-list-entries/ietf-acl:matches:
+       +--rw (protocol_payload_choice)?
+          +--:(protocol_payload)
+             +--rw protocol_payload* [value_keyword]
+                +--rw value_keyword    enumeration
+    augment /ietf-acl:access-list/ietf-acl:access-list-entries/ietf-acl:actions:
+       +--rw (action)?
+          +--:(count)
+          |  +--rw count?                   string
+          +--:(policer)
+          |  +--rw policer?                 string
+          +--:(hiearchical-policer)
+             +--rw hierarchitacl-policer?   string
+
+4.  ACL YANG Models
+
+4.1.  IETF-ACL module
+
+    module ietf-acl {
+        yang-version 1;
+
+        namespace "urn:ietf:params:xml:ns:yang:ietf-acl";
+
+        prefix ietf-acl;
+
+        import packet-fields {
+            prefix "packet-fields";
+        }
+
+        revision 2014-05-20{
+            description "creating base ACL model;
+        }
+
+        container access-list {
+            description "
+                 An access list (acl) is an ordered list of access list
+                 entries (ace). Each ace has a sequence number to define
+                 the order, list of match criteria, and a list of actions.
+                 Since there are several kinds of acls implementeded
+                 with different attributes for each and different for
+                 each vendor, this model accomodates customizing acls
+                 for each kind and for each vendor.
+                 ";
+        leaf acl-name {
+            description "name of access-list";
+            type string;
+        }
+
+
+
+Bogdanovic, et al.      Expires December 14, 2014               [Page 6]
+
+Internet-Draft               ACL YANG model                    June 2014
+
+
+        list access-list-entries {
+                key rule-name;
+            ordered-by user;
+              leaf rule-name {
+                    description "Entry name";
+                    type string;
+                  }
+
+            container matches {
+                description "Define match criteria";
+                uses packet-fields:ietf-ipv4-header-fields;
+                uses packet-fields:ietf-ipv6-header-fields;
+                uses packet-fields:ietf-eth-header-fields;
+            uses packet-fields:metadata;
+            }
+
+            container actions {
+                    description "Define action criteria";
+                choice packet-handling {
+                default deny;
+                case deny {
+                    leaf deny {
+                    type empty;
+                }
+                }
+                case permit {
+                    leaf permit {
+                    type empty;
+                }
+                }
+            }
+                }
+        }
+        }
+    }
+
+4.2.  Packet Header module
+
+   Here is the model for packet headers
+
+            module packet-fields {
+                yang-version 1;
+
+                namespace "urn:ietf:params:xml:ns:yang:packet-fields";
+
+                prefix packet-fields;
+
+                import ietf-inet-types {
+
+
+
+Bogdanovic, et al.      Expires December 14, 2014               [Page 7]
+
+Internet-Draft               ACL YANG model                    June 2014
+
+
+                    prefix "inet";
+                }
+
+                revision 2014-04-25 {
+                    description "First revision";
+                }
+
+                type prefix;
+                type prefix-v4;
+                type prefix-v6;
+
+                grouping ietf-tcp-header-fields {
+                    description "all tcp header fields";
+
+                container source-port-range {
+                     description "inclusive range of source ports";
+                     leaf lower-port {
+                         type inet:port-number;
+                     }
+                     leaf uppoer-port {
+                         type inet:port-number;
+                     }
+                }
+                }
+
+                grouping ietf-ipv4-header-fields {
+                    description "all fields in IPv4 header";
+
+                leaf destination-ipv4-address {
+                    type inet:ipv4-address;
+                }
+
+                leaf source-ipv4-address {
+                    type inet:ipv4-address;
+                }
+
+                leaf ipv4-dscp {
+                    type inet:dscp;
+                }
+
+                }
+
+                grouping ietf-ipv6-header-fields {
+                    description "all fields in IPv6 header";
+
+                leaf destination-address {
+                    type inet:ipv6-address;
+                }
+
+
+
+Bogdanovic, et al.      Expires December 14, 2014               [Page 8]
+
+Internet-Draft               ACL YANG model                    June 2014
+
+
+                leaf source-address {
+                    type inet:ipv6-address;
+                }
+
+                leaf flow-label {
+                    type inet:ipv6-flow-label;
+                }
+
+                leaf ipv6-dscp {
+                    type inet:dscp;
+                }
+                }
+
+                grouping ietf-eth-header-fields {
+                    description "all fields in ethernet header";
+
+
+                }
+
+                grouping metadata {
+                    description "Fields associated with a packet but not in the header";
+                leaf destination-prefix {
+                     description "Prefix associated with destination address. Prefix
+                              is a meta data field because it's not fully
+                          specified in the packet header even though a
+                          address can be part of prefix";
+                     type inet:ip-prefix;
+                }
+
+                leaf source-prefix {
+                     description "Prefix associated with destination address. Prefix
+                              is a meta data field because it's not fully
+                          specified in the packet header even though a
+                          address can be part of prefix";
+                     type inet:ip-prefix;
+                }
+
+                leaf input-interface {
+                     description "Packet was received on this interface";
+                     type string;
+                }
+                }
+            }
+
+
+
+
+
+
+
+
+Bogdanovic, et al.      Expires December 14, 2014               [Page 9]
+
+Internet-Draft               ACL YANG model                    June 2014
+
+
+4.3.  A company proprietary module example
+
+   In the figure below is an example how proprietary models can be
+   created on top of base ACL module.  It is a simple example of how to
+   use 'augment' with an XPath expression which extends instances of a
+   particular type.  In this example, all /ietf-acl:access-list/ietf-acl
+   :access-list-entries/ietf-acl:matches are augmented with a new
+   choice, protocol-payload-choice.  The protocol-payload-choice uses a
+   grouping with an enumeration of all supported protocol values.  In
+   other example, /ietf-acl:access-list/ietf-acl:access-list-entries/
+   ietf-acl:actions are augmented with new choice of actions.  Here is
+   an inclusive list of cases listed within a choice statement.
+
+            module newco-acl {
+                yang-version 1;
+
+                namespace "urn:newco:params:xml:ns:yang:newco-acl";
+
+                prefix newco-acl;
+
+                import ietf-acl {
+                  prefix "ietf-acl";
+                }
+
+                revision 2014-05-21{
+                  description "creating newo proprietary extensions to ietf-acl model";
+                }
+
+                augment "/ietf-acl:access-list/ietf-acl:access-list-entries/ietf-acl:matches" {
+                  description "Newco proprietry simple filter matches";
+                     choice protocol-payload-choice {
+                       list protocol-payload {
+                         key value-keyword;
+                         ordered-by user;
+                         description "Match protocol payload";
+                         uses match-simple-payload-protocol-value;
+                       }
+                  }
+                }
+
+                augment "/ietf-acl:access-list/ietf-acl:access-list-entries/ietf-acl:actions" {
+                  description "Newco proprietary simple filter actions";
+                  choice action {
+                     case count {
+                        description "Count the packet in the named counter";
+                       leaf count {
+                              type string;
+                       }
+
+
+
+Bogdanovic, et al.      Expires December 14, 2014              [Page 10]
+
+Internet-Draft               ACL YANG model                    June 2014
+
+
+                        }
+                     case policer {
+                   description "Name of policer to use to rate-limit traffic";
+                        leaf policer {
+                       type string;
+                    }
+                 }
+                 case hiearchical-policer {
+                   description "Name of hierarchical policer to use to rate-limit traffic";
+                   leaf hierarchitacl-policer{
+                          type string;
+                   }
+                 }
+                  }
+                }
+
+              grouping match-simple-payload-protocol-value {
+                 leaf value-keyword {
+                   description "(null)";
+                   type enumeration {
+                     enum icmp {
+                       description "Internet Control Message Protocol";
+                     }
+                     enum icmp6 {
+                       description "Internet Control Message Protocol Version 6";
+                     }
+                     enum range {
+                       description "Range of values";
+                     }
+                   }
+                 }
+               }
+            }
+
+   Dratf authors expect that different vendors will provide their own
+   yang models as in the example above, which is the extension of the
+   base model
+
+4.4.  An ACL Example
+
+   Requirement: Deny All traffic from 1.1.1.1 bound for host 2.2.2.2
+   from leaving.
+
+   In order to achieve the requirement, an name access control list is
+   needed.  The acl and aces can be described in CLI as the following:
+
+
+
+
+
+
+Bogdanovic, et al.      Expires December 14, 2014              [Page 11]
+
+Internet-Draft               ACL YANG model                    June 2014
+
+
+           access-list ip iacl
+           deny tcp 1.1.1.1 host 2.2.2.2
+
+                                 Figure 1
+
+   Here is the example acl configuration xml:
+
+           <rpc message-id="101" xmlns:nc="urn:cisco:params:xml:ns:yang:ietf-acl:1.0">
+         // replace with IANA namespace when assigned
+           <edit-config>
+         <target>
+           <running/>
+         </target>
+         <config>
+           <top xmlns="http://example.com/schema/1.2/config">
+             <access-list>
+               <acl-name>sample-ip-acl</acl-name>
+               <access-list-entries>
+             <rule-name>telnet-block-rule</rule-name>
+             <matches>
+               <destination-ipv4-address>2.2.2.2</destination-ipv4-address>
+               <source-ipv4-address>1.1.1.1</source-ipv4-address>
+             </matches>
+             <action>
+               <packet-handling>deny</packet-handling>
+             </action>
+               </access-list-entries>
+             </access-list>
+           </top>
+         </config>
+           </edit-config>
+         </rpc>
+
+                                 Figure 2
+
+5.  Security Considerations
+
+   The YANG module defined in this memo is designed to be accessed via
+   the NETCONF protocol [RFC6241] [RFC6241].  The lowest NETCONF layer
+   is the secure transport layer and the mandatory-to-implement secure
+   transport is SSH [RFC6242] [RFC6242].  The NETCONF access control
+   model [RFC6536] [RFC6536] provides the means to restrict access for
+   particular NETCONF users to a pre-configured subset of all available
+   NETCONF protocol operations and content.
+
+   There are a number of data nodes defined in the YANG module which are
+   writable/creatable/deletable (i.e., config true, which is the
+   default).  These data nodes may be considered sensitive or vulnerable
+
+
+
+Bogdanovic, et al.      Expires December 14, 2014              [Page 12]
+
+Internet-Draft               ACL YANG model                    June 2014
+
+
+   in some network environments.  Write operations (e.g., <edit-config>)
+   to these data nodes without proper protection can have a negative
+   effect on network operations.
+
+   TBD: List specific Subtrees and data nodes and their sensitivity/
+   vulnerability.
+
+6.  IANA Considerations
+
+   This document registers a URI in the IETF XML registry [RFC3688]
+   [RFC3688].  Following the format in RFC 3688, the following
+   registration is requested to be made:
+
+   URI: urn:ietf:params:xml:ns:yang:ietf-acl
+
+   Registrant Contact: The IESG.
+
+   XML: N/A, the requested URI is an XML namespace.
+
+   This document registers a YANG module in the YANG Module Names
+   registry [RFC6020].
+
+   name: ietf-acl namespace: urn:ietf:params:xml:ns:yang:ietf-acl
+   prefix: ietf-acl reference: RFC XXXX
+
+7.  Acknowledgements
+
+8.  Change log [RFC Editor: Please remove]
+
+9.  References
+
+   [RFC3688]  Mealling, M., "The IETF XML Registry", BCP 81, RFC 3688,
+              January 2004.
+
+   [RFC5101]  Claise, B., "Specification of the IP Flow Information
+              Export (IPFIX) Protocol for the Exchange of IP Traffic
+              Flow Information", RFC 5101, January 2008.
+
+   [RFC6020]  Bjorklund, M., "YANG - A Data Modeling Language for the
+              Network Configuration Protocol (NETCONF)", RFC 6020,
+              October 2010.
+
+   [RFC6241]  Enns, R., Bjorklund, M., Schoenwaelder, J., and A.
+              Bierman, "Network Configuration Protocol (NETCONF)", RFC
+              6241, June 2011.
+
+   [RFC6242]  Wasserman, M., "Using the NETCONF Protocol over Secure
+              Shell (SSH)", RFC 6242, June 2011.
+
+
+
+Bogdanovic, et al.      Expires December 14, 2014              [Page 13]
+
+Internet-Draft               ACL YANG model                    June 2014
+
+
+   [RFC6536]  Bierman, A. and M. Bjorklund, "Network Configuration
+              Protocol (NETCONF) Access Control Model", RFC 6536, March
+              2012.
+
+Authors' Addresses
+
+   Dean Bogdanovic
+   Juniper Networks
+
+   Email: deanb@juniper.net
+
+
+   Kiran Agrahara Sreenivasa
+   Brocade Communications System
+
+   Email: kkoushik@brocade.com
+
+
+   Dana Blair
+   Cisco Systems
+
+   Email: dblair@cisco.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Bogdanovic, et al.      Expires December 14, 2014              [Page 14]
