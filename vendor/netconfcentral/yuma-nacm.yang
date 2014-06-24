@@ -1,0 +1,449 @@
+module yuma-nacm {
+
+    namespace "http://netconfcentral.org/ns/yuma-nacm";
+
+    prefix "nacm";
+
+    import yuma-ncx { prefix ncx; }
+    import yuma-types { prefix yt; }
+    import ietf-yang-types { prefix yang; }
+
+    organization  "Netconf Central";
+
+    contact "Andy Bierman <andy@netconfcentral.org>.";
+
+    description 
+      "NETCONF Server Access Control Model";
+
+    revision 2012-10-05 {
+        description  
+          "Copy default-deny-all and default-deny-write
+           extensions here to integrate with other modules
+           more easily.";
+    }
+
+    revision 2012-05-31 {
+        description  
+          "Change unrestricted strings to yang-identifier
+           type because illegal chars were accepted for YANG
+           identifier strings.";
+    }
+
+    revision 2012-01-13 {
+        description  
+          "Add ncx:user-write restriction to prevent user deletion
+           of the nacm container";
+    }
+
+    revision 2010-02-21 {
+        description  
+          "Initial version (work-in-progress).";
+    }
+
+    typedef nacm-user-name {
+        description "General Purpose User Name string.";
+        type string {
+            length "1..64";
+            pattern '[a-z,A-Z,_][a-z,A-Z,0-9,\-,_,@,.]{0,63}';
+        }
+    }
+
+    typedef nacm-rights {
+      description 
+        "NETCONF Access Rights";
+
+      type bits {
+	bit read {
+           description
+              "Read access allowed to all specified data.
+               Any protocol operation or notification that
+               returns data to an application is a read 
+               operation.";
+        }
+	bit write {
+           description
+              "Write access allowed to all specified data.
+               Any protocol operation that alters a database
+               is a write operation.";
+
+        }
+	bit exec {
+           description
+              "Execution access to the specified RPC operation.
+               Any RPC operation invocation is an exec operation.";
+        }
+      }
+    }
+
+    typedef nacm-group {
+      description 
+        "Type of administrative group that can be
+         assigned to the user, and specified in
+         an access control rule.
+
+         The identityref data type is used to allow as 
+         many groups to be added as needed.  There are
+         no standard semantics for each identity.
+         It simply represents a unique group name.";
+       
+      type identityref {
+         base nacm-groups;
+      }
+    }
+
+    typedef nacm-action {
+       description
+          "Action taken by the server when a particular
+           rule matches.";
+       type enumeration {
+           enum permit {
+               description "Requested action is permitted.";
+           }
+           enum deny {
+               description "Requested action is denied.";
+           }
+       }
+    }
+
+    typedef schema-instance-identifier {
+      description
+        "Path expression used to represent a special 
+         schema-instance identifier string.
+       
+         A schema-instance-identifier value string is an 
+         unrestricted YANG instance-identifier expression.
+         All the same rules as an instance-identifier apply
+         except predicates for keys are optional.  If a key
+         predicate is missing, then the schema-instance-identifier
+         represents all possible server instances for that key.";
+      type string;
+    }
+
+    extension default-deny-write {
+      description
+        "Copy of IETF version of 'secure' extension.";
+      reference "RFC 6536";
+    }
+
+    extension default-deny-all {
+      description
+        "Copy of IETF version of 'very-secure' extension.";
+      reference "RFC 6536";
+    }
+
+    extension secure {
+      description
+        "Used to indicate that the data model node 
+         represents a sensitive security system parameter.
+
+         If present, the NETCONF server will only allow
+         the designated 'superuser' to have write or execute
+         default nacm-rights for the node.  An explicit access
+         control rule is required for all other users.
+
+         The 'secure' extension may appear within a data, rpc,
+         or notification node definition.  It is ignored 
+         otherwise.";
+    }
+
+    extension very-secure {
+      description
+        "Used to indicate that the data model node 
+         controls a very sensitive security system parameter.
+
+         If present, the NETCONF server will only allow
+         the designated 'superuser' to have read, write, or execute
+         default nacm-rights for the node.  An explicit access
+         control rule is required for all other users.
+
+         The 'very-secure' extension may appear within a data, rpc,
+         or notification node definition.  It is ignored
+         otherwise.";
+    }
+
+    identity nacm-groups {
+       description 
+          "Root of all NETCONF Administrative Groups";
+    }
+
+    identity admin {
+       description 
+          "Example Administrator group.";
+       base nacm-groups;
+    }
+
+    identity monitor {
+       description 
+          "Example Monitoring group.";
+       base nacm-groups;
+    }
+
+    identity guest {
+       description 
+          "Example Guest group.";
+       base nacm-groups;
+    }
+
+    container nacm {
+        ncx:user-write update;
+        nacm:very-secure;
+
+        description
+          "Parameters for NETCONF Access Control Model.";
+
+        presence 
+         "An empty nacm container indicates that the 
+          NACM service is running, and possibly using
+          all default parameters.";
+
+        leaf enable-nacm {
+           description
+             "Enable or disable all NETCONF access control
+              enforcement.  If 'true', then enforcement
+              is enabled.  If 'false', then enforcement
+              is disabled.";
+           type boolean;
+           default true;
+        } 
+
+        leaf read-default {
+            description
+              "Controls whether read access is granted if
+               no appropriate rule is found for a
+               particular read request.";
+            type nacm-action;
+            default "permit";
+        }
+
+        leaf write-default {
+            description
+              "Controls whether write access is granted if
+               no appropriate rule is found for a
+               particular write request.";
+            type nacm-action;
+            default "deny";
+        }
+
+        leaf exec-default {
+            description
+              "Controls whether exec access is granted if
+               no appropriate rule is found for a
+               particular RPC operation request.";
+            type nacm-action;
+            default "permit";
+        }
+
+        leaf denied-rpcs {
+            description
+              "Number of times an RPC operation request was denied";
+            type yang:zero-based-counter32;
+            config false;
+        }
+
+        leaf denied-data-writes {
+            description
+              "Number of times a request to alter a data node
+               was denied.";
+            type yang:zero-based-counter32;
+            config false;
+        }
+
+        container groups {
+            description 
+              "NACM Group Table";
+
+            list group {
+                description "One NACM Group Entry";
+
+                key group-identity;
+
+                leaf group-identity {
+                    description 
+                      "Group identity associated with this entry.";
+                    type nacm-group;
+                }
+
+                leaf-list user-name {
+                    description 
+                      "Each entry identifies the user name of 
+                       a member of the group associated with 
+                       this entry.";
+                    type nacm-user-name;
+                }
+            }
+        }
+
+        container rules {
+            description 
+              "NETCONF Access Control Rules.";
+
+            grouping common-rule-parms {
+                leaf rule-name {
+                    description
+                      "Arbitrary name assigned to the
+                       access control rule.";
+                    type string {
+                       length "1..1023";
+                    }
+                }
+
+                leaf allowed-rights {
+                    description
+                      "List of access rights granted to
+                       specified administrative groups for the
+                       content specified by the associated path.";
+                    type nacm-rights;
+                    mandatory true;
+                }
+
+                leaf-list allowed-group {
+                    description
+                      "List of administrative groups which will be
+                       assigned the associated access rights
+                       for the content specified by the associated
+                       path.";
+                    type nacm-group;
+                    min-elements 1;
+                }
+
+                leaf comment {
+                    description 
+                      "A textual description of the access rule.";
+                    type string {
+                      length "0..4095";
+                    }
+                }
+            }
+
+            list module-rule {
+                description 
+                   "One Module Access Rule.
+                    Rules are processed in user-defined order.
+                    A module rule is considered a match if
+                    the XML namespace for the specified module
+                    name matches the XML namespace used within
+                    a NETCONF PDU, and the administrative group
+                    associated with the requesting session is
+                    specified in the 'allowed-group' leaf-list.";
+
+                ordered-by user;
+
+                key "module-name rule-name";
+
+                leaf module-name {
+                    description
+                      "Name of the module associated with 
+                       this rule.";
+                    type yt:yang-identifier;
+                }
+
+                uses common-rule-parms;
+            }
+
+            list rpc-rule {
+                description 
+                   "One RPC Operation Access Rule.
+                    Rules are processed in user-defined order.
+                    An RPC rule is considered a match if
+                    the module name of the requested RPC
+                    operation matches 'rpc-module-name',
+                    the requested RPC operation matches
+                    'rpc-name', and an administrative group
+                    associated with the session user
+                    is listed in the 'allowed-group'
+                    leaf-list";
+
+                ordered-by user;
+
+                key "rpc-module-name 
+                     rpc-name 
+                     rule-name";
+
+                leaf rpc-module-name {
+                    description
+                      "Name of the module defining this 
+                       RPC operation.";
+                    type yt:yang-identifier;
+                }
+
+                leaf rpc-name {
+                    description
+                      "Name of the RPC operation.";
+                    type yt:yang-identifier;
+                }
+
+                uses common-rule-parms;
+            }
+
+            list data-rule {
+                description 
+                  "One Data Access Control Rule.
+                   Rules are processed in user-defined order.
+                   A data rule is considered to match when
+                   the path expression identifies
+                   the same node that is being accessed
+                   in the NETCONF database, and the administrative
+                   group associated with the session is identified
+                   in the 'allowed-group' leaf-list.";
+
+                key "rule-name";
+
+                ordered-by user;
+
+		leaf path {
+                  description
+                    "Schema Instance Identifier associated with
+                     the data node controlled by this rule.
+
+                     Configuration data or state data
+                     instance identifiers start with
+                     a top-level data node.
+                     A complete instance identifier is 
+                     required for this type of path value.
+
+                     The special value '/' refers to all
+                     possible database contents.";
+
+		  type schema-instance-identifier;
+                  mandatory true;
+                }
+
+                uses common-rule-parms;
+            }
+
+            list notification-rule {
+                description 
+                   "One Notification Access Rule.
+                    A notification is considered a match if
+                    the module name of the requested
+                    event type matches 'notification-module-name',
+                    the requested event type matches the
+                    'notification-name', and the administrative group
+                    associated with the requesting session
+                    is listed in the 'allowed-group' leaf-list.";
+
+                ordered-by user;
+
+                key "notification-module-name 
+                     notification-name 
+                     rule-name";
+
+                leaf notification-module-name {
+                    description
+                      "Name of the module defining this 
+                       notification event type.";
+                    type yt:yang-identifier;
+                }
+
+                leaf notification-name {
+                    description
+                      "Name of the notification event.";
+                    type yt:yang-identifier;
+                }
+
+                uses common-rule-parms;
+            }
+        }
+    }      
+
+}
