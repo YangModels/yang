@@ -1,87 +1,90 @@
 module odl-paths {
-  namespace "urn:ietf:params:xml:ns:yang:odl-paths";
-  prefix odl-path;
-
-     import ietf-inet-types {
-       prefix "inet";
-     }
-
-   import opendaylight-inventory {prefix inv;revision-date "2013-08-19";}
-   import flow-node-inventory {prefix flow-node;revision-date "2013-08-19";}
-
-   import ietf-interfaces {
-      prefix "if";
-   }
-
-  organization "Brocade Communications Inc.";
-  contact
-    "Brocade ODL group <>";
-  description
-    "This module contains a collection of YANG definitions 
-     for managing OpenDaylight Paths";
-
-  revision 2014-06-20 {
-    description
-      "Initial revision.";
-  }
-
-      grouping PATH-INFO {
-         description "Definitions for an ODL Path";
-           // intent
-           //   A => B through {X, Y, ...} with optional match criteria, e.g., TCP port
-           //   simple: A and B are switches, also a match which includes addresses of 
-           //   routed traffic
-           //   more complex: A and B are address, look up their attached switches
-
-           leaf source-addr{
-              type inet:ipv4-address; //we really want these to be node refs (to a host) eventually
-           }
-
-           leaf destination-addr{
-              type inet:ipv4-address;//we really want these to be node refs (to a host) eventually
-           }
-
-           leaf-list waypoints{
-              type leafref {
-	      	// We are referring directly to the nodes stored in inventory
-                // other option is to use a node-ref to maintain a copy as below
-	        path "/inv:nodes/inv:node/inv:id";
-              }
-              //OR use this : type inv:node-ref;
-           }
-
-           // List of actual rules (flows) in nodes [refs]
-           //   opendaylight-inventory/nodes/node/<nodeID>/tables/<tableID>/flows/<flowID>
-           leaf-list flows {
-              type leafref {
-                path "/inv:nodes/inv:node/flow-node:table/flow-node:flow/flow-node:id";
-              }
-           }
+  
+    //Question - why are we choosing this namespace?
+    namespace "urn:ietf:params:xml:ns:yang:odl-paths";
+  
+    prefix odl-path;
+    
+    import ietf-inet-types {
+        prefix "inet";
+    }
+    
+    import opendaylight-inventory { prefix inv; revision-date "2013-08-19"; }
+    import flow-node-inventory { prefix flow-node; revision-date "2013-08-19"; }
+    
+    organization "Brocade Communications Inc.";
+    
+    contact "Brocade ODL group <>";
+    
+    description "This module contains a collection of YANG definitions 
+                 for managing OpenDaylight Paths";
+    
+    revision 2014-06-26 {
+        description "Modified via comments to reduce complexity.";
+    }
+    
+    revision 2014-06-20 {
+        description "Initial revision.";
+    }
+    
+    grouping traffic-matching-criteria {
+        
+        description "Describes how to match the traffic which should flow over this path.";
+        
+        leaf source-addr{
+            type inet:ipv4-address; //we really want these to be node refs (to a host) eventually
+            description "The IP address of the host which traffic is coming from.";
         }
-         
-
-  container odl-path-cfg {
-    description
-      "Configuration container for ODL paths";
-    config true;
-    list paths {
-      description
-        "List of path templates to configure.";
-
-      key "source-addr destination-addr";
-      uses PATH-INFO;
+        
+        leaf destination-addr{
+            type inet:ipv4-address;//we really want these to be node refs (to a host) eventually
+            description "The IP address of the host which traffic is going to.";
+        }
     }
-  }
+    
+    grouping calculated-path {
+    
+        description "Definitions for an ODL Path";
 
-  container odl-path-oper {
-    description
-      "Operational container for ODL paths";
-    list paths {
-      description
-        "List of path templates configured.";
-
-      key "source-addr destination-addr";
-      uses PATH-INFO;
+        leaf-list waypoints{
+            
+            config false;
+            
+            description "An order list of nodes that we want traffic, which matches the criteria, 
+                         to flow through.";
+            
+            type leafref {
+                // We are referring directly to the nodes stored in inventory
+                // other option is to use a node-ref to maintain a copy as below
+                path "/inv:nodes/inv:node/inv:id";
+            }
+            //OR use this : type inv:node-ref;
+        }
+    
+        // List of actual rules (flows) in nodes [refs]
+        //   opendaylight-inventory/nodes/node/<nodeID>/tables/<tableID>/flows/<flowID>
+        leaf-list flows {
+            config false;
+            description "An order list of flows which are being used to direct traffic 
+                         (which matches the criteria) through the various way-points.";
+            
+            type leafref {
+                path "/inv:nodes/inv:node/flow-node:table/flow-node:flow/flow-node:id";
+            }
+        }
     }
-  }
+    
+    
+    container paths {
+        description "Holds a list of defined paths which should be implemented in the network.";
+        
+        list path {
+            description "The defined paths which should be implemented in the network.";
+            
+            key "source-addr destination-addr";
+            
+            uses calculated-path;
+            uses traffic-matching-criteria;
+        }
+    }
 }
