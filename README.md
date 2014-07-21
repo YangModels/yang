@@ -1,17 +1,13 @@
-yang
+YANG
 ====
 
-yang models from standards organizations such as the IETF, open source such as Open Daylight or vendor proprietary ones
+This repository contains a number of YANG models from standards organizations
+such as the IETF, open source such as Open Daylight or vendor proprietary ones.
 
-standard contains standard or released models, such as RFCs or ODP snapshots from releases. 
+The *standard* directory contains standardized or released models, such as RFCs
+or ODP snapshots from releases. 
 
-experimental contains in-progress models.
+The *experimental* directory contains models which are in-progress.
 
-vendor contains subdirectories for vendors, as well as pertinent release tags.
-
-
-====
-
-
-
-
+Finally, the *vendor* directory contains subdirectories for vendors, as well as
+pertinent release tags.
