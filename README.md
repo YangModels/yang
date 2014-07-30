@@ -46,41 +46,25 @@ License Information
 
  [1]  **IETF Trust License  (Note Well)**:
 
-   All files contained within this sub-directory are
-   considered to be IETF Contributions.
-
-   All issues entered into the trouble ticket system for this
-   directory are considered to be IETF Contributions.
-
-   All pull requests submitted for this
-   directory are considered to be IETF Contributions.
-
-   All IETF Contributions are submitted under the terms of
-   the IETF Note Well statement:
-
-   A [link](http://www.ietf.org/about/note-well.html)
-
+   * All files contained within this sub-directory are considered to be IETF Contributions.
+   * All issues entered into the trouble ticket system for this directory are considered to be IETF Contributions.
+   * All pull requests submitted for this directory are considered to be IETF Contributions.
+   * All IETF Contributions are submitted under the terms of the [IETF Note Well statement](http://www.ietf.org/about/note-well.html)
 
  [2]  **OpenDaylight Eclipse License**:
 
-   All files contained within this sub-directory are
-   provided under the terms of the Eclipse Public License:
-
-   A [link](https://www.eclipse.org/legal/epl-v10.html)
+   * All files contained within this sub-directory are provided under the terms of the [Eclipse Public License](https://www.eclipse.org/legal/epl-v10.html):
 
 
  [3]  **Vendor Specific License**:
 
-   All files contained within this sub-directory are
-   provided under the terms of a license specified
-   by the vendor that owns the YANG modules.
+  * All files contained within this sub-directory are provided under the terms of a license specified by the vendor that owns the YANG modules.
 
 
 Submission Procedure
 --------------------
 
-  If you have YANG modules or tools you would like to make available
-  in this repo, please generate a pull request:
+  * If you have YANG modules or tools you would like to make available in this repo, please generate a [pull request](https://help.github.com/articles/creating-a-pull-request) and it will be reviewed as soon as possible.
 
-  A [link](https://help.github.com/articles/creating-a-pull-request)
+
 
