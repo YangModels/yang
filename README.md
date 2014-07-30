@@ -9,37 +9,27 @@ This repository contains a collection of YANG modules:
 
 The following directories are maintained:
 
-   +-- experimental: contains experimental YANG modules
-     |
-     + ietf: experimental modules intended for IETF submission [1]
-     |
-     + odp: experimental modules intended for OpenDaylight submission [2]
+  * experimental: contains experimental YANG modules
 
+    ** ietf: experimental modules intended for IETF submission [1]
+    ** odp: experimental modules intended for OpenDaylight submission [2]
 
-   +-- standard: contains standards-track YANG modules
-     |
-     +-- ietf: standard IETF YANG modules [1]
-     | |
-     | + DRAFT: work-in-progress IETF YANG modules
-     | |
-     | + RFC: completed IETF YANG modules
-     |
-     + odp: published modues for OpenDaylight [2]
+  * standard: contains standards-track YANG modules
 
+     ** ietf: standard IETF YANG modules [1]
+        *** DRAFT: work-in-progress IETF YANG modules
+        *** RFC: completed IETF YANG modules
+     ** odp: published modues for OpenDaylight [2]
 
-   +-- tools: open source software tools
-     |
-     +-- yang_viewer: YANG browser written in Java
+   * tools: open source software tools
 
+     ** yang_viewer: YANG browser written in Java
 
+   * vendor: contains vendor-specific YANG modules [3]
 
-   +-- vendor: contains vendor-specific YANG modules [3]
-     |
-     + brocade: Brocade YANG modules
-     |
-     + netconfcentral: Netconf Central YANG modules
-     |
-     + yumaworks: YumaWorks YANG modules
+     ** brocade: Brocade YANG modules
+     ** netconfcentral: Netconf Central YANG modules
+     ** yumaworks: YumaWorks YANG modules
 
 
 License Information:
