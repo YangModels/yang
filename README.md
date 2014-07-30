@@ -7,40 +7,44 @@ This repository contains a collection of YANG modules:
   * Vendor specific YANG modules
   * Open source YANG tools
 
-The following directories are maintained:
+Directory Structure
+-------------------
 
-  * experimental: contains experimental YANG modules
+The following directories are maintained [license note in brackets]:
 
-    ** ietf: experimental modules intended for IETF submission [1]
+  **yang/experimental**: contains experimental YANG modules [any]
 
-    ** odp: experimental modules intended for OpenDaylight submission [2]
+  **yang/experimental/ietf**: experimental modules intended for IETF submission [1]
 
-  * standard: contains standards-track YANG modules
+  **yang/experimental/odp**: experimental modules intended for OpenDaylight submission [2]
 
-     ** ietf: standard IETF YANG modules [1]
+  **yang/standard**: contains standards-track YANG modules [any]
 
-        *** DRAFT: work-in-progress IETF YANG modules
+  **yang/standard/ietf**: standard IETF YANG modules [1]
 
-        *** RFC: completed IETF YANG modules
+  **yang/standard/ietf/DRAFT**: work-in-progress IETF YANG modules [1]
 
-     ** odp: published modues for OpenDaylight [2]
+  **yang/standard/ietf/RFC**: completed IETF YANG modules [1]
 
-   * tools: open source software tools
+  **yang/standard/odp**: published modues for OpenDaylight [2]
 
-     ** yang_viewer: YANG browser written in Java
+  **yang/tools**: open source software tools [any]
 
-   * vendor: contains vendor-specific YANG modules [3]
+  **yang/tools/yang_viewer**: YANG browser written in Java [2]
 
-     ** brocade: Brocade YANG modules
+  **yang/vendor**: contains vendor-specific YANG modules [any]
 
-     ** netconfcentral: Netconf Central YANG modules
+  **yang/vendor/brocade** : Brocade YANG modules [3] 
 
-     ** yumaworks: YumaWorks YANG modules
+  **yang/vendor/netconfcentral**: Netconf Central YANG modules [3]
+
+  **yang/vendor/yumaworks**: YumaWorks YANG modules [3]
 
 
-License Information:
+License Information
+-------------------
 
- [1]  IETF Trust License  (Note Well):
+ [1]  **IETF Trust License  (Note Well)**:
 
    All files contained within this sub-directory are
    considered to be IETF Contributions.
@@ -54,27 +58,29 @@ License Information:
    All IETF Contributions are submitted under the terms of
    the IETF Note Well statement:
 
-      http://www.ietf.org/about/note-well.html
+   A [link](http://www.ietf.org/about/note-well.html)
 
 
- [2]  OpenDaylight Eclipse License:
+ [2]  **OpenDaylight Eclipse License**:
 
    All files contained within this sub-directory are
    provided under the terms of the Eclipse Public License:
 
-      https://www.eclipse.org/legal/epl-v10.html
+   A [link](https://www.eclipse.org/legal/epl-v10.html)
 
 
- [3]  Vendor Specific License:
+ [3]  **Vendor Specific License**:
 
    All files contained within this sub-directory are
    provided under the terms of a license specified
    by the vendor that owns the YANG modules.
 
 
-Submission Procedure:
+Submission Procedure
+--------------------
 
-   * If you have YANG modules or tools you would like to make available
-     in this repo, please generate a pull request:
+  If you have YANG modules or tools you would like to make available
+  in this repo, please generate a pull request:
 
-     https://help.github.com/articles/creating-a-pull-request
+  A [link](https://help.github.com/articles/creating-a-pull-request)
+
