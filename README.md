@@ -12,13 +12,17 @@ The following directories are maintained:
   * experimental: contains experimental YANG modules
 
     ** ietf: experimental modules intended for IETF submission [1]
+
     ** odp: experimental modules intended for OpenDaylight submission [2]
 
   * standard: contains standards-track YANG modules
 
      ** ietf: standard IETF YANG modules [1]
+
         *** DRAFT: work-in-progress IETF YANG modules
+
         *** RFC: completed IETF YANG modules
+
      ** odp: published modues for OpenDaylight [2]
 
    * tools: open source software tools
@@ -28,7 +32,9 @@ The following directories are maintained:
    * vendor: contains vendor-specific YANG modules [3]
 
      ** brocade: Brocade YANG modules
+
      ** netconfcentral: Netconf Central YANG modules
+
      ** yumaworks: YumaWorks YANG modules
 
 
