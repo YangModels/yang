@@ -2,10 +2,13 @@ YANG
 ====
 
 This repository contains a collection of YANG modules:
+
   * IETF standards-track YANG modules
   * Open Daylight open source YANG modules
   * Vendor specific YANG modules
   * Open source YANG tools
+
+***
 
 Directory Structure
 -------------------
@@ -40,26 +43,29 @@ The following directories are maintained [license note in brackets]:
 
   **yang/vendor/yumaworks**: YumaWorks YANG modules [3]
 
+***
 
 License Information
 -------------------
 
- [1]  **IETF Trust License  (Note Well)**:
+####[1]  **IETF Trust License  (Note Well)**:
 
    * All files contained within this sub-directory are considered to be IETF Contributions.
    * All issues entered into the trouble ticket system for this directory are considered to be IETF Contributions.
    * All pull requests submitted for this directory are considered to be IETF Contributions.
    * All IETF Contributions are submitted under the terms of the [IETF Note Well statement](http://www.ietf.org/about/note-well.html)
+   * All IETF Contributions are subject to the requirements and provisions of [BCP 78](http://tools.ietf.org/rfc/bcp/bcp78.txt) and [BCP 79](http://tools.ietf.org/rfc/bcp/bcp79.txt).
 
- [2]  **OpenDaylight Eclipse License**:
+####[2]  **OpenDaylight Eclipse License**:
 
    * All files contained within this sub-directory are provided under the terms of the [Eclipse Public License](https://www.eclipse.org/legal/epl-v10.html):
 
 
- [3]  **Vendor Specific License**:
+####[3]  **Vendor Specific License**:
 
   * All files contained within this sub-directory are provided under the terms of a license specified by the vendor that owns the YANG modules.
 
+***
 
 Submission Procedure
 --------------------
