@@ -2,6 +2,14 @@ module ietf-syslog {
   namespace "urn:ietf:params:xml:ns:yang:ietf-syslog";
   prefix syslog;
 
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
   import ietf-syslog-types {
     prefix syslogtypes;
   }
@@ -18,54 +26,40 @@ module ietf-syslog {
      WG Chair: Juergen Schoenwaelder
                <mailto:j.schoenwaelder@jacobs-university.de>
      
-     
-     Editor:   Clyde Wildes
-               <mailto:cwildes@cisco.com>
-
-     Editor:   Agrahara Kiran Koushik
-               <mailto:kkoushik@brocade.com>";
+     Editor:   Ladislav Lhotka
+               <mailto:lhotka@nic.cz>";
   description
     "This module contains a collection of YANG definitions 
      for Syslog configuration.";
 
-  revision 2014-06-10 {
+  revision 2014-09-15 {
     description
-      "Initial revision.";
-  reference
-    "This model references RFC 5424 - The Syslog Protocol.";
+      "syslog-model-01";
+    reference
+      "This model references RFC 5424 - The Syslog Protocol.";
   }
 
-  feature global-logging {
+  feature global-logging-action {
     description
-      "This feature represents the ability to adjust 
-       log message severity per logging facility on the 
-       global level.";
+      "This feature represents the ability to suppress log
+       messages on the global level.";
   }
 
-  feature console-facility-logging-config {
+  feature file-logging-structured-data {
     description
-      "This feature represents the ability to adjust 
-       log message severity per logging facility for console 
-       logging.";
+      "This feature represents the ability to log messages 
+       to a file in structured-data format as per RFC 5424.";
   }
 
-  feature file-logging {
+  feature file-logging-archive-config {
     description
-      "This feature represents the ability to log 
-       messages into a file.";
+      "This feature represents the ability to archive log files.";
   }
 
-  feature file-facility-logging-config {
+  feature remote-logging-use-vrf {
     description
-      "This feature represents the ability to adjust 
-       log message severity per logging facility for file logging.";
-  }
-
-  feature terminal-facility-logging-config {
-    description
-      "This feature represents the ability to adjust 
-       log message severity per logging facility for terminal 
-       logging.";
+      "This feature allows remote logging of messages to a 
+       particular VRF.";
   }
 
   feature terminal-facility-user-logging-config {
@@ -74,33 +68,161 @@ module ietf-syslog {
        log message settings for individual terminal users.";
   }
 
-  feature use-vrf {
+  feature selector-advanced-level-processing-config {
     description
-      "This feature allows logging of messages to a particular VRF.";
+      "This feature represents the ability to select messages 
+       using the additional operators equal to, or not equal to 
+       when comparing the Syslog message severity.";
   }
 
-  grouping facility-logging {
+  feature selector-match-processing-config {
     description
-      "This grouping defines a list of facility-severity pairs. 
-       Messages from a facility in the list that have the 
-       corresponding specified severity level or higher will be 
-       logged.";
-    list logging-severities {
-      key "facility";
+      "This feature represents the ability select messages based
+       on a Posix 1003.2 regular expression pattern match.";
+  }
+
+  grouping syslog-severity {
+    description
+      "This grouping defines the Syslog severity which is used to 
+       filter log messages. Choose one of the following:
+         logging-severity-all 
+         logging-severity <severity>";
+    choice logging-severity-scope {
       description
-        "This list describes a collection of Syslog facilities.";
-      leaf facility {
-        type identityref {
-          base syslogtypes:syslog-facility;
+        "This choice describes the option to specify all severities 
+         or a specific severity.";
+      case logging-severity-all {
+        description
+          "This case specifies all severities.";
+        leaf all {
+          type empty;
+          description
+          "This leaf specifies that all severities participate in 
+           the filtering of Syslog messages.";
         }
-        description
-          "The leaf uniqueuely identifies a Syslog facility.";
       }
-      leaf severity {
-        type syslogtypes:Severity;
+      case logging-severity {
         description
-          "This leaf specifies the severity of Syslog messages 
-           for this facility.";
+          "This case specifies a specific severity participates 
+           in the filtering of Syslog messages.";
+        leaf severity {
+          type syslogtypes:Severity;
+          description
+            "This leaf specifies the Syslog message severity.";
+        }
+      }
+    }
+  }
+
+  grouping syslog-selector {
+    description
+      "This grouping defines a Syslog selector which is used to 
+       filter log messages for the given action in which the 
+       selector appears. Choose one of the following:
+         logging-facility-all <severity> 
+         logging-facility-none
+         logging-facility <one-or-more-facilities> <severity>
+       Additional severity comparison operations are available 
+       using the logging-advanced-level-processing container. If
+       the logging-advanced-level-processing container is not 
+       present all messages of the specified severity and higher 
+       are logged according to the given action.";
+    choice logging-level-scope {
+      description
+        "This choice describes the option to specify all 
+         facilities, no facilities, or a specific facility.";
+      case logging-facility-all {
+        description
+          "This case specifies all facilities will match when 
+           comparing the Syslog message facility.";
+        uses syslog-severity;
+      }
+      case logging-facility-none {
+        description
+          "This case specifies no facilites will match when 
+           comparing the Syslog message facility. This is a method 
+           that can be used to turn an action off.";
+        leaf none {
+          type empty;
+          description
+          "This leaf specifies that no facilities participate in the 
+           filtering of Syslog messages for this action.";
+        }
+      }
+      case logging-facility {
+        description
+          "This case specifies one or more specified facilities 
+           will match when comparing the Syslog message facility.";
+        list logging-facilities {
+          key "facility";
+          description
+            "This list describes a collection of Syslog facilities.";
+          leaf facility {
+            type identityref {
+              base syslogtypes:syslog-facility;
+            }
+            description
+              "The leaf uniqueuely identifies a Syslog facility.";
+          }
+          uses syslog-severity;
+        }
+      }
+    }
+    container logging-advanced-level-processing {
+      if-feature selector-advanced-level-processing-config;
+      description
+        "This container describes the configuration parameters for 
+         advanced Syslog selector severity comparison.";
+      choice logging-severity-operator {
+        description
+          "This choice describes the option to specify how the 
+           severity comparison is performed.";    
+        case default {
+          description
+            "All messages of the specified severity and higher are 
+             logged according to the given action";
+          leaf default {
+            type empty;
+            description
+            "This leaf specifies the default behavior.";
+          }
+        }
+        case equals {
+          description
+            "All messages of the specified severity are logged 
+             according to the given action";
+          leaf equals {
+            type empty;
+            description
+            "This leaf specifies all messages for the speicifed 
+             severity.";
+          }
+        }
+        case not-equals {
+          description
+            "All messages that are not of the specified severity are 
+             logged according to the given action";
+          leaf not-equals {
+            type empty;
+            description
+            "This leaf specifies all messages that are not for the 
+             speicifed severity.";
+          }
+        }
+      }
+    }
+    container logging-match-processing {
+      if-feature selector-match-processing-config;
+      description
+        "This container describes the configuration parameters for 
+         matching Syslog messages using a regular expression pattern 
+         match.";
+      leaf pattern-match {
+        type string;
+        description
+          "This leaf desribes a Posix 1003.2 regular expression 
+           string that can be used to select a Syslog message for 
+           logging.";
       }
     }
   }
@@ -110,103 +232,111 @@ module ietf-syslog {
     description
       "This container describes the configuration parameters for 
        Syslog.";
-    container global-logging {
-      if-feature global-logging;
+    container global-logging-action {
+      if-feature global-logging-action;
       description
         "This container describes the configuration parameters for 
-         global logging.";
-      uses facility-logging;
+         global logging. Global logging represents the ability to 
+         perform global log message suppression.";
+      uses syslog-selector;
     }
-    container console-logging {
+    container console-logging-action {
       description
         "This container describes the configuration parameters for 
          console logging.";
-      choice logging-level-scope {
-        description
-          "This choice describes the option to specify all 
-           facilities or a specific facility.";
-        case all-facilities {
-          description
-            "This case specifies all facilities.";
-          leaf logging-severity {
-            type syslogtypes:Severity;
-            description
-              "This leaf specifies the severity of Syslog messages 
-               for all facilities.";
-          }
-        }
-        case facility {
-          if-feature console-facility-logging-config;
-          description
-            "This case specifies a specific facility.";
-          uses facility-logging;
-        }
-      }
+      uses syslog-selector;
     }
-    container file-logging {
-      if-feature file-logging;
+    container file-logging-action {
       description
         "This container describes the configuration parameters for 
-         file logging configuration.";
+         file logging.";
       leaf file-name {
-        type string;
+        type inet:uri;
         mandatory true;
         description
           "This leaf specifies the name of the log file.";
       }
-      leaf file-size {
-        type uint32;
+      uses syslog-selector;
+      leaf file-logging-structured-data {
+        if-feature file-logging-structured-data;
+        type boolean;
         description
-          "This leaf specifies the log file size.";
+          "This leaf describes how log messages are written to the 
+           log file. If set messages will be written in structured-
+           data format; if not set messages will be written in 
+           standard message format.";
       }
-      choice logging-scope {
+      container file-logging-archive {
+        if-feature file-logging-archive-config;
         description
-          "This choice describes the option to specify all 
-           facilities or a specific facility.";
-        case all-facilities {
+          "This container describes the configuration parameters for 
+           log file archiving.";
+        leaf file-number {
+          type uint32;
           description
-            "This case specifies all facilities.";
-          leaf logging-severity {
-            type syslogtypes:Severity;
-            description
-              "This leaf specifies the severity of Syslog messages 
-               for all facilities.";
-          }
+            "This leaf specifies the maximum number of log files 
+             retained.";
         }
-        case facility {
-          if-feature file-facility-logging-config;
+        leaf file-size {
+          type uint32;
           description
-            "This case specifies a specific facility.";
-          uses facility-logging;
+            "This leaf specifies the maximum log file size.";
+        }
+        leaf file-permission {
+          type enumeration {
+             enum world-readable {
+               value 1;
+               description
+                 "This enum specifies that the log files 
+                  are readable by world.";
+             }
+             enum no-world-readable {
+               value 2;
+               description
+                 "This enum specifies that the log files 
+                  are not readable by world.";
+             }
+          }
+          description
+            "This leaf describes who can read log files";
         }
       }
     }
-    container remote-logging {
+    container remote-logging-action {
       description
         "This container describes the configuration parameters for 
-         the remote logging configuration.";
+         remote logging.";
       list remote-logging-destination {
         key "destination";
         description
           "This list describes a collection of remote logging 
            destinations.";
         leaf destination {
-          type string;
+          type inet:host;
+          mandatory true;
           description
             "The leaf uniquely specifies the address of the 
              remote host. One of the following must be specified: 
              an ipv4 address, an ipv6 address, or a host name.";
         }
-        uses facility-logging;
+        uses syslog-selector;
+        leaf destination-facility {
+          type identityref {
+            base syslogtypes:syslog-facility;
+          }
+          description
+            "This leaf specifies the facility used in messages 
+             delivered to the remote server.";
+        }
         leaf source-interface {
-          type string;
+          type if:interface-ref;
           description
             "This leaf sets the source interface for the remote 
              Syslog server. Either the interface name or the 
              interface IP address can be specified.";
         }
         leaf vrf-name {
-          if-feature use-vrf;
+          if-feature remote-logging-use-vrf;
           type string;
           description
             "This leaf specifies the name of the virtual routing 
@@ -214,7 +344,7 @@ module ietf-syslog {
         }
       }
     }
-    container terminal-logging {
+    container terminal-logging-action {
       description
         "This container describes the configuration parameters for 
          the terminal logging configuration.";
@@ -230,27 +360,7 @@ module ietf-syslog {
             description
               "This continer describes the configuration parameters 
                for all users.";
-            choice logging-scope {
-              description
-                "This choice describes the option to specify all 
-                 facilities or a specific facility.";
-              case all-facilities {
-                description
-                  "This case specifies all facilities.";
-                leaf logging-severity {
-                  type syslogtypes:Severity;
-                  description
-                    "This leaf specifies the severity of Syslog 
-                     messages for all facilities.";
-                }
-              }
-              case facility {
-                if-feature terminal-facility-logging-config;
-                description
-                  "This case specifies a specific facility.";
-                uses facility-logging;
-              }
-            }
+            uses syslog-selector;
           }
         }
         case per-user {
@@ -266,27 +376,7 @@ module ietf-syslog {
               description
                 "This leaf uniquely describes a user name.";
             }
-            choice logging-scope {
-              description
-                "This choice describes the option to specify all 
-                 facilities or a specific facility.";
-              case all-facilities {
-                description
-                  "This case specifies all facilities.";
-                leaf logging-severity {
-                  type syslogtypes:Severity;
-                  description
-                    "This leaf specifies the severity of Syslog 
-                     messages for all facilities.";
-                }
-              }
-              case facility {
-                if-feature terminal-facility-logging-config;
-                description
-                  "This case specifies a specific facility.";
-                uses facility-logging;
-              }
-            }
+            uses syslog-selector;
           }
         }
       }
