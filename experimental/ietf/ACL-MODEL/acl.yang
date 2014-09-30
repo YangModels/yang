@@ -1,0 +1,154 @@
+module acl {
+    yang-version 1;
+
+    namespace "urn:ietf:params:xml:ns:yang:acl";
+
+    prefix acl;
+    
+    import ietf-yang-types {
+        prefix "ietf";
+    }
+
+    import packet-fields {
+        prefix "packet-fields";
+    }
+
+    revision 2014-10-10{
+        description "creating base model for netmod";
+    }
+
+    identity acl-base {     
+        description "Base acl type for all ACL type identifiers.";
+    }
+
+    identity ip-acl {
+        base "acl:acl-base";
+        description "layer 3 ACL type";
+    }
+   identity eth-acl {
+        base "acl:acl-base";
+        description "layer 2 ACL type";
+    }
+    
+    typedef acl-type {
+        description 
+            "This type is used to refer to an Access Control List 
+            (ACL) type";
+        type identityref {
+            base "acl-base";
+        }
+    }
+
+    typedef acl-ref {
+        description "This type is used by data models that need to referenced an acl";
+        type leafref {
+            path "/acl:access-lists/acl:access-list/acl:acl-name";
+        }
+    }
+
+    container access-lists {
+        description
+            "Access control lists.";
+
+        list access-list {
+            key acl-name;
+            description "
+                An access list (acl) is an ordered list of 
+                access list entries (ace). Each ace has a sequence number to define the order, list 
+                of match criteria, and a list of actions.  
+                Since there are several kinds of acls 
+                implementeded with different attributes for 
+                each and different for each vendor, this 
+                model accomodates customizing acls for 
+                each kind and for each vendor.
+                ";
+
+            leaf acl-name {
+                description "The name of access-list.
+                A device MAY restrict the length and value of
+                this name, possibly space and special 
+                characters are not allowed.";
+                type string;
+            }
+
+            leaf acl-type {
+                type acl-type; 
+                description "Type of ACL";  
+            }
+
+            container acl-oper-data {
+                description "Overall ACL operational data";
+                config false;
+                leaf match-counter {
+                    description "Total match count for ACL";
+                    type ietf:counter64;
+                }
+                
+                leaf-list targets {
+                    description "List of targets where ACL is applied";
+                    type string;
+                }
+            }
+
+            container access-list-entries {
+                list access-list-entry {
+                    key rule-name;
+                    ordered-by user;
+                    leaf rule-name {
+                        description "Entry name.";
+                        type string;
+                    }
+
+                    container matches {
+                        description "Define match criteria";
+                        choice ace-type {
+                            case ace-ip {
+                                uses packet-fields:acl-ip-header-fields;
+                                choice ace-ip-version {
+                                    case ace-ipv4 {
+                                        uses packet-fields:acl-ipv4-header-fields;
+                                    }
+                                    case ace-ipv6 {
+                                        uses packet-fields:acl-ipv6-header-fields;
+                                    }
+                                }
+                            }
+                            case ace-eth {
+                                uses packet-fields:acl-eth-header-fields;
+                            }
+                        }
+                        uses packet-fields:metadata;
+                    }
+
+                    container actions {
+                        description "Define action criteria";
+                        choice packet-handling {
+                            default deny;
+                            case deny {
+                                leaf deny {
+                                    type empty;
+                                }
+                            }
+                            case permit {
+                                leaf permit {
+                                    type empty;
+                                }
+                            }
+                        }      
+                    }
+
+                    container ace-oper-data {
+                        description "Per ace operational data";
+                        config false;
+                        leaf match-counter {
+                            description "Number of matches for an ace";
+                            type ietf:counter64;
+                            
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
