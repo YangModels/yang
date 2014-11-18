@@ -56,11 +56,51 @@ module yangcli-pro {
            'run-script' or 'run-command' parameter will be invoked, if
            present, and then the program will exit.  Any interactive
            input breaks in the script or command will be skipped.
-         ";
 
-    revision 2014-01-18 {
-       description 
-         "Add abstract objects for config mode help key support";
+     Copyright (c) 2010 - 2014 YumaWorks, Inc. All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the BSD 3-Clause License
+     http://opensource.org/licenses/BSD-3-Clause";
+
+   revision 2014-10-02 {
+       description
+         "Add select parameter to show running command.
+          Add 'mandatory true' for stop-session command.";
+    }
+
+   revision 2014-09-18 {
+       description
+         "Add show running to show the entire configuration.
+          Add show edit to display the subtree that is the current
+          edit node.
+          Add show diff to display the difference of the current config
+          and edits that have not been applied yet.";
+    }
+
+    revision 2014-07-11 {
+       description
+         "Add tcp-ncx enum to the transport enumeration type.";
+    }
+
+    revision 2014-05-22 {
+       description
+         "Add show cache command. Add cache command.";
+    }
+
+    revision 2014-04-07 {
+       description
+         "Add check-output and check-replies CLI parameters.
+          Add check-output-mode and check-replies-mode CLI parameters.
+          Add use-session-vars CLI parameter.
+          Add abstract objects for config mode help key support.
+          Add session-vars and group-vars to the show command.
+          Add vars struct to the saved-sessions struct.
+          Add data template support.
+          Add use-rawxml parameter.
+          Add autoload-get, autoload-cache, autoload-save-cache
+          parameters";
     }
 
     revision 2014-01-02 {
@@ -272,12 +312,27 @@ module yangcli-pro {
       }
     }
 
-
     /*************************************************************
      *
      *     Groupings for parameters used in multiple commands
      *
      *************************************************************/
+
+    grouping SelectParm {
+      leaf select {
+        ncx:xpath;
+        type string { length "1..max"; }
+        description
+          "The XPath expression to use in the retrieval
+           operation.  The string may only contain
+           single quotes, which are required for
+           string literals.  The entire string
+           will be inserted into a double-quoted
+           string, within the get-config PDU.
+           Character entities will be inserted as
+           needed to maintain well-formed XML.";
+      }
+    }
 
     grouping FillParms {
        choice target-parm {
@@ -413,18 +468,8 @@ module yangcli-pro {
                 type string;
             }
 
-            leaf select {
-              description
-                "The XPath expression to use in the retrieval
-                 operation.  The string may only contain
-                 single quotes, which are required for
-                 string literals.  The entire string
-                 will be inserted into a double-quoted
-                 string, within the get-config PDU.
-                 Character entities will be inserted as
-                 needed to maintain well-formed XML.";
-              type string { length "1..max"; }
-              ncx:xpath;
+            case select {
+              uses SelectParm;
             }
 
             leaf urltarget {
@@ -550,6 +595,16 @@ module yangcli-pro {
               reference
                 "tail-f confd";
             }
+            enum tcp-ncx {
+              description
+                "NETCONF over TCP.
+                 If this enum is selected, then the default --ncport
+                 value is set to 2023, and the --protocols value
+                 is set to netconf1.0 and netconf1.1.  The --password
+                 value will be ignored.";
+              reference
+                "YumaWorks <ncx-connect>";
+            }
           }
           default ssh;
         }
@@ -660,6 +715,12 @@ module yangcli-pro {
 
       uses ywapp:YumaproHomeParm;
 
+      uses ywapp:DataTemplateParms;
+
+      uses ywapp:UseSessionVarsParm;
+
+      uses ywapp:SaveSessionVarsParm;
+
       uses ncxapp:CommonFeatureParms;
 
       uses ncxapp:SubdirsParm;
@@ -733,6 +794,61 @@ module yangcli-pro {
         type boolean;
         default true;
       }
+
+      leaf autoload-get {
+        description
+          "Controls whether the <get> operation will be used
+           to retrieve the /netconf-state/schemas sub-tree.
+
+           If 'true', then the schema list will be used instead
+           of the <hello> message module capabilities, if the
+           server supports the 'ietf-netconf-monitoring' module.
+
+           If 'false', then just the <hello> message module
+           list will be used to retrieve YANG modules with
+           the <get-schema> operation.
+
+           This option is needed to autoload sub-modules
+           that are not available to yangcli-pro, since
+           YANG submodules are not advertised in the <hello>
+           message.";
+        type boolean;
+        default true;
+      }
+
+      leaf autoload-cache {
+        description
+          "Controls whether the modules retrieved with the
+           <get-schema> operation are cached for use by the
+           running instance of yangcli-pro.
+
+           If true, then the YANG modules that are retrieved
+           with the <get-schema> operation will be cached.
+           A cached module will be used by yangcli-pro instead
+           of calling <get-schema>, if that module revision
+           is requested again.
+
+           If false, then the YANG modules that are retrieved
+           with the <get-schema> operation will not be cached.";
+        type boolean;
+        default true;
+      }
+
+      leaf autoload-save-cache {
+        description
+          "Controls whether the modules held in the YANG module
+           cache (retrieved with the <get-schema> operation)
+           are saved when yangcli-pro exits.
+
+           If true, then the YANG modules that are cached
+           will not be deleted when yangcli-pro exit.
+
+           If false, then the YANG modules that are cached
+           will be deleted when yangcli-pro exits.";
+        type boolean;
+        default true;
+      }
+
 
       leaf autohistory {
         description
@@ -841,6 +957,55 @@ module yangcli-pro {
            simply test if a NETCONF session can be established,
            then exit.";
          type empty;
+      }
+
+      leaf check-output {
+        description
+          "If true, then yangcli-pro will validate remote commands
+           against the YANG definition for the rpc/input node.
+           This checks the operation parameters about to be sent to
+           a server session. Validation of the contents of a <config>
+           element are not done.  Also the $$check-output global
+           parameter.";
+        type boolean;
+        default true;
+      }
+
+      leaf check-output-error {
+        description
+          "If 'true', then errors found during the check-output
+          validation tests will be treated as errors, causing
+          the <rpc> about to be sent to fail.
+          If 'false', then errors found during the check-output
+          validation tests will be treated as warnings.
+          Also the $$check-output-error global parameter.";
+        type boolean;
+        default false;
+      }
+
+      leaf check-replies {
+        description
+          "If true, then yangcli-pro will validate responses for
+           remote commands against the YANG definition for
+           the rpc/output node. This checks the parameters
+           in the <rpc-reply> sent from a server session.
+           If the 'output' section is missing or empty, then
+           the <rpc-reply> will be checked to make sure it
+           contains either <ok> or 1 or more <rpc-error> elements.
+           Also the $$check-replies global parm.";
+        type boolean;
+        default true;
+      }
+
+      leaf check-replies-error {
+        description
+          "If 'false', then errors found during the check-replies
+          validation tests will be treated as warnings.
+          If 'true', then errors found during the check-replies
+          validation tests will be treated as errors, causing
+          the <rpc-reply> about to be processed to be rejected.";
+        type boolean;
+        default false;
       }
 
       leaf config-edit-mode {
@@ -976,6 +1141,8 @@ module yangcli-pro {
 
       uses ncxapp:RunpathParm;
 
+
+
       leaf prompt-type {
         description
           "Selects the type of prompt string that will be used
@@ -1068,6 +1235,17 @@ module yangcli-pro {
           "Specifies the yangcli-pro user variables file to use.";
         type string;
         default "~/.yumapro/yangcli_pro_uservars.xml";
+      }
+
+      leaf use-rawxml {
+        description
+          "Specifies how file result variables will be read
+           for XML files.  Controls whether the XML will be
+           parsed against the target YANG object (the default)
+           or injected into a variable or request message from
+           the raw XML text in the file.";
+        type boolean;
+        default false;
       }
 
       leaf use-xmlheader {
@@ -1226,6 +1404,42 @@ module yangcli-pro {
           description 
             "Number of commits to make.";
         }
+      }
+    }
+
+    rpc cache {
+      description
+        "Clear 1 or all entries from the YANG module cache.
+         There are 3 forms of this command:
+           cache clear
+           cache delete foo
+           cache delete=foo revision=2014-05-22";
+
+      input {
+        choice cache-input {
+          mandatory true;
+          leaf clear { 
+             description
+                "Clear the YANG module cache on disk.";
+             type empty;
+          }
+          case delete-cache {
+            leaf delete {
+              mandatory true;
+              description
+                "Name of the module to delete from the YANG
+                 module cache.";
+              type nt:NcxIdentifier;
+            }
+            leaf revision {
+              description
+                "Revision date of the module to delete from the
+                 YANG module cache. OIf missing then all revisions
+                 will be deleted from the cache.";
+              type nt:Date;
+            }
+          }  // case delete-cache
+        }  // choice cache-input
       }
     }
 
@@ -1548,6 +1762,78 @@ module yangcli-pro {
            default true;
          }
        }
+    }
+
+    rpc group {
+      description
+      "Manage the yangcli-pro session groups.
+       A group name is not allowed to have the same name as any
+       session name.  This allows the 'session set-current' command
+       to select a group or an individual session.";
+
+      input {
+        ncx:default-parm session;
+        choice groupcmd {
+          mandatory true;
+          case connect {
+            leaf connect {
+              type nt:NcxIdentifier;
+              description
+                "Connect to all sessions in the specified group.";
+            }
+            uses SessionGroupParms;
+          }
+          case create-case {
+            leaf create {
+              type nt:NcxIdentifier;
+              description
+                "Name of the group to create.  The 'session' parameter
+                 must also be present";
+            }
+          }
+          case delete-case {
+            leaf delete {
+              type nt:NcxIdentifier;
+              description "Name of the group to delete";
+            }
+          }
+          case add-case {
+            leaf add {
+              type nt:NcxIdentifier;
+              description 
+                "Name of the group to add some sessions.  The 'session'
+                 parameter must also be present.";
+            }
+          }
+          case remove-case {
+            leaf remove {
+              type nt:NcxIdentifier;
+              description 
+                "Name of the group to remove some sessions.  The
+                 'session' parameer must also be present.";
+            }
+          }
+          case show-case {
+            leaf show {
+              type nt:NcxIdentifier;
+              description "Name of the group to show";
+            }
+          }
+          case list-case {
+            leaf list {
+              type empty;
+              description "List the names of all the groups";
+            }
+          }
+        }
+        leaf-list session {
+          when "../create or ../add or ../remove";
+          min-elements 1;
+          type nt:NcxIdentifier;
+          description
+            "Name of a session that is being added to the group.";
+        }
+      }
     }
 
     rpc help {
@@ -2114,9 +2400,29 @@ module yangcli-pro {
         choice showtype {
           mandatory true;
 
+          leaf cache {
+            description 
+              "Show the yangcli-pro YANG module cache.";
+            type empty;
+          }
+
           leaf cli {
             description 
               "Show the yangcli-pro CLI parameters.";
+            type empty;
+          }
+
+          leaf diff {
+            description
+              "Show the differences between current config
+               and the edits that have not been applied yet.";
+            type empty;
+          }
+
+          leaf edit {
+            description
+              "Show the subtree that is the current node which  
+               is from the current edit, not the stored config.";
             type empty;
           }
 
@@ -2125,7 +2431,6 @@ module yangcli-pro {
               "Show all connected sessions.";
             type empty;
           }
-
 
           leaf module {
             description 
@@ -2165,6 +2470,14 @@ module yangcli-pro {
             type empty;
           }
 
+          leaf group-vars {
+            description 
+              "Show the group-specific user variables for the
+               named group. A zero-length string means show
+               the variables for the group of the current session.";
+            type IdentifierOrZero;
+          }
+
           leaf objects {
             description 
               "Show config database objects loaded within the 
@@ -2172,11 +2485,30 @@ module yangcli-pro {
             type empty;
           }
 
+          case running {
+            leaf running {
+              description
+                "Show entire config for the current session
+                 error if there is no current session.";
+              type empty;
+              mandatory true;
+            }
+            uses SelectParm;
+          }
+
           leaf session {
             description 
               "Show the current session info, including the initial
                server capabilities for the session.";
             type empty;
+          }
+
+          leaf session-vars {
+            description 
+              "Show the session-specific user variables for the
+               named session. An empty string means show the
+               variables for the current session.";
+            type IdentifierOrZero;
           }
 
           leaf system {
@@ -2203,7 +2535,7 @@ module yangcli-pro {
               "Show yangcli-pro version info.";
             type empty;
           }
-        }
+        }  // end choice
         uses ncxapp:HelpMode;
       }
     }
@@ -2278,6 +2610,7 @@ module yangcli-pro {
         ncx:default-parm name;
         leaf name {
           type nt:NcxIdentifier;
+          mandatory true;
           description 
             "The name of the session to stop.";
         }
@@ -2625,8 +2958,10 @@ module yangcli-pro {
      *
      *************************************************************/
 
+    grouping VarsContainer {
     container vars {
-      ncx:abstract;
+      //ncx:abstract;
+      ncx:hidden;
       description 
         "Represents all saved yangcli-pro user variables";
       list var {
@@ -2660,6 +2995,9 @@ module yangcli-pro {
         }
       }
     }
+    }
+
+    uses VarsContainer;
 
     container saved-sessions {
       ncx:abstract;
@@ -2726,6 +3064,8 @@ module yangcli-pro {
             "An optional block of yangcli commands to run 
              after the session is successfully started.";
         }
+
+        uses VarsContainer;
       }
 
       list group {
@@ -2749,6 +3089,7 @@ module yangcli-pro {
 
         uses SessionGroupParms;
 
+        uses VarsContainer;
       }
     }
 
