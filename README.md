@@ -70,6 +70,10 @@ License Information
 Submission Procedure
 --------------------
 
+Send us a git pull request with latest changes 
+
+OR
+
 1.	Head over to [Gerrithub](http://review.gerrithub.io)
 
 2.	Sign on with your GitHub user and authorize the application.
