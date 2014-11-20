@@ -96,5 +96,5 @@ Submission Procedure
 
 13.	In the gerrithub.io website, add a reviewer or wait for one of us to review it automatically every day and merge it .
 
-14.    If there are any issues, send email to tnadeau at brocade.com and kkoushik at brocade.com14.    If there are any issues, send email to tnadeau at brocade.com and kkoushik at brocade.com14.    If there are any issues, send email to tnadeau at brocade.com and kkoushik at brocade.com
+14.    If there are any issues, send email to tnadeau at brocade.com and kkoushik at brocade.com.    If there are any issues, send email to tnadeau at brocade.com and kkoushik at brocade.com.    If there are any issues, send email to tnadeau at brocade.com and kkoushik at brocade.com
 
