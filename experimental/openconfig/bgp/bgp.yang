@@ -3,40 +3,24 @@ module bgp {
   yang-version "1";
 
   // namespace
-  // TODO: change to an ietf or other more generic namespace
-  namespace "http://google.com/yang/google-bgp-protocol-cfg";
+  namespace "http://openconfig.net/yang/bgp";
 
   prefix "bgp";
 
   // import some basic inet types
   import ietf-inet-types { prefix inet; }
   import bgp-multiprotocol { prefix bgp-mp; }
-  import bgp-policy { prefix bgp-pol; }
+  import routing-policy { prefix rpol; }
   import bgp-operational { prefix bgp-op; }
 
 
   // meta
   organization
-    "Google, AT&T, BT, Microsoft";
+    "OpenConfig working group";
 
   contact
-    "Google, Inc.
-    1600 Amphitheatre Way
-    Mountain View, CA  94043
-
-    AT&T Labs
-    200 S. Laurel Avenue
-    Middletown, NJ  07748
-
-    BT
-    pp. C3L, BT Centre
-    81, Newgate Street
-    London  EC1A 7AJ
-    UK
-
-    Microsoft
-    205 108th Ave. NE, Suite 400
-    Bellevue, WA 98004";
+    "OpenConfig working group
+    netopenconfig@googlegroups.com";
 
   description
     "This module describes a YANG model for BGP protocol
@@ -54,8 +38,6 @@ module bgp {
       BGP
         |
         +-> [ global BGP configuration ]
-        +-> AFI / SAFI (address family)
-          +-> [AFI-specific config ]
         +-> peer group
           +-> [ peer group config ]
           +-> AFI / SAFI [ per-AFI overrides ]
@@ -67,9 +49,9 @@ module bgp {
           +-> AFI / SAFI [ per-AFI overrides ]";
 
 
-  revision "2014-09-30" {
+  revision "2014-11-30" {
       description
-        "Initial revision";
+        "Updated model with additional config items";
       reference "TBD";
   }
 
@@ -156,129 +138,6 @@ module bgp {
         with a peer or group";
     }
 
-    container route-selection-options {
-        // TODO: consider moving this container to AFI/SAFI level
-        // config
-        description
-          "Set of configuration options that govern best
-          path selection.";
-        leaf always-compare-med {
-          type boolean;
-          default "false";
-          description
-            "Compare multi-exit discriminator (MED) value from
-            different ASes when selecting the best route.  The
-            default behavior is to only compare MEDs for paths
-            received from the same AS.";
-        }
-
-        leaf ignore-as-path-length {
-          type boolean;
-          default "false";
-          description
-            "Ignore the AS path length when selecting the best path.
-            The default is to use the AS path length and prefer paths
-            with shorter length.";
-        }
-
-        leaf external-compare-router-id {
-          type boolean;
-          default "true";
-          description
-            "When comparing similar routes received from external
-            BGP peers, use the router-id as a criterion to select
-            the active path.";
-        }
-
-        leaf advertise-inactive-routes {
-          type boolean;
-          default "false";
-          description
-            "Advertise inactive routes to external peers.  The
-            default is to only advertise active routes.";
-        }
-
-        leaf enable-aigp {
-          type empty;
-          description
-            "Flag to enable sending / receiving accumulated IGP
-            attribute in routing updates";
-        }
-
-        leaf ignore-next-hop-igp-metric {
-          type boolean;
-          default "false";
-          description
-            "Ignore the IGP metric to the next-hop when calculating
-            BGP best-path. The default is to select the route for
-            which the metric to the next-hop is lowest";
-        }
-    }
-
-    container use-multiple-paths {
-
-      presence
-        "Presence of this container indicates that multipath
-         is enabled for both eBGP and iBGP, absence indicates
-         that multi-path is not used";
-
-      description
-        "Configuration of BGP multi-path for iBGP and eBGP";
-
-      container ebgp {
-        description
-          "Configuration of BGP multipath to enable load sharing
-          across multiple paths to eBGP peers";
-
-        leaf allow-multiple-as {
-         type boolean;
-         default "false";
-         description
-          "Allow multipath to use paths from different neighbouring
-          ASes.  The default is to only consider multiple paths from
-          the same neighbouring AS.";
-        }
-
-        leaf maximum-paths {
-         type uint32;
-         default 1;
-         description
-          "Maximum number of parallel paths to consider when using
-          BGP multipath. The default is use a single path.";
-        }
-      }
-
-      container ibgp {
-        description
-          "Configuration of BGP multipath to enable load-sharing
-          across multiple paths to iBGP peers";
-
-        leaf maximum-paths {
-          type uint32;
-          default 1;
-          description
-            "Maximum number of parallel paths to consider when using
-            iBGP multipath. The default is to use a single path";
-        }
-      }
-
-      container eibgp {
-        description
-          "Configuration of BGP multipath to enable load-sharing
-          across multiple paths to external confederation sub-ASes";
-
-        leaf maximum-paths {
-          type uint32;
-          default 1;
-          description
-            "Maximum number of parallel paths to consider when using
-            eiBGP multipath. The default is to use a single path";
-        }
-
-      }
-    }
-
-
     container graceful-restart {
       // TODO: most impls seem to require this at the global level
       // in order to specify at neighbor or other levels
@@ -314,7 +173,7 @@ module bgp {
       }
     }
 
-    uses bgp-pol:apply-policy-group;
+    uses rpol:apply-policy-group;
 
   }
 
@@ -390,6 +249,8 @@ module bgp {
 
     // currently a placeholder in case we identify config that is
     // really only applicable at the group level
+
+    uses bgp-mp:bgp-global-group-afi-safi-config;
   }
 
   grouping bgp-group-neighbor-common-configuration {
@@ -486,7 +347,6 @@ module bgp {
           multihop disabled";
 
       }
-
     }
 
     container route-reflector {
@@ -581,6 +441,74 @@ module bgp {
         neighbour or group. The default is to not send the
         community attribute";
     }
+
+    container error-handling {
+      description
+        "Configure options relating to error handling of BGP
+        UPDATE messages";
+
+      leaf treat-as-withdraw {
+        type boolean;
+        default "false";
+        description
+          "Specify whether erroneous UPDATE messages for which the
+          NLRI can be extracted are reated as though the NLRI is
+          withdrawn - avoiding session reset";
+        reference "draft-ietf-idr-error-handling-16";
+      }
+    }
+
+    container as-path-options {
+      description
+        "Configure options relating to how the AS_PATH attribute
+        received from a BGP neighbour is treated by the local BGP
+        speaker.";
+
+      leaf allow-own-as {
+        // rjs: this could be uint32, but ALU SROS treats as a
+        //      boolean. JUNOS, IOS & IOS XR treat as an integer
+        //      specifying the number of occurrences.
+        type boolean;
+        default "false";
+        description
+          "Specify whether routes for which the local router's AS
+          appears in the path are rejected as looped.";
+      }
+
+      leaf replace-peer-as {
+        type boolean;
+        default "false";
+        description
+          "Replace occurrences of the peer's AS in the AS_PATH
+          with the local autonomous system number";
+      }
+    }
+
+    container add-paths {
+      presence "Presence of this node enables the add-path
+               capability";
+
+      description
+        "Configure the ability to advertise and receive multiple
+        paths for a single NLRI";
+
+      reference "draft-ietf-idr-add-paths";
+
+      leaf receive {
+        type empty;
+        description
+          "Enable ability to receive multiple path advertisements
+          for an NLRI from the neighbour or group";
+      }
+
+      leaf send-max {
+        type uint8;
+        description
+          "The maximum number of paths to advertise to neighbours
+          for a single NLRI";
+      }
+    }
+
   }
 
   grouping bgp-neighbor-configuration {
@@ -614,6 +542,9 @@ module bgp {
 
 
   container bgp {
+
+    presence "Container for BGP protocol configuration hierarchy";
+
     description "Top-level configuration data for the BGP router";
 
     container global {
@@ -624,12 +555,12 @@ module bgp {
 
       uses bgp-global-configuration;
 
+      // global parameters for address family config
+      uses bgp-mp:global-address-family-configuration;
+
       // attach global level operational data
       uses bgp-op:bgp-op-global-group;
     }
-
-    // top level AF configuration
-    uses bgp-mp:address-family-configuration;
 
     list peer-group {
       key "group-name";
@@ -644,6 +575,7 @@ module bgp {
       uses bgp-common-configuration;
       uses bgp-mp:address-family-configuration;
       uses bgp-group-neighbor-common-configuration;
+      uses bgp-group-common-configuration;
 
       // list of configurations for neighbors in this peer group
       uses bgp-neighbor-configuration;
@@ -653,8 +585,6 @@ module bgp {
     uses bgp-neighbor-configuration;
 
     // hook for top-level policy definitions
-    // may consider revisiting this structure to more readily allow
-    // processing by some external tools (e.g., ODL Yang tools)
-    uses bgp-pol:policy-definition-group;
+    uses rpol:apply-policy-group;
   }
 }
