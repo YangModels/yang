@@ -72,33 +72,5 @@ Submission Procedure
 
 Send us a git pull request with latest changes 
 
-OR
-
-1.	Head over to [Gerrithub](http://review.gerrithub.io)
-
-2.	Sign on with your GitHub user and authorize the application.
-
-3.	Click on the drop down by your user name and select Settings.
-
-4.	Click on Watched Projects and click Browse.
-
-5.	Filter and select YangModels/yang.
-
-6.	Select the notifications you want to receive.
-
-7.	Upload your SSH public key.
-
-8.	git clone ssh://<username>@review.gerrithub.io:29418/YangModels/yang
-
-9.	Change/add any file.
-
-10.	Run git add <changed/added file>
-
-11.	Run git commit and add a test comment
-
-12.	Run git-review(git-review is a separate package in Unix that needs to be installed and configured)
-
-13.	In the gerrithub.io website, add a reviewer or wait for one of us to review it automatically every day and merge it .
-
-14.    If there are any issues, send email to tnadeau at brocade.com and kkoushik at brocade.com14.    If there are any issues, send email to tnadeau at brocade.com and kkoushik at brocade.com14.    If there are any issues, send email to tnadeau at brocade.com and kkoushik at brocade.com
+If there are any issues, send email to tnadeau at brocade.com and kkoushik at brocade.com
 
