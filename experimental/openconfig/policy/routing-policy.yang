@@ -98,39 +98,46 @@ module routing-policy {
     a policy chain";
   }
 
-  typedef install-protocol-type {
-    // TODO: consider turning these into identities if we anticipate
-    // continuing to add more values
-    type enumeration {
-      enum ISIS {
-      description
-        "route was installed in the RIB by the
-        IS-IS protocol";
-      }
-      enum OSPF {
-      description
-        "route was installed in the RIB by the
-        OSPFv2 protocol";
-      }
-      enum OSPF3 {
-      description
-        "route was installed in the RIB by the
-        OSPFv3 protocol";
-      }
-      enum STATIC {
-      description
-        "route was installed in the RIB as a
-        statically configured route";
-      }
-      enum DIRECTLY-CONNECTED {
-      description
-        "route is installed in the RIB due to
-        being directly connected to the local system";
-      }
-    }
-    description "type to identify the protocol or method used to
-    install a route in the local routing table";
+  identity install-protocol-type {
+    description
+      "Base type for protocols which can install prefixes into the
+      RIB";
   }
+
+  identity BGP {
+    base install-protocol-type;
+    description "BGP";
+    reference "RFC 4271";
+  }
+
+  identity ISIS {
+    base install-protocol-type;
+    description "IS-IS";
+    reference "ISO/IEC 10589";
+  }
+
+  identity OSPF {
+    base install-protocol-type;
+    description "OSPFv2";
+    reference "RFC 2328";
+  }
+
+  identity OSPF3 {
+    base install-protocol-type;
+    description "OSPFv3";
+    reference "RFC 5340";
+  }
+
+  identity STATIC {
+    base install-protocol-type;
+    description "Locally-installed static route";
+  }
+
+  identity DIRECTLY-CONNECTED {
+    base install-protocol-type;
+    description "A directly connected route";
+  }
+
 
   // grouping statements
 
@@ -170,7 +177,7 @@ module routing-policy {
             // simple range covers both ipv4 and ipv6 --
             // could separate this into different types
             // for IPv4 and IPv6 prefixes
-            range 1..128;
+            range 0..128;
           }
           mandatory true;
           description
@@ -211,7 +218,7 @@ module routing-policy {
       list neighbor {
         key "address";
         description
-            "list of addresses that are part of the neighor set";
+            "list of addresses that are part of the neighbor set";
 
         leaf address {
           type inet:ip-address;
@@ -221,6 +228,30 @@ module routing-policy {
       }
     }
 
+    list tag-set {
+      key tag-set-name;
+      description
+        "Definitions for tag sets";
+
+      leaf tag-set-name {
+        type string;
+        description
+          "name / label of the tag set -- this is used to reference
+          the set in match conditions";
+      }
+
+      list tag {
+        key "value";
+        description
+          "list of tags that are part of the tag set";
+
+        leaf value {
+          type pt:tag-type;
+          description
+            "Value of the tag set member";
+        }
+      }
+    }
   }
 
   grouping local-generic-conditions {
@@ -229,10 +260,25 @@ module routing-policy {
         characteristic of a route";
 
     leaf install-protocol-eq {
-      type install-protocol-type;
+      type identityref {
+        base install-protocol-type;
+      }
       description
         "Condition to check the protocol / method used to install
         which installed the route into the local routing table";
+    }
+  }
+
+  grouping match-set-options-group {
+    description
+      "Grouping containing options relating to how a particular set
+      should be matched";
+
+    leaf match-set-options {
+      type pt:match-set-options-type;
+      description
+        "Optional parameter that governs the behaviour of the
+        match operation";
     }
   }
 
@@ -240,29 +286,64 @@ module routing-policy {
     description "Condition statement definitions for checking
     membership in a generic defined set";
 
-    leaf match-prefix-set {
-      type leafref {
-        path "/routing-policy/defined-sets/prefix-set" +
-        "/prefix-set-name";
-        require-instance true;
-      }
-      description "References a defined prefix set";
-    }
+    container match-prefix-set {
+      presence
+        "The presence of this container indicates that the routes
+        should match the prefix-set referenced.";
 
-    leaf match-neighbor-set {
-      type leafref {
-        path "/routing-policy/defined-sets/neighbor-set" +
-        "/neighbor-set-name";
-        require-instance true;
-      }
-      description "References a defined neighbor set";
-    }
-
-    leaf match-set-options {
-      type pt:match-set-options-type;
       description
-        "Optional parameter that governs the behavior of the match
-        operation";
+        "Match a referenced prefix-set according to the logic
+        defined in the match-set-options leaf";
+
+      leaf prefix-set {
+        type leafref {
+          path "/routing-policy/defined-sets/prefix-set" +
+          "/prefix-set-name";
+          require-instance true;
+        }
+        description "References a defined prefix set";
+      }
+      uses match-set-options-group;
+    }
+
+    container match-neighbor-set {
+      presence
+        "The presence of this container indicates that the routes
+        should match the neighbour set referenced";
+
+      description
+        "Match a referenced neighbor set according to the logic
+        defined in the match-set-options-leaf";
+
+      leaf neighbor-set {
+        type leafref {
+          path "/routing-policy/defined-sets/neighbor-set" +
+          "/neighbor-set-name";
+          require-instance true;
+        }
+        description "References a defined neighbor set";
+      }
+      uses match-set-options-group;
+    }
+
+    container match-tag-set {
+      presence
+        "The presence of this container indicates that the routes
+        should match the tag-set referenced";
+
+      description
+        "Match a referenced tag set according to the logic defined
+        in the match-options-set leaf";
+
+      leaf tag-set {
+        type leafref {
+          path "/routing-policy/defined-sets/tag-set" +
+          "/tag-set-name";
+          require-instance true;
+        }
+        description "References a defined tag set";
+      }
+      uses match-set-options-group;
     }
 
     uses local-generic-conditions;
@@ -271,12 +352,6 @@ module routing-policy {
   grouping igp-generic-conditions {
     description "grouping for IGP policy conditions";
 
-    leaf tag-eq {
-      type pt:igp-tag-type;
-      description
-          "Condition to check if the tag on the IGP route is equal to
-        the specified value";
-    }
   }
 
 
@@ -316,7 +391,7 @@ module routing-policy {
       apply to multiple IGPs";
 
       leaf set-tag {
-        type pt:igp-tag-type;
+        type pt:tag-type;
         description "set the tag value for OSPF or IS-IS routes";
       }
     }
@@ -431,6 +506,7 @@ module routing-policy {
               "/rpol:name";
           require-instance true;
         }
+        ordered-by user;
         description
           "list of policy names in sequence to be applied on
           receiving a routing update in the current context, e.g.,
@@ -452,6 +528,7 @@ module routing-policy {
               "/rpol:name";
           require-instance true;
         }
+        ordered-by user;
         description
           "list of policy names in sequence to be applied on
           sending a routing update in the current context, e.g.,
