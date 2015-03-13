@@ -1,0 +1,473 @@
+submodule mpls-te {
+
+  yang-version "1";
+
+  belongs-to "mpls" {
+    prefix "mpls";
+  }
+
+
+  // import some basic types
+  import ietf-inet-types { prefix inet; }
+  import mpls-types { prefix mplst; }
+  import mpls-rsvp { prefix rsvp; }
+  import mpls-sr { prefix sr; }
+
+
+  // meta
+  organization "OpenConfig working group";
+
+  contact
+    "OpenConfig working group
+    netopenconfig@googlegroups.com";
+
+  description
+    "Configuration related to constrained-path LSPs and traffic
+    engineering.  These definitions are not specific to a particular
+    signaling protocol or mechanism (see related submodules for
+    signaling protocol-specific configuration).";
+
+  revision "2014-07-07" {
+    description
+      "Initial revision";
+    reference "TBD";
+  }
+
+  // extension statements
+
+  // feature statements
+
+  // identity statements
+
+  // using identities for path comp method, though enums may also
+  // be appropriate if we decided these are the primary computation
+  // mechanisms in future.
+  identity path-computation-method {
+    description "base identity for supported path computation
+    mechanisms";
+  }
+
+  identity locally-computed {
+    base path-computation-method;
+    description "indicates a constrained-path LSP in which the
+    path is computed by the local LER";
+  }
+
+  identity externally-queried {
+    base path-computation-method;
+    description "constrained-path LSP in which the path is
+    obtained by querying an external source, such as a PCE server";
+  }
+
+  identity explicitly-defined {
+    base path-computation-method;
+    description "constrained-path LSP in which the path is
+    explicitly specified as a collection of strict or/and loose
+    hops";
+  }
+
+  // typedef statements
+
+  typedef mpls-hop-type {
+    type enumeration {
+      enum LOOSE {
+        description "loose hop in an explicit path";
+      }
+      enum STRICT {
+        description "strict hop in an explicit path";
+      }
+    }
+    description "enumerated type for specifying loose or strict
+    paths";
+  }
+
+  typedef te-metric-type {
+    type union {
+      type enumeration {
+        enum IGP {
+          description "set the LSP metric to track the underlying
+          IGP metric";
+        }
+      }
+      type uint32;
+    }
+    description "union type for setting the LSP TE metric to a
+    static value, or to track the IGP metric";
+  }
+
+   typedef cspf-tie-breaking {
+    type enumeration {
+      enum RANDOM {
+        description "CSPF calculation selects a random path among
+        multiple equal-cost paths to the destination";
+      }
+      enum LEAST_FILL {
+        description "CSPF calculation selects the path with greatest
+        available bandwidth";
+      }
+      enum MOST_FILL {
+        description "CSPF calculation selects the path with the least
+        available bandwidth";
+      }
+    }
+    default RANDOM;
+    description "type to indicate the CSPF selection policy when
+    multiple equal cost paths are available";
+  }
+
+ typedef mpls-protection-style {
+   type enumeration {
+     enum UNPROTECTED {
+       description "no protection is desired for the lsp";
+     }
+     enum LINK-PROTECTION-REQUESTED {
+       description "link protection is desired for the lsp";
+     }
+     enum LINK-NODE-PROTECTION-REQUESTED {
+       description "node and link protection is desired for the lsp";
+     }
+   }
+   default UNPROTECTED;
+   description
+    "Specifies the protection type for the LSP";
+ }
+
+  // grouping statements
+
+  grouping te-lsp-common {
+    description "common definitions for traffic-engineered LSPs";
+
+    leaf signaled-name {
+          type string;
+          description "LSP name, also carried in signaling
+          messages when appropriate";
+    }
+
+    leaf lsp-description {
+        type string;
+        description "optional text description for the LSP";
+    }
+
+    container path-computation-method {
+      description "select and configure the way the LSP path is
+      computed";
+
+      leaf path-computation {
+        type identityref {
+          base path-computation-method;
+        }
+        description "path computation method to use with the LSP";
+      }
+
+      uses te-lsp-comp-explicit;
+      uses te-lsp-comp-queried;
+      uses te-lsp-comp-local;
+    }
+
+    container path-attributes {
+      description "general path attribute settings for TE-LSP
+      tunnels";
+
+      // XXX - no, this is also there for LDP - also removed the
+      // reference to "igp metric" as this is going to be confusing,
+      // unless we mandate for the LSP to have the same metric as the
+      // Igp, which is going to be hard with some vendors
+      // implementations.
+      leaf metric {
+        type te-metric-type;
+        description "LSP metric, either explicit or IGP";
+      }
+
+      container bandwidth {
+        description "bandwidth specification for the LSP";
+
+        choice lsp-bandwidth {
+          default explicit;
+          description "select how bandwidth for the LSP will be
+          specified and managed";
+          case explicit {
+            leaf set-bandwidth {
+              type uint32;
+              description "set bandwidth explicitly, e.g., using
+              offline calculation";
+            }
+          }
+          case auto {
+            container auto-bandwidth {
+              presence "presence of this container indicates
+              auto-bandwidth is enabled for the LSP";
+
+              description "configure auto-bandwidth operation in
+              which devices automatically adjust bandwidth to meet
+              requirements";
+
+              leaf min-bw {
+                type uint32;
+                description "set the minimum bandwidth in Mbps for an
+                auto-bandwidth LSP";
+              }
+
+              leaf max-bw {
+                type uint32;
+                description "set the maximum bandwidth in Mbps for an
+                auto-bandwidth LSP";
+              }
+
+              leaf adjust-interval {
+                type uint32;
+                description "time in seconds between adjustments to
+                LSP bandwidth";
+              }
+
+              leaf adjust-threshold {
+                type mplst:percentage;
+                description "percentage difference between the LSP's
+                specified bandwidth and its current bandwidth
+                allocation -- if the difference is greater than the
+                specified percentage, auto-bandwidth adjustment is
+                triggered";
+              }
+
+              container overflow {
+
+                presence "presence of this element indicates overflow
+                is configured for the lsp";
+
+                description "configuration for mpls lsp bandwidth
+                overflow adjustment";
+
+                leaf overflow-threshold {
+                  type mplst:percentage;
+                  description "bandwidth percentage change to trigger
+                  an overflow event";
+
+                }
+
+                leaf trigger-event-count {
+                  type uint16;
+                  description "number of consecutive overflow sample
+                  events needed to trigger an overflow adjustment";
+                }
+              }
+
+              container underflow {
+                presence
+                  "presence of this element indicates underflow
+                  is configured for the lsp";
+
+                description
+                  "configuration for mpls lsp bandwidth
+                  underflow adjustment";
+
+                leaf underflow-threshold {
+                  type mplst:percentage;
+                  description "bandwidth percentage change to trigger
+                  and underflow event";
+
+                }
+
+                leaf trigger-event-count {
+                  type uint16;
+                  description "number of consecutive underflow sample
+                  events needed to trigger an underflow adjustment";
+                }
+              }
+            }
+          }
+        }
+      }
+
+      container lsp-placement-constraints {
+        description
+          "constraints on lsp routing such as admin-groups";
+
+        container admin-groups {
+          description
+            "Include/Exclude constraints for link affinities";
+
+          list exclude-groups {
+
+            key admin-group-name;
+
+            description
+              "list of admin-groups to exclude in path calculation";
+
+            leaf admin-group-name {
+              type leafref {
+                path "/mpls/global/mpls-admin-groups/" +
+                  "admin-group-name";
+              }
+              description
+              "name of the admin group -- references a defined admin
+              group";
+            }
+          }
+
+          list include-all-groups {
+
+            key admin-group-name;
+            description
+              "list of admin-groups of which all must be included";
+
+            leaf admin-group-name {
+              type leafref {
+                path "/mpls/global/mpls-admin-groups/" +
+                  "admin-group-name";
+              }
+              description
+                "name of the admin group -- references a defined
+                admin group";
+            }
+          }
+
+          list include-any-groups {
+
+            key admin-group-name;
+            description
+              "list of admin-groups of which one must be included";
+
+            leaf admin-group-name {
+              type leafref {
+                path "/mpls/global/mpls-admin-groups/" +
+                  "admin-group-name";
+              }
+              description
+                "name of the admin group -- references a defined
+                admin group";
+            }
+          }
+        }
+      }
+
+      container protection {
+        description "failure protection properties for the LSP";
+
+        leaf protection-style-requested {
+          type mpls-protection-style {
+          }
+          description "style of mpls frr protection desired. both
+          facility backup and one-to-one are options";
+        }
+      }
+    }
+  }
+  // TODO - note that this is only currently defined for
+  // RSVP-like entities
+  grouping te-lsp-comp-explicit {
+    description "definitions for LSPs in which hops are explicitly
+    specified";
+
+    container explicit-path {
+      description "LSP with explicit path specification";
+
+      leaf path-name {
+        type leafref {
+          path "/mpls/lsps/constrained-path/"
+            + "path-information/path/path-name";
+          require-instance true;
+        }
+        description "reference to a defined path";
+      }
+    }
+  }
+
+  grouping te-lsp-comp-queried {
+    description "definitons for LSPs computed by querying a remote
+    service, e.g., PCE server";
+
+    container queried-path {
+      description "LSP with path queried from an external server";
+
+      leaf path-computation-server {
+        type inet:ip-address;
+        description "Address of the external path computation
+        server";
+      }
+    }
+
+  }
+
+  grouping te-lsp-comp-local {
+    description "definitons for locally-computed LSPs";
+
+    container locally-computed {
+      description "LSP with path computed by local ingress LSR";
+
+      leaf use-cspf {
+        type boolean;
+        description "Flag to enable CSPF for locally computed LSPs";
+      }
+      leaf cspf-tiebreaker {
+        type cspf-tie-breaking;
+        description
+          "Determine the tie-breaking method to choose between
+          equally desirable paths during CSFP computation";
+      }
+    }
+  }
+
+
+  grouping path-definitions {
+    description "describe path configuration for specifying LSP
+    hops";
+
+    container path-information {
+      description "common information for MPLS path definition";
+
+      list path {
+        key path-name;
+        description "specification of LSP path";
+
+        leaf path-name {
+          type string;
+          description "identifier for the LSP path";
+        }
+
+        list hop {
+          key address;
+          description "specification of the strict and loose hops in
+            the path";
+
+          leaf address {
+            type inet:ip-address;
+            description "router hop for the LSP path";
+          }
+
+          leaf type {
+            type mpls-hop-type;
+            description "strict or loose hop";
+          }
+        }
+      }
+    }
+  }
+
+  grouping te-lsp-setup {
+    description "signaling protocol configuration for traffic
+    engineered LSPs";
+
+    container path-setup {
+      description "select and configure the signaling method for
+          the LSP";
+
+      // uses path-setup-common;
+      uses rsvp:te-lsp-rsvp-setup;
+      uses sr:te-lsp-sr-setup;
+    }
+  }
+
+  grouping mpls-te-global {
+    description "global level defintions for mpls traffic
+    engineered LSPs";
+
+    
+  }
+
+  // data definition statements
+
+  // augment statements
+
+  // rpc statements
+
+  // notification statements
+}
