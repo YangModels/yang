@@ -46,7 +46,7 @@ module ietf-ipv4-unicast-routing {
      This version of this YANG module is part of RFC XXXX; see the
      RFC itself for full legal notices.";
 
-  revision 2014-05-24 {
+  revision 2014-10-26 {
     description
       "Initial revision.";
     reference
@@ -78,33 +78,31 @@ module ietf-ipv4-unicast-routing {
   }
 
   augment "/rt:routing-state/rt:ribs/rt:rib/rt:routes/rt:route/"
-        + "rt:next-hop-options/rt:simple-next-hop" {
-    when "../../rt:address-family = 'v4ur:ipv4-unicast'" {
+        + "rt:next-hop/rt:next-hop-options/rt:simple-next-hop" {
+    when "../../../rt:address-family = 'v4ur:ipv4-unicast'" {
       description
         "This augment is valid only for IPv4 unicast.";
     }
     description
       "This leaf augments the 'simple-next-hop' case of IPv4 unicast
        routes.";
-    leaf next-hop {
+    leaf next-hop-address {
       type inet:ipv4-address;
       description
         "IPv4 address of the next-hop.";
     }
   }
 
-  augment "/rt:routing-state/rt:ribs/rt:rib/rt:routes/rt:route/"
-        + "rt:next-hop-options/rt:next-hop-list/rt:next-hop-list/"
-        + "rt:next-hop" {
-    when "../../../../rt:address-family = 'v4ur:ipv4-unicast'" {
+  augment "/rt:routing-state/rt:next-hop-lists/rt:next-hop-list/"
+        + "rt:next-hop/rt:next-hop-options/rt:simple-next-hop" {
+    when "../rt:address-family = 'v4ur:ipv4-unicast'" {
       description
         "This augment is valid only for IPv4 unicast.";
     }
-    if-feature rt:multipath-routes;
     description
-      "This leaf augments the 'next-hop-list' case of IPv4 unicast
+      "This leaf augments next-hop list with IPv4 next-hop address.
        routes.";
-    leaf address {
+    leaf next-hop-address {
       type inet:ipv4-address;
       description
         "IPv4 address of the next-hop.";
@@ -123,98 +121,57 @@ module ietf-ipv4-unicast-routing {
         "Configuration of a 'static' pseudo-protocol instance
          consists of a list of routes.";
       list route {
-        key "id";
+        key "destination-prefix";
         ordered-by "user";
         description
           "A user-ordered list of static routes.";
-        leaf id {
-          type uint32 {
-            range "1..max";
-          }
-          description
-            "Unique numeric identifier of the route.
-
-             This value is unrelated to system-assigned 'id'
-             parameters of routes in RIBs.";
-        }
-        leaf description {
-          type string;
-          description
-            "Textual description of the route.";
-        }
         leaf destination-prefix {
           type inet:ipv4-prefix;
           mandatory "true";
           description
             "IPv4 destination prefix.";
         }
-        choice next-hop-options {
-          mandatory "true";
+        leaf description {
+          type string;
           description
-            "Options for expressing the next-hop in static routes.";
-          case special-next-hop {
-            uses rt:special-next-hop;
-          }
-          case simple-next-hop {
-            leaf next-hop {
-              type inet:ipv4-address;
-              description
-                "IPv4 address of the next-hop.";
-            }
-            leaf outgoing-interface {
-              type leafref {
-                path "../../../../../../rt:interfaces/rt:interface/"
-                   + "rt:name";
-              }
-              description
-                "Name of the outgoing interface.
-
-                 Only interfaces configured for the ancestor routing
-                 instance can be given.";
-            }
-          }
-          case next-hop-list {
-            if-feature rt:multipath-routes;
-            container next-hop-list {
-              description
-                "Configuration of multiple next-hops.";
-              list next-hop {
-                key "id";
+            "Textual description of the route.";
+        }
+        container next-hop {
+          description
+            "Configuration of next-hop.";
+          grouping next-hop-content {
+            description
+              "Next-hop content for IPv4 unicast static routes.";
+            uses rt:next-hop-content {
+              augment "next-hop-options" {
                 description
-                  "An entry of a next-hop list.";
-                leaf id {
-                  type uint32;
-                  description
-                    "Unique numeric identifier of the entry.
-
-                     This value is unrelated to system-assigned 'id'
-                     parameters of next-hops in RIBs.";
-                }
-                leaf address {
+                  "Add next-hop address case.";
+                leaf next-hop-address {
                   type inet:ipv4-address;
                   description
                     "IPv4 address of the next-hop.";
                 }
-                leaf outgoing-interface {
-                  type leafref {
-                    path "../../../../../../../../rt:interfaces/"
-                       + "rt:interface/rt:name";
-                  }
-                  description
-                    "Name of the outgoing interface.
-
-                     Only interfaces configured for the ancestor
-                     routing instance can be given.";
-                }
-                uses rt:next-hop-classifiers {
-                  refine "priority" {
-                    default "primary";
-                  }
-                  refine "weight" {
-                    default "0";
-                  }
-                }
               }
+            }
+          }
+          choice simple-or-list {
+            description
+              "Options for next-hops.";
+            list multipath-entry {
+              if-feature rt:multipath-routes;
+              key "name";
+              description
+                "List of alternative next-hops.";
+              leaf name {
+                type string;
+                description
+                  "A unique identifier of the next-hop entry.";
+              }
+              uses next-hop-content;
+              uses rt:next-hop-classifiers;
+            }
+            case simple-next-hop {
+              uses next-hop-content;
             }
           }
         }
@@ -224,14 +181,14 @@ module ietf-ipv4-unicast-routing {
 
   /* RPC methods */
 
-  augment "/rt:active-route/rt:input/rt:destination-address" {
+  augment "/rt:fib-route/rt:input/rt:destination-address" {
     when "rt:address-family='v4ur:ipv4-unicast'" {
       description
         "This augment is valid only for IPv4 unicast.";
     }
     description
       "This leaf augments the 'rt:destination-address' parameter of
-       the 'rt:active-route' operation.";
+       the 'rt:fib-route' operation.";
     leaf address {
       type inet:ipv4-address;
       description
@@ -239,13 +196,13 @@ module ietf-ipv4-unicast-routing {
     }
   }
 
-  augment "/rt:active-route/rt:output/rt:route" {
+  augment "/rt:fib-route/rt:output/rt:route" {
     when "rt:address-family='v4ur:ipv4-unicast'" {
       description
         "This augment is valid only for IPv4 unicast.";
     }
     description
-      "This leaf augments the reply to the 'rt:active-route'
+      "This leaf augments the reply to the 'rt:fib-route'
        operation.";
     leaf destination-prefix {
       type inet:ipv4-prefix;
@@ -254,33 +211,16 @@ module ietf-ipv4-unicast-routing {
     }
   }
 
-  augment "/rt:active-route/rt:output/rt:route/rt:next-hop-options/"
-        + "rt:simple-next-hop" {
-    when "rt:address-family='v4ur:ipv4-unicast'" {
+  augment "/rt:fib-route/rt:output/rt:route/rt:next-hop/"
+        + "rt:next-hop-options/rt:simple-next-hop" {
+    when "../rt:address-family='v4ur:ipv4-unicast'" {
       description
         "This augment is valid only for IPv4 unicast.";
     }
     description
       "This leaf augments the 'simple-next-hop' case in the reply to
-       the 'rt:active-route' operation.";
-    leaf next-hop {
-      type inet:ipv4-address;
-      description
-        "IPv4 address of the next-hop.";
-    }
-  }
-
-  augment "/rt:active-route/rt:output/rt:route/rt:next-hop-options/"
-        + "rt:next-hop-list/rt:next-hop-list/rt:next-hop" {
-    when "../../rt:address-family='v4ur:ipv4-unicast'" {
-      description
-        "This augment is valid only for IPv4 unicast.";
-    }
-    if-feature rt:multipath-routes;
-    description
-      "This leaf augments the 'next-hop-list' case in the reply to
-       the 'rt:active-route' operation.";
-    leaf address {
+       the 'rt:fib-route' operation.";
+    leaf next-hop-address {
       type inet:ipv4-address;
       description
         "IPv4 address of the next-hop.";
