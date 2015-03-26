@@ -1,4 +1,10 @@
 #!/usr/bin/python
+
+__author__ = 'jmedved@cisco.com, calle@tail-f.com, bclaise@cisco.com'
+__copyright__ = "Copyright(c) 2015, Cisco Systems, Inc."
+__license__ = "New-style BSD"
+__email__ = "jmedved@cisco.com"
+
 from __future__ import print_function  # Must be at the beginning of the file
 import argparse
 from collections import Counter
@@ -6,9 +12,6 @@ import os.path
 import sys
 import re
 import requests
-
-__author__ = 'jmedved@cisco.com, calle@tail-f.com, bclaise@cisco.com'
-
 
 def remove_leading_spaces(mdl):
     """
