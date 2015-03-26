@@ -268,16 +268,18 @@ if __name__ == "__main__":
     """
     Command line utility / test
     """
-    parser = argparse.ArgumentParser(description='Extract model out of an IETF RFC or draft')
+    parser = argparse.ArgumentParser(description='Extracts one or more yang models from an IETF RFC/draft text file')
     parser.add_argument("source", help="The URL or file name of the RFC/draft text from which to get the model")
-    parser.add_argument("--srcdir", default='.', help="Optional directory where to find the source text."
-                                                      "Default is './'")
-    parser.add_argument("--dstdir", default='.', help="Optional directory where to put the extracted yang module(s)"
-                                                      "Default is './'")
+    parser.add_argument("--srcdir", default='.', help="Optional: directory where to find the source text; "
+                                                      "default is './'")
+    parser.add_argument("--dstdir", default='.', help="Optional: directory where to put the extracted yang module(s); "
+                                                      "default is './'")
     parser.add_argument("--strict", type=bool, default=False, help='Optional flag that determines syntax enforcement; '
-                                                                   "'If set to 'True' <CDE BEGINS> / <CODE ENDS> are "
-                                                                   "required; default is 'False'")
-    parser.add_argument("--debug", type=int, default=0, help="Debug level; default is 0")
+                                                                   "'If set to 'True', the <CODE BEGINS> / <CODE ENDS> "
+                                                                   "tags are required; default is 'False'")
+    parser.add_argument("--debug", type=int, default=0, help="Optional: debug level - determines the amount of debug "
+                                                             "info printed to console; default is 0 (no debug info "
+                                                             "printed)")
     args = parser.parse_args()
 
     extracted_models = xym(args.source, args.srcdir, args.dstdir, args.strict, args.debug)
