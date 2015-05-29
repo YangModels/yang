@@ -38,6 +38,7 @@ module bgp {
       BGP
         |
         +-> [ global BGP configuration ]
+          +-> AFI / SAFI global
         +-> peer group
           +-> [ peer group config ]
           +-> AFI / SAFI [ per-AFI overrides ]
@@ -46,7 +47,7 @@ module bgp {
           +-> [ optional pointer to peer-group ]
           +-> AFI / SAFI [ per-AFI overrides ]";
 
-  revision "2014-03-05" {
+  revision "2015-05-15" {
       description
         "";
       reference "TBD";
@@ -101,6 +102,13 @@ module bgp {
       router is within an autonomous system which is part of a BGP
       confederation.";
 
+    leaf enabled {
+      type boolean;
+      description
+        "When this leaf is set to true it indicates that
+        the local-AS is part of a BGP confederation";
+    }
+
     leaf identifier {
       type inet:as-number;
       description
@@ -123,6 +131,15 @@ module bgp {
       type inet:as-number;
       description
         "AS number of the peer.";
+    }
+
+    leaf local-as {
+      type inet:as-number;
+      description
+        "The local autonomous system number that is to be used
+        when establishing sessions with the remote peer or peer
+        group, if this differs from the global BGP router
+        autonomous system number.";
     }
 
     leaf peer-type {
@@ -218,20 +235,14 @@ module bgp {
       }
       default 30;
       description
-        "Mininum time interval in seconds between transmission
-        of BGP updates to neighbors";
+        "Minimum time which must elapse between subsequent UPDATE
+        messages relating to a common set of NLRI being transmitted
+        to a peer. This timer is referred to as
+        MinRouteAdvertisementIntervalTimer by RFC 4721 and serves to
+        reduce the number of UPDATE messages transmitted when a
+        particular set of NLRI exhibit instability.";
       reference
-        "RFC 4271 - A Border Gateway Protocol 4, Sec 10";
-    }
-
-    leaf send-update-delay {
-      type decimal64 {
-        fraction-digits 2;
-      }
-      description
-        "Time interval between routes changing in the routing
-        table and corresponding updates sent to neighbors --
-        serves to batch updates";
+        "RFC 4271 - A Border Gateway Protocol 4, Sec 9.2.1.1";
     }
   }
 
@@ -263,10 +274,18 @@ module bgp {
     }
 
     leaf local-address {
-      type inet:ip-address;
+      type union {
+        type inet:ip-address;
+        type string;
+      }
+      //TODO:  the string should be converted to a leafref type
+      //to point to an interface when YANG 1.1 is available with
+      //leafrefs in union types.
       description
         "Set the local IP (either IPv4 or IPv6) address to use
-        for the session when sending BGP update messages.";
+        for the session when sending BGP update messages.  This
+        may be expressed as either an IP address or reference
+        to the name of an interface.";
     }
   }
 
@@ -305,13 +324,20 @@ module bgp {
       "Configuration parameters specifying the multihop behaviour for
       BGP sessions to the peer";
 
+    leaf enabled {
+      type boolean;
+      default "false";
+      description
+        "When enabled the referenced group or neighbors are permitted
+        to be indirectly connected - including cases where the TTL
+        can be decremented between the BGP peers";
+    }
+
     leaf multihop-ttl {
       type uint8;
-      default 1;
       description
-        "Time-to-live for multihop BGP sessions.  The default
-        value of 1 is for directly connected peers (i.e.,
-        multihop disabled";
+        "Time-to-live value to use when packets are sent to the
+        referenced group or neighbors and ebgp-multihop is enabled";
     }
   }
 
@@ -400,7 +426,7 @@ module bgp {
     }
   }
 
-  grouping bgp-graceful-restart_config {
+  grouping bgp-graceful-restart {
     description
       "Configures BGP graceful restart, which is a negotiated
       option that indicates that a BGP speaker is able to retain
@@ -408,9 +434,6 @@ module bgp {
 
     reference "RFC 4724: Graceful Restart Mechanism for BGP";
     container graceful-restart {
-      presence
-        "Presence of this item indicates that BGP graceful restart
-        is enabled.";
       description
         "Parameters relating the graceful restart mechanism for BGP";
       container config {
@@ -431,15 +454,22 @@ module bgp {
     description
       "Configuration parameters relating to BGP graceful restart.";
 
+    leaf enabled {
+      type boolean;
+      description
+        "Enable or disable the graceful-restart capability.";
+    }
+
     leaf restart-time {
       type uint16 {
         range 0..4096;
       }
       description
-        "Estimated time in seconds for the BGP session to be
-        re-established after a restart.  This is a 12-bit value
-        advertised by the router to peers.  Per RFC 4724, the
-        suggested default value is <= the hold-time value";
+        "Estimated time (in seconds) for the local BGP speaker to
+        restart a session. This value is advertise in the graceful
+        restart BGP capability.  This is a 12-bit value, referred to
+        as Restart Time in RFC4724.  Per RFC4724, the suggested
+        default value is <= the hold-time value.";
     }
 
     leaf stale-routes-time {
@@ -447,9 +477,22 @@ module bgp {
         fraction-digits 2;
       }
       description
-        "Sets an upper bound on the time in seconds that stale
-        routes will be retained by the router after a session is
-        restarted";
+        "An upper-bound on the time thate stale routes will be
+        retained by a router after a session is restarted. If an
+        End-of-RIB (EOR) marker is received prior to this timer
+        expiring stale-routes will be flushed upon its receipt - if
+        no EOR is received, then when this timer expires stale paths
+        will be purged. This timer is referred to as the
+        Selection_Deferral_Timer in RFC4724";
+    }
+
+    leaf helper-only {
+      type boolean;
+      description
+        "Enable graceful-restart in helper mode only. When this
+        leaf is set, the local system does not retain forwarding
+        its own state during a restart, but supports procedures
+        for the receiving speaker, as defined in RFC4724.";
     }
   }
 
@@ -474,6 +517,8 @@ module bgp {
       uses bgp-op:bgp-global_state;
     }
 
+    uses bgp-mp:bgp-route-selection-options;
+
     container default-route-distance {
       description
         "Administrative distance (or preference) assigned to
@@ -495,10 +540,6 @@ module bgp {
     }
 
     container confederation {
-      presence
-        "Presence of this container indicates that the local AS is
-        part of a confederation";
-
       description
         "Parameters indicating whether the local system acts as part
         of a BGP confederation";
@@ -516,13 +557,14 @@ module bgp {
       }
     }
 
-    uses bgp-mp:bgp-use-multiple-paths_config;
-    uses bgp-graceful-restart_config;
+    uses bgp-mp:bgp-use-multiple-paths;
 
-    container afi-safi {
+    uses bgp-graceful-restart;
+
+    container afi-safis {
       description
         "Address family specific configuration";
-      uses bgp-mp:bgp-global-afi-safi-list;
+      uses bgp-mp:bgp-common-afi-safi-list;
     }
   }
 
@@ -536,10 +578,14 @@ module bgp {
         uniquely identified by peer IPv[46] address";
 
       leaf neighbor-address {
-        type inet:ip-address;
+        type leafref {
+          path "../config/neighbor-address";
+        }
         description
-          "Address of the BGP peer, either in IPv4 or IPv6";
+          "Reference to the address of the BGP neighbor used as
+          a key in the neighbor list";
       }
+
       uses bgp-neighbor-group;
     }
   }
@@ -553,11 +599,15 @@ module bgp {
         "List of BGP peer-groups configured on the local system -
         uniquely identified by peer-group name";
 
-      leaf peer-group-name {
-        type string;
-        description
-          "";
+    leaf peer-group-name {
+      type leafref {
+        path "../config/peer-group-name";
       }
+      description
+        "Reference to the name of the BGP peer-group used as a
+        key in the peer-group list";
+      }
+
       uses bgp-neighbor-group;
     }
   }
@@ -726,16 +776,38 @@ module bgp {
       }
     }
 
-    container afi-safi {
+    container afi-safis {
       description
         "Per-address-family configuration parameters associated with
         the neighbor or group";
-      uses bgp-mp:bgp-global-afi-safi-list;
+      uses bgp-mp:bgp-common-afi-safi-list;
     }
 
-    uses bgp-graceful-restart_config;
+    uses bgp-graceful-restart;
 
     uses rpol:apply-policy-group;
+  }
+
+  grouping bgp-neighbor-neighbor-address_config {
+    description
+      "Configuration options relating to the BGP neighbor address";
+
+    leaf neighbor-address {
+        type inet:ip-address;
+        description
+          "Address of the BGP peer, either in IPv4 or IPv6";
+    }
+  }
+
+  grouping bgp-peer-group-peer-group-name_config {
+    description
+      "Configuration options relating to the BGP peer-group name";
+
+    leaf peer-group-name {
+      type string;
+      description
+        "Name of the BGP peer-group";
+    }
   }
 
   // add peer-group pointer only for the neighbor list
@@ -756,14 +828,71 @@ module bgp {
   augment /bgp/peer-groups/peer-group {
     description
       "Augmentation to add multipath configuration to a peer-group";
-    uses bgp-mp:bgp-use-multiple-paths_config;
+    uses bgp-mp:bgp-use-multiple-paths;
   }
 
   augment /bgp/neighbors/neighbor {
     description
       "Augmentation to add the multipath configuration to a
       neighbor";
-    uses bgp-mp:bgp-use-multiple-paths-neighbor_config;
+    uses bgp-mp:bgp-use-multiple-paths-neighbor;
+  }
+
+  augment /bgp/peer-groups/peer-group/afi-safis/afi-safi {
+    description
+      "Augmentation to add multipath configuration to a peer-group
+      on a per-AFI-SAFI basis";
+    uses bgp-mp:bgp-use-multiple-paths;
+  }
+
+  augment /bgp/neighbors/neighbor/afi-safis/afi-safi {
+    description
+      "Augmentation to add multipath configuration to a neighbor
+      on a per-AFI-SAFI basis";
+    uses bgp-mp:bgp-use-multiple-paths-neighbor;
+  }
+
+  augment /bgp/global/afi-safis/afi-safi {
+    description
+      "Augmentation to add global instance specific AFI-SAFI
+      configuration information";
+    uses bgp-mp:bgp-global-afi-safi;
+    uses bgp-mp:bgp-use-multiple-paths;
+  }
+
+  augment /bgp/peer-groups/peer-group/afi-safis/afi-safi {
+    description
+      "Augmentation that adds peer-group instance specific
+      AFI-SAFI configuration information";
+    uses bgp-mp:bgp-group-afi-safi;
+  }
+
+  augment /bgp/neighbors/neighbor/config {
+    description
+      "Augmentation adding the neighbor address to the
+      neighbor configuration container";
+    uses bgp-neighbor-neighbor-address_config;
+  }
+
+  augment /bgp/neighbors/neighbor/state {
+    description
+      "Augmentation adding the neighbor address to the
+      neighbor state container";
+    uses bgp-neighbor-neighbor-address_config;
+  }
+
+  augment /bgp/peer-groups/peer-group/config {
+    description
+      "Augmentation adding the peer-group name to the
+      peer-group configuration container";
+    uses bgp-peer-group-peer-group-name_config;
+  }
+
+  augment /bgp/peer-groups/peer-group/state {
+    description
+      "Augmentation adding the peer-group name to the
+      peer-group state container";
+    uses bgp-peer-group-peer-group-name_config;
   }
 
   // ************************************************************
@@ -844,18 +973,26 @@ module bgp {
     uses bgp-op:bgp-peer-group_state;
   }
 
-  augment /bgp/global/afi-safi/afi-safi/state {
+  augment /bgp/global/afi-safis/afi-safi/state {
     description
       "Augmentation to add operational state and counters
       on a per-AFI-SAFI basis to the global BGP router";
     uses bgp-op:bgp-global-afi-safi_state;
   }
 
-  augment /bgp/neighbors/neighbor/afi-safi/afi-safi/state {
+  augment /bgp/neighbors/neighbor/afi-safis/afi-safi/state {
     description
       "Augmentation to add per-AFI-SAFI operational state
       and counters to the BGP neighbor";
     uses bgp-op:bgp-neighbor-afi-safi_state;
+  }
+
+  augment "/bgp/neighbors/neighbor/afi-safis/afi-safi/" +
+    "graceful-restart/state" {
+    description
+      "Augmentation to add per-AFI-SAFI operational state for BGP
+      graceful-restart";
+    uses bgp-op:bgp-neighbor-afi-safi-graceful-restart_state;
   }
 
   // ************************************************************
