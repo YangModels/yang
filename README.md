@@ -37,7 +37,9 @@ The following directories are maintained [license note in brackets]:
 
   **yang/vendor**: contains vendor-specific YANG modules [any]
 
-  **yang/vendor/brocade** : Brocade YANG modules [3] 
+  **yang/vendor/brocade** : Brocade YANG modules [3]
+  
+  **yang/vendor/cisco** : Cisco YANG modules [3] 
 
   **yang/vendor/netconfcentral**: Netconf Central YANG modules [3]
 
