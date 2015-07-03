@@ -5,6 +5,7 @@ This repository contains a collection of YANG modules:
 
   * IETF standards-track YANG modules
   * Open Daylight open source YANG modules
+  * IEEE experimental YANG modules
   * Vendor specific YANG modules
   * Open source YANG tools
 
@@ -16,6 +17,8 @@ Directory Structure
 The following directories are maintained [license note in brackets]:
 
   **yang/experimental**: contains experimental YANG modules [any]
+
+  **yang/experimental/ieee**: experimental modules intended for IEEE submission [3]
 
   **yang/experimental/ietf**: experimental modules intended for IETF submission [1]
 
@@ -37,13 +40,13 @@ The following directories are maintained [license note in brackets]:
 
   **yang/vendor**: contains vendor-specific YANG modules [any]
 
-  **yang/vendor/brocade** : Brocade YANG modules [3]
+  **yang/vendor/brocade** : Brocade YANG modules [4]
   
-  **yang/vendor/cisco** : Cisco YANG modules [3] 
+  **yang/vendor/cisco** : Cisco YANG modules [4] 
 
-  **yang/vendor/netconfcentral**: Netconf Central YANG modules [3]
+  **yang/vendor/netconfcentral**: Netconf Central YANG modules [4]
 
-  **yang/vendor/yumaworks**: YumaWorks YANG modules [3]
+  **yang/vendor/yumaworks**: YumaWorks YANG modules [4]
 
 ***
 
@@ -62,10 +65,19 @@ License Information
 
    * All files contained within this sub-directory are provided under the terms of the [Eclipse Public License](https://www.eclipse.org/legal/epl-v10.html):
 
+####[3]  **IEEE License**:
 
-####[3]  **Vendor Specific License**:
+   * All files contained within this sub-directory are considered to be intended as IEEE Contributions.
+   * All issues entered into the trouble ticket system for this directory are considered to be intended as IEEE Contributions.
+   * All pull requests submitted for this directory are considered to be intended as IEEE Contributions.
+   * All contributions to IEEE standards development (whether for an individual or entity standard) shall meet the requirements outlined in the [IEEE-SA Copyright Policy](https://standards.ieee.org/develop/policies/bylaws/sect6-7.html#7)
+   * Copyright release for YANG modules: Users may freely reproduce the YANG modules contained under /experimental/ieee/ so that they can be used for their intended purpose.
+
+####[4]  **Vendor Specific License**:
 
   * All files contained within this sub-directory are provided under the terms of a license specified by the vendor that owns the YANG modules.
+
+####[5] Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 
 ***
 
