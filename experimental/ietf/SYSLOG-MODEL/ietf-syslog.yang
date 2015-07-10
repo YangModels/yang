@@ -20,8 +20,8 @@ module ietf-syslog {
     "WG Web:   <http://tools.ietf.org/wg/netmod/>
      WG List:  <mailto:netmod@ietf.org>
      
-     WG Chair: David Kessens
-               <mailto:david.kessens@nsn.com>
+     WG Chair: Tom Nadeau
+               <mailto:tnadeau@lucidvision.com>
      
      WG Chair: Juergen Schoenwaelder
                <mailto:j.schoenwaelder@jacobs-university.de>
@@ -32,42 +32,43 @@ module ietf-syslog {
     "This module contains a collection of YANG definitions 
      for Syslog configuration.";
 
-  revision 2015-03-05 {
+  revision 2015-07-06 {
     description
       "Initial Revision";
     reference
-      "This model references RFC 5424 - The Syslog Protocol, 
-       and RFC 5848 - Signed Syslog Messages.";
+      "RFC 5424: The Syslog Protocol
+       RFC 5848: Signed Syslog Messages";
   }
 
-  feature global-logging-action {
+  feature buffer-limit-bytes {
     description
-      "This feature represents the ability to suppress log
-       messages on the global level.";
+      "This feature indicates that local memory logging buffers
+       are limited in size using a limit expressed in bytes.";
   }
 
-  feature file-logging-structured-data {
+  feature buffer-limit-messages {
+    description
+      "This feature indicates that local memory logging buffers
+       are limited in size using a limit expressed in number
+       of messages.";
+  }
+
+  feature structured-data-config {
     description
       "This feature represents the ability to log messages 
-       to a file in structured-data format as per RFC 5424.";
+       in structured-data format as per RFC 5424.";
   }
 
-  feature remote-logging-structured-data {
+  feature file-limit-size {
     description
-      "This feature represents the ability to deliver log 
-       messages to a remote server in structured-data format 
-       as per RFC 5424.";
+      "This feature indicates that file logging resources
+       are managed using size and number limits.";
   }
 
-  feature file-logging-archive-config {
+  feature file-limit-duration {
     description
-      "This feature represents the ability to archive log files.";
-  }
-
-  feature remote-logging-use-vrf {
-    description
-      "This feature allows remote logging of messages to a 
-       particular VRF.";
+      "This feature indicates that file logging resources
+       are managed using time based limits.";
   }
 
   feature terminal-facility-user-logging-config {
@@ -76,7 +77,7 @@ module ietf-syslog {
        log message settings for individual terminal users.";
   }
 
-  feature selector-advanced-level-processing-config {
+  feature selector-severity-operator-config {
     description
       "This feature represents the ability to select messages 
        using the additional operators equal to, or not equal to 
@@ -100,10 +101,23 @@ module ietf-syslog {
       "This grouping defines the Syslog severity which is used to 
        filter log messages.";
     leaf severity {
-      type syslogtypes:severity;
+      type union {
+        type syslogtypes:severity;
+        type enumeration {
+          enum all {
+            value -1;
+            description
+              "This enum describes the case where all severities 
+               are requested.";
+          }
+        }
+      }
       description
-        "This leaf specifies the Syslog message severity. 
-         No value implies all severities.";
+        "This leaf specifies the Syslog message severity. When 
+         severity is specified the default severity comparison 
+         is all messages of the specified severity and greater are 
+         logged unless all is specified which means all severities
+         are requested. No value implies no severity is requested.";
     }
   }
 
@@ -116,74 +130,82 @@ module ietf-syslog {
          logging-facility-none
          logging-facility [<facility> <severity>...]
        Additional severity comparison operations are available 
-       using the logging-advanced-level-processing container. If
-       the logging-advanced-level-processing container is not 
-       present all messages of the specified severity and higher 
-       are logged according to the given action.";
-    choice logging-level-scope {
-      default logging-facility-all;
+       using the severity-operator leaf. If the severity-operator
+       leaf is not present all messages of the specified severity 
+       and higher are logged according to the given action.";
+    container log-selector {
       description
-        "This choice describes the option to specify all 
-         facilities, no facilities, or a specific facility.";
-      case logging-facility-all {
+        "This container describes the log selector parameters 
+         for Syslog.";
+      choice logging-level-scope {
+        default logging-facility-all;
         description
-          "This case specifies all facilities will match when 
-           comparing the Syslog message facility.";
-        uses syslog-severity;
-      }
-      case logging-facility-none {
-        description
-          "This case specifies no facilities will match when 
-           comparing the Syslog message facility. This is a method 
-           that can be used to turn an action off.";
-        leaf none {
-          type empty;
+          "This choice describes the option to specify all 
+           facilities, no facilities, or a specific facility.";
+        case logging-facility-all {
           description
-          "This leaf specifies that no facilities participate in the 
-           filtering of Syslog messages for this action.";
-        }
-      }
-      case logging-facility {
-        description
-          "This case specifies one or more specified facilities 
-           will match when comparing the Syslog message facility.";
-        list logging-facilities {
-          key "facility";
-          description
-            "This list describes a collection of Syslog facilities 
-             and severities.";
-          leaf facility {
-            type identityref {
-              base syslogtypes:syslog-facility;
-            }
+            "This case specifies all facilities will match when 
+             comparing the Syslog message facility.";
+          leaf all-facilities {
+            type empty;
             description
-              "The leaf uniquely identifies a Syslog facility.";
+            "This leaf specifies that all facilities participate in 
+             the filtering of Syslog messages for this action.";
           }
           uses syslog-severity;
         }
+        case logging-facility-none {
+          description
+            "This case specifies no facilities will match when 
+             comparing the Syslog message facility. This is a method 
+             that can be used to turn an action off.";
+          leaf no-facilities {
+            type empty;
+            description
+            "This leaf specifies that no facilities participate in 
+             the filtering of Syslog messages for this action.";
+          }
+        }
+        case logging-facility {
+          description
+            "This case specifies one or more specified facilities 
+             will match when comparing the Syslog message facility.";
+          list facilities {
+            key "facility";
+            description
+              "This list describes a collection of Syslog facilities 
+               and severities.";
+            leaf facility {
+              type identityref {
+                base syslogtypes:syslog-facility;
+              }
+              description
+                "The leaf uniquely identifies a Syslog facility.";
+            }
+            uses syslog-severity;
+          }
+        }
       }
-    }
-    container logging-advanced-level-processing {
-      if-feature selector-advanced-level-processing-config;
-      description
-        "This container describes the configuration parameters for 
-         advanced Syslog selector severity comparison.";
-      leaf select-message-severity {
+      leaf severity-operator {
+        if-feature selector-severity-operator-config;
         type enumeration {
           enum equals-or-higher {
             description
-              "All messages of the specified severity and higher are 
-               logged according to the given action";
+              "This enum specifies all messages of the specified 
+               severity and higher are logged according to the 
+               given action";
           }
           enum equals {
             description
-              "This leaf specifies all messages for the specified 
-               severity.";
+              "This enum specifies all messages that are for 
+               the specified severity are logged according to the 
+               given action";
           }
           enum not-equals {
             description
-              "This leaf specifies all messages that are not for the 
-               specified severity.";
+              "This enum specifies all messages that are not for 
+               the specified severity are logged according to the 
+               given action";
           }
         }
         default equals-or-higher;
@@ -191,14 +213,8 @@ module ietf-syslog {
           "This leaf describes the option to specify how the 
            severity comparison is performed.";
       }
-    }
-    container logging-match-processing {
-      if-feature selector-match-processing-config;
-      description
-        "This container describes the configuration parameters for 
-         matching Syslog messages using a regular expression pattern 
-         match.";
       leaf pattern-match {
+        if-feature selector-match-processing-config;
         type string;
         description
           "This leaf desribes a Posix 1003.2 regular expression 
@@ -213,265 +229,316 @@ module ietf-syslog {
     description
       "This container describes the configuration parameters for 
        Syslog.";
-    container global-logging-action {
-      if-feature global-logging-action;
+    container log-actions {
       description
-        "This container describes the configuration parameters for 
-         global logging. Global logging represents the ability to 
-         perform global log message suppression.";
-      uses syslog-selector;
-    }
-    container console-logging-action {
-      description
-        "This container describes the configuration parameters for 
-         console logging.";
-      uses syslog-selector;
-    }
-    container buffered-logging-action {
-      description
-        "This container describes the configuration parameters for 
-         local memory buffer logging.";
-      uses syslog-selector;
-      leaf buffer-size {
-        type uint64;
+        "This container describes the log action parameters 
+         for Syslog.";
+      container console {
         description
-          "This leaf describes the amount of memory that will be 
-           dedicated to local memory buffer logging. The default 
-           value varies by implementation.";
-      }
-    }
-    container file-logging-action {
-      description
-        "This container describes the configuration parameters for 
-         file logging.";
-      list logging-files {
-        key "file-name";
-        description
-          "This list describes a collection of local logging 
-           files.";
-        leaf file-name {
-          type inet:uri;
-          description
-            "This leaf specifies the name of the log file.";
-        }
+          "This container describes the configuration parameters for 
+           console logging.";
         uses syslog-selector;
-        leaf file-logging-structured-data {
-          if-feature file-logging-structured-data;
-          type boolean;
-          default false;
+      }
+      container buffer {
+        description
+          "This container describes the configuration parameters for 
+           local memory buffer logging. The buffer is circular in 
+           nature, so newer messages overwrite older messages after 
+           the buffer is filled.";
+        list log-buffer {
+          key name;
           description
-            "This leaf describes how log messages are written to the 
-             log file. If true, messages will be written in 
-             structured-data format; if false, messages will be 
-             written in standard message format.";
-        }
-        container file-logging-archive {
-          if-feature file-logging-archive-config;
-          description
-            "This container describes the configuration parameters 
-             for log file archiving.";
-          leaf file-number {
-            type uint32;
-            default 1;
+            "This list describes a collection of local logging
+             memory buffers.";
+          leaf name {
+            type string;
             description
-              "This leaf specifies the maximum number of log files 
-               retained.";
+              "This leaf specifies the name of the log buffer.";
           }
-          leaf file-size {
+          uses syslog-selector;
+          leaf buffer-size-bytes {
+            if-feature buffer-limit-bytes;
             type uint64;
-            default 262144;
+            units "bytes";
             description
-              "This leaf specifies the maximum log file size.";
+              "This leaf configures the amount of memory (in bytes) 
+               that will be dedicated to the local memory logging 
+               buffer.  The default value varies by implementation.";
           }
-          leaf file-permission {
-            type enumeration {
-               enum world-readable {
-                 value 1;
-                 description
-                   "This enum specifies that the log files 
-                    are readable by world.";
-               }
-               enum no-world-readable {
-                 value 2;
-                 description
-                   "This enum specifies that the log files 
-                    are not readable by world.";
-               }
-            }
-            default no-world-readable;
+          leaf buffer-size-messages {
+            if-feature buffer-limit-messages;
+            type uint64;
+            units "log messages";
             description
-              "This leaf describes who can read log files";
+              "This leaf configures the amount number of log 
+               messages that can be stored in the local memory 
+               logging buffer.  The default value varies by 
+               implementation.";
           }
         }
       }
-    }
-    container remote-logging-action {
-      description
-        "This container describes the configuration parameters for 
-         remote logging.";
-      list remote-logging-destination {
-        key "destination";
+      container file {
         description
-          "This list describes a collection of remote logging 
-           destinations.";
-        leaf destination {
-          type inet:host;
+          "This container describes the configuration parameters for 
+           file logging.";
+        list log-file {
+          key "name";
           description
-            "The leaf uniquely specifies the address of the 
-             remote host. One of the following must be specified: 
-             an ipv4 address, an ipv6 address, or a host name.";
-        }
-        uses syslog-selector;
-        leaf remote-logging-structured-data {
-          if-feature remote-logging-structured-data;
-          type boolean;
-          default false;
-          description
-            "This leaf describes how log messages are sent to the 
-             remote server. If true, messages will be sent in 
-             structured-data format; if false, messages will be 
-             sent in standard message format.";
-        }
-        leaf destination-port {
-          type inet:port-number;
-          default 514;
-          description
-            "This leaf specifies the port number used to deliver 
-             messages to the remote server.";
-        }
-        leaf destination-facility {
-          type identityref {
-            base syslogtypes:syslog-facility;
-          }
-          default syslogtypes:local7;
-          description
-            "This leaf specifies the facility used in messages 
-             delivered to the remote server.";
-        }
-        leaf source-interface {
-          type if:interface-ref;
-          description
-            "This leaf sets the source interface for the remote 
-             Syslog server. Either the interface name or the 
-             interface IP address can be specified. If not set, 
-             messages sent to a remote syslog server will contain 
-             the IP address of the interface the syslog message 
-             uses to exit the network element";
-        }
-        leaf vrf-name {
-          if-feature remote-logging-use-vrf;
-          type string;
-          description
-            "This leaf specifies the name of the virtual routing 
-             facility (VRF) that connects to the syslog server 
-             host. If not set, the default VRF will be used.";
-        }
-        container syslog-sign {
-          if-feature signed-messages-config;
-          presence
-            "If present, syslog-sign is activated.";
-          description
-            "This container describes the configuration parameters 
-             for signed syslog messages as described by RFC 5848.";
-          leaf cert-initial-repeat {
-            type uint16;
-            mandatory true;
+            "This list describes a collection of local logging 
+             files.";
+          leaf name {
+            type inet:uri;
             description
-            "This leaf specifies the number of times each 
-             Certificate Block should be sent before the first 
-             message is sent.";
+              "This leaf specifies the name of the log file which 
+               MUST use the uri scheme file:.";
           }
-          leaf cert-resend-delay {
-            type uint16;
-            mandatory true;
+          uses syslog-selector;
+          leaf structured-data {
+            if-feature structured-data-config;
+            type boolean;
+            default false;
             description
-              "This leaf specifies the maximum time delay in seconds 
-               until resending the Certificate Block.";
+              "This leaf describes how log messages are written to 
+               the log file. If true, messages will be written with 
+               one or more STRUCTURED-DATA elements as per RFC5424; 
+               if false, messages will be written with 
+               STRUCTURED-DATA = NILVALUE.";
           }
-          leaf cert-resend-count {
-            type uint16;
-            mandatory true;
-            description
-              "This leaf specifies the maximum number of other 
-               syslog messages to send until resending the 
-               Certificate Block.";
-          }
-          leaf sig-max-delay {
-            type uint16;
-            mandatory true;
-            description
-              "This leaf specifies when to generate a new Signature 
-               Block. If this many seconds have elapsed since the 
-               message with the first message number of the 
-               Signature Block was sent, a new Signature Block 
-               should be generated.";
-          }
-          leaf sig-number-resends {
-            type uint16;
-            mandatory true;
-            description
-              "This leaf specifies the number of times a Signature 
-               Block is resent. (It is recommended to select a value 
-               of greater than 0 in particular when the UDP 
-               transport [RFC5426] is used.).";
-          }
-          leaf sig-resend-delay {
-            type uint16;
-            mandatory true;
-            description
-              "This leaf specifies when to send the next Signature 
-               Block transmission based on time. If this many 
-               seconds have elapsed since the previous sending of 
-               this Signature Block, resend it.";
-          }
-          leaf sig-resend-count {
-            type uint16;
-            mandatory true;
-            description
-              "This leaf specifies when to send the next Signature 
-               Block transmission based on a count. If this many 
-               other syslog messages have been sent since the 
-               previous sending of this Signature Block, resend it.";
-          }
-        }
-      }
-    }
-    container terminal-logging-action {
-      description
-        "This container describes the configuration parameters for 
-         the terminal logging configuration.";
-      choice user-scope {
-        default all-users;
-        description
-          "This choice describes the option to specify all users 
-           or a specific user. The all users case implies that
-           messages will be sent to all terminals";
-        case all-users {
-          description
-            "This case specifies all users.";
-          container all-users {
+          container file-archive {
             description
               "This container describes the configuration parameters 
-               for all users.";
-            uses syslog-selector;
+               for log file archiving.";
+            leaf number-of-files {
+              if-feature file-limit-size;
+              type uint32;
+              description
+                "This leaf specifies the maximum number of log files 
+                 retained. Specify 1 for implementations that only 
+                 support one log file.";
+            }
+            leaf max-file-size {
+              if-feature file-limit-size;
+              type uint64;
+              units "megabytes";
+              description
+                "This leaf specifies the maximum log file size.";
+            }
+            leaf rollover {
+              if-feature file-limit-duration;
+              type uint32;
+              units "minutes";
+              description
+                "This leaf specifies the length of time that log 
+                 events should be written to a specific log file. 
+                 Log events that arrive after the rollover period 
+                 cause the current log file to be closed and a new 
+                 log file to be opened.";
+            }
+            leaf retention {
+              if-feature file-limit-duration;
+              type uint16;
+              units "hours";
+              description
+                "This leaf specifies the length of time that 
+                 completed/closed log event files should be stored 
+                 in the file system before they are deleted.";
+            }
           }
         }
-        case per-user {
-          if-feature terminal-facility-user-logging-config;
+      }
+      container remote {
+        description
+          "This container describes the configuration parameters for 
+           remote logging.";
+        list remote-logging-destination {
+          key "name";
           description
-            "This case specifies a specific user.";
-          list user-name {
-            key "uname";
+            "This list describes a collection of remote logging 
+             destinations.";
+          leaf name {
+            type string;
             description
-              "This list describes a collection of user names.";
-            leaf uname {
-              type string;
-              description
-                "This leaf uniquely describes a user name which is 
-                 the login name of the user whose terminal session 
-                 is to receive log messages.";
+              "An arbitrary name for the endpoint to connect to.";
+          }
+          choice transport {
+            mandatory true;
+            description
+              "This choice describes the transport option.";
+            case tcp {
+              container tcp {
+                description
+                  "This container describes the TCP transport
+                   options.";
+                leaf address {
+                  type inet:host;
+                  description
+                    "The leaf uniquely specifies the address of the 
+                     remote host. One of the following must be 
+                     specified: an ipv4 address, an ipv6 address, 
+                     or a host name.";
+                }
+                leaf port {
+                  type inet:port-number;
+                  default 514;
+                  description
+                    "This leaf specifies the port number used to 
+                     deliver messages to the remote server.";
+                }
+              }
             }
-            uses syslog-selector;
+            case udp {
+              container udp {
+                description
+                  "This container describes the UDP transport
+                   options.";
+                leaf address {
+                  type inet:host;
+                  description
+                    "The leaf uniquely specifies the address of the 
+                     remote host. One of the following must be 
+                     specified: an ipv4 address, an ipv6 address, 
+                     or a host name.";
+                }
+                leaf port {
+                  type inet:port-number;
+                  default 514;
+                  description
+                    "This leaf specifies the port number used to 
+                     deliver messages to the remote server.";
+                }
+              }
+            }
+          }
+          uses syslog-selector;
+          leaf destination-facility {
+            type identityref {
+              base syslogtypes:syslog-facility;
+            }
+            default syslogtypes:local7;
+            description
+              "This leaf specifies the facility used in messages 
+               delivered to the remote server.";
+          }
+          leaf source-interface {
+            type if:interface-ref;
+            description
+              "This leaf sets the source interface for the remote 
+               Syslog server. Either the interface name or the 
+               interface IP address can be specified. If not set, 
+               messages sent to a remote syslog server will contain 
+               the IP address of the interface the syslog message 
+               uses to exit the network element";
+          }
+          container syslog-sign {
+            if-feature signed-messages-config;
+            presence
+              "If present, syslog-sign is activated.";
+            description
+              "This container describes the configuration parameters 
+               for signed syslog messages as described by RFC 5848.";
+            reference
+              "RFC 5848: Signed Syslog Messages";
+            leaf cert-initial-repeat {
+              type uint16;
+              mandatory true;
+              description
+              "This leaf specifies the number of times each 
+               Certificate Block should be sent before the first 
+               message is sent.";
+            }
+            leaf cert-resend-delay {
+              type uint16;
+              mandatory true;
+              description
+                "This leaf specifies the maximum time delay in 
+                 seconds until resending the Certificate Block.";
+            }
+            leaf cert-resend-count {
+              type uint16;
+              mandatory true;
+              description
+                "This leaf specifies the maximum number of other 
+                 syslog messages to send until resending the 
+                 Certificate Block.";
+            }
+            leaf sig-max-delay {
+              type uint16;
+              mandatory true;
+              description
+                "This leaf specifies when to generate a new 
+                 Signature Block. If this many seconds have elapsed 
+                 since the message with the first message number of 
+                 the Signature Block was sent, a new Signature Block 
+                 should be generated.";
+            }
+            leaf sig-number-resends {
+              type uint16;
+              mandatory true;
+              description
+                "This leaf specifies the number of times a Signature 
+                 Block is resent. (It is recommended to select a 
+                 value of greater than 0 in particular when the UDP 
+                 transport [RFC5426] is used.).";
+            }
+            leaf sig-resend-delay {
+              type uint16;
+              mandatory true;
+              description
+                "This leaf specifies when to send the next Signature 
+                 Block transmission based on time. If this many 
+                 seconds have elapsed since the previous sending of 
+                 this Signature Block, resend it.";
+            }
+            leaf sig-resend-count {
+              type uint16;
+              mandatory true;
+              description
+                "This leaf specifies when to send the next Signature 
+                 Block transmission based on a count. If this many 
+                 other syslog messages have been sent since the 
+                 previous sending of this Signature Block, resend 
+                 it.";
+            }
+          }
+        }
+      }
+      container terminal {
+        description
+          "This container describes the configuration parameters for 
+           the terminal logging configuration.";
+        choice user-scope {
+          default all-users;
+          description
+            "This choice describes the option to specify all users 
+             or a specific user. The all users case implies that
+             messages will be sent to all terminals";
+          case all-users {
+            description
+              "This case specifies all users.";
+            container all-users {
+              description
+                "This container describes the configuration 
+                 parameters for all users.";
+              uses syslog-selector;
+            }
+          }
+          case per-user {
+            if-feature terminal-facility-user-logging-config;
+            description
+              "This case specifies a specific user.";
+            list user-name {
+              key "uname";
+              description
+                "This list describes a collection of user names.";
+              leaf uname {
+                type string;
+                description
+                  "This leaf uniquely describes a user name which is 
+                   the login name of the user whose terminal session 
+                   is to receive log messages.";
+              }
+              uses syslog-selector;
+            }
           }
         }
       }
