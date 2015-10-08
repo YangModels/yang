@@ -1,0 +1,1212 @@
+module openconfig-terminal-device {
+
+  yang-version "1";
+
+  // namespace
+  namespace "http://openconfig.net/yang/terminal-device";
+
+  prefix "opt-term";
+
+  // import some basic types
+  import openconfig-transport-types { prefix opt-types; }
+  import ietf-yang-types { prefix yang; }
+  import openconfig-if-ethernet { prefix eth; }
+  import openconfig-types { prefix oc-types; }
+
+
+  // meta
+  organization "OpenConfig working group";
+
+  contact
+    "OpenConfig working group
+    www.openconfig.net";
+
+  description
+    "This module describes a terminal optics device model for
+    managing the terminal systems (client and line side) in a
+    DWDM transport network.
+
+    Elements of the model:
+
+    physical client port: corresponds to a physical, pluggable client
+    port on the terminal device. Examples includes 10G, 40G, 100G
+    (e.g., 10x10G, 4x25G or 1x100G) and 400G/1T in the future.
+    Physical client ports will have associated operational state or
+    PMs.
+
+    physical client channel: a physical lane or channel in the
+    physical client port.  Each physical client port has 1 or more
+    channels. An example is 100GBASE-LR4 client physical port having
+    4x25G channels. Channels have their own optical PMs and can be
+    monitored independently within a client physical port (e.g.,
+    channel power).  Physical client channels are defined in the
+    model as part of a physical client port, and are modeled
+    primarily for reading their PMs.
+
+    logical channel: a logical grouping of logical grooming elements
+    that may be assigned to subsequent grooming stages for
+    multiplexing / de-multiplexing, or to an optical channel for
+    line side transmission.  The logical channels can represent, for
+    example, an ODU/OTU logical packing of the client
+    data onto the line side.  Tributaries are similarly logical
+    groupings of demand that can be represented in this structure and
+    assigned to an optical channel.  Note that different types of
+    logical channels may be present, each with their corresponding
+    PMs.
+
+    optical channel:  corresponds to an optical carrier and is
+    assigned a wavelength/frequency.  Optical channels have PMs
+    such as power, BER, and operational mode.
+
+    physical line port: represent the physical line-side ports on
+    the terminal device.  Line ports act as containers for optical
+    channels.
+
+    Directionality:
+
+    To maintain simplicity in the model, the configuration is
+    described from client-to-line direction.  The assumption is that
+    equivalent reverse configuration is implicit, resulting in
+    the same line-to-client configuration.
+
+    Physical layout:
+
+    The model does not assume a particular physical layout of client
+    and line ports on the terminal device (e.g., such as number of
+    ports per linecard, separate linecards for client and line ports,
+    etc.).";
+
+  revision "2015-08-17" {
+    description
+      "Initial revision";
+    reference "TBD";
+  }
+
+  // extension statements
+
+  // feature statements
+
+  // identity statements
+
+  // typedef statements
+
+  // grouping statements
+
+  grouping terminal-output-optical-power {
+    description
+      "Reusable leaves related to optical output power -- this is
+      typically configurable on line side and read-only on the
+      client-side";
+
+    leaf output-power {
+      type uint64;
+      units dBm;
+      description
+        "The output optical power of this port in units of 0.01dBm.
+        If the port is an aggregate of multiple physical channels,
+        this attribute is the total power or sum of all channels.";
+    }
+  }
+
+  grouping terminal-output-optical-frequency {
+    description
+      "Reusable leaves related to optical output power -- this is
+      typically configurable on line side and read-only on the
+      client-side";
+
+    leaf output-frequency {
+      type uint64;
+      units dBm;
+      description
+        "The frequency in MHz of the individual physical channel
+        (e.g. ITU C50 - 195.0THz and would be reported as
+        195,000,000 MHz in this model). This attribute is not
+        configurable on most client ports.";
+    }
+  }
+
+  grouping terminal-input-optical-power {
+    description
+      "Reusable leaves related to input optical power";
+
+    leaf input-power {
+      type uint64;
+      units dBm;
+      description
+        "The input optical power of this port in units of 0.01dBm.
+        If the port is an aggregate of multiple physical channels,
+        this attribute is the total power or sum of all channels.";
+    }
+  }
+
+  grouping terminal-ethernet-protocol-stats {
+    description
+      "Ethernet-specific counters when logical channel
+      framing is using Ethernet protocol, e.g., 10GE, 100GE";
+
+    container ethernet {
+      description
+        "PMs and counters for Ethernet protocol channels";
+
+      uses eth:ethernet-interface-state-counters;
+    }
+
+  }
+
+  grouping terminal-otn-protocol-stats {
+    description
+      "OTU statistics when logical channel
+      framing is using an OTU protocol, e.g., OTU1, OTU3, etc.";
+
+    container otn {
+      description
+        "PMs and statistics for OTN protocol channels";
+
+      container pre-fec-ber {
+        description
+          "Bit error rate before forward error correction -- computed
+          value";
+
+        uses oc-types:avg-min-max-stats-precision1;
+
+      }
+
+      container post-fec-ber {
+        description
+          "Bit error rate after forward error correction -- computed
+          value";
+
+        uses oc-types:avg-min-max-stats-precision1;
+      }
+
+      leaf tti-msg {
+        type string;
+        description
+          "Trail trace identifier (TTI) message received";
+      }
+
+      leaf rdi-msg {
+        type string;
+        description
+          "Remote defect indication (RDI) message received";
+      }
+    }
+  }
+
+  grouping terminal-client-physical-channel-config {
+    description
+      "Configuration data for physical client channels";
+
+    leaf index {
+      type uint16 {
+        range 0..max;
+      }
+      description
+        "Index of the physical channnel or lane within a physical
+        client port";
+    }
+
+    leaf description {
+      type string;
+      description
+        "Text description for the client physical channel";
+    }
+
+    leaf tx-laser {
+      type boolean;
+      description
+        "Enable (true) or disable (false) the transmit label for the
+        channel";
+    }
+  }
+
+  grouping terminal-client-physical-channel-state {
+    description
+      "Operational state data for client channels.";
+
+      uses terminal-output-optical-power;
+      uses terminal-output-optical-frequency;
+
+  }
+
+  grouping terminal-client-physical-channel-top {
+    description
+      "Top-level grouping for physical client channels";
+
+    container physical-channels {
+      description
+        "Enclosing container for client channels";
+
+      list channel {
+        key index;
+        description
+          "List of client channels, keyed by index within a physical
+          client port.  A physical port with a single channel would
+          have a single zero-indexed element";
+
+        leaf index {
+          type leafref {
+            path "../config/index";
+          }
+          description
+            "Reference to the index number of the client channel";
+        }
+
+        container config {
+          description
+            "Configuration data ";
+
+          uses terminal-client-physical-channel-config;
+        }
+
+        container state {
+
+          config false;
+
+          description
+            "Operational state data for client channels";
+
+          uses terminal-client-physical-channel-config;
+          uses terminal-client-physical-channel-state;
+        }
+      }
+    }
+  }
+
+  grouping terminal-client-port-assignment-config {
+    description
+      "Configuration data for assigning physical client ports to
+      logical channels";
+
+    leaf index {
+      type uint32;
+      description
+        "Index of the client port assignment";
+    }
+
+    leaf description {
+      type string;
+      description
+        "Descriptive name for the client port-to-logical channel
+        mapping";
+    }
+
+    leaf logical-channel {
+      type leafref {
+        path "../../../../../../logical-channels/channel/" +
+          "index";
+      }
+      description
+        "Reference to the logical channel for this
+        assignment";
+    }
+
+    leaf allocation {
+      type decimal64 {
+        fraction-digits 3;
+      }
+      units Gbps;
+      description
+        "Allocation of the client physical port to the assigned
+        logical channel expressed in Gbps.  In most cases,
+        the full client physical port rate is assigned to a single
+        logical channel.";
+    }
+
+  }
+
+  grouping terminal-client-port-assignment-state {
+    description
+      "Operational state data for assigning physical client ports
+      to logical channels";
+  }
+
+  grouping terminal-client-port-assignment-top {
+    description
+      "Top-level grouping for the assigment of client physical ports
+      to logical channels";
+    //TODO: this grouping could be removed, instead reusing a common
+    //grouping for logical client assignment pointers
+
+    container logical-channel-assignments {
+      description
+        "Enclosing container for client port to logical client
+        mappings";
+
+      list assignment {
+        key index;
+        description
+          "List of assignments to logical clients";
+
+        leaf index {
+          type leafref {
+            path "../config/index";
+          }
+          description
+            "Reference to the index of this logical client
+            assignment";
+        }
+
+        container config {
+          description
+            "Configuration data for the logical client assignment";
+
+          uses terminal-client-port-assignment-config;
+        }
+
+        container state {
+
+          config false;
+
+          description
+            "Operational state data for the logical client
+            assignment";
+
+          uses terminal-client-port-assignment-config;
+          uses terminal-client-port-assignment-state;
+        }
+      }
+    }
+  }
+
+  grouping terminal-client-port-transceiver-config {
+    description
+      "Configuration data for client port transceivers";
+
+    leaf enabled {
+      type boolean;
+      description
+        "Turns power on / off to the transceiver -- provides a means
+        to power on/off the transceiver (in the case of SFP, SFP+,
+        QSFP,...) or enable high-power mode (in the case of CFP,
+        CFP2, CFP4) and is optionally supported (device can choose to
+        always enable).  True = power on / high power, False =
+        powered off";
+    }
+  }
+
+  grouping terminal-client-port-transceiver-state {
+    description
+      "Operational state data for client port transceivers";
+
+    leaf present {
+      type enumeration {
+        enum PRESENT {
+          description
+            "Transceiver is present on the port";
+        }
+        enum NOT_PRESENT {
+          description
+            "Transceiver is not present on the port";
+        }
+      }
+      description
+        "Indicates whether a transceiver is present in
+        the specified client port.";
+    }
+
+    leaf form-factor {
+      type identityref {
+        base opt-types:transceiver-form-factor-type;
+      }
+      description
+        "Indicates the type of optical transceiver used on this
+        port.  If the client port is built into the device and not
+        plugable, then non-pluggable is the corresponding state. If
+        a device port supports multiple form factors (e.g. QSFP28
+        and QSFP+, then the value of the transceiver installed shall
+        be reported. If no transceiver is present, then the value of
+        the highest rate form factor shall be reported
+        (QSFP28, for example).";
+    }
+
+    leaf connector-type {
+      type identityref {
+        base opt-types:fiber-connector-type;
+      }
+      description
+        "Connector type used on this port";
+    }
+
+    leaf internal-temp {
+      type int16 {
+        range -40..125;
+      }
+      description
+        "Internally measured temperature in degrees Celsius. MSA
+        valid range is between –40 and +125C. Accuracy shall be
+        better than +/- 3 degC over the whole temperature range.";
+    }
+
+    leaf vendor {
+      type string {
+        length 1..16;
+      }
+      description
+        "Full name of transceiver vendor. 16-octet field that
+        contains ASCII characters, left-aligned and padded on the
+        right with ASCII spaces (20h)";
+    }
+
+    leaf vendor-part {
+      type string {
+        length 1..16;
+      }
+      description
+        "Transceiver vendor’s part number. 16-octet field that
+        contains ASCII characters, left-aligned and padded on the
+        right with ASCII spaces (20h). If part number is undefined,
+        all 16 octets = 0h";
+    }
+
+    leaf vendor-rev {
+      type string {
+        length 1..2;
+      }
+      description
+        "Transceiver vendor’s revision number. 2-octet field that
+        contains ASCII characters, left-aligned and padded on the
+        right with ASCII spaces (20h)";
+    }
+
+    leaf serial-no {
+      type string {
+        length 1..16;
+      }
+      description
+        "Transceiver serial number. 16-octet field that contains
+        ASCII characters, left-aligned and padded on the right with
+        ASCII spaces (20h). If part serial number is undefined, all
+        16 octets = 0h";
+    }
+
+    leaf date-code {
+      type yang:date-and-time;
+      description
+        "Representation of the transceiver date code, typically
+        stored as YYMMDD.  The time portion of the value is
+        undefined and not intended to be read.";
+    }
+
+    leaf fault-condition {
+      type boolean;
+      description
+        "Indicates if a fault condition exists in the transceiver";
+    }
+
+  }
+
+  grouping terminal-client-port-transceiver-top {
+    description
+      "Top-level grouping for client port transceiver data";
+
+    container transceiver {
+      description
+        "Top-level container for client port transceiver data";
+
+      container config {
+        description
+          "Configuration data for client port transceivers";
+
+        uses terminal-client-port-transceiver-config;
+      }
+
+      container state {
+
+        config false;
+
+        description
+          "Operational state data for client port transceivers";
+
+        uses terminal-client-port-transceiver-config;
+        uses terminal-client-port-transceiver-state;
+      }
+    }
+  }
+
+  grouping terminal-client-port-config {
+    description
+      "Configuration data for physical client-side ports";
+
+    leaf name {
+      type string;
+      description
+        "Name of the physical client port";
+    }
+
+    leaf description {
+      type string;
+      description
+        "Text description for the physical client port";
+    }
+
+  }
+
+  grouping terminal-client-port-state {
+    description
+      "Operational state data for physical client ports";
+
+    uses terminal-output-optical-power;
+    uses terminal-input-optical-power;
+
+    //TODO: these leaves should be active based on the type of
+    //interface
+    leaf ethernet-compliance-code {
+      type identityref {
+        base opt-types:ethernet-pmd-type;
+      }
+      description
+        "Ethernet PMD that the transceiver supports. The SFF/QSFP
+        MSAs have registers for this and CFP MSA has similar.";
+    }
+
+    leaf sonet-sdh-compliance-code {
+      type identityref {
+        base opt-types:sonet-application-code;
+      }
+      description
+        "SONET/SDH application code supported by the port";
+    }
+
+    leaf otn-compliance-code {
+      type identityref {
+        base opt-types:otn-application-code;
+      }
+      description
+        "OTN application code supported by the port";
+    }
+  }
+
+  grouping terminal-client-port-top {
+    description
+      "Top-level grouping for physical client ports";
+
+    container client-ports {
+      description
+        "Enclosing container for the list of client ports";
+
+      list port {
+        key name;
+        description
+          "List of client physical ports on the terminal device";
+
+        leaf name {
+          type leafref {
+            path "../config/name";
+          }
+          description
+            "Reference to the name of the client port";
+        }
+
+        container config {
+          description
+            "Configuration data for client physical ports";
+
+          uses terminal-client-port-config;
+        }
+
+        container state {
+
+          config false;
+
+          description
+            "Operational state data for client physical ports";
+
+          uses terminal-client-port-config;
+          uses terminal-client-port-state;
+        }
+
+        uses terminal-client-port-transceiver-top;
+        uses terminal-client-physical-channel-top;
+        uses terminal-client-port-assignment-top;
+      }
+    }
+  }
+
+  grouping terminal-logical-chan-assignment-config {
+    description
+      "Configuration data for assigning client logical channels
+      to line-side tributaries";
+
+    leaf index {
+      type uint32;
+      description
+        "Index of the current logical client channel to tributary
+        mapping";
+    }
+
+    leaf description {
+      type string;
+      description
+        "Name assigned to the logical client channel";
+    }
+
+    choice assignment-type {
+      description
+        "Each logical channel element may be assigned to subsequent
+        stages of logical elements to implement further grooming, or
+        can be assigned to a line-side optical channel for
+        transmission.  Each assignment also has an associated
+        bandwidth allocation.";
+
+      leaf logical-channel {
+        type leafref {
+          path "../../../../../../logical-channels/" +
+            "channel/index";
+        }
+        description
+          "Reference to another stage of logical channel elements.";
+      }
+
+      leaf optical-channel {
+        type leafref {
+          path "../../../../../../optical-channels/optical-channel" +
+            "/index";
+        }
+        description
+          "Reference to the line-side optical channel that should
+          carry the current logical channel element.  Use this
+          reference to exit the logical element stage.";
+      }
+    }
+
+    leaf allocation {
+      type decimal64 {
+        fraction-digits 3;
+      }
+      units Gbps;
+      description
+        "Allocation of the logical client channel to the tributary
+        or sub-channel, expressed in Gbps";
+    }
+
+  }
+
+  grouping terminal-logical-chan-assignment-state {
+    description
+      "Operational state data for the assignment of logical client
+      channel to line-side tributary";
+  }
+
+  grouping terminal-logical-chan-assignment-top {
+    description
+      "Top-level grouping for the list of logical client channel-to-
+      tributary assignments";
+
+    container logical-channel-assignments {
+      //TODO: we need a commonly understood name for this logical
+      //channel structure
+      description
+        "Enclosing container for tributary assignments";
+
+      list assignment {
+        key index;
+        description
+          "Logical channel elements may be assigned directly to
+          optical channels for line-side transmission, or can be
+          further groomed into additional stages of logical channel
+          elements.  The grooming can multiplex (i.e., split the
+          current element into multiple elements in the subsequent
+          stage) or de-multiplex (i.e., combine the current element
+          with other elements into the same element in the subsequent
+          stage) logical elements in each stage.
+
+          Note that to support the ability to groom the logical
+          elements, the list of logical channel elements should be
+          populated with an entry for the logical elements at
+          each stage, starting with the initial assignment from the
+          respective client physical port.
+
+          Each logical element assignment consists of a pointer to
+          an element in the next stage, or to an optical channel,
+          along with a bandwidth allocation for the corresponding
+          assignment (e.g., to split or combine signal).";
+
+        leaf index {
+          type leafref {
+            path "../config/index";
+          }
+          description
+            "Reference to the index for the current tributary
+            assignment";
+        }
+
+        container config {
+          description
+            "Configuration data for tributary assignments";
+
+          uses terminal-logical-chan-assignment-config;
+        }
+
+        container state {
+
+          config false;
+
+          description
+            "Operational state data for tributary assignments";
+
+          uses terminal-logical-chan-assignment-config;
+          uses terminal-logical-chan-assignment-state;
+        }
+      }
+    }
+  }
+
+  grouping terminal-logical-channel-config {
+    description
+      "Configuration data for logical client channels";
+
+    leaf index {
+      type uint32;
+      description
+        "Index of the current logical client channel";
+    }
+
+    leaf description {
+      type string;
+      description
+        "Description of the client logical channel";
+    }
+
+    leaf trib-rate-class {
+      type identityref {
+        base opt-types:tributary-rate-class-type;
+      }
+      description
+        "Rounded bit rate of the tributary signal. Exact bit rate
+        will be refined by protocol selection.";
+    }
+
+    leaf trib-protocol {
+      type identityref {
+        base opt-types:tributary-protocol-type;
+      }
+      description
+        "Protocol framing of the tributary signal. If this
+        LogicalChannel is directly connected to a Client-Port or
+        Optical-Channel, this is the protocol of the associated port.
+        If the LogicalChannel is connected to other LogicalChannels,
+        the TributaryProtocol of the LogicalChannels will define a
+        specific mapping/demapping or multiplexing/demultiplexing
+        function.
+
+        Not all protocols are valid, depending on the value
+        of trib-rate-class.  The expectation is that the NMS
+        will validate that a correct combination of rate class
+        and protocol are specfied.  Basic combinations are:
+
+        rate class: 1G
+        protocols: 1GE
+
+        rate class: 2.5G
+        protocols: OC48, STM16
+
+        rate class: 10G
+        protocols:  10GE LAN, 10GE WAN, OC192, STM64, OTU2, OTU2e,
+                    OTU1e, ODU2, ODU2e, ODU1e
+
+        rate class: 40G
+        protocols:  40GE, OC768, STM256, OTU3, ODU3
+
+        rate class: 100G
+        protocols:  100GE, 100G MLG, OTU4, OTUCn, ODU4";
+    }
+
+    leaf protocol-type {
+      type identityref {
+        base opt-types:logical-element-protocol-type;
+      }
+      description
+        "The type / stage of the logical element determines the
+        configuration and operational state parameters (PMs)
+        available for the logical element";
+    }
+
+  }
+
+
+  grouping terminal-logical-channel-state {
+    description
+      "Operational state data for logical client channels";
+
+    leaf link-state {
+      type enumeration {
+        enum UP {
+          description
+            "Logical channel is operationally up";
+        }
+        enum DOWN {
+          description
+            "Logical channel is operationally down";
+        }
+      }
+      description
+        "Link-state of the Ethernet protocol on the logical channel,
+        SONET / SDH framed signal, etc.";
+    }
+
+    uses terminal-ethernet-protocol-stats {
+      when "../config/protocol-type = prot-ethernet" {
+        description
+          "Include the Ethernet protocol statistics only when the
+          protocol used by the link is Ethernet.";
+      }
+    }
+
+    uses terminal-otn-protocol-stats {
+      when "../config/protocol-type = prot-otn" {
+        description
+          "Include the Ethernet protocol statistics only when the
+          protocol used by the link is Ethernet.";
+      }
+    }
+  }
+
+  grouping terminal-logical-channel-top {
+    description
+      "Top-level grouping for logical channels";
+
+    container logical-channels {
+      description
+        "Enclosing container the list of logical channels";
+
+      list channel {
+        key index;
+        description
+          "List of logical channels";
+        //TODO: naming for this list of logical elements should be
+        //revisited.
+
+        leaf index {
+          type leafref {
+            path "../config/index";
+          }
+          description
+            "Reference to the index of the logical client channel";
+        }
+
+        container config {
+          description
+            "Configuration data for logical client channels";
+
+          uses terminal-logical-channel-config;
+        }
+
+        container state {
+
+          config false;
+
+          description
+            "Operational state data for logical client channels";
+
+          uses terminal-logical-channel-config;
+          uses terminal-logical-channel-state;
+        }
+
+        uses terminal-logical-chan-assignment-top;
+      }
+    }
+  }
+
+
+  grouping terminal-optical-channel-config {
+    description
+      "Configuration data for describing optical channels";
+
+    leaf index {
+      type uint64;
+      description
+        "Index number assigned to the optical channel.  The index
+        must be unique on the local system.";
+    }
+
+    leaf frequency {
+      type uint64;
+      units THz;
+      description
+        "Frequency of the optical channel";
+    }
+
+    leaf power {
+      type uint64;
+      units dBm;
+      description
+        "Power level of the optical channel";
+    }
+
+    leaf operational-mode {
+      type uint16;
+      // this must statement checks for existence of the
+      // operational mode in the list of supported operational
+      // modes
+      must "boolean(../../../../operational-modes/state/" +
+        "supported-modes[mode-id=current()])" {
+        description
+          "The referenced operational mode must exist in the list of
+          supported operational modes supplied by the device";
+      }
+      description
+        "Vendor-specific mode identifier -- sets the operational
+        mode for the channel";
+    }
+
+    leaf line-port {
+      type leafref {
+        path "../../../../line-ports/port/name";
+      }
+      description
+        "Reference to the line-side physical port that carries
+        this optical channel";
+    }
+  }
+
+  grouping terminal-optical-channel-state {
+    description
+      "Operational state data ";
+  }
+
+  grouping terminal-optical-channel-top {
+    description
+      "Top-level grouping ";
+
+    container optical-channels {
+      description
+        "Enclosing container ";
+
+      list optical-channel {
+        key index;
+        description
+          "List of ";
+
+        leaf index {
+          type leafref {
+            path "../config/index";
+          }
+          description
+            " ";
+        }
+
+        container config {
+          description
+            "Configuration data ";
+
+          uses terminal-optical-channel-config;
+        }
+
+        container state {
+
+          config false;
+
+          description
+            "Operational state data ";
+
+          uses terminal-optical-channel-config;
+          uses terminal-optical-channel-state;
+        }
+      }
+    }
+  }
+
+
+  grouping terminal-line-physical-port-config {
+    description
+      "Configuration data for physical line ports";
+
+    leaf name {
+      type string;
+      description
+        "Name of the line port";
+    }
+
+    uses terminal-output-optical-power;
+  }
+
+  grouping terminal-line-physical-port-state {
+    description
+      "Operational state data for physical line ports";
+  }
+
+  grouping terminal-line-physical-port-top {
+    description
+      "Top-level grouping for physical line ports";
+
+    container line-ports {
+      description
+        "Enclosing container for line ports";
+
+      list port {
+        key name;
+        description
+          "List of line ports";
+
+        leaf name {
+          type leafref {
+            path "../config/name";
+          }
+          description
+            "Reference to the name of the line port";
+        }
+
+        container config {
+          description
+            "Configuration data for each physical line port";
+
+          uses terminal-line-physical-port-config;
+        }
+
+        container state {
+
+          config false;
+
+          description
+            "Operational state data for each physical line port";
+
+          uses terminal-line-physical-port-config;
+          uses terminal-line-physical-port-state;
+        }
+      }
+    }
+  }
+
+  grouping terminal-operational-mode-config {
+    description
+      "Configuration data for vendor-supported operational modes";
+  }
+
+  grouping terminal-operational-mode-state {
+    description
+      "Operational state data for vendor-supported operational
+      modes";
+
+    list supported-modes {
+
+      key mode-id;
+      description
+        "List of supported modes and their associated metadata";
+
+      leaf mode-id {
+        type uint16;
+        description
+          "Two-octet encoding of the vendor-defined operational
+          mode";
+      }
+
+      leaf description {
+        type string;
+        description
+          "Vendor-supplied textual description of the characteristics
+          of this operational mode to enable operators to select the
+          appropriate mode for the application.";
+      }
+
+      //TODO: examples of the kind of info that would be useful to
+      //report in the operational mode:
+      //Symbol rate (32G, 40G, 43G, 64G, etc.)
+      //Modulation (QPSK, 8-QAM, 16-QAM, etc.)
+      //Differential encoding (on, off/pilot symbol, etc)
+      //State of polarization tracking mode (default, med.
+      //high-speed, etc.)
+      //Pulse shaping (RRC, RC, roll-off factor)
+      //FEC mode (SD, HD, % OH)
+
+      leaf vendor-id {
+        type string;
+        description
+          "Identifier to represent the vendor / supplier of the
+          platform and the associated operational mode information";
+      }
+    }
+  }
+
+  grouping terminal-operational-mode-top {
+    description
+      "Top-level grouping for supported vendor-specifid operational
+      mode";
+
+    container operational-modes {
+      description
+        "Top-level container for vendor-specific operational mode
+        information";
+
+      container config {
+        description
+          "Configuration data for operational modes.  This should
+          generally be empty, i.e., operational mode information
+          is supplied by the platform vendor and is expected to be
+          read-only";
+
+        uses terminal-operational-mode-config;
+      }
+
+      container state {
+
+        config false;
+
+        description
+          "Operational state data for vendor-specific operational
+          modes";
+
+        uses terminal-operational-mode-config;
+        uses terminal-operational-mode-state;
+      }
+    }
+  }
+
+  grouping terminal-device-config {
+    description
+      "Configuration data for transport terminal devices at a
+      device-wide level";
+  }
+
+  grouping terminal-device-state {
+    description
+      "Operational state data for transport terminal devices at a
+      device-wide level";
+  }
+
+  grouping terminal-device-top {
+    description
+      "Top-level grouping for data for terminal devices";
+
+    container terminal-device {
+      description
+        "Top-level container for the terminal device";
+
+      container config {
+        description
+          "Configuration data for global terminal-device";
+
+        uses terminal-device-config;
+      }
+
+      container state {
+
+        config false;
+
+        description
+          "Operational state data for global terminal device";
+
+        uses terminal-device-config;
+        uses terminal-device-state;
+      }
+
+      uses terminal-client-port-top;
+      uses terminal-logical-channel-top;
+      uses terminal-optical-channel-top;
+      uses terminal-line-physical-port-top;
+      uses terminal-operational-mode-top;
+
+    }
+  }
+
+  // data definition statements
+
+  uses terminal-device-top;
+
+  // augment statements
+
+  // rpc statements
+
+  // notification statements
+
+}

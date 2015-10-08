@@ -13,6 +13,7 @@ module mpls {
   import mpls-rsvp { prefix rsvp; }
   import mpls-sr { prefix sr; }
   import mpls-ldp { prefix ldp; }
+  import openconfig-types { prefix oc-types; }
 
   // include submodules
   include mpls-te;
@@ -68,7 +69,7 @@ module mpls {
                              +-------+
     ";
 
-  revision "2014-12-12" {
+  revision "2015-07-04" {
     description
       "Initial revision";
     reference "TBD";
@@ -116,20 +117,70 @@ module mpls {
       }
 
     }
-
-
   }
 
-  grouping mpls-global {
-    description "global level definitions for MPLS protocol
-    operation";
+ grouping mpls-ted-update-threshold_config {
+    description "Configuration options for traffic
+    engineering database update thresholds.";
+    leaf-list ted-update-threshold {
+      type oc-types:percentage;
+      max-elements 16;
+      description "stepped percentages of interface bandwidth change
+        which trigger update events into the IGP
+        traffic engineering database (TED)";
+    }
+  }
+  grouping mpls-ted-update-threshold {
+    description "Top level group for traffic engineering
+    database flooding options";
+    container ted-update-threshold {
+      description "Interface bandwidth change percentages
+      that trigger update events into the IGP traffic
+      engineering database (TED)";
+      container config {
+        description "Configuration parameters for TED
+        update threshold ";
+        uses mpls-ted-update-threshold_config;
+      }
+      container state {
+	config false;
+	description "State parameters for TED update threshold ";
+	uses mpls-ted-update-threshold_config;
+      }
+    }
+  }
+
+
+  grouping te_lsp_delay_config {
+    description "Group for the timers goerning the delay
+    in installation and cleanup of TE LSPs";
+    leaf te-lsp-install-delay {
+      type uint16 {
+        range 0..3600;
+      }
+      units seconds;
+      description "delay the use of newly installed te lsp for a
+      specified amount of time.";
+    }
+
+    leaf te-lsp-cleanup-delay {
+      type uint16;
+      units seconds;
+      description "delay the removal of old te lsp for a specified
+      amount of time";
+    }
+  }
+
+  grouping te-interfaces {
+    description "global level definitions for interfaces
+    on which TE is run";
 
     // TODO: this should be made a reference to an interface in the
     // interfaces model
     // TODO - should probably have as key the interface name, also
     // need an easy way to specify all interfaces and to exclude
     // interfaces.
-    list mpls-interfaces {
+    list te-interfaces {
 
       key interface-name;
       description "interfaces for which MPLS is enabled";
@@ -142,32 +193,45 @@ module mpls {
 
       leaf-list interface-admin-groups {
         type leafref {
-          path "/mpls:mpls/mpls:global/mpls:mpls-admin-groups/"
-          + "mpls:admin-group-name";
+          path "/mpls:mpls/mpls:te-global-attributes/" +
+	  "mpls:mpls-admin-groups/"+ "mpls:admin-group-name";
         }
         description
           "list of configured admin-groups on the interface";
       }
-    }
 
-    leaf mpls-lsp-install-delay {
-      type uint16 {
-        range 0..3600;
+      leaf interface-ted-update-threshold {
+      	type leafref {
+      	  path "/mpls/te-global-attributes/ted-update-threshold/" +
+	    "config/ted-update-threshold";
+      	}
+	description
+	  "ted update threshold on the interface";
       }
-      units seconds;
-      description "delay the use of newly installed lsp for a
-      specified amount of time.";
+
+
     }
 
-    leaf mpls-lsp-cleanup-delay {
-      type uint16;
-      units seconds;
-      description "delay the removal of old lsp for a specified
-      amount of time";
+    container te_lsp_timers {
+      description "definition for delays associated with setup
+      and cleanup of TE LSPs";
+      container config {
+	description "Configuration parameters related
+        to timers for TE LSPs";
+	uses te_lsp_delay_config;
+	uses te_lsp_reoptimize_config;
+      }
+      container state {
+	config false;
+	description "State related to timers for TE LSPs";
+	uses te_lsp_delay_config;
+	uses te_lsp_reoptimize_config;
+      }
     }
+
   }
 
-  container mpls {
+container mpls {
     presence "top-level container for MPLS config and operational
     state";
 
@@ -175,10 +239,16 @@ module mpls {
     data";
 
     container global {
-      description "general mpls configuration across LSP and tunnel
-      types";
+      // entropy label support, label ranges will be added here.
+     description "general mpls configuration applicable to any type
+     of LSP and signaling protocol";
+    }
 
-      uses mpls-global;
+    container te-global-attributes {
+      description "traffic-engineering global attributes";
+
+      uses mpls-ted-update-threshold;
+      uses te-interfaces;
       uses mpls-administrative-groups;
 
     }
@@ -199,12 +269,20 @@ module mpls {
         path computation and signaling methods";
 
         uses mpls-te-global;
-
-        uses path-definitions;
+	uses path-definitions;
 
         list label-switched-path {
           key signaled-name;
           description "list of defined TE LSPs";
+
+	  leaf signaled-name {
+	    type leafref {
+	      path "../config/signaled-name";
+	    }
+
+	    description "LSP name, also carried in signaling messages
+            when appropriate";
+	  }
 
           uses te-lsp-common;
           uses te-lsp-setup;
