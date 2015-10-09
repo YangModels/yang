@@ -5,7 +5,7 @@
 #
 vendor_dir="vendor/cisco"
 to_check="xr/530 xr/531 xr/532"
-pyang_flags="--canonical"
+pyang_flags=""
 
 checkDir () {
     echo Checking yang files in $vendor_dir/$1
@@ -26,9 +26,7 @@ checkDir () {
 }
 
 echo Checking modules with pyang command:
-echo
-echo    pyang $pyang_flags MODULE
-echo
+printf "\n    pyang $pyang_flags MODULE\n\n"
 
 cd $vendor_dir
 for d in $to_check; do
