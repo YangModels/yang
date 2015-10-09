@@ -3,6 +3,7 @@
 # Vendor-specific check script. Assumes that pyang is on path and that
 # all standard modules are on its internal module path.
 #
+vendor_dir="vendor/cisco"
 to_check="xr/530 xr/531 xr/532"
 
 checkDir () {
@@ -18,6 +19,7 @@ checkDir () {
     cd $cwd
 }
 
+cd $vendor_dir
 for d in $to_check; do
     checkDir $d
 done
