@@ -8,7 +8,7 @@ to_check="xr/530 xr/531 xr/532"
 pyang_flags="--canonical"
 
 checkDir () {
-    echo Checking yang files in $1
+    echo Checking yang files in $vendor_dir/$1
     exit_status=""
     cwd=`pwd`
     cd $1
@@ -24,6 +24,11 @@ checkDir () {
     fi
     cd $cwd
 }
+
+echo Checking modules with pyang command:
+echo
+echo    pyang $pyang_flags MODULE
+echo
 
 cd $vendor_dir
 for d in $to_check; do
