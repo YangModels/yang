@@ -5,17 +5,23 @@
 #
 vendor_dir="vendor/cisco"
 to_check="xr/530 xr/531 xr/532"
+pyang_flags="--canonical"
 
 checkDir () {
     echo Checking yang files in $1
+    exit_status=""
     cwd=`pwd`
     cd $1
     for f in *.yang; do
-	pyang $f
-	if [ -z $? ]; then
-	    exit 1
+	errors=`pyang $pyang_flags $f 2>&1 | grep "error:"`
+	if [ ! -z "$errors" ]; then
+	    echo Errors in $f
+	    exit_status="failed!"
 	fi
     done
+    if [ ! -z "$exit_status" ]; then
+	exit 1
+    fi
     cd $cwd
 }
 
