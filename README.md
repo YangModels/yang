@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/einarnn/yang.svg)](https://travis-ci.org/einarnn/yang)
+
 YANG
 =====
 
