@@ -5,7 +5,9 @@
 #
 ietf_dir="standard/ietf"
 to_check="RFC"
-pyang_flags="--ietf"
+
+# relax constraint for now
+#pyang_flags="--ietf"
 
 checkDir () {
     echo Checking yang files in $1
