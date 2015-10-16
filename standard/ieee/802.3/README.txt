@@ -1,5 +1,3 @@
-IEEE experimental drafts
-
 (1) The "experimental/ieee" branch is intended for IEEE work that does not yet have a Project Authorization Request (PAR).
 
 (2) The "standard/ieee" branch is intended for approved PARs, for drafts as well as published standards.
