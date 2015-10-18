@@ -23,8 +23,8 @@ module ietf-syslog {
      WG Chair: Tom Nadeau
                <mailto:tnadeau@lucidvision.com>
      
-     WG Chair: Juergen Schoenwaelder
-               <mailto:j.schoenwaelder@jacobs-university.de>
+     WG Chair: Kent Watson
+               <mailto:kwatsen@juniper.net>
      
      Editor:   Ladislav Lhotka
                <mailto:lhotka@nic.cz>";
@@ -32,7 +32,7 @@ module ietf-syslog {
     "This module contains a collection of YANG definitions 
      for Syslog configuration.";
 
-  revision 2015-07-06 {
+  revision 2015-10-14 {
     description
       "Initial Revision";
     reference
@@ -99,7 +99,7 @@ module ietf-syslog {
   grouping syslog-severity {
     description
       "This grouping defines the Syslog severity which is used to 
-       filter log messages.";
+       select log messages.";
     leaf severity {
       type union {
         type syslogtypes:severity;
@@ -110,74 +110,103 @@ module ietf-syslog {
               "This enum describes the case where all severities 
                are requested.";
           }
+          enum none {
+            value -2;
+            description
+              "This enum describes the case where no severities 
+               are requested.";
+          }
         }
       }
+      mandatory true;
       description
         "This leaf specifies the Syslog message severity. When 
-         severity is specified the default severity comparison 
+         severity is specified, the default severity comparison 
          is all messages of the specified severity and greater are 
-         logged unless all is specified which means all severities
-         are requested. No value implies no severity is requested.";
+         logged. 'all' is a special case which means all severities
+         are requested. 'none' is a special case which means that
+         no severity selection should occur.";
+    }
+    leaf severity-operator {
+      if-feature selector-severity-operator-config;
+      type enumeration {
+        enum equals-or-higher {
+          description
+            "This enum specifies all messages of the specified 
+             severity and higher are logged according to the 
+             given log-action";
+        }
+        enum equals {
+          description
+            "This enum specifies all messages that are for 
+             the specified severity are logged according to the 
+             given log-action";
+        }
+        enum not-equals {
+          description
+            "This enum specifies all messages that are not for 
+             the specified severity are logged according to the 
+             given log-action";
+        }
+      }
+      default equals-or-higher;
+      description
+        "This leaf describes the option to specify how the 
+         severity comparison is performed.";
     }
   }
 
   grouping syslog-selector {
     description
       "This grouping defines a Syslog selector which is used to 
-       filter log messages for the given action in which the 
-       selector appears. Choose one of the following:
-         logging-facility-all <severity> 
-         logging-facility-none
-         logging-facility [<facility> <severity>...]
-       Additional severity comparison operations are available 
-       using the severity-operator leaf. If the severity-operator
-       leaf is not present all messages of the specified severity 
-       and higher are logged according to the given action.";
+       select log messages for the log-action (buffer, file, 
+       etc). Choose one of the following:
+         no-log-facility
+         log-facility [<facility> <severity>...]";
     container log-selector {
       description
         "This container describes the log selector parameters 
          for Syslog.";
-      choice logging-level-scope {
-        default logging-facility-all;
+      choice selector-facility {
+        mandatory true;
         description
-          "This choice describes the option to specify all 
-           facilities, no facilities, or a specific facility.";
-        case logging-facility-all {
-          description
-            "This case specifies all facilities will match when 
-             comparing the Syslog message facility.";
-          leaf all-facilities {
-            type empty;
-            description
-            "This leaf specifies that all facilities participate in 
-             the filtering of Syslog messages for this action.";
-          }
-          uses syslog-severity;
-        }
-        case logging-facility-none {
+          "This choice describes the option to specify no 
+           facilities, or a specific facility which can be
+           all for all facilities.";
+        case no-log-facility {
           description
             "This case specifies no facilities will match when 
-             comparing the Syslog message facility. This is a method 
-             that can be used to turn an action off.";
+             comparing the Syslog message facility. This is a 
+             method that can be used to effectively disable a 
+             particular log-action (buffer, file, etc).";
           leaf no-facilities {
             type empty;
             description
-            "This leaf specifies that no facilities participate in 
-             the filtering of Syslog messages for this action.";
+            "This leaf specifies that no facilities are selected 
+             for this log-action.";
           }
         }
-        case logging-facility {
+        case log-facility {
           description
             "This case specifies one or more specified facilities 
              will match when comparing the Syslog message facility.";
-          list facilities {
-            key "facility";
+          list log-facility {
+            key facility;
             description
-              "This list describes a collection of Syslog facilities 
-               and severities.";
+              "This list describes a collection of Syslog 
+               facilities and severities.";
             leaf facility {
-              type identityref {
-                base syslogtypes:syslog-facility;
+              type union {
+                type identityref {
+                  base syslogtypes:syslog-facility;
+                }
+                type enumeration {
+                  enum all {
+                    description
+                      "This enum describes the case where all 
+                       facilities are requested.";
+                  }
+                }
               }
               description
                 "The leaf uniquely identifies a Syslog facility.";
@@ -185,33 +214,6 @@ module ietf-syslog {
             uses syslog-severity;
           }
         }
-      }
-      leaf severity-operator {
-        if-feature selector-severity-operator-config;
-        type enumeration {
-          enum equals-or-higher {
-            description
-              "This enum specifies all messages of the specified 
-               severity and higher are logged according to the 
-               given action";
-          }
-          enum equals {
-            description
-              "This enum specifies all messages that are for 
-               the specified severity are logged according to the 
-               given action";
-          }
-          enum not-equals {
-            description
-              "This enum specifies all messages that are not for 
-               the specified severity are logged according to the 
-               given action";
-          }
-        }
-        default equals-or-higher;
-        description
-          "This leaf describes the option to specify how the 
-           severity comparison is performed.";
       }
       leaf pattern-match {
         if-feature selector-match-processing-config;
@@ -231,9 +233,10 @@ module ietf-syslog {
        Syslog.";
     container log-actions {
       description
-        "This container describes the log action parameters 
+        "This container describes the log-action parameters 
          for Syslog.";
       container console {
+        presence "Enables logging console configuration";
         description
           "This container describes the configuration parameters for 
            console logging.";
@@ -261,9 +264,10 @@ module ietf-syslog {
             type uint64;
             units "bytes";
             description
-              "This leaf configures the amount of memory (in bytes) 
-               that will be dedicated to the local memory logging 
-               buffer.  The default value varies by implementation.";
+              "This leaf configures the amount of memory 
+               (in bytes) that will be dedicated to the local 
+               memory logging buffer.  The default value varies 
+               by implementation.";
           }
           leaf buffer-size-messages {
             if-feature buffer-limit-messages;
@@ -299,22 +303,22 @@ module ietf-syslog {
             default false;
             description
               "This leaf describes how log messages are written to 
-               the log file. If true, messages will be written with 
-               one or more STRUCTURED-DATA elements as per RFC5424; 
-               if false, messages will be written with 
+               the log file. If true, messages will be written 
+               with one or more STRUCTURED-DATA elements as per 
+               RFC5424; if false, messages will be written with 
                STRUCTURED-DATA = NILVALUE.";
           }
           container file-archive {
             description
-              "This container describes the configuration parameters 
-               for log file archiving.";
+              "This container describes the configuration 
+               parameters for log file archiving.";
             leaf number-of-files {
               if-feature file-limit-size;
               type uint32;
               description
-                "This leaf specifies the maximum number of log files 
-                 retained. Specify 1 for implementations that only 
-                 support one log file.";
+                "This leaf specifies the maximum number of log 
+                 files retained. Specify 1 for implementations 
+                 that only support one log file.";
             }
             leaf max-file-size {
               if-feature file-limit-size;
@@ -350,7 +354,7 @@ module ietf-syslog {
         description
           "This container describes the configuration parameters for 
            remote logging.";
-        list remote-logging-destination {
+        list destination {
           key "name";
           description
             "This list describes a collection of remote logging 
@@ -372,10 +376,10 @@ module ietf-syslog {
                 leaf address {
                   type inet:host;
                   description
-                    "The leaf uniquely specifies the address of the 
-                     remote host. One of the following must be 
-                     specified: an ipv4 address, an ipv6 address, 
-                     or a host name.";
+                    "The leaf uniquely specifies the address of 
+                     the remote host. One of the following must 
+                     be specified: an ipv4 address, an ipv6 
+                     address, or a host name.";
                 }
                 leaf port {
                   type inet:port-number;
@@ -394,8 +398,8 @@ module ietf-syslog {
                 leaf address {
                   type inet:host;
                   description
-                    "The leaf uniquely specifies the address of the 
-                     remote host. One of the following must be 
+                    "The leaf uniquely specifies the address of 
+                     the remote host. One of the following must be 
                      specified: an ipv4 address, an ipv6 address, 
                      or a host name.";
                 }
@@ -425,17 +429,18 @@ module ietf-syslog {
               "This leaf sets the source interface for the remote 
                Syslog server. Either the interface name or the 
                interface IP address can be specified. If not set, 
-               messages sent to a remote syslog server will contain 
-               the IP address of the interface the syslog message 
-               uses to exit the network element";
+               messages sent to a remote syslog server will 
+               contain the IP address of the interface the syslog 
+               message uses to exit the network element";
           }
           container syslog-sign {
             if-feature signed-messages-config;
             presence
               "If present, syslog-sign is activated.";
             description
-              "This container describes the configuration parameters 
-               for signed syslog messages as described by RFC 5848.";
+              "This container describes the configuration 
+               parameters for signed syslog messages as described 
+               by RFC 5848.";
             reference
               "RFC 5848: Signed Syslog Messages";
             leaf cert-initial-repeat {
@@ -466,38 +471,38 @@ module ietf-syslog {
               mandatory true;
               description
                 "This leaf specifies when to generate a new 
-                 Signature Block. If this many seconds have elapsed 
-                 since the message with the first message number of 
-                 the Signature Block was sent, a new Signature Block 
-                 should be generated.";
+                 Signature Block. If this many seconds have 
+                 elapsed since the message with the first message 
+                 number of the Signature Block was sent, a new 
+                 Signature Block should be generated.";
             }
             leaf sig-number-resends {
               type uint16;
               mandatory true;
               description
-                "This leaf specifies the number of times a Signature 
-                 Block is resent. (It is recommended to select a 
-                 value of greater than 0 in particular when the UDP 
-                 transport [RFC5426] is used.).";
+                "This leaf specifies the number of times a 
+                 Signature Block is resent. (It is recommended to 
+                 select a value of greater than 0 in particular 
+                 when the UDP transport [RFC5426] is used.).";
             }
             leaf sig-resend-delay {
               type uint16;
               mandatory true;
               description
-                "This leaf specifies when to send the next Signature 
-                 Block transmission based on time. If this many 
-                 seconds have elapsed since the previous sending of 
-                 this Signature Block, resend it.";
+                "This leaf specifies when to send the next 
+                 Signature Block transmission based on time. If 
+                 this many seconds have elapsed since the previous 
+                 sending of this Signature Block, resend it.";
             }
             leaf sig-resend-count {
               type uint16;
               mandatory true;
               description
-                "This leaf specifies when to send the next Signature 
-                 Block transmission based on a count. If this many 
-                 other syslog messages have been sent since the 
-                 previous sending of this Signature Block, resend 
-                 it.";
+                "This leaf specifies when to send the next 
+                 Signature Block transmission based on a count. 
+                 If this many other syslog messages have been sent 
+                 since the previous sending of this Signature 
+                 Block, resend it.";
             }
           }
         }
@@ -507,7 +512,7 @@ module ietf-syslog {
           "This container describes the configuration parameters for 
            the terminal logging configuration.";
         choice user-scope {
-          default all-users;
+          mandatory true;
           description
             "This choice describes the option to specify all users 
              or a specific user. The all users case implies that
@@ -533,9 +538,9 @@ module ietf-syslog {
               leaf uname {
                 type string;
                 description
-                  "This leaf uniquely describes a user name which is 
-                   the login name of the user whose terminal session 
-                   is to receive log messages.";
+                  "This leaf uniquely describes a user name which 
+                   is the login name of the user whose terminal 
+                   session is to receive log messages.";
               }
               uses syslog-selector;
             }
