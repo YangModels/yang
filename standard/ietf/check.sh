@@ -8,7 +8,7 @@ to_check="RFC"
 
 # relax constraint for now
 # add --ietf if you want to do strict IETF checking
-# pyang_flags="--verbose"
+pyang_flags="--verbose"
 
 checkDir () {
     echo Checking yang files in $1
