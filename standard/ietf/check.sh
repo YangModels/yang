@@ -7,17 +7,21 @@ ietf_dir="standard/ietf"
 to_check="RFC"
 
 # relax constraint for now
-#pyang_flags="--ietf"
+# add --ietf if you want to do strict IETF checking
+# pyang_flags="--verbose"
 
 checkDir () {
     echo Checking yang files in $1
     exit_status=""
     cwd=`pwd`
     cd $1
+    printf "\n"
     for f in *.yang; do
+        printf "pyang $pyang_flags $f\n"
 	errors=`pyang $pyang_flags $f 2>&1 | grep "error:"`
 	if [ ! -z "$errors" ]; then
 	    echo Errors in $f
+            printf "\n  $errors \n"
 	    exit_status="failed!"
 	fi
     done
