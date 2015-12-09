@@ -34,15 +34,20 @@ checkDir () {
 
 
 #check 802.1 modules
+
 printf "\n Checking modules with pyang in directory $test_dir/$to_check_1 : \n"
 
+# cd $test_dir
 for d in $to_check_1; do
     checkDir $d
 done
 
 
 #check 802.3 modules
+
+
 printf "\n Checking modules with pyang in directory $test_dir/$to_check_1: \n"
+# cd $test_dir
 for d in $to_check_2; do
     checkDir $d
 done
