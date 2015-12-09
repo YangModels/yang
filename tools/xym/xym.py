@@ -12,7 +12,7 @@ __author__ = 'jmedved@cisco.com, calle@tail-f.com, bclaise@cisco.com'
 __copyright__ = "Copyright(c) 2015, Cisco Systems, Inc."
 __license__ = "New-style BSD"
 __email__ = "jmedved@cisco.com"
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 if sys.version_info < (2, 7, 9):
     disable_warnings()
@@ -43,6 +43,7 @@ class YangModuleExtractor:
     PAGE_TAG = re.compile('.*\[Page [0-9]*\].*')
     CODE_ENDS_TAG = re.compile('^[ \t]*<CODE ENDS>.*$')
     CODE_BEGINS_TAG = re.compile('^[ \t]*<CODE BEGINS>( *file( +"(.*)")?)?.*$')
+    EXAMPLE_TAG = re.compile('^(example-)')
 
     def __init__(self, src_id, dst_dir, strict, debug_level):
         """
@@ -166,7 +167,11 @@ class YangModuleExtractor:
                 else:
                     level = 1
                     if in_model is False:
-                        self.warning("Line %d - Yang module with no <CODE BEGINS>" % i)
+                        if not self.EXAMPLE_TAG.match(match.groups()[2]):
+                            self.error("Line %d - Yang module '%s' with no <CODE BEGINS> and not starting with 'example-'" % (i, match.groups()[2]))
+                    else:
+                        if self.EXAMPLE_TAG.match(match.groups()[2]):
+                            self.error("Line %d - Yang module '%s' with <CODE BEGINS> and starting with 'example-'" % (i, match.groups()[2]))
                 if not output_file and level == 1:
                     output_file = '%s.yang' % match.groups()[2].strip('"\'')
                     if self.debug_level > 0:
