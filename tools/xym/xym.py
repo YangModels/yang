@@ -164,6 +164,11 @@ class YangModuleExtractor:
                 if self.strict is True:
                     if in_model is True:
                         level = 1
+                        if self.EXAMPLE_TAG.match(match.groups()[2]):
+                            self.error("Line %d - Yang module '%s' with <CODE BEGINS> and starting with 'example-'" % (i, match.groups()[2]))
+                    else:
+                        if not self.EXAMPLE_TAG.match(match.groups()[2]):
+                            self.error("Line %d - Yang module '%s' with no <CODE BEGINS> and not starting with 'example-'" % (i, match.groups()[2]))
                 else:
                     level = 1
                     if in_model is False:
@@ -224,9 +229,9 @@ class YangModuleExtractor:
                     output_file = mg[2].strip()
                 else:
                     if mg[0] and mg[1] is None:
-                        self.warning('Line %d - Missing file name in <CODE BEGINS>' % i)
+                        self.error('Line %d - Missing file name in <CODE BEGINS>' % i)
                     else:
-                        self.warning("Line %d - Yang file not specified in <CODE BEGINS>" % i)
+                        self.error("Line %d - Yang file not specified in <CODE BEGINS>" % i)
             i += 1
         if level > 0:
             self.error("<End of File> - EOF encountered while parsing the model")
@@ -284,9 +289,10 @@ if __name__ == "__main__":
                                                       "default is './'")
     parser.add_argument("--dstdir", default='.', help="Optional: directory where to put the extracted yang module(s); "
                                                       "default is './'")
-    parser.add_argument("--strict", type=bool, default=False, help='Optional flag that determines syntax enforcement; '
-                                                                   "'If set to 'True', the <CODE BEGINS> / <CODE ENDS> "
-                                                                   "tags are required; default is 'False'")
+    parser.add_argument("--strict", action='store_true', default=False,
+                        help='Optional flag that determines syntax enforcement; '
+                        "'If set to 'True', the <CODE BEGINS> / <CODE ENDS> "
+                        "tags are required; default is 'False'")
     parser.add_argument("--debug", type=int, default=0, help="Optional: debug level - determines the amount of debug "
                                                              "info printed to console; default is 0 (no debug info "
                                                              "printed)")
