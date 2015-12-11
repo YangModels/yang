@@ -1,14 +1,15 @@
 #!/bin/sh
 #
-# Possible IETF check script. Assumes that pyang is on path and that
+# check script. Assumes that pyang is on path and that
 # all standard modules are on its internal module path.
 #
-ietf_dir="standard/ietf"
-to_check="RFC"
+test_dir="experimental/ieee/"
+to_check_1="802.1"
+to_check_2="802.3"
 
 # relax constraint for now
 # add --ietf if you want to do strict IETF checking
-pyang_flags="--verbose"
+pyang_flags="--verbose -p ../../../standard/ietf/RFC/"
 
 checkDir () {
     echo Checking yang files in $1
@@ -31,11 +32,24 @@ checkDir () {
     cd $cwd
 }
 
-echo Checking modules with pyang command:
-printf "\n    pyang $pyang_flags MODULE\n\n"
 
-cd $ietf_dir
-for d in $to_check; do
+#check 802.1 modules
+
+printf "\n Checking modules with pyang in directory $test_dir/$to_check_1 : \n"
+
+# cd $test_dir
+for d in $to_check_1; do
     checkDir $d
 done
+
+
+#check 802.3 modules
+
+
+printf "\n Checking modules with pyang in directory $test_dir/$to_check_1: \n"
+# cd $test_dir
+for d in $to_check_2; do
+    checkDir $d
+done
+
 
