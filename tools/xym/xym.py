@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 from __future__ import print_function  # Must be at the beginning of the file
 import argparse
 from collections import Counter
@@ -45,7 +45,7 @@ class YangModuleExtractor:
     CODE_BEGINS_TAG = re.compile('^[ \t]*<CODE BEGINS>( *file( +"(.*)")?)?.*$')
     EXAMPLE_TAG = re.compile('^(example-)')
 
-    def __init__(self, src_id, dst_dir, strict, debug_level):
+    def __init__(self, src_id, dst_dir, strict, strict_no_examples, debug_level):
         """
         Initializes class-global variables.
         :param src_id: text string containing the draft or RFC text from which YANG
@@ -59,6 +59,7 @@ class YangModuleExtractor:
         self.src_id = src_id
         self.dst_dir = dst_dir
         self.strict = strict
+        self.strict_no_examples = strict_no_examples
         self.debug_level = debug_level
         self.model = []
         self.extracted_models = []
@@ -139,6 +140,7 @@ class YangModuleExtractor:
         """
         model = []
         output_file = None
+        valid_to_output = True
         in_model = False
         i = 0
         level = 0
@@ -157,26 +159,31 @@ class YangModuleExtractor:
                 if level > 0:
                     self.error("Line %d - 'module' statement within another module" % i)
                     return
+
                 # Check if we should enforce <CODE BEGINS> / <CODE ENDS>
                 # if we do enforce, we ignore models  not enclosed in <CODE BEGINS> / <CODE ENDS>
                 if match.groups()[1] or match.groups()[4]:
                     self.warning('Line %d - Module name should not be enclosed in quotes' % i)
+
+                # do the module name checking, etc.
+                if in_model is True:
+                    if self.EXAMPLE_TAG.match(match.groups()[2]):
+                        self.error("Line %d - Yang module '%s' with <CODE BEGINS> and starting with 'example-'" % (i, match.groups()[2]))
+                else:
+                    if not self.EXAMPLE_TAG.match(match.groups()[2]):
+                        self.error("Line %d - Yang module '%s' with no <CODE BEGINS> and not starting with 'example-'" % (i, match.groups()[2]))
+
+                # now decide if we're allowed to set the level
+                # (i.e. signal that we're in a module already) to 1
                 if self.strict is True:
                     if in_model is True:
                         level = 1
-                        if self.EXAMPLE_TAG.match(match.groups()[2]):
-                            self.error("Line %d - Yang module '%s' with <CODE BEGINS> and starting with 'example-'" % (i, match.groups()[2]))
                     else:
-                        if not self.EXAMPLE_TAG.match(match.groups()[2]):
-                            self.error("Line %d - Yang module '%s' with no <CODE BEGINS> and not starting with 'example-'" % (i, match.groups()[2]))
+                        if self.strict_no_examples:
+                            valid_to_output = False
                 else:
                     level = 1
-                    if in_model is False:
-                        if not self.EXAMPLE_TAG.match(match.groups()[2]):
-                            self.error("Line %d - Yang module '%s' with no <CODE BEGINS> and not starting with 'example-'" % (i, match.groups()[2]))
-                    else:
-                        if self.EXAMPLE_TAG.match(match.groups()[2]):
-                            self.error("Line %d - Yang module '%s' with <CODE BEGINS> and starting with 'example-'" % (i, match.groups()[2]))
+                    
                 if not output_file and level == 1:
                     output_file = '%s.yang' % match.groups()[2].strip('"\'')
                     if self.debug_level > 0:
@@ -208,9 +215,11 @@ class YangModuleExtractor:
                     counter = Counter(line)
                     level += (counter['{'] - counter['}'])
                     if level == 1:
-                        self.write_model_to_file(model, output_file)
+                        if valid_to_output:
+                            self.write_model_to_file(model, output_file)
                         model = []
                         output_file = None
+                        valid_to_output = True
                         level = 0
 
             # Try to match '<CODE BEGINS>'
@@ -240,7 +249,7 @@ class YangModuleExtractor:
             self.error("Line %d - Missing <CODE ENDS>" % i)
 
 
-def xym(source_id, srcdir, dstdir, strict, debug_level):
+def xym(source_id, srcdir, dstdir, strict, strict_no_examples, debug_level):
     """
     Extracts yang model from an IETF RFC or draft text file.
     This is the main (external) API entry for the module.
@@ -261,7 +270,7 @@ def xym(source_id, srcdir, dstdir, strict, debug_level):
                      r'(?:/?|[/?]\S+)$', re.IGNORECASE)
     rqst_hdrs = {'Accept': 'text/plain', 'Accept-Charset': 'utf-8'}
 
-    ye = YangModuleExtractor(source_id, dstdir, strict, debug_level)
+    ye = YangModuleExtractor(source_id, dstdir, strict, strict_no_examples, debug_level)
     is_url = url.match(source_id)
     if is_url:
         r = requests.get(source_id, headers=rqst_hdrs)
@@ -283,24 +292,41 @@ if __name__ == "__main__":
     """
     Command line utility / test
     """
-    parser = argparse.ArgumentParser(description='Extracts one or more yang models from an IETF RFC/draft text file')
-    parser.add_argument("source", help="The URL or file name of the RFC/draft text from which to get the model")
-    parser.add_argument("--srcdir", default='.', help="Optional: directory where to find the source text; "
-                                                      "default is './'")
-    parser.add_argument("--dstdir", default='.', help="Optional: directory where to put the extracted yang module(s); "
-                                                      "default is './'")
+    parser = argparse.ArgumentParser(description="Extracts one or more yang "
+                                     "models from an IETF RFC/draft text file")
+    parser.add_argument("source",
+                        help="The URL or file name of the RFC/draft text from "
+                        "which to get the model")
+    parser.add_argument("--srcdir", default='.',
+                        help="Optional: directory where to find the source "
+                        "text; default is './'")
+    parser.add_argument("--dstdir", default='.',
+                        help="Optional: directory where to put the extracted "
+                        "yang module(s); default is './'")
     parser.add_argument("--strict", action='store_true', default=False,
-                        help='Optional flag that determines syntax enforcement; '
-                        "'If set to 'True', the <CODE BEGINS> / <CODE ENDS> "
+                        help="Optional flag that determines syntax enforcement; "
+                        "If set to 'True', the <CODE BEGINS> / <CODE ENDS> "
                         "tags are required; default is 'False'")
-    parser.add_argument("--debug", type=int, default=0, help="Optional: debug level - determines the amount of debug "
-                                                             "info printed to console; default is 0 (no debug info "
-                                                             "printed)")
+    parser.add_argument("--strict-no-examples", action='store_true', default=False,
+                        help="Optional flag that determines if only models that "
+                        "conform to 'strict' guidelines are extracted")
+    parser.add_argument("--debug", type=int, default=0,
+                        help="Optional: debug level - determines the amount of "
+                        "debug info printed to console; default is 0 (no debug "
+                        "info printed)")
     args = parser.parse_args()
 
-    extracted_models = xym(args.source, args.srcdir, args.dstdir, args.strict, args.debug)
+    extracted_models = xym(args.source,
+                           args.srcdir,
+                           args.dstdir,
+                           args.strict,
+                           args.strict_no_examples,
+                           args.debug)
     if len(extracted_models) > 0:
-        print("Created the following models::")
+        if args.strict:
+            print("Created the following models that conform to the strict guidelines::")
+        else:
+            print("Created the following models::")
         for em in extracted_models:
             print('   %s' % em)
     else:
