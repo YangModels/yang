@@ -3,10 +3,14 @@ from __future__ import print_function  # Must be at the beginning of the file
 import argparse
 from collections import Counter
 import os.path
+import os
+import glob
 import sys
 import re
 import requests
 from requests.packages.urllib3 import disable_warnings
+import subprocess
+import unittest
 
 __author__ = 'jmedved@cisco.com, calle@tail-f.com, bclaise@cisco.com'
 __copyright__ = "Copyright(c) 2015, Cisco Systems, Inc."
@@ -45,7 +49,7 @@ class YangModuleExtractor:
     CODE_BEGINS_TAG = re.compile('^[ \t]*<CODE BEGINS>( *file( +"(.*)")?)?.*$')
     EXAMPLE_TAG = re.compile('^(example-)')
 
-    def __init__(self, src_id, dst_dir, strict, strict_no_examples, debug_level):
+    def __init__(self, src_id, dst_dir, strict, strict_examples, debug_level):
         """
         Initializes class-global variables.
         :param src_id: text string containing the draft or RFC text from which YANG
@@ -59,7 +63,7 @@ class YangModuleExtractor:
         self.src_id = src_id
         self.dst_dir = dst_dir
         self.strict = strict
-        self.strict_no_examples = strict_no_examples
+        self.strict_examples = strict_examples
         self.debug_level = debug_level
         self.model = []
         self.extracted_models = []
@@ -140,8 +144,8 @@ class YangModuleExtractor:
         """
         model = []
         output_file = None
-        valid_to_output = True
         in_model = False
+        example_match = False
         i = 0
         level = 0
         while i < len(content):
@@ -166,24 +170,28 @@ class YangModuleExtractor:
                     self.warning('Line %d - Module name should not be enclosed in quotes' % i)
 
                 # do the module name checking, etc.
+                example_match = self.EXAMPLE_TAG.match(match.groups()[2])
                 if in_model is True:
-                    if self.EXAMPLE_TAG.match(match.groups()[2]):
+                    if example_match:
                         self.error("Line %d - Yang module '%s' with <CODE BEGINS> and starting with 'example-'" % (i, match.groups()[2]))
                 else:
-                    if not self.EXAMPLE_TAG.match(match.groups()[2]):
+                    if not example_match:
                         self.error("Line %d - Yang module '%s' with no <CODE BEGINS> and not starting with 'example-'" % (i, match.groups()[2]))
 
                 # now decide if we're allowed to set the level
-                # (i.e. signal that we're in a module already) to 1
-                if self.strict is True:
-                    if in_model is True:
-                        level = 1
-                    else:
-                        if self.strict_no_examples:
-                            valid_to_output = False
-                else:
-                    level = 1
-                    
+                # (i.e. signal that we're in a module) to 1 and if
+                # we're allowed to output the module at all with the
+                # strict examples flag
+                # if self.strict is True:
+                #     if in_model is True:
+                #         level = 1
+                # else:
+                #     level = 1
+
+                # always set the level to 1; we decide whether or not
+                # to output at the end
+                level = 1
+                
                 if not output_file and level == 1:
                     output_file = '%s.yang' % match.groups()[2].strip('"\'')
                     if self.debug_level > 0:
@@ -215,11 +223,16 @@ class YangModuleExtractor:
                     counter = Counter(line)
                     level += (counter['{'] - counter['}'])
                     if level == 1:
-                        if valid_to_output:
+                        if self.strict:
+                            if self.strict_examples:
+                                if example_match and not in_model:
+                                    self.write_model_to_file(model, output_file)
+                            elif in_model:
+                                self.write_model_to_file(model, output_file)
+                        else:
                             self.write_model_to_file(model, output_file)
                         model = []
                         output_file = None
-                        valid_to_output = True
                         level = 0
 
             # Try to match '<CODE BEGINS>'
@@ -249,7 +262,7 @@ class YangModuleExtractor:
             self.error("Line %d - Missing <CODE ENDS>" % i)
 
 
-def xym(source_id, srcdir, dstdir, strict, strict_no_examples, debug_level):
+def xym(source_id, srcdir, dstdir, strict, strict_examples, debug_level):
     """
     Extracts yang model from an IETF RFC or draft text file.
     This is the main (external) API entry for the module.
@@ -270,7 +283,7 @@ def xym(source_id, srcdir, dstdir, strict, strict_no_examples, debug_level):
                      r'(?:/?|[/?]\S+)$', re.IGNORECASE)
     rqst_hdrs = {'Accept': 'text/plain', 'Accept-Charset': 'utf-8'}
 
-    ye = YangModuleExtractor(source_id, dstdir, strict, strict_no_examples, debug_level)
+    ye = YangModuleExtractor(source_id, dstdir, strict, strict_examples, debug_level)
     is_url = url.match(source_id)
     if is_url:
         r = requests.get(source_id, headers=rqst_hdrs)
@@ -286,6 +299,55 @@ def xym(source_id, srcdir, dstdir, strict, strict_no_examples, debug_level):
         except IOError as ioe:
             print(ioe)
     return ye.get_extracted_models()
+
+
+#
+# Let's try and integrate some unittest tests
+#
+class TestCase_base(unittest.TestCase):
+    def setUp(self):
+        for y in glob.glob('*.yang'):
+            os.remove(y)
+    def tearDown(self):
+        for y in glob.glob('*.yang'):
+            os.remove(y)
+            
+class TestCase_default(TestCase_base):
+    def runTest(self):
+        """Run a test that is the equivalent of:
+
+        xym.py test-file.txt
+        """
+        extracted_modules = xym('test-file.txt', './', './', False, False, 0)
+        self.assertTrue(len(extracted_modules)==5)
+        module_check = ['example-no-error.yang', 'ex-error.yang', 'ex-no-error.yang', 'example-error.yang', 'test-valid.yang']
+        for y in module_check:
+            self.assertTrue(y in extracted_modules)
+
+    
+class TestCase_strict(TestCase_base):
+    def runTest(self):
+        """Run a test that is the equivalent of:
+
+        xym.py --strict test-file.txt
+        """
+        extracted_modules = xym('test-file.txt', './', './', True, False, 0)
+        self.assertTrue(len(extracted_modules)==3)
+        module_check = ['ex-no-error.yang', 'example-error.yang', 'test-valid.yang']
+        for y in module_check:
+            self.assertTrue(y in extracted_modules)
+
+class TestCase_strict_examples(TestCase_base):
+    def runTest(self):
+        """Run a test that is the equivalent of:
+
+        xym.py --strict --strict-examples test-file.txt
+        """
+        extracted_modules = xym('test-file.txt', './', './', True, True, 0)
+        self.assertTrue(len(extracted_modules)==1)
+        module_check = ['example-no-error.yang']
+        for y in module_check:
+            self.assertTrue(y in extracted_modules)
 
 
 if __name__ == "__main__":
@@ -307,9 +369,8 @@ if __name__ == "__main__":
                         help="Optional flag that determines syntax enforcement; "
                         "If set to 'True', the <CODE BEGINS> / <CODE ENDS> "
                         "tags are required; default is 'False'")
-    parser.add_argument("--strict-no-examples", action='store_true', default=False,
-                        help="Optional flag that determines if only models that "
-                        "conform to 'strict' guidelines are extracted")
+    parser.add_argument("--strict-examples", action='store_true', default=False,
+                        help="Only output valid examples when in strict mode")
     parser.add_argument("--debug", type=int, default=0,
                         help="Optional: debug level - determines the amount of "
                         "debug info printed to console; default is 0 (no debug "
@@ -320,7 +381,7 @@ if __name__ == "__main__":
                            args.srcdir,
                            args.dstdir,
                            args.strict,
-                           args.strict_no_examples,
+                           args.strict_examples,
                            args.debug)
     if len(extracted_models) > 0:
         if args.strict:
