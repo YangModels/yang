@@ -3,7 +3,7 @@
 # check script. Assumes that pyang is on path and that
 # all standard modules are on its internal module path.
 #
-test_dir="experimental/ieee/"
+test_dir="experimental/ieee"
 to_check_1="802.1"
 to_check_2="802.3"
 
@@ -15,7 +15,7 @@ checkDir () {
     echo Checking yang files in $1
     exit_status=""
     cwd=`pwd`
-    cd $1
+    cd "$test_dir/$1"
     printf "\n"
     for f in *.yang; do
         printf "pyang $pyang_flags $f\n"
