@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/einarnn/yang.svg)](https://travis-ci.org/einarnn/yang)
+[![Build Status](https://travis-ci.org/YangModels/yang.svg)](https://travis-ci.org/YangModels/yang)
 
 YANG
 =====
