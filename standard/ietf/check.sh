@@ -34,7 +34,6 @@ checkDir () {
 echo Checking modules with pyang command:
 printf "\n    pyang $pyang_flags MODULE\n\n"
 
-cd $ietf_dir
 for d in $to_check; do
     checkDir $d
 done
