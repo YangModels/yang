@@ -4,7 +4,7 @@
 # all standard modules are on its internal module path.
 #
 vendor_dir="vendor/cisco"
-to_check="xr/530 xr/531 xr/532"
+to_check="xr/530 xr/531 xr/532 xr/600"
 pyang_flags=""
 
 checkDir () {
@@ -12,7 +12,7 @@ checkDir () {
     exit_status=""
     cwd=`pwd`
     cd $1
-    for f in *.yang; do
+    for f in Cisco-IOS-XR-*.yang; do
 	errors=`pyang $pyang_flags $f 2>&1 | grep "error:"`
 	if [ ! -z "$errors" ]; then
 	    echo Errors in $f
