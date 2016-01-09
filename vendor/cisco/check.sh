@@ -3,6 +3,9 @@
 # Vendor-specific check script. Assumes that pyang is on path and that
 # all standard modules are on its internal module path.
 #
+# Deviation modules are NOT checked as they require specific imports
+# typically not available locally.
+#
 vendor_dir="vendor/cisco"
 to_check="xr/530 xr/531 xr/532 xr/600"
 pyang_flags=""
