@@ -51,7 +51,7 @@ It should be noted that some of the modules released in IOX-XR 6.0.0 do break th
 
 However, when new versions of the native models are released, the [```check-models.sh```](check-models.sh) script, in conjunction with pyang 1.6, can be used to determine what technically incompatible changes have occurred.
 
-The modules which have incompatible changes, along with the reported pyang incompatibility errors, in IOS-XR 6.0.0 are:
+The modules which have incompatible changes in IOS-XR 6.0.0 are:
 
 * Cisco-IOS-XR-cdp-oper.yang
 * Cisco-IOS-XR-drivers-media-eth-oper-sub1.yang
