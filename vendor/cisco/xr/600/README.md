@@ -47,7 +47,7 @@ From IOS-XR 5.3.2 and onwards, the revision statements embedded in the YANG file
 
 ### Backwards Compatibility Issues
 
-It should be noted that some of the modules released in IOX-XR 6.0.0 do break the backwards compatibility guidelines defined in RFC 6020 when compared to the same modules released in IOS-XR 5.3.2. This is because the "native" YANG modules for IOS-XR are generated from internal schema files that are an integral part of the implementation, and, as such, these can change when new features are introduced or when bugs are fixed. Thus, while we rigorously review the changes that impact the external YANG schema, Cisco cannot guarantee full backwards compatibility of these modules across releases.
+It should be noted that some of the modules released in IOX-XR 6.0.0 break the backwards compatibility guidelines defined in RFC 6020 when compared to the same modules released in IOS-XR 5.3.2. This is because the "native" YANG modules for IOS-XR are generated from internal schema files that are an integral part of the implementation, and, as such, these can change in ways that break backwards compatibility per RFC 6020 guidelines when new features are introduced or when bugs are fixed. Thus, while we rigorously review the changes that impact the external YANG schema, Cisco cannot guarantee full backwards compatibility of these modules across releases.
 
 However, when new versions of the native models are released, the [```check-models.sh```](check-models.sh) script, in conjunction with pyang 1.6, can be used to determine what technically incompatible changes have occurred.
 
