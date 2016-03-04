@@ -12,6 +12,8 @@ This repository contains a collection of YANG modules:
   * Open source YANG tools
 
 ***
+## Slack Group and Channels
+
 
 ## Models Directory Structure
 
