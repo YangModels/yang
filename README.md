@@ -13,7 +13,7 @@ This repository contains a collection of YANG modules:
 
 ***
 ## Slack Group and Channels
-
+ [To Subscribe and Browse Click Here](https://yangmodels.slack.com)
 
 ## Models Directory Structure
 
