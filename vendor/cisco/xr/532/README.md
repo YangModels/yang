@@ -1,6 +1,6 @@
 ## YANG Models for Cisco IOS-XR 5.3.2
 
-The YANG files in this directory detail the YANG models supported by IOS-XR 5.3.1 releases. The schemas here may also be retrieved from devices running IOS-XR 5.3.1 by using the NETCONF "get-schema" RPC as detailed in Section 3.1 of RFC 6022.
+The YANG files in this directory detail the YANG models supported by IOS-XR 5.3.2 releases. The schemas here may also be retrieved from devices running IOS-XR 5.3.2 by using the NETCONF "get-schema" RPC as detailed in Section 3.1 of RFC 6022.
 
 ### Compliance With "pyang --ietf"
 
@@ -18,7 +18,7 @@ It should be noted that some of the modules released in IOX-XR 5.3.2 do break th
 
 However, when new versions of the native models are released, the "check-models.sh" script, in conjunction with pyang 1.5, can be used to determine what technically incompatible changes have occurred.
 
-The modules which have incompatible changes, along with the reported pyang incompatibility errors, in IOS-XR 5.3.2 are:
+The modules which have incompatible changes, along with the reported pyang incompatibility errors, in IOS-XR 5.3.2 when compared to IOS-XR 5.3.1 are:
 
 
 #### Cisco-IOS-XR-drivers-media-eth-oper-sub1.yang
