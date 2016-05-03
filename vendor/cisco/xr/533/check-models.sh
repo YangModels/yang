@@ -40,15 +40,15 @@ checkExists grep
 # Run pyang over all the yang modules, ignoring ceryain errors and
 # warnings.
 #
-echo Checking all models with "--ietf" flag
+echo Checking all models with "--lint" flag
 for m in *.yang
 do
-    pyang --ietf $m 2>&1 | \
+    pyang --lint $m 2>&1 | \
 	grep -v "RFC 6087: 4.7" | \
 	grep -v "RFC 6087: 4.8" | \
 	grep -v "RFC 6087: 4.9" | \
 	grep -v "RFC 6020: 10, p2" | \
-	egrep "imported module [.]+ not used"
+	egrep -v "warning: imported module\s[a-zA-Z0-9\-]+\snot used"
 done
 
 #
