@@ -92,4 +92,4 @@ The following directories are maintained for tools [license note in brackets]:
 
 Send us a git pull request with latest changes. When doing a pull request, please post the pyang output to show that your changes build cleanly.
 
-If there are any issues, send email to tnadeau at brocade.com and kkoushik at brocade.com
+If there are any issues, send email to tnadeau at brocade.com or tnadeau at lucidvision dot com
