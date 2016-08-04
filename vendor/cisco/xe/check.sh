@@ -30,7 +30,7 @@ checkDir () {
 echo Checking modules with pyang command:
 printf "\n    pyang $pyang_flags MODULE\n\n"
 
-if [ -e "$$platform_dir" ]; then
+if [ -e "$platform_dir" ]; then
     cd $platform_dir
 fi
 
