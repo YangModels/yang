@@ -1,15 +1,25 @@
-## YANG Models for Cisco IOS 16.3.1 
+## YANG Models and Platform Capabilities for Cisco IOS-XE 16.3.1 
 
-The YANG files in this directory contains native, common, deviation and MIB-based YANG models supported by IOS 16.3.1 releases. The schemas here may also be retrieved from devices running IOS 16.3.1 by using the NETCONF "get-schema" RPC as detailed in Section 3.1 of RFC 6022. Models listed in this repository are supported by following IOS XE platforms:
+This directory contains the [MIBS](MIBS) subdirectory contain YANG models supported by IOS-XE 16.3.1:
 
-	- Catalyst 3850 
-	- Catalyst 3650
-	- ASR1000
-	- CSR1000V
-	- ISR4000
+* Native models, unique to IOS-XE platforms
+* Common Cisco models
+* Plaform deviations to models
+* MIB-based models generated using the algorithms in [RFC 6643](https://tools.ietf.org/html/rfc6643)
+* Copies of **draft** IETF models implemented by IOS-XE 16.3.1 (some with modifications)
 
-Model content may differ based on platform capability.
+The schemas here may also be retrieved from devices running IOS-XE 16.3.1 by using the NETCONF "get-schema" RPC as detailed in Section 3.1 of [RFC 6022](https://tools.ietf.org/html/rfc6022). Models listed in this repository are supported by following IOS-XE platforms:
 
+* Catalyst 3850 
+* Catalyst 3650
+* ASR1000
+* CSR1000V
+* ISR4000
+
+Model content may differ based on platform capability. As a convenience, copies of the platform "hello" messages are also provided:
+
+* [cat3k-netconf-capability.xml](cat3k-netconf-capability.xml)
+* [router-netconf-capability.xml](router-netconf-capability.xml)
 
 ### Compliance With "pyang --lint"
 
@@ -21,34 +31,34 @@ The native and some common YANG models are not fully compliant with all IETF gui
 Revision statements embedded in the YANG files **should** accurately reflect whether or not a new revision has been introduced.
 
 
-## Platform Differences:
+## Platform Differences
 
-Each supported platform advertises netconf capability during netconf session establishment. 
+Each supported platform advertises NETCONF capabilities during NETCONF session establishment. 
 
 #### Catalyst 3850, 3650
 
-Netconf capability statement for cat3k devices: [cat3k-netconf-capability.xml](cat3k-netconf-capability.xml)
+NETCONF capability statement for cat3k devices: [cat3k-netconf-capability.xml](cat3k-netconf-capability.xml)
 
 Excpetions to capability statement:
 
 1. Common models not supported by cat3k platforms:
 
-	- nvo.yang
-	- nvo-devs.yang
+	- [nvo.yang](nvo.yang)
+	- [nvo-devs.yang](nvo-devs.yang)
 
 2. Additional deviation module for cat3k platform
 
-	- cisco-xe-native-cat3k-deviation.yang
+	- [cisco-xe-native-cat3k-deviation.yang](cisco-xe-native-cat3k-deviation.yang)
 
 #### ASR1000, CSR1000V, ISR4000
 
-Netconf capability statement for cat3k devices: [router-netconf-capability.xml](router-netconf-capability.xml)
+NETCONF capability statement for cat3k devices: [router-netconf-capability.xml](router-netconf-capability.xml)
 
 Excpetions to capability statement:
 
 1. Additional deviation module for routing platforms:
 
-	- cisco-xe-native-router-deviation.yang
+	- [cisco-xe-native-router-deviation.yang](cisco-xe-native-router-deviation.yang)
 
 ## Provisional Content
 
