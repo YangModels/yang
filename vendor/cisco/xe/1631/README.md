@@ -7,6 +7,7 @@ This directory contains the [MIBS](MIBS) subdirectory contain YANG models suppor
 * Plaform deviations to models
 * MIB-based models generated using the algorithms in [RFC 6643](https://tools.ietf.org/html/rfc6643)
 * Copies of **draft** IETF models implemented by IOS-XE 16.3.1 (some with modifications)
+* Copy of ietf-ip.yang model implemented by IOS-XE 16.3.1 (pre RFC draft with some modification) 
 
 The schemas here may also be retrieved from devices running IOS-XE 16.3.1 by using the NETCONF "get-schema" RPC as detailed in Section 3.1 of [RFC 6022](https://tools.ietf.org/html/rfc6022). Models listed in this repository are supported by following IOS-XE platforms:
 
