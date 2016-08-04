@@ -6,6 +6,7 @@
 # Deviation modules are NOT checked as they require specific imports
 # typically not available locally.
 #
+
 platform_dir="vendor/cisco/xe"
 to_check="1631 1631/MIBS"
 pyang_flags="-p 1631:1631/MIBS:../../../standard/ietf/RFC"
