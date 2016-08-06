@@ -4,7 +4,7 @@ This directory contains the [MIBS](MIBS) subdirectory contain YANG models suppor
 
 * Native models, unique to IOS-XE platforms
 * Common Cisco models
-* Plaform deviations to models
+* Platform deviations to models
 * MIB-based models generated using the algorithms in [RFC 6643](https://tools.ietf.org/html/rfc6643)
 * Copies of **draft** IETF models implemented by IOS-XE 16.3.1 (some with modifications)
 * Copy of ietf-ip.yang model implemented by IOS-XE 16.3.1 (pre RFC draft with some modification) 
