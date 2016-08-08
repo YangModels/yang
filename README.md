@@ -8,6 +8,7 @@ This repository contains a collection of YANG modules:
   * IETF standards-track YANG modules
   * Open Daylight open source YANG modules
   * IEEE experimental YANG modules
+  * Broadband Forum standard YANG modules
   * Vendor specific YANG modules
   * Open source YANG tools
 
@@ -27,6 +28,8 @@ The following directories are maintained for YANG models [license note in bracke
 
   **yang/experimental/odp**: experimental modules intended for OpenDaylight submission [2]
 
+  **yang/experimental/bbf**: experimental modules intended for Broadband Forum submission (none yet) [6]
+
   **yang/standard**: contains standards-track YANG modules [any]
 
   **yang/standard/ietf**: standard IETF YANG modules [1]
@@ -35,7 +38,9 @@ The following directories are maintained for YANG models [license note in bracke
 
   **yang/standard/ietf/RFC**: completed IETF YANG modules [1]
 
-  **yang/standard/odp**: published modues for OpenDaylight [2]
+  **yang/standard/odp**: published modules for OpenDaylight [2]
+
+  **yang/standard/bbf**: standard Broadband Forum YANG modules [6]
 
 
   **yang/vendor**: contains vendor-specific YANG modules [any]
@@ -87,6 +92,9 @@ The following directories are maintained for tools [license note in brackets]:
 
 ### [5] Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 
+### [6] Broadband Forum License:
+
+  * All files contained within this sub-directory are provided under the terms of the Broadband Forum Software license (see Appendix C, Section 3, of https://www.broadband-forum.org/ipr-policy).
 
 ## Submission Procedure
 
