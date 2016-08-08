@@ -25,7 +25,7 @@ setupPyang () {
     fi
     
     cd ./pyang-temp
-    source env.sh
+    . env.sh
     cd $cwd
 }
 
@@ -35,7 +35,6 @@ checkDir () {
     exit_status=""
     printf "\n"
     for f in `find $dir -name '*.yang'`; do
-        printf "pyang $pyang_flags $f\n"
 	errors=`pyang $pyang_flags $f 2>&1 | grep "error:"`
 	if [ ! -z "$errors" ]; then
 	    echo Errors in $f
