@@ -16,15 +16,14 @@ cwd=`pwd`
 pyang_flags="--strict --max-line-length=70 --lint --lint-modulename-prefix=bbf --lint-namespace-prefix=urn:bbf:yang: --verbose --path=$cwd/$ietf_dir --path=$cwd/$bbf_dir"
 
 setupPyang () {
-    local cwd=`pwd`
-    cd $bbf_dir
+    cd $cwd/$bbf_dir
     if [ -d pyang-temp ]; then
-        (cd pyang-temp; git checkout master; git pull)
+        (cd $cwd/$bbf_dir/pyang-temp; git checkout master; git pull)
     else
         git clone https://github.com/mbj4668/pyang.git pyang-temp
     fi
     
-    cd ./pyang-temp
+    cd $cwd/$bbf_dir/pyang-temp
     . env.sh
     cd $cwd
 }
