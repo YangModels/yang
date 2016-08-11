@@ -11,10 +11,11 @@ to_check="RFC"
 pyang_flags="--verbose"
 
 checkDir () {
-    echo Checking yang files in $1
+    local dir="$ietf_dir/$1"
+    echo Checking yang files in $dir
     exit_status=""
     cwd=`pwd`
-    cd $1
+    cd $dir
     printf "\n"
     for f in *.yang; do
         printf "pyang $pyang_flags $f\n"
