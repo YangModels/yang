@@ -40,7 +40,7 @@ Each supported platform advertises NETCONF capabilities during NETCONF session e
 
 NETCONF capability statement for cat3k devices: [cat3k-netconf-capability.xml](cat3k-netconf-capability.xml)
 
-Excpetions to capability statement:
+Exceptions to capability statement:
 
 1. Common models not supported by cat3k platforms:
 
@@ -55,7 +55,7 @@ Excpetions to capability statement:
 
 NETCONF capability statement for cat3k devices: [router-netconf-capability.xml](router-netconf-capability.xml)
 
-Excpetions to capability statement:
+Exceptions to capability statement:
 
 1. Additional deviation module for routing platforms:
 
@@ -63,5 +63,8 @@ Excpetions to capability statement:
 
 ## Provisional Content
 
-TBD
+For Cisco IOS XE Denali 16.3.1 release, list of supported configuration nodes/xpaths in the Native Yang Data Model (ned.yang) is available [here](http://www.cisco.com/c/dam/en/us/td/docs/switches/lan/catalyst3850/software/release/16-3/yang_models/IOS-XE1631_NativeYangDataModel.xlsx)
+
+Any configuration node/xpath which does not appear in this list is unsupported and is available for evaluation purposes only and may be changed/removed in the subsequent Cisco IOS XE releases.
+
 
