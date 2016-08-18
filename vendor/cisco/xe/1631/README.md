@@ -40,7 +40,7 @@ Each supported platform advertises NETCONF capabilities during NETCONF session e
 
 NETCONF capability statement for cat3k devices: [cat3k-netconf-capability.xml](cat3k-netconf-capability.xml)
 
-Excpetions to capability statement:
+Exceptions to capability statement:
 
 1. Common models not supported by cat3k platforms:
 
@@ -55,13 +55,9 @@ Excpetions to capability statement:
 
 NETCONF capability statement for cat3k devices: [router-netconf-capability.xml](router-netconf-capability.xml)
 
-Excpetions to capability statement:
+Exceptions to capability statement:
 
 1. Additional deviation module for routing platforms:
 
 	- [cisco-xe-native-router-deviation.yang](cisco-xe-native-router-deviation.yang)
-
-## Provisional Content
-
-TBD
 
