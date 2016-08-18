@@ -61,10 +61,3 @@ Exceptions to capability statement:
 
 	- [cisco-xe-native-router-deviation.yang](cisco-xe-native-router-deviation.yang)
 
-## Provisional Content
-
-For Cisco IOS XE Denali 16.3.1 release, list of supported configuration nodes/xpaths in the Native Yang Data Model (ned.yang) is available [here](http://www.cisco.com/c/dam/en/us/td/docs/switches/lan/catalyst3850/software/release/16-3/yang_models/IOS-XE1631_NativeYangDataModel.xlsx)
-
-Any configuration node/xpath which does not appear in this list is unsupported and is available for evaluation purposes only and may be changed/removed in the subsequent Cisco IOS XE releases.
-
-
