@@ -1,0 +1,1 @@
+This directory contains YANG models for Ciena platforms.
