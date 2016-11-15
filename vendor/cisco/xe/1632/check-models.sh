@@ -21,10 +21,9 @@ PYANG_FLAGS="-p ../../../../standard/ietf/RFC"
 trap ctrl_c INT
 
 function ctrl_c() {
-  echo 'User interruption, exiting ..'
+  echo 'User interruption, exiting ..' 
   exit -1
 }
-
 #
 # simple function to check for existence of a binary on the current
 # path
@@ -72,7 +71,7 @@ done
 echo Checking all models with "--lint" flag
 compile_yang() {
     m=$1
-    echo "pyang $FLAGS $m"
+    echo "pyang $FLAGS $m" 
     pyang $FLAGS $m 2>&1 | \
 	grep -v "warning: RFC 6087" | \
 	grep -v "error: RFC 6087: 4.2" | \
