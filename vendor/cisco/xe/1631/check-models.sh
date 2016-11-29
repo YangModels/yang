@@ -12,6 +12,7 @@
 # device supporting the module. The exact content ignored may be
 # identified by reviewing the "grep -v" commands below.
 #
+
 EGREP=`command -v egrep`
 GREP=`command -v grep`
 PYANG=`command -v pyang`

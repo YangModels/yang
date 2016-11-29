@@ -38,7 +38,7 @@ Each supported platform advertises NETCONF capabilities during NETCONF session e
 
 #### Catalyst 3850, 3650
 
-NETCONF capability statement for cat3k devices: [cat3k-netconf-capability.xml](cat3k-netconf-capability.xml)
+NETCONF capability statement: [cat3k-netconf-capability.xml](cat3k-netconf-capability.xml)
 
 Exceptions to capability statement:
 
@@ -53,7 +53,7 @@ Exceptions to capability statement:
 
 #### ASR1000, CSR1000V, ISR4000
 
-NETCONF capability statement for cat3k devices: [router-netconf-capability.xml](router-netconf-capability.xml)
+NETCONF capability statement: [router-netconf-capability.xml](router-netconf-capability.xml)
 
 Exceptions to capability statement:
 
