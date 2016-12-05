@@ -1,15 +1,14 @@
-## YANG Models and Platform Capabilities for Cisco IOS-XE 16.3.1 
+## YANG Models and Platform Capabilities for Cisco IOS-XE 16.3.2
 
-This directory contains the [MIBS](MIBS) subdirectory contain YANG models supported by IOS-XE 16.3.1:
+This directory contains the [MIBS](MIBS) subdirectory contain YANG models supported by IOS-XE 16.3.2:
 
 * Native models, unique to IOS-XE platforms
 * Common Cisco models
 * Platform deviations to models
 * MIB-based models generated using the algorithms in [RFC 6643](https://tools.ietf.org/html/rfc6643)
-* Copies of **draft** IETF models implemented by IOS-XE 16.3.1 (some with modifications)
-* Copy of ietf-ip.yang model implemented by IOS-XE 16.3.1 (pre RFC draft with some modification) 
+* Copies of **draft** IETF models implemented by IOS-XE 16.3.2 (some with modifications)
 
-The schemas here may also be retrieved from devices running IOS-XE 16.3.1 by using the NETCONF "get-schema" RPC as detailed in Section 3.1 of [RFC 6022](https://tools.ietf.org/html/rfc6022). Models listed in this repository are supported by following IOS-XE platforms:
+The schemas here may also be retrieved from devices running IOS-XE 16.3.2 by using the NETCONF "get-schema" RPC as detailed in Section 3.1 of [RFC 6022](https://tools.ietf.org/html/rfc6022). Models listed in this repository are supported by following IOS-XE platforms:
 
 * Catalyst 3850 
 * Catalyst 3650
@@ -47,17 +46,8 @@ Exceptions to capability statement:
 	- [nvo.yang](nvo.yang)
 	- [nvo-devs.yang](nvo-devs.yang)
 
-2. Additional deviation module for cat3k platform
-
-	- [cisco-xe-native-cat3k-deviation.yang](cisco-xe-native-cat3k-deviation.yang)
-
 #### ASR1000, CSR1000V, ISR4000
 
 NETCONF capability statement: [router-netconf-capability.xml](router-netconf-capability.xml)
 
-Exceptions to capability statement:
-
-1. Additional deviation module for routing platforms:
-
-	- [cisco-xe-native-router-deviation.yang](cisco-xe-native-router-deviation.yang)
 
