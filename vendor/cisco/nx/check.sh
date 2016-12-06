@@ -19,7 +19,7 @@ checkDir () {
     	errors=`pyang -p ..:$1:$inc_path $f 2>&1 | grep "error:"`
         if [ ! -z "$errors" ]; then
             echo Errors in $f
-            echo $errors
+            echo "$errors"
             exit_status="failed!"
         fi
     done
