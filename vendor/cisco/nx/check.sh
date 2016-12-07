@@ -15,6 +15,9 @@ checkDir () {
     echo Checking yang files in $platform_dir/$1
     exit_status=""
     for f in $1/*.yang; do
+        if test "${f#*"openconfig-"}" != "$f"; then
+            continue
+        fi
         echo File $f being checked...
     	errors=`pyang -p ..:$1:$inc_path $f 2>&1 | grep "error:"`
         if [ ! -z "$errors" ]; then

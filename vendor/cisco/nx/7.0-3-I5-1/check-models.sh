@@ -86,6 +86,9 @@ compile_yang() {
 FLAGS="$PYANG_FLAGS --lint"
 for m in *.yang
 do
+    if test "${m#*"openconfig-"}" != "$m"; then
+        continue
+    fi
     compile_yang $m
 done
 
