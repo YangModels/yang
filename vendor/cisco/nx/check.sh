@@ -7,32 +7,36 @@
 # typically not available locally.
 #
 
-platform_dir="vendor/cisco/xe"
-to_check="1631 1631/MIBS 1632 1632/MIBS"
+platform_dir="vendor/cisco/nx"
+to_check="7.0-3-I5-1"
 inc_path="../../../../standard/ietf/RFC"
-pyang_flags="..:$inc_path"
 
 checkDir () {
     echo Checking yang files in $platform_dir/$1
+    exit_status=""
     cwd=`pwd`
     cd $1
-    exit_status=""
     for f in *.yang; do
-        errors=`pyang -p $pyang_flags $f 2>&1 | grep "error:"`
-    	if [ ! -z "$errors" ]; then
-    	    echo Errors in $f
-    	    exit_status="failed!"
+        if test "${f#*"openconfig-"}" != "$f"; then
+            continue
+        fi
+        echo File $f being checked...
+    	errors=`pyang -p ..:$1:$inc_path $f 2>&1 | grep -v "syntax error in pattern" | grep "error:"`
+        if [ ! -z "$errors" ]; then
+            echo Errors in $f
+            echo "$errors"
+            exit_status="failed!"
         fi
     done
     cd $cwd
     
     if [ ! -z "$exit_status" ]; then
-	   exit 1
+       exit 1
     fi
 }
 
 echo Checking modules with pyang command:
-printf "\n    pyang $pyang_flags MODULE\n\n"
+printf "\n    pyang -p ..:$1:$inc_path MODULE\n\n"
 
 if [ -e "$platform_dir" ]; then
     cd $platform_dir

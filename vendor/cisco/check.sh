@@ -7,6 +7,9 @@
 # typically not available locally.
 #
 
+# Check NX-OS Model Repository
+./vendor/cisco/nx/check.sh
+
 # Check IOS XR Model Repository
 ./vendor/cisco/xr/check.sh
 
