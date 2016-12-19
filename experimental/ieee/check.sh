@@ -9,7 +9,7 @@ to_check_2="802.3"
 
 # relax constraint for now
 # add --ietf if you want to do strict IETF checking
-pyang_flags="--verbose -p ../../../standard/ietf/RFC/"
+pyang_flags="--verbose -p ../../../standard/ietf/RFC/ -p ../../../standard/ieee/draft/ -p ../../../standard/ieee/802.1/draft/"
 
 checkDir () {
     echo Checking yang files in $1
@@ -42,7 +42,7 @@ done
 
 
 #check 802.3 modules
-printf "\n Checking modules with pyang in directory $test_dir/$to_check_1: \n"
+printf "\n Checking modules with pyang in directory $test_dir/$to_check_2: \n"
 for d in $to_check_2; do
     checkDir $d
 done
