@@ -8,7 +8,7 @@
 #
 
 platform_dir="vendor/cisco/nx"
-to_check="7.0-3-I5-1"
+to_check="7.0-3-F1-1 7.0-3-I5-1"
 inc_path="../../../../standard/ietf/RFC"
 
 checkDir () {
