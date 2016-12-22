@@ -19,6 +19,11 @@ The native YANG models are not fully compliant with all IETF guidelines as exemp
 From NX-OS 7.0.3 and onwards, the revision statements embedded in the YANG files **should** accurately reflect whether or not a new revision has been introduced. However, there are some bugs. These will be noted by running the ```check-models.sh``` script with the ```-b``` option.
 
 
+### RPM Download
+
+The RPMs supporting YANG models are available for download at the Cisco Artifactory http://devhub.cisco.com/artifactory/open-nxos-agents/7.0-3-I5-1/.
+
+
 ### Prerequisites and Dependencies 
 
 #### VRRP Model 
