@@ -8,7 +8,7 @@
 #
 
 platform_dir="vendor/cisco/xr"
-to_check="530 531 532 533 534 600 601 611 612"
+to_check="530 531 532 533 534 600 601 602 611 612"
 pyang_flags="../../../standard/ietf/RFC"
 
 checkDir () {
