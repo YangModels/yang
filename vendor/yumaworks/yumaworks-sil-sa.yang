@@ -7,6 +7,7 @@ module yumaworks-sil-sa {
     import yuma-types { prefix yt; }
     import yumaworks-ycontrol { prefix yctl; }
     import yumaworks-agt-profile { prefix yprof; }
+
     organization "YumaWorks, Inc.";
 
     contact
@@ -15,12 +16,31 @@ module yumaworks-sil-sa {
     description 
        "YumaPro SIL Sub-Agent message definitions.
 
-     Copyright (c) 2014 YumaWorks, Inc. All rights reserved.
+     Copyright (c) 2014-2015 YumaWorks, Inc. All rights reserved.
 
      Redistribution and use in source and binary forms, with or
      without modification, is permitted pursuant to, and subject
      to the license terms contained in, the BSD 3-Clause License
      http://opensource.org/licenses/BSD-3-Clause";
+
+    revision 2015-11-01 {
+        description
+          "Added support for GETBULK to get-response message.";
+    }
+    revision 2015-08-17 {
+        description
+          "Added 'select' node support to get2 SIL-SA get-request
+           message";
+    }
+    revision 2015-04-17 {
+        description
+          "Updated notification container for release";
+    }
+
+    revision 2015-01-15 {
+        description
+          "Add get and notification support";
+    }
 
     revision 2014-11-18 {
         description
@@ -30,7 +50,6 @@ module yumaworks-sil-sa {
            Add bundle-load-event to inform server of any modules
            loaded from a SIL-SA bundle; Remove shutdown-event.";
     }
-
 
     revision 2014-09-06 {
         description
@@ -55,6 +74,47 @@ module yumaworks-sil-sa {
 
     augment "/yctl:ycontrol/yctl:payload" {
       container sil-sa {
+
+        description
+          "Server Instrumentation Library Sub-Agent API Messages
+
+           SIL-SA Protocol Initialization:
+
+           1) subsys sends a <config-request> subsys-request msg
+           2) server replies with <config-response> server-response
+              msg with the agt_profile data
+           3) subsys sends a <register-request> subsys-request msg
+              with modules and object path-expressions to register
+           4) server sends <ok> server-response
+           5) subsys sends a <trigger-replay> subsys-event;
+              if any config for this subsystem, server will send
+              a <start-transaction> server-request with a config-replay
+              transaction
+
+           SIL-SA Protocol Edit Operation:
+
+           1) the server sends a <start-transaction> server-request msg
+              with the edit list
+           2) the subsys validates the request and sends an
+              <ok> subsys-response (or error)
+           3) the server sends a <continue-transaction> for the apply
+              phase
+           4) the subsys applies the request and sends an
+              <ok> subsys-response (or error)
+           5) the server sends a <continue-transaction> for the commit
+              phase
+           6) the subsys commits the request and sends an
+              <ok> subsys-response (or error).
+
+           If the server does not get to step (5) because of an error,
+           a <continue-transaction> server-request msg will be sent
+           for the rollback phase.
+
+           If the server does not get to step (3) because of an error,
+           it will send a <cancel-transaction> server-event msg so
+           the subsystem can release any saved state.
+
+           ";
 
         grouping transaction-id-obj {
           leaf transaction-id {
@@ -112,12 +172,25 @@ module yumaworks-sil-sa {
             uses bundle-module-parm;
 
             list register {
+              description
+                "Specifies the path strings of all the objects
+                 in each module that is supported by the subsystem.";
+
               key "module";
               leaf module {
                 type yt:NcxName;
+                description
+                  "Module name for the target object.";
               }
               leaf-list path {
                 type string;
+                description
+                  "Path string for object for an EDIT callback";
+              }
+              leaf-list get-path {
+                type string;
+                description
+                  "Path string for object for a GET callback";
               }
             }
           }
@@ -276,6 +349,8 @@ module yumaworks-sil-sa {
             }
           }  // container continue-transaction
 
+
+
           container cancel-transaction {
             description
              "Message type: server-event;
@@ -285,6 +360,8 @@ module yumaworks-sil-sa {
             uses transaction-id-obj;
 
           }  // container cancel-transaction
+
+
 
           leaf trigger-replay {
             type empty;
@@ -298,6 +375,8 @@ module yumaworks-sil-sa {
                  config for the SIL-SA functions registered
                  by the subsystem.";
           }  // leaf trigger-replay
+
+
 
           container load-event {
             description
@@ -319,6 +398,8 @@ module yumaworks-sil-sa {
             uses config-parms;
           }  // container load-event
 
+
+
           container bundle-load-event {
             description
              "Message type: subsys-event;
@@ -333,6 +414,232 @@ module yumaworks-sil-sa {
             uses bundle-module-parm;
 
           }  // container bundle-load-event
+
+
+
+          container get-request {
+            description
+              "Composite retrieval request to support NETCONF
+               and RESTCONF get operations.
+               Type: server-request
+               Expected Response Message: subsys-response
+                                   (get-response or error)";
+
+            uses transaction-id-obj;
+
+            leaf flags {
+              type bits {
+                bit keys {
+                  description
+                    "Return only the key values";
+                }
+                bit config {
+                  description
+                    "Return config=true data nodes";
+                }
+                bit oper {
+                  description
+                    "Return config=false data nodes";
+                }
+                bit getnext {
+                  description
+                    "This is a get-next request instead of a
+                    get request";
+                }
+                bit withdef {
+                  description
+                    "Return default values for missing nodes";
+                }
+                bit select {
+                  description
+                    "Return only the select nodes and any key leafs.
+                     Ignore the config, oper, withdef flags if this
+                     bit is set.";
+                }
+              }
+              default "";
+              description
+                "Set of get request modifier flags";
+            }
+
+            leaf max-entries {
+              type uint32;
+              description
+                "Max number of entries requested.
+                 The default is '0' == all for leaf-list and
+                 '1' for all other node types.";
+            }
+
+            leaf path {
+              mandatory true;
+              type string;
+              description
+                "Object identifier string, matches 'path' in the
+                 register-request' message.";
+            }
+
+            anyxml keys {
+              description
+                "List of all ancestor or self key values for the
+                 object being retrieved, identified by the 'path'
+                 value. There will be one child leaf for each key
+                 in each list.";
+            }
+
+            anyxml matches {
+              description
+                "Represents any content-match child leafs for the
+                 request. All leafs in this container must match the
+                 corresponding child nodes in an instance of the
+                 requested list or container, for that instance to
+                 be returned.
+
+                 Any content-match nodes must match in addition
+                 to any key leafs specified in the 'keys' container.";
+            }
+
+            container select-nodes {
+              list select-node {
+                description
+                  "Only requesting these nodes be returned. If no
+                   entries and the 'select' bit is set in the flags
+                   leaf, then no objects except list keys are
+                   returned.";
+
+                key objname;
+                leaf objname {
+                  type string;
+                  description
+                    "Object name of the select node";
+                }
+                leaf modname {
+                  type string;
+                  description
+                    "Module name of the select node; If missing then
+                     use the module-name of the path target object.";
+                }
+              }
+            }
+
+          }
+
+          container get-response {
+            description
+              "Composite retrieval response to support NETCONF
+               and RESTCONF get operations.
+               Type: subsys-response
+               Expected Response Message: none";
+
+            uses transaction-id-obj;
+
+            leaf more-data {
+              type boolean;
+              default false;
+              description
+                "Indicates if the GET callback has more data to send";
+            }
+
+            leaf match-test-done {
+              type boolean;
+              default false;
+              description
+                "Indicates if the requested content-match tests have
+                 be performed. Ignored if the 'matches' parameter
+                 is missing or empty.";
+            }
+
+            leaf active-case-modname {
+              type string;
+              description
+                "Module name of the active case if there is one.
+                 Only applies if the GET2 object callback is for
+                 a YANG choice-stmt.";
+            }
+
+            leaf active-case {
+              type string;
+              description
+                "Name of the active case if there is one.
+                 Only applies if the GET2 object callback is for
+                 a YANG choice-stmt.";
+
+            }
+
+            grouping return-val {
+              anyxml return-keys {
+                description
+                  "List of all ancestor or self key values for the
+                   object being retrieved, identified by the 'path'
+                   value. There will be one child leaf for each key
+                   in each list.";
+              }
+
+              anyxml values {
+                description
+                  "Represents the retrieved values, if any.
+                   There will be one child node for each returned
+                   value.";
+              }
+            }
+
+            choice return-choice {
+              case return-one {
+                description
+                  "For all objects except YANG list, one entry
+                   will be returned.  This can also be used
+                   for YANG list, except in GETBULK mode.";
+                uses return-val;
+              }
+              case return-getbulk {
+                description
+                  "For YANG list GETBULK mode.  There will be one entry
+                   for each list instance that met the search criteria.
+                   If the max_entries parameter was greater than zero,
+                   there the number of instances of 'entry' should not
+                   exceed this value.";
+                list entry {
+                  // no key!!
+                  uses return-val;
+                }
+              }
+            }
+          }
+
+          container notification {
+            description
+              "Subsystem generated YANG notification event
+               for NETCONF and RESTCONF streams.
+               Type: subsys-event
+               Expected Response Message: none";
+
+            leaf module-name {
+              mandatory true;
+              type string;
+              description
+                "Module name containing the notification definition";
+            }
+
+            leaf event-name {
+              mandatory true;
+              type string;
+              description
+                "Notification statement name";
+            }
+
+            leaf event-time {
+              mandatory true;
+              type string;
+              description
+                "Notification creation timestamp";
+            }
+
+
+            anyxml parms {
+              description
+                "List of all parameters that this notification
+                 is sending in the payload.";
+            }
+          }
 
         } // choice message-type
       } // container sil-sa
