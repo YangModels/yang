@@ -1,0 +1,249 @@
+module yumaworks-restconf {
+  namespace "urn:ietf:params:xml:ns:yang:yumaworks-restconf";
+  prefix "yrc";
+
+  import ietf-yang-types { prefix yang; }
+  // import ietf-yang-patch { prefix yp; }
+  import ietf-restconf { prefix rc; }
+
+
+  organization "YumaWorks, Inc.";
+
+  contact
+    "Support <support@yumaworks.com>";
+
+  description
+    "This module contains abstract object definitions for 
+     the RESTCONF protocol.";
+
+  revision 2015-12-03 {
+    description
+       "Move restconf grouping back to ietf-restconf and
+        augment it with 2 leafs.";
+  }
+
+  revision 2015-07-29 {
+    description
+       "Initial version";
+  }
+
+  augment /rc:restconf {
+      leaf stream {
+        type empty;
+        description
+          "Used for the event-streams";
+      }
+      leaf yang {
+        type empty;
+        description
+          "Used for the schema retriaval";
+      }
+  }
+
+  grouping content-parameter {
+    leaf content {
+      type enumeration {
+        enum config {
+          description
+            "Return only configuration descendant data nodes";
+        }
+        enum nonconfig {
+          description
+            "Return only non-configuration descendant data nodes";
+        }
+        enum all {
+          description
+            "Return all descendant data nodes";
+        }
+      }
+      description
+        "The content parameter controls how descendant nodes of
+         the requested data nodes will be processed in the reply.
+
+         This parameter is only allowed for GET methods on
+         datastore and data resources.  A 400 Bad Request error
+         is returned if used for other methods or resource types.
+
+         The default value is determined by the config-stmt
+         value of the requested data nodes. If 'false', then
+         the default is 'nonconfig'.  If 'true' then the
+         default is 'config'.";
+    }
+  }
+
+  grouping depth-parameter {
+    description "IETF RESTCONF depth parameter";
+    leaf depth {
+      type union {
+        type enumeration {
+          enum unbounded {
+            description "All sub-resources will be returned.";
+          }
+        }
+        type uint32 {
+          range "1..max";
+        }
+      }
+      default unbounded;
+        description
+          "The 'depth' parameter is used to specify the number
+           of nest levels returned in a response for a GET method.
+           The first nest-level consists of the requested data node
+           itself. Any child nodes which are contained within
+           a parent node have a depth value that is 1 greater than
+           its parent.
+
+           This parameter is only allowed for GET methods on api,
+           datastore, and data resources.  A 400 Bad Request error
+           is returned if used for other methods or resource types.
+
+           By default, the server will include all sub-resources
+           within a retrieved resource, which have the same resource
+           type as the requested resource. Only one level of
+           sub-resources with a different media type than the target
+           resource will be returned.";
+    }
+  }
+
+  grouping query-parameters {
+    description
+        "Contains conceptual definitions for the query string
+        parameters used in the RESTCONF protocol.";
+
+    uses content-parameter;
+
+    uses depth-parameter;
+
+    leaf filter {
+      type yang:xpath1.0;
+        description
+          "The 'filter' parameter is used to indicate which subset of
+           all possible events are of interest.  If not present, all
+           events not precluded by other parameters will be sent.
+
+           This parameter is only allowed for GET methods on a
+           text/event-stream data resource.  A 400 Bad Request error
+           is returned if used for other methods or resource types.
+
+           The format of this parameter is an XPath expression, and
+           is evaluated in the following context:
+
+           * The set of namespace declarations is the set of
+              prefix and namespace pairs for all supported YANG
+              modules, where the prefix is the YANG module name, and
+              the namespace is as defined by the 'namespace' statement
+              in the YANG module.
+           * The function library is the core function library defined
+              in XPATH.
+
+           * The set of variable bindings is empty.
+
+           * The context node is the root node
+
+           The filter is used as defined in [RFC5277], section 3.6.
+           If the boolean result of the expression is true when applied
+           to the conceptual 'notification' document root, then the
+           notification event is delivered to the client.";
+    }
+
+    leaf insert {
+      type enumeration {
+        enum first {
+          description "Insert the new data as the new first entry.";
+        }
+        enum last {
+          description "Insert the new data as the new last entry.";
+        }
+        enum before {
+          description
+            "Insert the new data before the insertion point,
+             specified by the value of the 'point' parameter.";
+        }
+        enum after {
+          description
+            "Insert the new data after the insertion point,
+             specified by the value of the 'point' parameter.";
+        }
+      }
+      default last;
+        description
+          "The 'insert' parameter is used to specify how a
+           resource should be inserted within a user-ordered list.
+
+           This parameter is only supported for the POST and PUT
+           methods. It is also only supported if the target
+           resource is a data resource, and that data represents
+           a YANG list or leaf-list that is ordered by the user.
+           If the values 'before' or 'after' are used,
+           then a 'point' query parameter for the insertion
+           parameter MUST also be present, or a 400 Bad Request
+           error is returned.";
+    }
+
+    leaf point {
+        //  type data-resource-identifier;
+        type string;
+        description
+          "The 'point' parameter is used to specify the
+           insertion point for a data resource that is being
+           created or moved within a user ordered list or leaf-list.
+
+           This parameter is only supported for the POST and PUT
+           methods. It is also only supported if the target
+           resource is a data resource, and that data represents
+           a YANG list or leaf-list that is ordered by the user.
+
+           If the 'insert' query parameter is not present, or has
+           a value other than 'before' or 'after', then a 400
+           Bad Request error is returned.
+
+           This parameter contains the instance identifier of the
+           resource to be used as the insertion point for a
+           POST or PUT method.";
+    }
+
+    leaf start-time {
+      type yang:date-and-time;
+        description
+          "The 'start-time' parameter is used to trigger
+           the notification replay feature and indicate
+           that the replay should start at the time specified.
+           If the stream does not support replay, per the
+           'replay-support' attribute returned by
+           the /restconf/streams resource, then the server MUST
+           return the HTTP error code 400 Bad Request.
+
+           This parameter is only allowed for GET methods on a
+           text/event-stream data resource.  A 400 Bad Request error
+           is returned if used for other methods or resource types.
+
+           If this parameter is not present, then a replay subscription
+           is not begin requested.  It is not valid to specify start
+           times that are later than the current time.  If the value
+           specified is earlier than the log can support, the replay
+           will begin with the earliest available notification
+    
+           pattern '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?'
+            + '(Z|[\+\-]\d{2}:\d{2})';";
+    }
+
+    leaf stop-time {
+      type yang:date-and-time;
+        description
+          "The 'stop-time' parameter is used with the
+           replay feature to indicate the newest notifications of
+           interest.  This parameter MUST be used with and have a
+           value later than the 'start-time' parameter.
+
+           This parameter is only allowed for GET methods on a
+           text/event-stream data resource.  A 400 Bad Request error
+           is returned if used for other methods or resource types.
+
+           If this parameter is not present, the notifications will
+           continue until the subscription is terminated.
+           Values in the future are valid.";
+    }
+  }  // grouping query-parameters
+
+
+}

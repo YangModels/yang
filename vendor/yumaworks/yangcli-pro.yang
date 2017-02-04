@@ -22,6 +22,8 @@ module yangcli-pro {
 
     import yuma-netconf { prefix nc; }
 
+    import yumaworks-restconf { prefix yrc; }
+
     organization  "YumaWorks, Inc.";
 
     contact "Support <support@yumaworks.com>.";
@@ -57,26 +59,77 @@ module yangcli-pro {
            present, and then the program will exit.  Any interactive
            input breaks in the script or command will be skipped.
 
-     Copyright (c) 2010 - 2015 YumaWorks, Inc. All rights reserved.
+     Copyright (c) 2010 - 2016 YumaWorks, Inc. All rights reserved.
 
      Redistribution and use in source and binary forms, with or
      without modification, is permitted pursuant to, and subject
      to the license terms contained in, the BSD 3-Clause License
      http://opensource.org/licenses/BSD-3-Clause";
 
-   revision 2015-01-08 {
+     revision 2016-05-26 {
+       description
+         "Add auto-reconnect, auto-reconnect-interval, and 
+          auto-reconnect-max.";
+     }
+
+     revision 2016-03-17 {
+       description
+         "Add use-traceid parameter and variable.";
+     }
+
+     revision 2016-03-10 {
+       description
+         "Add autonvsave parameter and variable.
+           Add nvsave command";
+     }
+
+     revision 2015-12-04 {
+       description
+         "Change target parameter to xpath1.0 to allow content-match
+          expressions to be entered.
+          Add device-cfg, devices-cfg, user-cfg, 
+          users-cfg CLI parameters. 
+          Add the leaf of device and userid to saved-sessions.
+          Add autodevices and autousers parameter.
+          Add auto-keepalive and  keepalive-interval. 
+          Add delete-all and remove-all operations.
+          Add 'depth' parameter to sget, sget-config, xget,
+          and xget-config commands.";
+    }
+
+    revision 2015-09-07 {
+       description
+         "Add encoding parameter to connect parameters";
+    }
+
+    revision 2015-07-07 {
+       description
+         "Add config-autosave CLI parameter.";
+    }
+
+    revision 2015-06-25 {
+       description
+         "Add transport tls parameter";
+    }
+
+    revision 2015-06-03 {
+       description
+         "Add value parameter to delete and remove commands";
+    }
+
+    revision 2015-01-08 {
        description
          "Add no-password leaf and make password part of
           pass choice. Add ask-password CLI parameter";
     }
 
-   revision 2014-10-02 {
+    revision 2014-10-02 {
        description
          "Add select parameter to show running command.
           Add 'mandatory true' for stop-session command.";
     }
 
-   revision 2014-09-18 {
+    revision 2014-09-18 {
        description
          "Add show running to show the entire configuration.
           Add show edit to display the subtree that is the current
@@ -350,19 +403,15 @@ module yangcli-pro {
               assigned to the desired YANG module. Prefix usage is
               optional.";
 
-           // type schema-instance-identifier;  TBD
-
-           type string {
+           type yang:xpath1.0 {
              length "1..max";
            }
            mandatory true;
-           ncx:schema-instance;
          }
          leaf urltarget {
            description 
              "URL encoded target object to fill.
               Encoding Rules: TBD.";
-           // type URL: TBD
            type ywt:UrlPath;
            mandatory true;
          }
@@ -458,6 +507,7 @@ module yangcli-pro {
            type empty;
        }
        uses ncxapp:CliWithDefaultsParm;
+       uses yrc:depth-parameter;
     }
 
     grouping XGetParms {
@@ -492,6 +542,8 @@ module yangcli-pro {
         }
 
         uses ncxapp:CliWithDefaultsParm;
+
+        uses yrc:depth-parameter;
 
         uses ywapp:MatchParms {
           description
@@ -529,6 +581,64 @@ module yangcli-pro {
              or not done, then password authentication will
              be attempted.";
           default "$HOME/.ssh/id_rsa";
+        }
+    }
+
+    grouping SslKeyParms {
+        leaf ssl-fallback-ok {
+            type boolean;
+            default true;
+            description
+             "If true then an attempt to establish a plain TCP
+              connection will be made if an SSL connection cannot
+              be made. This parameter only applies of the
+              'transport' is 'ssl'";
+        }
+
+        leaf ssl-certificate {
+          type string {
+            length "1 .. max";
+          }
+          description
+            "Contains the file path specification
+             for the file containing the client-side ssl certificate.
+             If both 'certificate' and 'key' files are
+             present, the client will attempt to setup a secure
+             connection with the server using the certificate and
+             SSL key.
+
+             If this fails, and the 'ssl-fallback-ok' leaf is
+             set to true, the client will attempt to setup
+             a raw tcp connection with the server.";
+          default "$HOME/.ssl/yangapi-client.crt";
+        }
+
+        leaf ssl-key {
+          type string {
+            length "1 .. max";
+          }
+          description
+            "Contains the file path specification
+             for the file containing the client-side ssl key.
+             If both 'certificate' and 'key' files are
+             present, the client will attempt to setup a secure
+             connection with the server using the certificate and
+             SSLe key.  If this fails, client will attempt to setup
+             a raw tcp connection with the server.";
+          default "$HOME/.ssl/yangapi-client.key";
+        }
+
+        leaf ssl-trust-store {
+          type string {
+            length "1 .. max";
+          }
+          description
+            "Contains the file path specification
+             for the file containing the client-side ssl trust-store.
+             It includes the CA certificates of the server for 
+             verification purposes. Certificates in trust-store 
+             are trusted.";
+          default "$HOME/.ssl/trust-store.pem";
         }
     }
 
@@ -577,15 +687,17 @@ module yangcli-pro {
           default 830;
         }
 
-	leaf timeout {
-	  description
-	    "Number of seconds to wait for a response
-	     from the server before declaring a timeout.
+        leaf timeout {
+          description
+            "Number of seconds to wait for a response
+             from the server before declaring a timeout.
              Zero means do not timeout at all.";
           type nt:Timeout;
         }
  
         uses SshKeyParms;
+
+        uses SslKeyParms;
 
         uses ncxapp:ProtocolsParm;
 
@@ -601,13 +713,22 @@ module yangcli-pro {
             }
             enum tcp {
               description
-                "NETCONF over TCP.
+                "The transport is TCP. The usage depends on
+                 the protocol used.
+
+                 NETCONF over TCP: (tail-f NETCONF over TCP)
                  If this enum is selected, then the default --ncport
-                 value is set to 2023, and the --protocols value
+                 value is set to 2023 and the --protocols value
                  is set to netconf1.0.  The --password value will
-                 be ignored.";
-              reference
-                "tail-f confd";
+                 be ignored.
+
+                 YANG-API or RESTCONF over HTTP/TCP:
+                 If this enum is selected, then the default --ncport
+                 value is set to 80, and the --protocols value
+                 will not be changed.";
+               reference
+                 "NETCONF: tail-f conf-d
+                  RESTCONF: HTTP";
             }
             enum tcp-ncx {
               description
@@ -619,8 +740,32 @@ module yangcli-pro {
               reference
                 "YumaWorks <ncx-connect>";
             }
+            enum tls {
+              description
+                "If this enum is selected the restconf client will try
+                 to communicate with web server using https protocol.";
+              reference
+                "RFC 2818";
+            }
+            enum coap {
+              description
+                "RESTCONF over CoAP.
+                 If this enum is selected, then the default --ncport
+                 value is set to 5683. The --password value will be
+                 ignored.";
+              reference
+                "YumaWorks <ncx-connect>";
+            }
           }
           default ssh;
+        }
+
+        leaf encoding {
+          description
+             "Identifies the desired encoding format.
+              Only supported for RESTCONF and YANG-API at this time.";
+          type ywt:encoding-type;
+          default xml;
         }
     }
 
@@ -690,7 +835,7 @@ module yangcli-pro {
           default 5;
           description
            "Indicates the number of times yangcli will attempt
-            to reconnect to a session if the server bomes unreachable.
+            to reconnect to a session if the server becomes unreachable.
             The default is 5 tries.";
         }
 
@@ -814,7 +959,7 @@ module yangcli-pro {
         type boolean;
         default true;
       }
- 
+
       leaf autoload {
         description
           "Controls whether any modules (except this one)
@@ -880,6 +1025,57 @@ module yangcli-pro {
         default true;
       }
 
+      leaf auto-keepalive {
+        description
+          "Controls whether kepalive messages will be automatically
+           sent on a connected session.
+           If true, keepalive message is sent every keepalive-interval.
+           If false, keepalive message will not be sent.";
+        type boolean;
+        default false;
+      }
+
+       leaf auto-reconnect {
+         description
+           "Controls whether yangcli will try to reconnect to 
+            the server If the session gets dropped by the server.
+            If true, yangcli-pro will try to reconnect to the server.
+            If false, yangcli-pro will not try to reconnect to 
+            the server.";
+         type boolean;
+         default true;
+      }
+
+      leaf auto-reconnect-interval {
+        description
+          "Number of seconds to wait after first retry.
+           The first retry will be done right away.";
+        type uint16 { range "1 .. 3600"; }
+        units seconds;
+        default 10;
+      }
+
+      leaf auto-reconnect-max {
+        description
+          "Number of times to retry the connection.
+           Zero means no limit, otherwise re-connect attempts
+           will stop after this number of failures.";
+        type uint16;
+        default 5;
+      }
+
+      leaf autodevices {
+        description
+          "Controls whether the saved devices will be loaded
+           into memory at startup and saved to file at exit.
+           If true, the default device-cfg file will be used
+           (~/.yumapro/.yangcli_pro_devices.conf) for loading
+           and saving the configured devices in memory.
+           If false, the configured devices will only be stored
+           and loaded manually with the devices-cfg command.";
+        type boolean;
+        default true;
+      }
 
       leaf autohistory {
         description
@@ -907,6 +1103,20 @@ module yangcli-pro {
         default false;
       }
 
+      leaf autonvsave {
+        description
+          "Controls whether the 'save' and 'apply' commands
+           will NV-save the configuration changes or not.
+           If the server advertises the :startup capability
+           and this variable is set to 'false', then the
+           final step to save running to startup will not
+           be done.  The 'nvsave' command can be used to
+           manually save the running datastore to non-volative
+           memory.";
+        type boolean;
+        default true;
+      }
+
       leaf autosessions {
         description
           "Controls whether the saved sessions will be loaded
@@ -932,6 +1142,19 @@ module yangcli-pro {
         type boolean;
         default true;
       }
+
+      leaf autousers {
+        description
+          "Controls whether the saved users will be loaded
+           into memory at startup and saved to file at exit.
+           If true, the default user-cfg file will be used
+           (~/.yumapro/.yangcli_pro_users.conf) for loading
+           and saving the configured users in memory.
+           If false, the configured users will only be stored
+           and loaded manually with the users-cfg command.";
+        type boolean;
+        default true; 
+      } 
 
       leaf autouservars {
         description
@@ -1044,6 +1267,19 @@ module yangcli-pro {
           "Controls how edits are applied during config mode.";
         type config-edit-mode-type;
         default level;
+      }
+
+      leaf config-autosave {
+        description
+             "Controls how edits in config term mode are saved to
+              NV-storage if the server supports the :startup capability.
+              If 'true', automatically copy running to startup when
+              an edit is applied. If 'false', no automatically copy
+              from running to startup when an edit is applied.
+              The user will enter 'save' or 'copy-config'
+              manually once config term mode is exited.";
+           type boolean;
+           default true;
       }
 
       leaf default-module {
@@ -1172,7 +1408,17 @@ module yangcli-pro {
 
       uses ncxapp:RunpathParm;
 
-
+      leaf keepalive-interval {
+        type uint32 {
+          range "1 .. 3600";
+        }
+        units "seconds";
+        default '4';
+        description
+          "Specifies the time interval, in seconds, between keepalive
+           messages sent from a session. This value is only used 
+           if 'auto-keepalive' is true.";
+      }
 
       leaf prompt-type {
         description
@@ -1275,6 +1521,15 @@ module yangcli-pro {
            parsed against the target YANG object (the default)
            or injected into a variable or request message from
            the raw XML text in the file.";
+        type boolean;
+        default false;
+      }
+
+      leaf use-traceid {
+        description
+          "Controls whether the 'trace-id' attribute will
+           be set in the RPC requests or not.
+           By default, 'trace-id' will be disabled.";
         type boolean;
         default false;
       }
@@ -1559,8 +1814,40 @@ module yangcli-pro {
             type ywt:UrlPath;
           }
         }
+        anyxml value {
+         description
+           "Contains a string representing the content
+            to use for the variable.  Only applies if the
+            delete-target is a leaf-list node.";
+        }
       }
     }
+
+    rpc delete-all {
+      description
+       "Delete some NETCONF config data with the edit-config operation.
+        Delete all instances of a leaf-list or list object.  At least
+        one instance must exist or the server will return an error.";
+      input {
+        ncx:default-parm  target;
+        choice delete-target {
+          mandatory true;
+          leaf target {
+            description
+             "Xpath expression indicating the list or leaf-list nodes
+              which are going to be deleted.";
+            type string;
+          }
+          leaf urltarget {
+            description
+              "The URL path expression to use in the delete
+               operation.";
+            type ywt:UrlPath;
+          }
+        }
+      }
+    }
+
 
     rpc elif {
       ywx:help 
@@ -2151,6 +2438,11 @@ module yangcli-pro {
       description "Print the current working directory.";
     }
 
+    rpc nvsave {
+      description
+         "Save the running datastore to the startup datastore.";
+    }
+
     rpc quit {
       description "Quit the yangcli-pro application";
     }
@@ -2199,6 +2491,36 @@ module yangcli-pro {
             to be deleted.";
           type string;
           mandatory true;
+        }
+        anyxml value {
+         description
+           "Contains a string representing the content
+            to use for the variable.  Only applies if the
+            target is a leaf-list node.";
+        }
+      }
+    }
+
+    rpc remove-all {
+      description
+       "Remove some NETCONF config data with the edit-config operation.
+        Remove all instances of a leaf-list or list object.";
+      input {
+        ncx:default-parm  target;
+        choice delete-target {
+          mandatory true;
+          leaf target {
+            description
+             "Xpath expression indicating the list or leaf-list nodes
+              which are going to be removed.";
+            type string;
+          }
+          leaf urltarget {
+            description
+              "The URL path expression to use in the remove
+               operation.";
+            type ywt:UrlPath;
+          }
         }
       }
     }
@@ -2261,6 +2583,83 @@ module yangcli-pro {
       description "Meta command to save configuration edits.";
     }
 
+    rpc device-cfg {
+      description "Access a device configuration";
+      input {
+        choice device-action {
+          default show-case;
+
+          case show-case {
+            leaf show {
+              type IdentifierOrZero;
+              default "";
+              description
+                "Show the specified device or the current device
+                 if an empty string is entered.";
+            }
+            uses ncxapp:HelpMode;
+          }
+
+          leaf delete {
+            type nt:NcxIdentifier;
+            description
+              "Delete the specified device from the saved
+               devices in memory.";
+          }
+
+          leaf save {
+            type nt:NcxIdentifier;
+            description
+              "Save the specified device to the
+               saved devices in memory.";
+          }
+        }
+      }
+    }
+
+   rpc devices-cfg {
+      description "Controls access to the saved devices file";
+      input {
+      choice devices-action {
+          default show-case;
+
+          case show-case {
+            leaf show {
+              type empty;
+              description
+                "Show all saved devices in memory";
+            }
+            uses ncxapp:HelpMode;
+          }
+
+          leaf clear {
+            type empty;
+            description
+              "Clear all the saved sessions in memory.
+               Use 'sessions load' to restore the saved sessions.
+               Use 'sessions save' to clear the saved sessions
+               file.";
+          }
+
+          leaf load {
+            description
+              "Load the saved sessions in memory from the
+               specified file spec.";
+            type string;
+            default "~/.yumapro/.yangcli_pro_devices.conf";
+          }
+
+         leaf save {
+            description
+              "Save the current saved devices in memory to the
+               specified saved users filespec.";
+            type string;
+            default "~/.yumapro/.yangcli_pro_devices.conf";
+          }
+        }
+      }
+    }
+
     rpc session {
       description "Access an active session";
       input {
@@ -2303,6 +2702,82 @@ module yangcli-pro {
             description 
               "Save the specified session to the 
                saved sessions in memory.";
+          }
+        }
+      }
+    }
+
+   rpc user-cfg {
+      description "Access a user configuration";
+      input {
+        choice user-action {
+          default show-case;
+
+          case show-case {
+            leaf show {
+              type IdentifierOrZero;
+              default "";
+              description
+                "Show the specified user or the current user
+                 if an empty string is entered.";
+            }
+            uses ncxapp:HelpMode;
+          }
+
+          leaf delete {
+            type nt:NcxIdentifier;
+            description
+              "Delete the specified user from the saved
+               users in memory.";
+          }
+
+          leaf save {
+            type nt:NcxIdentifier;
+            description
+              "Save the specified user to the
+               saved users in memory.";
+          }
+        }
+      }
+    }
+
+   rpc users-cfg {
+      description "Controls access to the saved users file";
+      input {
+      choice users-action {
+          default show-case;
+
+          case show-case {
+            leaf show {
+              type empty;
+              description
+                "Show all saved users in memory";
+            }
+            uses ncxapp:HelpMode;
+          }
+
+          leaf clear {
+            type empty;
+            description
+              "Clear all the saved users in memory.
+               Use 'users load' to restore the saved users.
+               Use 'users save' to clear the saved users
+               file.";
+          }
+          leaf load {
+            description
+              "Load the saved users in memory from the
+               specified file spec.";
+            type string;
+            default "~/.yumapro/.yangcli_pro_users.conf";
+          }
+
+          leaf save {
+            description
+              "Save the current saved users in memory to the
+               specified saved users filespec.";
+            type string;
+            default "~/.yumapro/.yangcli_pro_users.conf";
           }
         }
       }
@@ -3021,6 +3496,57 @@ module yangcli-pro {
 
     uses VarsContainer;
 
+    container saved-devices {
+       ncx:abstract;
+       description
+         "Represents all the saved devices in
+         the ~/.yumapro/yangcli_pro_devices file.
+         Use the 'devices' command to access this file.
+         Edit by hand only if you follow this YANG definition.";
+
+       list device {
+         description
+          "The list of devices to use during this test-suite.";
+
+         key name;
+
+        leaf name {
+          type nt:NcxName;
+          description
+           "The name of the saved device.
+            The 'device save' command will use the
+            string <user>@<server-address> as the default.";
+        }
+
+        leaf devicetype {
+              type string;
+              description
+                "Device type for NETCONF devices.";
+        }
+
+       leaf server {
+          type inet:host;
+          mandatory true;
+          description
+             "IP address or DNS name of the NETCONF server target.";
+
+        }
+
+        leaf ncport {
+          type uint16 {
+            range "1..max";
+          }
+          default 830;
+          description
+            "NETCONF port number to use.  If not present, then
+             port 830, followed by port 22, will be tried.";
+        }
+
+        uses ncxapp:ProtocolsParm;
+       }
+    }
+
+
     container saved-sessions {
       ncx:abstract;
       description
@@ -3043,6 +3569,20 @@ module yangcli-pro {
             string <user>@<server-address> as the default.";
         }
 
+        leaf device {
+          type nt:NcxDeviceName;
+          mandatory true;
+          description
+             "Device name of the NETCONF server target.";
+        }
+
+        leaf userid {
+          type nt:NcxName;
+          mandatory true;
+          description
+             "User Id of the NETCONF user.";
+        }
+
         leaf user {
           type nt:NcxName;
           mandatory true;
@@ -3050,15 +3590,23 @@ module yangcli-pro {
            "The user name of the session.";
         }
 
-        leaf password {
-          type string;
-          ncx:password;
-          description
-            "User password to use for NETCONF sessions.
-             If none, then user will be prompted before connecting.";
+
+        choice pass {
+          mandatory true;
+
+          leaf password {
+            type string;
+            ncx:password;
+            description
+              "User password to use for NETCONF sessions.
+               If none, then user will be prompted before connecting.";
+          }
+          leaf no-password { type empty; }
         }
 
         uses SshKeyParms;
+
+        uses SslKeyParms;
 
         leaf server {
           type inet:host;
@@ -3110,8 +3658,50 @@ module yangcli-pro {
         }
 
         uses SessionGroupParms;
-
         uses VarsContainer;
+      }
+    }
+
+    container saved-users {
+     ncx:abstract;
+     description
+       "Represents all the saved users in
+        the ~/.yumapro/yangcli_pro_users file.
+        Use the 'users' command to access this file.
+        Edit by hand only if you follow this YANG definition.";
+
+       list userid {
+         description
+          "The list of users to use.";
+
+         key name;
+
+         leaf name {
+           type nt:NcxName;
+           description
+           "The id of the saved user.";
+         }
+
+         leaf user {
+          type nt:NcxName;
+          mandatory true;
+          description
+           "The user name of the session.";
+         }
+
+         choice pass {
+          mandatory true;
+          leaf password {
+            type string;
+            ncx:password;
+            description
+              "User password to use for NETCONF users.
+               If none, then user will be prompted before connecting.";
+          }
+          leaf no-password { type empty; }
+        }
+        uses SshKeyParms;
+        uses SslKeyParms;
       }
     }
 
