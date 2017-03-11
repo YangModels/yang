@@ -10,20 +10,19 @@
 platform_dir="vendor/cisco/xe"
 to_check="1631 1631/MIBS 1632 1632/MIBS 1641 1641/MIBS"
 inc_path="../../../../standard/ietf/RFC"
-pyang_flags=".:$inc_path"
 
 checkDir () {
     echo Checking yang files in $platform_dir/$1
     cwd=`pwd`
     cd $1
     exit_status=""
-    pyang_flags=".:$inc_path"
+    pyang_flags=""
     if [ `basename $PWD` == "MIBS" ]; then
-        pyang_flags="..:../$inc_path"
+        pyang_flags="-p .."
     fi
 
     for f in *.yang; do
-        errors=`pyang -p $pyang_flags $f 2>&1 | grep "error:"`
+        errors=`pyang $pyang_flags $f 2>&1 | grep "error:"`
     	if [ ! -z "$errors" ]; then
     	    echo Errors in $f
             echo $errors
@@ -37,7 +36,7 @@ checkDir () {
     fi
 }
 
-echo Checking modules with pyang command:
+printf "\nChecking modules with pyang command:\n"
 printf "\n    pyang $pyang_flags MODULE\n\n"
 
 if [ -e "$platform_dir" ]; then
