@@ -9,7 +9,6 @@
 
 platform_dir="vendor/cisco/xr"
 to_check="530 531 532 533 534 600 601 602 611 612 613 621"
-#pyang_flags="-p ../../../standard/ietf/RFC"
 pyang_flags=""
 
 checkDir () {
