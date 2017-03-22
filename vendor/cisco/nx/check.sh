@@ -8,8 +8,9 @@
 #
 
 platform_dir="vendor/cisco/nx"
-to_check="7.0-3-F1-1 7.0-3-I5-1"
-inc_path="../../../../standard/ietf/RFC"
+to_check="7.0-3-F1-1 7.0-3-I5-1 7.0-3-I5-2"
+inc_path=".:../../../../standard/ietf/RFC"
+pyang_flags=""
 
 checkDir () {
     echo Checking yang files in $platform_dir/$1
@@ -20,8 +21,7 @@ checkDir () {
         if test "${f#*"openconfig-"}" != "$f"; then
             continue
         fi
-        echo File $f being checked...
-    	errors=`pyang -p ..:$1:$inc_path $f 2>&1 | grep -v "syntax error in pattern" | grep "error:"`
+    	errors=`pyang $pyang_flags $f 2>&1 | grep -v "syntax error in pattern" | grep "error:"`
         if [ ! -z "$errors" ]; then
             echo Errors in $f
             echo "$errors"
@@ -35,8 +35,8 @@ checkDir () {
     fi
 }
 
-echo Checking modules with pyang command:
-printf "\n    pyang -p ..:$1:$inc_path MODULE\n\n"
+printf "\nChecking modules with pyang command:\n"
+printf "\n    pyang $pyang_flags MODULE\n\n"
 
 if [ -e "$platform_dir" ]; then
     cd $platform_dir

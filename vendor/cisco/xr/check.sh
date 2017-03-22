@@ -8,13 +8,15 @@
 #
 
 platform_dir="vendor/cisco/xr"
-to_check="530 531 532 533 534 600 601 602 611 612"
-pyang_flags="../../../standard/ietf/RFC"
+to_check="530 531 532 533 534 600 601 602 611 612 613 621"
+pyang_flags=""
 
 checkDir () {
     echo Checking yang files in $platform_dir/$1
     exit_status=""
-    for f in $1/*.yang; do
+    cwd=`pwd`
+    cd $1
+    for f in Cisco-IOS-XR-*-cfg.yang; do
         errors=`pyang $pyang_flags $f 2>&1 | grep "error:"`
         if [ ! -z "$errors" ]; then
             echo Errors in $f
@@ -22,13 +24,22 @@ checkDir () {
             exit_status="failed!"
         fi
     done
+    for f in Cisco-IOS-XR-*-oper.yang; do
+        errors=`pyang $pyang_flags $f 2>&1 | grep "error:"`
+        if [ ! -z "$errors" ]; then
+            echo Errors in $f
+            echo $errors
+            exit_status="failed!"
+        fi
+    done
+	cd $cwd
     
     if [ ! -z "$exit_status" ]; then
        exit 1
     fi
 }
 
-echo Checking modules with pyang command:
+printf "\nChecking modules with pyang command:\n"
 printf "\n    pyang $pyang_flags MODULE\n\n"
 
 if [ -e "$platform_dir" ]; then
