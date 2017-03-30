@@ -43,6 +43,12 @@ if [ -e "$platform_dir" ]; then
     cd $platform_dir
 fi
 
+pids=""
 for d in $to_check; do
-    checkDir $d
+    (checkDir $d) &
+    pids+=" $!"
+done
+
+for p in $pids; do
+    wait $p || exit 1
 done
