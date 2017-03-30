@@ -10,15 +10,15 @@ pids=""
 
 # Check IOS-XR Model Repository
 (./vendor/cisco/xr/check.sh) &
-pids+=" $!"
+pids="$pids $!"
 
 # Check IOS-XE Model Repository
 (./vendor/cisco/xe/check.sh) &
-pids+=" $!"
+pids="$pids $!"
 
 # Check NX-OS Model Repository
 (./vendor/cisco/nx/check.sh) &
-pids+=" $!"
+pids="$pids $!"
 
 echo Waiting for jobs to finish...
 for p in $pids; do

@@ -46,7 +46,7 @@ fi
 pids=""
 for d in $to_check; do
     (checkDir $d) &
-    pids+=" $!"
+    pids="$pids $!"
 done
 
 for p in $pids; do
