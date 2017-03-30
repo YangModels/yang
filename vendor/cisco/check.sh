@@ -6,21 +6,20 @@
 # Deviation modules are NOT checked as they require specific imports
 # typically not available locally.
 #
-pids=""
+declare -a scripts=(
+    "./vendor/cisco/nx/check.sh"
+    "./vendor/cisco/xe/check.sh"
+    "./vendor/cisco/xr/check.sh"
+)
 
-# Check IOS-XR Model Repository
-(./vendor/cisco/xr/check.sh) &
-pids="$pids $!"
+declare -a pids
+for s in "${scripts[@]}"; do
+    ($s) &
+    pids+=('$!')
+done
 
-# Check IOS-XE Model Repository
-(./vendor/cisco/xe/check.sh) &
-pids="$pids $!"
-
-# Check NX-OS Model Repository
-(./vendor/cisco/nx/check.sh) &
-pids="$pids $!"
-
-echo Waiting for jobs to finish...
-for p in $pids; do
+npids=${#pids[@]}
+for (( i=0; i<${npids}; i++ )); do
     wait $p || exit 1
+    echo ${scripts[$i]} is done!
 done

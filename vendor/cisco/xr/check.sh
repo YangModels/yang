@@ -6,13 +6,15 @@
 # Deviation modules are NOT checked as they require specific imports
 # typically not available locally.
 #
-
 platform_dir="vendor/cisco/xr"
 to_check="530 531 532 533 534 600 601 602 611 612 613 621"
 pyang_flags=""
+debug=0
 
 checkDir () {
-    echo Checking yang files in $platform_dir/$1
+    if [ "$debug" -eq "1" ]; then
+	echo Checking yang files in $platform_dir/$1
+    fi
     exit_status=""
     cwd=`pwd`
     cd $1
@@ -39,17 +41,19 @@ checkDir () {
     fi
 }
 
-printf "\nChecking modules with pyang command:\n"
-printf "\n    pyang $pyang_flags MODULE\n\n"
+if [ "$debug" -eq "1" ]; then
+    printf "\nChecking modules with pyang command:\n"
+    printf "\n    pyang $pyang_flags MODULE\n\n"
+fi
 
 if [ -e "$platform_dir" ]; then
     cd $platform_dir
 fi
 
-pids=""
+declare -a pids
 for d in $to_check; do
     (checkDir $d) &
-    pids="$pids $!"
+    pids+=("$!")
 done
 
 for p in $pids; do
