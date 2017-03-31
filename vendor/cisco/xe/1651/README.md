@@ -1,6 +1,6 @@
 ## YANG Models and Platform Capabilities for Cisco IOS-XE 16.5.1
 
-This directory contains the [MIBS](MIBS) subdirectory contain YANG models supported by IOS-XE 16.5.1:
+This directory contains the [MIBS](MIBS) subdirectory and YANG models supported by IOS-XE 16.5.1:
 
 * Native models, unique to IOS-XE platforms
 * Common Cisco models
@@ -34,6 +34,8 @@ Model content may differ based on platform capability. As a convenience, copies 
   module Cisco-IOS-XE-aaa {
   namespace "http://cisco.com/ns/yang/Cisco-IOS-XE-aaa";
   prefix ios-aaa;
+
+   **Please contact your CISCO technical assistance center representive to migrate pre-16.5.1. NETCONF RPC requests.**
 
   * access-list in **Cisco-IOS-XE-acl.yang** schema has changes that result in XPATH changes. 
 
@@ -109,11 +111,8 @@ Model content may differ based on platform capability. As a convenience, copies 
                              </native>
                       </config>
                </edit-config>
-       </rpc>```
-
-
-
-
+       </rpc>
+   ```
 
 ### Compliance With "pyang --lint"
 
