@@ -35,11 +35,11 @@ Model content may differ based on platform capability. As a convenience, copies 
   namespace "http://cisco.com/ns/yang/Cisco-IOS-XE-aaa";
   prefix ios-aaa;
 
-   **Please contact your CISCO technical assistance center representive to migrate pre-16.5.1. NETCONF RPC requests.**
+   **Please contact your CISCO technical assistance center representive to migrate pre-16.5.1 NETCONF RPC requests.**
 
   * access-list in **Cisco-IOS-XE-acl.yang** schema has changes that result in XPATH changes. 
 
-*  **tags under access-list that are changed**
+    *  **tags under access-list that are changed**
 
      1. [**src-udp-eq**  | src-tcp-eq]  -> **src-eq**
      2. [src-udp-gt  | src-tcp-gt]  -> src-gt
@@ -54,11 +54,11 @@ Model content may differ based on platform capability. As a convenience, copies 
      11. [dst-udp-range1 | dst-tcp-range1] -> dst-range1
      12. [dst-udp-range2 | dst-tcp-range2] -> dst-range2
 
-      e.g.
-       * original XPATH   
+     e.g.
+      * original XPATH   
     /native/ip/access-list/extended/access-list-seq-rule/ace-rule/src-port-choice/src-eq-case/**src-udp-eq**)
-       * new XPATH
-   Cisco-IOS-XE-native/native/ip/access-list/ios-acl:extended/ios-acl:access-list-seq-rule/ios-acl:ace-rule/ios-acl:src-port-choice/ios-acl:src-eq-case/ios-acl:**src-eq**
+      * new XPATH
+    Cisco-IOS-XE-native/native/ip/access-list/ios-acl:extended/ios-acl:access-list-seq-rule/ios-acl:ace-rule/ios-acl:src-port-choice/ios-acl:src-eq-case/ios-acl:**src-eq**
   
   * There are 7 sub-modules that belong to the main Cisco-IOS-XE-native module
 
