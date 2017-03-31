@@ -31,81 +31,86 @@ Model content may differ based on platform capability. As a convenience, copies 
   * 16.5.1 XE YANG model is changed from one single monolith model to 70+ individual feature modules. Top level feature has an anchor node in the main module (i.e. **module Cisco-IOS-XE-native**) and individual feature is argumenting the anchor node. As a result of this change, most of the features have **new module name, new namespace and prefix**.
  
  e.g.
- ```module Cisco-IOS-XE-aaa {
+  module Cisco-IOS-XE-aaa {
   namespace "http://cisco.com/ns/yang/Cisco-IOS-XE-aaa";
-  prefix ios-aaa;```
-  * access-list in **Cisco-IOS-XE-acl.yang** schema has changes that result in XPATH changes. 
-  **tags under access-list that are changed **
-1. [**src-udp-eq**  | src-tcp-eq]  -> **src-eq**
-2. [src-udp-gt  | src-tcp-gt]  -> src-gt
-3. [src-udp-lt  | src-tcp-lt]  -> src-lt
-4. [src-udp-neq | src-tcp-neq] -> src-neq
-5. [src-udp-range1 | src-tcp-range1] -> src-range1
-6. [src-udp-range2 | src-tcp-range2] -> src-range2
-7. [dst-udp-eq  | dst-tcp-eq]  -> dst-eq
-8. [dst-udp-gt  | dst-tcp-gt]  -> dst-gt
-9. [dst-udp-lt  | dst-tcp-lt]  -> dst-lt
-10. [dst-udp-neq | dst-tcp-neq] -> dst-neq
-11. [dst-udp-range1 | dst-tcp-range1] -> dst-range1
-12. [dst-udp-range2 | dst-tcp-range2] -> dst-range2
+  prefix ios-aaa;
 
-  e.g.
-   * original XPATH   
+  * access-list in **Cisco-IOS-XE-acl.yang** schema has changes that result in XPATH changes. 
+
+*  **tags under access-list that are changed**
+
+     1. [**src-udp-eq**  | src-tcp-eq]  -> **src-eq**
+     2. [src-udp-gt  | src-tcp-gt]  -> src-gt
+     3. [src-udp-lt  | src-tcp-lt]  -> src-lt
+     4. [src-udp-neq | src-tcp-neq] -> src-neq
+     5. [src-udp-range1 | src-tcp-range1] -> src-range1
+     6. [src-udp-range2 | src-tcp-range2] -> src-range2
+     7. [dst-udp-eq  | dst-tcp-eq]  -> dst-eq
+     8. [dst-udp-gt  | dst-tcp-gt]  -> dst-gt
+     9. [dst-udp-lt  | dst-tcp-lt]  -> dst-lt
+     10. [dst-udp-neq | dst-tcp-neq] -> dst-neq
+     11. [dst-udp-range1 | dst-tcp-range1] -> dst-range1
+     12. [dst-udp-range2 | dst-tcp-range2] -> dst-range2
+
+      e.g.
+       * original XPATH   
     /native/ip/access-list/extended/access-list-seq-rule/ace-rule/src-port-choice/src-eq-case/**src-udp-eq**)
-   * new XPATH
+       * new XPATH
    Cisco-IOS-XE-native/native/ip/access-list/ios-acl:extended/ios-acl:access-list-seq-rule/ios-acl:ace-rule/ios-acl:src-port-choice/ios-acl:src-eq-case/ios-acl:**src-eq**
   
   * There are 7 sub-modules that belong to the main Cisco-IOS-XE-native module
-1. submodule Cisco-IOS-XE-interfaces 
-1. submodule Cisco-IOS-XE-ip 
-1. submodule Cisco-IOS-XE-ipv6 
-1. submodule Cisco-IOS-XE-license 
-1. submodule Cisco-IOS-XE-line 
-1. submodule Cisco-IOS-XE-logging 
-1. submodule Cisco-IOS-XE-parser 
 
-* before and after the 16.5.1 netconf regquest
-  * pre-16.5.1 NETCONF request
-  ```
-        <rpc message-id="101" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
-	       <edit-config>
-		      <target>
-			     <running/>
-		      </target>
-		      <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0">
-			     <native xmlns="http://cisco.com/ns/yang/ned/ios">
-				        <call-home>
-					       <contact-email-addr xc:operation="create"> 
-						      john.doe@cisco.com
-					       </contact-email-addr>
-				        </call-home>
-				        <hostname xc:operation="create">CISCO</hostname>
-			     </native>
-		      </config>
-	       </edit-config>
+    1. submodule Cisco-IOS-XE-interfaces 
+    2. submodule Cisco-IOS-XE-ip 
+    3. submodule Cisco-IOS-XE-ipv6 
+    4. submodule Cisco-IOS-XE-license 
+    5. submodule Cisco-IOS-XE-line 
+    6. submodule Cisco-IOS-XE-logging 
+    7. submodule Cisco-IOS-XE-parser 
+
+  * before and after the 16.5.1 netconf regquest
+   * pre-16.5.1 NETCONF request
+  ``` xml
+       <rpc message-id="101" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+               <edit-config>
+                      <target>
+                             <running/>
+                      </target>
+                      <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0">
+                             <native xmlns="http://cisco.com/ns/yang/ned/ios">
+                                        <call-home>
+                                               <contact-email-addr xc:operation="create"> 
+                                                      john.doe@cisco.com
+                                               </contact-email-addr>
+                                        </call-home>
+                                        <hostname xc:operation="create">CISCO</hostname>
+                             </native>
+                      </config>
+               </edit-config>
         </rpc>
-```
-  * post-16.5.1 NETCONF request
+   ``` 
 
-```
-        <rpc message-id="101" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
-	       <edit-config>
-		      <target>
-			     <running/>
-		      </target>
-		      <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0">             
-			     <native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native" xmlns:ios-ch="http://cisco.com/ns/yang/Cisco-IOS-XE-call-home">                    
-				        <call-home>                            
-					       <ios-ch:contact-email-addr xc:operation="create">
-						      john.doe@cisco.com 
-					       </ios-ch:contact-email-addr>                                                         
-				        </call-home>
-        			     <hostname xc:operation="create">CISCO</hostname>
-			     </native>
-		      </config>
-	       </edit-config>
-       </rpc>
-```
+   * post-16.5.1 NETCONF request
+
+   ``` xml
+       <rpc message-id="101" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+               <edit-config>
+                      <target>
+                             <running/>
+                      </target>
+                      <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0">             
+                             <native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native" xmlns:ios-ch="http://cisco.com/ns/yang/Cisco-IOS-XE-call-home">                    
+                                        <call-home>                            
+                                               <ios-ch:contact-email-addr xc:operation="create">
+                                                      john.doe@cisco.com 
+                                               </ios-ch:contact-email-addr>                                                         
+                                        </call-home>
+                                     <hostname xc:operation="create">CISCO</hostname>
+                             </native>
+                      </config>
+               </edit-config>
+       </rpc>```
+
 
 
 
@@ -132,8 +137,8 @@ Exceptions to capability statement:
 
 1. Common models not supported by cat3k platforms:
 
-	- [nvo.yang](nvo.yang)
-	- [nvo-devs.yang](nvo-devs.yang)
+        - [nvo.yang](nvo.yang)
+        - [nvo-devs.yang](nvo-devs.yang)
 
 #### ASR1000
 NETCONF capability statement: [asr1k-netconf-capability.xml](asr1k-netconf-capability.xml)
@@ -141,7 +146,3 @@ NETCONF capability statement: [asr1k-netconf-capability.xml](asr1k-netconf-capab
 NETCONF capability statement: [csr1k-netconf-capability.xml](csr1k-netconf-capability.xml)
 #### ISR4000
 NETCONF capability statement: [isr4k-netconf-capability.xml](isr4k-netconf-capability.xml)
-
-
-
-
