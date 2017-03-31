@@ -136,8 +136,8 @@ Exceptions to capability statement:
 
 1. Common models not supported by cat3k platforms:
 
-        - [nvo.yang](nvo.yang)
-        - [nvo-devs.yang](nvo-devs.yang)
+  - [nvo.yang](nvo.yang)
+  - [nvo-devs.yang](nvo-devs.yang)
 
 #### ASR1000
 NETCONF capability statement: [asr1k-netconf-capability.xml](asr1k-netconf-capability.xml)
