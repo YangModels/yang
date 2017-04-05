@@ -8,7 +8,7 @@
 #
 
 platform_dir="vendor/cisco/xe"
-to_check="1631 1631/MIBS 1632 1632/MIBS 1641 1641/MIBS"
+to_check="1631 1631/MIBS 1632 1632/MIBS 1641 1641/MIBS 1651 1651/MIBS"
 inc_path="../../../../standard/ietf/RFC"
 
 checkDir () {
