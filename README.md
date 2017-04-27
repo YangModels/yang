@@ -40,7 +40,7 @@ The following directories are maintained for YANG models [license note in bracke
 
   **yang/standard/odp**: published modules for OpenDaylight [2]
 
-  **yang/standard/bbf/draft**: standard Broadband Forum YANG modules (none yet) [6]
+  **yang/standard/bbf/draft**: draft Broadband Forum YANG modules (none yet) [6]
 
   **yang/standard/bbf/standard**: standard Broadband Forum YANG modules [6]
 
