@@ -1,5 +1,6 @@
 module example-newco-acl {
-  yang-version 1;
+
+  yang-version 1.1;
 
   namespace "urn:newco:params:xml:ns:yang:example-newco-acl";
 
@@ -9,6 +10,14 @@ module example-newco-acl {
     prefix "ietf-acl";
   }
 
+  import ietf-interfaces {
+    prefix "ietf-if";
+  }
+  
+  import ietf-yang-types {
+    prefix yang;
+  }
+  
   organization 
     "Newco model group.";
 
@@ -17,23 +26,146 @@ module example-newco-acl {
   description
     "This YANG module augment IETF ACL Yang.";
 
-  revision 2015-12-08{
+  revision 2016-10-12{
     description 
       "Creating NewCo proprietary extensions to ietf-acl model";
     reference
       "RFC XXXX: Network Access Control List (ACL)
       YANG Data  Model";
   }
+  
+  
+  typedef known-ether-type {
+    type enumeration {	
+      enum "ipv4" {
+        value 2048; // 0x0800
+  	description "Internet Protocol version 4 (IPv4)";
+      }
+      enum "vlan-tagged" {
+        value 33024; // 0x8100
+  	description "VLAN-tagged frame (IEEE 802.1Q) & Shortest Path Bridging IEEE 802.1aq[4]";
+      }
+      enum "ipv6" {
+        value 34525; // 0x86DD
+  	description "Internet Protocol Version 6 (IPv6)";
+      }
+      enum "mpls-unicast" {
+        value 34887; // 0x8847
+  	description "MPLS unicast";
+      }
+      enum "mpls-multicast" {
+        value 34888; // 0x8848
+  	description "MPLS multicast";
+      }
+    }
+  }
+
+  typedef ipv4-flags-type {
+     type bits {
+        bit ipv4-reserved {
+         position 0;
+	 }
+        bit ipv4-DF {
+         position 1;
+        }
+        bit ipv4-MF {
+         position 2;
+        }
+     }
+  }
 
   augment "/ietf-acl:access-lists/ietf-acl:acl/ietf-acl:access-list-entries/ietf-acl:ace/ietf-acl:matches" {
+   when "ietf-acl:access-lists/ietf-acl:acl/ietf-acl:acl-type = 'ace-eth'";
+
+   description "additional MAC header matching";
+
+     leaf vlan-tagged {
+       type uint16;
+       description "Ethernet frame with VLAN tag";
+     }
+
+     leaf mpls-unicast {
+       type uint16;
+       description "Ethernet frame with MPLS unicast payload";
+     }
+
+     leaf mpls-multicast {
+       type uint16;
+       description "Ethernet frame with MPLS multicast payload";
+     }
+
+     leaf ipv4 {
+       type uint16;
+       description "Ethernet frame with IPv4 unicast payload";
+     }
+
+     leaf ipv6 {
+       type uint16;
+       description "Ethernet frame with IPv4 unicast payload";
+     }
+  }
+  augment "/ietf-acl:access-lists/ietf-acl:acl/ietf-acl:access-list-entries/ietf-acl:ace/ietf-acl:matches" {
+   when "ietf-acl:access-lists/ietf-acl:acl/ietf-acl:acl-type = 'ipv4-acl'";
+
+   description "additional IP header information";
+
+    leaf ipv4-ttl {
+      type uint8;
+      description "time to live of a given packet as defined in RFC791";
+    }
+
+    leaf ipv4-len {
+      type uint16;
+      description "total packet length as defined in RFC791";
+    }
+    
+    leaf ipv4-ihl {
+      type uint8 {
+         range 0..15;
+      }
+      description "Internet Header Length in 32 bit words (see RFC791).  Note
+                   that while the minimum value for this field in a packet is
+    		   5, we leave open the possibility here that the packet has
+    		   been corrupted.";
+    }
+    
+    leaf ipv4-id {
+      type uint16;
+      description "Identification as decribed in RFC791";
+    }
+    
+    leaf ipv4-flags {
+      type ipv4-flags-type;
+      description "IPv4 flags as defined in RFC791";
+    }
+    
+    leaf ipv4-offset {
+      type uint16 {
+         range 0..8191;
+      }
+      description "Matches on the packet fragment offset";
+    }
+   }
+   
+   augment "/ietf-acl:access-lists/ietf-acl:acl/ietf-acl:access-list-entries/ietf-acl:ace/ietf-acl:matches" {
     description "Newco proprietary simple filter matches";
     choice protocol-payload-choice {
-      description "";
+      description "Newo proprietary payload match condition";
       list protocol-payload {
         key value-keyword;
         ordered-by user;
         description "Match protocol payload";
         uses match-simple-payload-protocol-value;
+      }
+    }
+
+    choice metadata {
+      description "Newco proprietary interface match condition";
+      list interface-name {
+        key input-interface;
+        ordered-by user;
+        description "Match interface name";
+        uses metadata;  
       }
     }
   }
@@ -79,6 +211,19 @@ module example-newco-acl {
     }
   }
 
+  grouping metadata {
+    description
+    "Fields associated with a packet which are not in
+    the header.";
+    leaf input-interface {
+      type ietf-if:interface-ref {
+        require-instance false;
+      }
+      description
+        "Packet was received on this interface";
+    }
+  }	
+      
   grouping match-simple-payload-protocol-value {
     description "Newco proprietary payload";
     leaf value-keyword {
@@ -95,6 +240,44 @@ module example-newco-acl {
       }
 
       description "(null)";
+    }
+  }
+    
+  augment "/ietf-if:interfaces/ietf-if:interface" {
+    description "Apply ACL to interfaces";
+    container acl{
+      description "ACL related properties.";
+      leaf acl-name {
+        type ietf-acl:access-control-list-ref;
+        description "Access Control List name.";
+      }
+      leaf match-counter {
+        type yang:counter64;
+        config false;
+        description 
+          "Total match count for Access Control 
+          List on this interface";
+      }
+      choice direction {
+        leaf in { type empty;}
+        leaf out { type empty;}
+      }
+    }
+  }
+    
+  augment "/ietf-acl:access-lists/ietf-acl:acl/ietf-acl:acl-oper-data" {
+    description 
+      "This is an example on how to apply acl to a target to collect
+      operational data";
+    container targets{
+      choice interface{
+        leaf-list interface-name{
+          type ietf-if:interface-ref {
+	    require-instance true;
+	  }
+	  description "Access Control List was attached to this interface";  
+        }
+      }
     }
   }
 }

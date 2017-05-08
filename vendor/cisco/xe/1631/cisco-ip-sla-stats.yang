@@ -1,0 +1,371 @@
+module cisco-ip-sla-stats {
+
+    yang-version 1;
+
+    namespace "urn:cisco:params:xml:ns:yang:cisco-ip-sla-stats";
+    prefix slastats;
+
+    import ietf-yang-types {
+        prefix yang;
+    }
+
+    organization
+        "Cisco Systems, Inc.";
+
+    contact
+        " Cisco Systems, Inc.
+          Customer Service
+
+          Postal: 170 W Tasman Drive
+          San Jose, CA 95134
+
+          Tel: +1 1800 553-NETS
+
+          E-mail: cs-yang@cisco.com";
+    
+    description
+        " This module contains a collection of YANG definitions for
+          monitoring IP SLA statistics of a Network Element.";
+    
+    reference "TODO";
+
+    revision 2015-05-29 {
+        description "Proposed";
+    }
+
+    typedef time-msec {
+        type uint64;
+        units "milliseconds";
+    }
+
+    typedef time-sec {
+        type uint64;
+        units "seconds";
+    }
+
+    typedef sla-oper-type {
+        type enumeration {
+            enum unknown;
+            enum udp-echo;
+            enum udp-jitter;
+            enum icmp-jitter;
+            enum ethernet-jitter;
+            enum ethernet-echo;
+            enum y1731-delay;
+            enum y1731-loss;
+            enum video;
+            enum mcast;
+            enum pong;
+        }
+    }
+
+    typedef sla-return-code {
+        type enumeration {
+            enum unknown;
+            enum ok;
+            enum disconnected;
+            enum busy;
+            enum timeout;
+            enum no-connection;
+            enum internal-error;
+			enum operation-failure;
+            enum could-not-find; // one of no-connection/busy/timeout
+            // TODO : more types of ios type - slaRetCode_t
+        }
+    }
+
+    grouping sla-time-values {
+
+        leaf min {
+            type uint32;
+        }
+
+        leaf avg {
+            type uint32;
+        }
+
+        leaf max {
+            type uint32;
+        }
+
+        leaf accuracy {
+            type enumeration {
+                enum milliseconds;
+                enum microseconds;
+            }
+        }
+    }
+
+    grouping sla-packet-loss-info {
+
+        leaf loss-period-count {
+            type uint32;
+        }
+
+        leaf loss-period-len-min {
+            type uint32;
+        }
+
+        leaf loss-period-len-max {
+            type uint32;
+        }
+
+        leaf inter-loss-period-len-min {
+            type uint32;
+        }
+
+        leaf inter-loss-period-len-max {
+            type uint32;
+        }
+    }
+
+    grouping voice-score {
+        leaf icpif {
+            type uint32;
+        }
+
+        leaf mos {
+            type uint32;
+        }
+    }
+
+    grouping rtt-info {
+        leaf latest-rtt {
+            type union {
+                type time-msec;
+                type enumeration {
+                    enum unknown;
+                    enum could-not-find; // one of no-connection/busy/timeout
+                }
+            }
+            description
+                "The last Round Trip Time recorded for this SLA.";
+        }
+
+        leaf success-count {
+            type uint32;
+        }
+
+        leaf failure-count {
+            type uint32;
+        }
+
+        leaf time-to-live {
+            type union {
+                type time-sec;
+                type enumeration {
+                    enum forever;
+                }
+            }
+            description
+                "Time-to-live for the SLA operation.";
+        }
+    }
+
+    grouping y1731-interval-stats {
+        leaf intv-start-time {
+            type yang:date-and-time;
+        }
+
+        leaf init-count {
+            type uint32;
+        }
+
+        leaf complete-count {
+            type uint32;
+        }
+
+        leaf valid {
+            type boolean;
+        }
+    }
+
+    container ip-sla-stats {
+        config false;
+
+        description
+          "Data nodes for All IP SLA Statistics.";
+
+        list sla-oper-entry {
+            key "oper-id";
+
+            description
+                "The list of IP SLA operations with statistics info.";
+
+            leaf oper-id {
+                type uint32;
+                description
+                    "The name of the memory pool.";
+            }
+
+            leaf oper-type {
+                type sla-oper-type;
+            }
+
+            leaf latest-return-code {
+                type sla-return-code;
+            }
+
+            leaf latest-oper-start-time {
+                type yang:date-and-time;
+                description
+                    "The time-stamp for the latest SLA operation.";
+            }
+
+            uses rtt-info;
+
+            container measure-stats {
+                when "(../oper-type='y1731-delay') or" +
+                        "(../oper-type='y1731-loss')" ;
+                uses y1731-interval-stats;
+            }
+                    
+            container stats {
+                when "(../oper-type!='unknown') and" +
+                        "(../oper-type!='y1731-delay') and" +
+                        "(../oper-type!='y1731-loss')";
+
+                container rtt {
+                
+                    leaf rtt-count {
+                        type uint32;
+                    }
+
+                    uses sla-time-values;
+                }
+
+                container oneway-latency {
+
+                    leaf sample-count {
+                        type uint32;
+                    }
+
+                    container sd {
+                        uses sla-time-values;
+                    }
+
+                    container ds {
+                        uses sla-time-values;
+                    }
+                }
+
+                container jitter {
+
+                    leaf sd-sample-count {
+                        type uint32;
+                    }
+                    
+                    leaf ds-sample-count {
+                        type uint32;
+                    }
+                    
+                    container sd {
+                        uses sla-time-values;
+                    }
+
+                    container ds {
+                        uses sla-time-values;
+                    }
+                }
+
+                container over-threshold {
+                    leaf rtt-count {
+                        type uint32;
+                    }
+
+                    leaf percent {
+                        type uint8;
+                    }
+                }
+
+                container packet-loss {
+                    when "(../../oper-type!='icmp-jitter')";
+
+                    leaf unprocessed-packets {
+                        when "(../../../oper-type='ethernet-jitter') or" +
+                                "(../../../oper-type='ethernet-echo')" ;
+                        type uint32;
+                    }
+                    
+                    leaf sd-count {
+                        type uint32;
+                    }
+
+                    container sd-loss {
+                        when "(../../../oper-type!='ethernet-jitter') and" +
+                                "(../../../oper-type!='ethernet-echo')" ;
+                        uses sla-packet-loss-info;
+                    }
+                    
+                    leaf ds-count {
+                        type uint32;
+                    }
+
+                    container ds-loss {
+                        when "(../../../oper-type!='ethernet-jitter') and" +
+                                "(../../../oper-type!='ethernet-echo')" ;
+                        uses sla-packet-loss-info;
+                    }
+
+                    leaf out-of-sequence {
+                        type uint32;
+                    }
+
+                    leaf drops {
+                        type uint32;
+                    }
+
+                    leaf late-arrivals {
+                        type uint32;
+                    }
+
+                    leaf skipped-packets {
+                        type uint32;
+                    }
+                }
+
+                container icmp-packet-loss {
+                    when "(../../oper-type='icmp-jitter')";
+
+                    leaf late-arrivals {
+                        type uint32;
+                    }
+
+                    leaf out-of-sequence {
+                        type uint32;
+                    }
+
+                    leaf out-of-sequence-sd {
+                        type uint32;
+                    }
+
+                    leaf ds-out-of-sequence-ds {
+                        type uint32;
+                    }
+
+                    leaf out-of-sequence-both {
+                        type uint32;
+                    }
+
+                    leaf skipped-packets {
+                        type uint32;
+                    }
+
+                    leaf unprocessed-packets {
+                        type uint32;
+                    }
+                    
+                    leaf packet-loss {
+                        type uint32;
+                    }
+                   
+                    uses sla-packet-loss-info;
+ 
+                }
+
+                uses voice-score;
+            }
+        }
+    }
+
+}
