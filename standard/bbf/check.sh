@@ -12,6 +12,7 @@
 ietf_dir="standard/ietf"
 bbf_dir="standard/bbf"
 to_check="standard/common standard/equipment standard/interface"
+to_check="$to_check draft/common draft/interface draft/networking"
 
 cwd=`pwd`
 
