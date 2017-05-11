@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Vendor-specific check script. Assumes that pyang is on path and that
 # all standard modules are on its internal module path.
@@ -6,10 +6,14 @@
 # Deviation modules are NOT checked as they require specific imports
 # typically not available locally.
 #
-scripts="./vendor/cisco/nx/check.sh ./vendor/cisco/xe/check.sh ./vendor/cisco/xr/check.sh"
+declare -a scripts=(
+    "./vendor/cisco/nx/check.sh"
+    "./vendor/cisco/xe/check.sh"
+    "./vendor/cisco/xr/check.sh"
+)
 
 declare -a pids
-for s in "$scripts"; do
+for s in "${scripts[@]}"; do
     ($s) &
     pids+=('$!')
 done

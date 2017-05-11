@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Vendor-specific check script. Assumes that pyang is on path and that
 # all standard modules are on its internal module path.
