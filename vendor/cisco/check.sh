@@ -6,7 +6,7 @@
 # Deviation modules are NOT checked as they require specific imports
 # typically not available locally.
 #
-declare -a scripts=(
+scripts=(
     "./vendor/cisco/nx/check.sh"
     "./vendor/cisco/xe/check.sh"
     "./vendor/cisco/xr/check.sh"
