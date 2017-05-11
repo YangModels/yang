@@ -6,13 +6,15 @@
 # Deviation modules are NOT checked as they require specific imports
 # typically not available locally.
 #
-
 platform_dir="vendor/cisco/xe"
 to_check="1631 1631/MIBS 1632 1632/MIBS 1641 1641/MIBS 1651 1651/MIBS"
 inc_path="../../../../standard/ietf/RFC"
+debug=0
 
 checkDir () {
-    echo Checking yang files in $platform_dir/$1
+    if [ "$debug" -eq "1" ]; then
+	echo Checking yang files in $platform_dir/$1
+    fi
     cwd=`pwd`
     cd $1
     exit_status=""
@@ -36,13 +38,21 @@ checkDir () {
     fi
 }
 
-printf "\nChecking modules with pyang command:\n"
-printf "\n    pyang $pyang_flags MODULE\n\n"
+if [ "$debug" -eq "1" ]; then
+    printf "\nChecking modules with pyang command:\n"
+    printf "\n    pyang $pyang_flags MODULE\n\n"
+fi
 
 if [ -e "$platform_dir" ]; then
     cd $platform_dir
 fi
 
+declare -a pids
 for d in $to_check; do
-    checkDir $d
+    (checkDir $d) &
+    pids+=("$!")
+done
+
+for p in $pids; do
+    wait $p || exit 1
 done
