@@ -6,14 +6,10 @@
 # Deviation modules are NOT checked as they require specific imports
 # typically not available locally.
 #
-scripts=(
-    "./vendor/cisco/nx/check.sh"
-    "./vendor/cisco/xe/check.sh"
-    "./vendor/cisco/xr/check.sh"
-)
+scripts="./vendor/cisco/nx/check.sh ./vendor/cisco/xe/check.sh ./vendor/cisco/xr/check.sh"
 
 declare -a pids
-for s in "${scripts[@]}"; do
+for s in "$scripts"; do
     ($s) &
     pids+=('$!')
 done
