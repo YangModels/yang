@@ -28,8 +28,6 @@ The following directories are maintained for YANG models [license note in bracke
 
   **yang/experimental/odp**: experimental modules intended for OpenDaylight submission [2]
 
-  **yang/experimental/bbf**: experimental modules intended for Broadband Forum submission (none yet) [6]
-
   **yang/standard**: contains standards-track YANG modules [any]
 
   **yang/standard/ietf**: standard IETF YANG modules [1]
@@ -40,8 +38,9 @@ The following directories are maintained for YANG models [license note in bracke
 
   **yang/standard/odp**: published modules for OpenDaylight [2]
 
-  **yang/standard/bbf**: standard Broadband Forum YANG modules [6]
+  **yang/standard/bbf/draft**: draft Broadband Forum YANG modules [6]
 
+  **yang/standard/bbf/standard**: standard Broadband Forum YANG modules [6]
 
   **yang/vendor**: contains vendor-specific YANG modules [any]
 

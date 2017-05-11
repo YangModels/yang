@@ -6,10 +6,13 @@
 # pyang 1.7 has a bug that affects "bits" defaults:
 # * https://github.com/mbj4668/pyang/issues/232
 # * https://github.com/mbj4668/pyang/commit/77fdee4
+#
+# This is no longer necessary?
 
 ietf_dir="standard/ietf"
 bbf_dir="standard/bbf"
-to_check="common interface"
+to_check="standard/common standard/equipment standard/interface"
+to_check="$to_check draft/common draft/interface draft/networking"
 
 cwd=`pwd`
 
