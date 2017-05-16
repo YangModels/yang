@@ -28,12 +28,12 @@ class Capability:
         self.parsed_yang = None
         # Get hello message root
         self.root = ET.parse(hello_message_file).getroot()
-        # Split it so we can get platform, os-type, os-version
+        # Split it so we can get vendor, os-type, os-version
         self.split = hello_message_file.split('/')
         self.hello_message_file = hello_message_file
         self.missing_revision = []
 
-        self.platform = self.split[2]
+        self.vendor = self.split[2]
         # Solve for os-type
         if 'nx' in self.split[3]:
             self.os = 'NX-OS'
@@ -44,6 +44,7 @@ class Capability:
         else:
             self.os = 'Unknown'
         self.os_version = self.split[4]
+        self.platform = self.split[5].split('-')[0]
 
     def handle_exception(self, field, object, module_name):
         # In case of include exception create empty
@@ -287,9 +288,10 @@ class Capability:
         print('Making json dictionary and saving to file')
 
         # Create json dictionary out of parsed information
-        with open(self.platform + '-' + self.os + '-' + self.os_version + '-' +
+        with open(self.vendor + '-' + self.os + '-' + self.os_version + '-' +
                           self.hello_message_file.split('/')[-1].split('.')[0] + '.json', "w") as outfile:
-            json.dump({'platform': self.platform, 'os': self.os, 'os-version': self.os_version,
+            json.dump({'vendor': self.vendor, 'os-type': self.os, 'os-version': self.os_version,
+                       'platform': self.platform,
                        'feature-set': 'some_features',
                        'protocols': {'netconf': {
                            'capabilities': capability,
