@@ -7,7 +7,7 @@
 # typically not available locally.
 #
 platform_dir="vendor/cisco/nx"
-to_check="7.0-3-F1-1 7.0-3-F2-1 7.0-3-I5-1 7.0-3-I5-2"
+to_check="7.0-3-F1-1 7.0-3-F2-1 7.0-3-I5-1 7.0-3-I5-2 7.0-3-I6-1"
 inc_path=".:../../../../standard/ietf/RFC"
 pyang_flags=""
 debug="0"
