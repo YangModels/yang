@@ -5,6 +5,9 @@ import json
 import os
 import unicodedata
 import xml.etree.ElementTree as ET
+import urllib2
+
+from numpy.f2py.auxfuncs import throw_error
 
 import yangParser
 
@@ -21,6 +24,25 @@ def find_first_file(directory, pattern, pattern_with_revision):
             if fnmatch.fnmatch(basename, pattern):
                 filename = os.path.join(root, basename)
                 return filename
+
+
+def load_json_from_url(url):
+    failed = True
+    loaded_json = None
+    tries = 10
+    while failed:
+        try:
+            response = urllib2.urlopen(url).read()
+            loaded_json = json.loads(response)
+            failed = False
+        except:
+            tries -= 1;
+            if tries == 0:
+                failed = False
+            pass
+    if tries == 0:
+        throw_error('Couldn`t open a json file from url:' + url)
+    return loaded_json
 
 
 class Capability:
@@ -45,6 +67,8 @@ class Capability:
             self.os = 'Unknown'
         self.os_version = self.split[4]
         self.platform = self.split[5].split('-')[0]
+        self.ietf_rfc_json = load_json_from_url('http://www.claise.be/IETFYANGRFC.json')
+        self.ietf_draft_json = load_json_from_url('http://www.claise.be/IETFYANGDraft.json')
 
     def handle_exception(self, field, object, module_name):
         # In case of include exception create empty
@@ -63,10 +87,10 @@ class Capability:
             object[module_name] = '1.0'
         # In case of namespace exception create dummy exception -> 'urn:dummy'
         elif 'namespace' in field:
-            object[module_name] = 'urn:dummy'
+            object[module_name] = 'missing element'
         # For everything else insert null value
         else:
-            object[module_name] = None
+            object[module_name] = 'missing element'
 
     # pyang parsing variables and saving field value
     def find_yang_var(self, object, field, module_name, yang_file):
@@ -135,6 +159,9 @@ class Capability:
         imports = {}
         reference = {}
         conformance_type = {}
+        compilations_status = {}
+        working_group = {}
+        author_email = {}
         missing_module = {}
         missing_includes = {}
         netconf_version = ''
@@ -222,6 +249,11 @@ class Capability:
                 self.find_yang_var(includes, 'include', module_name, yang_file)
                 self.find_yang_var(imports, 'import', module_name, yang_file)
                 self.find_yang_var(reference, 'reference', module_name, yang_file)
+                self.find_yang_var(schema, 'schema', module_name, yang_file)
+
+                compilations_status[module_name] = self.parse_status(module_name, revision[module_name])
+                author_email[module_name] = self.parse_email(module_name, revision[module_name])
+                working_group[module_name] = self.parse_wg(module_name, revision[module_name])
 
                 # If revision was not found in capability.xml file than look for it in yang file itself
                 if '' in revision[module_name]:
@@ -230,13 +262,13 @@ class Capability:
                 self.parse_imports_includes(includes[module_name]['name'],
                                             missing_module, missing_includes, features, revision,
                                             yang_version, namespace, prefix, organization, contact, description,
-                                            includes,
-                                            imports, reference, conformance_type, deviations, module_names)
+                                            includes, imports, reference, conformance_type, deviations, module_names,
+                                            compilations_status, schema, author_email, working_group)
                 self.parse_imports_includes(imports[module_name], missing_module,
                                             missing_includes, features, revision,
                                             yang_version, namespace, prefix, organization, contact, description,
-                                            includes,
-                                            imports, reference, conformance_type, deviations, module_names)
+                                            includes, imports, reference, conformance_type, deviations, module_names,
+                                            compilations_status, schema, author_email, working_group)
 
         # restconf capability parsing
         for cap in self.root.iter('module'):
@@ -292,11 +324,13 @@ class Capability:
                           self.hello_message_file.split('/')[-1].split('.')[0] + '.json', "w") as outfile:
             json.dump({'vendor': self.vendor, 'os-type': self.os, 'os-version': self.os_version,
                        'platform': self.platform,
-                       'feature-set': 'some_features',
-                       'protocols': {'netconf': {
-                           'capabilities': capability,
-                           'netconf-version': netconf_version,
-                       }
+                       'feature-set': 'ALL',
+                       'protocols': {
+                           'protocol': [{
+                               'name': 'netconf',
+                               'capabilities': capability,
+                               'netconf-version': netconf_version,
+                           }]
                        },
                        'modules': {
                            'module': [
@@ -308,12 +342,13 @@ class Capability:
                                    'description': description.get(module_names[k]),
                                    'contact': contact.get(module_names[k]),
                                    'submodule': json.loads(
-                                       self.get_submodule_info(includes[module_names[k]]['name'], missing_module,
-                                                               missing_includes)),
-                                   #'imports': json.loads(
+                                       self.get_submodule_info(includes[module_names[k]]['name'], missing_module)),
+                                   # 'imports': json.loads(
                                    #    self.get_submodule_info(imports[module_names[k]]['name'], missing_module,
                                    #                            missing_includes)),
                                    'conformance-type': conformance_type.get(module_names[k]),
+                                   'compilation-status': compilations_status.get(module_names[k]),
+                                   'author-email': author_email.get(module_names[k]),
                                    'revision': revision.get(module_names[k]),
                                    'namespace': namespace.get(module_names[k]),
                                    'name': module_names[k],
@@ -338,7 +373,7 @@ class Capability:
         print(self.missing_revision)
         print('\n')
 
-    def get_submodule_info(self, imports_or_includes, missing_module, missing_includes):
+    def get_submodule_info(self, imports_or_includes, missing_module):
         if imports_or_includes is not None and not imports_or_includes:
             revision = {}
             namespace = {}
@@ -365,7 +400,8 @@ class Capability:
 
     def parse_imports_includes(self, imports_or_includes, missing_module, missing_includes, features,
                                revision, yang_version, namespace, prefix, organization, contact, description, includes,
-                               imports, reference, conformance_type, deviations, module_names):
+                               imports, reference, conformance_type, deviations, module_names, comp_status, schema,
+                               email, wg):
         if imports_or_includes is not None:
             for imp in imports_or_includes:
                 if imp not in module_names:
@@ -387,16 +423,81 @@ class Capability:
                     self.find_yang_var(reference, 'reference', imp, yang_file)
                     self.find_yang_var(revision, 'revision', imp, yang_file)
                     self.find_yang_var(features, 'feature', imp, yang_file)
+                    self.find_yang_var(schema, 'schema', imp, yang_file)
+
+                    comp_status[imp] = self.parse_status(imp, revision[imp])
+                    email[imp] = self.parse_email(imp, revision[imp])
+                    wg[imp] = self.parse_wg(imp, revision[imp])
                     conformance_type[imp] = 'implement'
                     module_names.append(imp)
 
                     self.parse_imports_includes(includes[imp]['name'],
                                                 missing_module, missing_includes, features, revision,
                                                 yang_version, namespace, prefix, organization, contact, description,
-                                                includes,
-                                                imports, reference, conformance_type, deviations, module_names)
+                                                includes, imports, reference, conformance_type, deviations, module_names
+                                                , comp_status, schema, email, wg)
                     self.parse_imports_includes(imports[imp], missing_module,
                                                 missing_includes, features, revision,
                                                 yang_version, namespace, prefix, organization, contact, description,
-                                                includes,
-                                                imports, reference, conformance_type, deviations, module_names)
+                                                includes, imports, reference, conformance_type, deviations, module_names
+                                                , comp_status, schema, email, wg)
+
+    def parse_status(self, module_name, revision):
+        # try to find in rfc without revision
+        try:
+            if module_name + '.yang' in self.ietf_rfc_json.keys():
+                return 'PASSED'
+        except KeyError:
+            pass
+        # try to find in rfc with revision
+        try:
+            if module_name + '@' + revision + '.yang' in self.ietf_rfc_json.keys():
+                return 'PASSED'
+        except KeyError:
+            pass
+        # try to find in draft without revision
+        try:
+            status = self.ietf_draft_json[module_name + '.yang'][3]
+            return status
+        except KeyError:
+            pass
+        # try to find in draft with revision
+        try:
+            status = self.ietf_draft_json[module_name + '@' + revision + '.yang'][3]
+            return status
+        except KeyError:
+            pass
+        return 'missing element'
+
+    def parse_email(self, module_name, revision):
+        # try to find in draft without revision
+        try:
+            email = self.ietf_draft_json[module_name + '.yang'][1].split('\">Email')[0].split('mailto:')[1]
+            return email
+        except KeyError:
+            pass
+        # try to find in draft with revision
+        try:
+            email = \
+                self.ietf_draft_json[module_name + '@' + revision + '.yang'][1].split('\">Email')[0].split('mailto:')[1]
+            return email
+        except KeyError:
+            pass
+        return 'missing element'
+
+    def parse_wg(self, module_name, revision):
+        # try to find in draft without revision
+        try:
+            wg = self.ietf_draft_json[module_name + '.yang'][0].split('</a>')[0].split('\">')[1].split('-')[1]
+            return wg + 'working group'
+        except KeyError:
+            pass
+        # try to find in draft with revision
+        try:
+            wg = \
+                self.ietf_draft_json[module_name + '@' + revision + '.yang'][0].split('</a>')[0].split('\">')[1].split(
+                    '-')[1]
+            return wg + 'working group'
+        except KeyError:
+            pass
+        return 'missing element'

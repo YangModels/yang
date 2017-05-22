@@ -6,10 +6,12 @@ import os
 import subprocess
 import unicodedata
 import urllib2
-from collections import OrderedDict
 
 
 # Recursively look for pattern file in directory
+from collections import OrderedDict
+
+
 def find_files(directory, pattern):
     for root, dirs, files in os.walk(directory):
         for basename in files:
@@ -44,8 +46,9 @@ def prepare_data(json_data, path_suffix, credentials):
     os_version = unicode_normalize(data['os-version'])
     platform = unicode_normalize(data['platform'])
     # Patch HTTP request to make sure that data will be merged and not replaced
-    http_request(prefix + '/api/config/catalog/implementations/' + vendor + ',' + os_from_yang + ','
-                 + feature_set + ',' + os_version + ',' + platform + path_suffix, 'PATCH', json_data, credentials)
+    http_request(prefix + '/api/config/catalog/vendors/vendor/' + vendor + '/os-types/os-type/' + os_from_yang +
+                 '/platforms/platform/' + platform + '/os-versions/os-version/' + os_version +
+                 '/feature-sets/feature-set/' + feature_set + path_suffix, 'PATCH', json_data, credentials)
 
 
 parser = argparse.ArgumentParser(description="Parse hello messages and yang files to json dictionary. These"
@@ -65,39 +68,94 @@ files = []
 for filename in find_files('./', '*.json'):
     with open(filename) as data_file:
         files.append(json.load(data_file))
+
 vendor = ''
 os_from_yang = ''
 feature_set = ''
 platform = ''
+os_version = ''
 
 print("Populating yang catalog with data")
+
 # In each json
+print("adding vendors")
 for data in files:
     # Parse vendor os feature-set and os-version
     vendor = unicode_normalize(data['vendor'])
-    os_from_yang = unicode_normalize(data['os-type'])
-    feature_set = unicode_normalize(data['feature-set'])
-    os_version = unicode_normalize(data['os-version'])
-    platform = unicode_normalize(data['platform'])
 
-    # Prepare json_data for put request - this request will prepare list implementations
+    # Prepare json_data for put request - this request will prepare list vendors
     # to populate it with protocols and modules
-
     json_implementations_data = json.dumps({
-        'implementations': [
-            json.loads(
-                json.dumps(OrderedDict([('vendor', vendor), ('os-type', os_from_yang), ('feature-set', feature_set),
-                                        ('os-version', os_version), ('platform', platform)])),
-                object_pairs_hook=OrderedDict)
-        ]
+                'vendor': [{
+                    'name': vendor
+                }]
     })
-
     # Make a PUT request to create a root for each file
-    http_request(prefix + '/api/config/catalog/implementations/' + vendor + ',' + os_from_yang + ','
-                 + feature_set + ',' + os_version + ',' + platform, 'PUT', json_implementations_data,
+    http_request(prefix + '/api/config/catalog/vendors/vendor/' + vendor, 'PUT', json_implementations_data,
                  args.credentials)
 
+print("adding os-types")
+for data in files:
+    vendor = unicode_normalize(data['vendor'])
+    os_from_yang = unicode_normalize(data['os-type'])
+    json_implementations_data = json.dumps({
+            'os-type': [{
+                'name': os_from_yang
+            }]
+    })
+    # Make a PUT request to create a root for each file
+    http_request(prefix + '/api/config/catalog/vendors/vendor/' + vendor + '/os-types/os-type/' + os_from_yang, 'PUT',
+                 json_implementations_data, args.credentials)
+
+print("adding platforms")
+for data in files:
+    vendor = unicode_normalize(data['vendor'])
+    os_from_yang = unicode_normalize(data['os-type'])
+
+    platform = unicode_normalize(data['platform'])
+    json_implementations_data = json.dumps({
+            'platform': [{
+                'name': platform
+            }]
+    })
+    # Make a PUT request to create a root for each file
+    http_request(prefix + '/api/config/catalog/vendors/vendor/' + vendor + '/os-types/os-type/' + os_from_yang +
+                 '/platforms/platform/' + platform, 'PUT', json_implementations_data, args.credentials)
+
+print("adding os-versions")
+for data in files:
+    vendor = unicode_normalize(data['vendor'])
+    os_from_yang = unicode_normalize(data['os-type'])
+    platform = unicode_normalize(data['platform'])
+    os_version = unicode_normalize(data['os-version'])
+    json_implementations_data = json.dumps({
+            'os-version': [{
+                'name': os_version
+            }]
+    })
+    # Make a PUT request to create a root for each file
+    http_request(prefix + '/api/config/catalog/vendors/vendor/' + vendor + '/os-types/os-type/' + os_from_yang +
+                 '/platforms/platform/' + platform + '/os-versions/os-version/' + os_version, 'PUT',
+                 json_implementations_data, args.credentials)
+print("adding feature-sets")
+for data in files:
+    vendor = unicode_normalize(data['vendor'])
+    os_from_yang = unicode_normalize(data['os-type'])
+    platform = unicode_normalize(data['platform'])
+    os_version = unicode_normalize(data['os-version'])
+    feature_set = unicode_normalize(data['feature-set'])
+    json_implementations_data = json.dumps({
+            'feature-set': [{
+                'name': feature_set
+            }]
+    })
+    # Make a PUT request to create a root for each file
+    http_request(prefix + '/api/config/catalog/vendors/vendor/' + vendor + '/os-types/os-type/' + os_from_yang +
+                 '/platforms/platform/' + platform + '/os-versions/os-version/' + os_version +
+                 '/feature-sets/feature-set/' + feature_set, 'PUT', json_implementations_data, args.credentials)
+
 # In each json
+print("adding protocols")
 for data in files:
     # Prepare json_data for patch request - this data will populate container protocols of ietf-yang-catalog
     json_protocol_data = json.dumps({
@@ -107,12 +165,12 @@ for data in files:
     prepare_data(json_protocol_data, '/protocols', args.credentials)
 
 # In each json
+print("adding modules")
 for data in files:
     # Prepare json_data for patch request - this data will populate container modules of ietf-yang-catalog
     json_modules_data = json.dumps({
         'modules': data['modules']
     })
-
     prepare_data(json_modules_data, '/modules', args.credentials)
 
 print("Removing temporary json files")
