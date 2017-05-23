@@ -4,12 +4,22 @@ import fnmatch
 import json
 import os
 import unicodedata
-import xml.etree.ElementTree as ET
 import urllib2
+import xml.etree.ElementTree as ET
 
 from numpy.f2py.auxfuncs import throw_error
 
 import yangParser
+
+
+NS_MAP = {
+    "http://cisco.com/ns/yang/": "cisco",
+    "http://www.huawei.com/netconf": "huawei",
+    "http://openconfig.net/yang/": "openconfig",
+    "http://tail-f.com/": "tail-f",
+    "urn:ietf": "ietf",
+    "urn:cisco": "cisco"
+}
 
 
 # searching for file based on pattern or pattern_with_revision
@@ -46,7 +56,9 @@ def load_json_from_url(url):
 
 
 class Capability:
-    def __init__(self, hello_message_file):
+    def __init__(self, hello_message_file, index, prepare):
+        self.index = index
+        self.prepare = prepare
         self.parsed_yang = None
         # Get hello message root
         self.root = ET.parse(hello_message_file).getroot()
@@ -89,6 +101,10 @@ class Capability:
         elif 'namespace' in field:
             object[module_name] = 'missing element'
         # For everything else insert null value
+        elif 'import' in field:
+            object[module_name] = None
+        elif 'feature' in field:
+            object[module_name] = 'missing-element'
         else:
             object[module_name] = 'missing element'
 
@@ -165,6 +181,7 @@ class Capability:
         missing_module = {}
         missing_includes = {}
         netconf_version = ''
+        organization_module = {}
 
         # Parse deviations and features from each module from netconf hello message
         def deviations_and_features(search_for):
@@ -201,13 +218,17 @@ class Capability:
                 for i in names:
                     yang_file = find_first_file('/'.join(self.split[0:-1]), i + '.yang',
                                                 i + '.yang')
-                    self.parsed_yang = yangParser.parse(os.path.abspath(yang_file))
-                    yang_variable = self.parsed_yang.search('revision')[0].arg
-
-                    if isinstance(yang_variable, unicode):
-                        revs.append(unicodedata.normalize('NFKD', yang_variable).encode('ascii', 'ignore'))
+                    if yang_file is None:
+                        missing_module[module_name] = i
+                        revs.append('1500-01-01')
                     else:
-                        revs.append(yang_variable)
+                        self.parsed_yang = yangParser.parse(os.path.abspath(yang_file))
+                        yang_variable = self.parsed_yang.search('revision')[0].arg
+
+                        if isinstance(yang_variable, unicode):
+                            revs.append(unicodedata.normalize('NFKD', yang_variable).encode('ascii', 'ignore'))
+                        else:
+                            revs.append(yang_variable)
                 devs['name'] = names
                 devs['revision'] = revs
                 deviations[module_name] = devs
@@ -239,8 +260,25 @@ class Capability:
                     print('parsing yang files')
                     print_once = True
 
+                namespace_exist = False
                 # Parse rest of the fields out of the yang file
                 self.find_yang_var(namespace, 'namespace', module_name, yang_file)
+                for ns, org in NS_MAP.items():
+                    if self.os_version is '1651':
+                        if ns is 'urn:cisco':
+                            if ns in namespace[module_name]:
+                                organization_module[module_name] = org
+                                namespace_exist = True
+                    else:
+                        if ns in namespace[module_name]:
+                            organization_module[module_name] = org
+                            namespace_exist = True
+                if not namespace_exist:
+                    organization_module[module_name] = 'missing_data'
+                    if namespace[module_name] is None:
+                        namespace[module_name] = 'missing data'
+                    print(module_name + ' : ' + namespace[module_name])
+
                 self.find_yang_var(prefix, 'prefix', module_name, yang_file)
                 self.find_yang_var(yang_version, 'yang-version', module_name, yang_file)
                 self.find_yang_var(organization, 'organization', module_name, yang_file)
@@ -259,16 +297,21 @@ class Capability:
                 if '' in revision[module_name]:
                     self.find_yang_var(revision, 'revision', module_name, yang_file)
 
+                self.prepare.add_key(module_name + '@' + revision[module_name] + '@' + namespace[module_name] + '@'
+                                     + conformance_type[module_name])
+
                 self.parse_imports_includes(includes[module_name]['name'],
                                             missing_module, missing_includes, features, revision,
                                             yang_version, namespace, prefix, organization, contact, description,
                                             includes, imports, reference, conformance_type, deviations, module_names,
-                                            compilations_status, schema, author_email, working_group)
+                                            compilations_status, schema, author_email, working_group,
+                                            organization_module, True, namespace[module_name])
                 self.parse_imports_includes(imports[module_name], missing_module,
                                             missing_includes, features, revision,
                                             yang_version, namespace, prefix, organization, contact, description,
                                             includes, imports, reference, conformance_type, deviations, module_names,
-                                            compilations_status, schema, author_email, working_group)
+                                            compilations_status, schema, author_email, working_group,
+                                            organization_module, False, namespace[module_name])
 
         # restconf capability parsing
         for cap in self.root.iter('module'):
@@ -320,8 +363,7 @@ class Capability:
         print('Making json dictionary and saving to file')
 
         # Create json dictionary out of parsed information
-        with open(self.vendor + '-' + self.os + '-' + self.os_version + '-' +
-                          self.hello_message_file.split('/')[-1].split('.')[0] + '.json', "w") as outfile:
+        with open('normal' + repr(self.index) + '.json', "w") as ietf_mode:
             json.dump({'vendor': self.vendor, 'os-type': self.os, 'os-version': self.os_version,
                        'platform': self.platform,
                        'feature-set': 'ALL',
@@ -338,7 +380,7 @@ class Capability:
                                    'reference': reference.get(module_names[k]),
                                    'prefix': prefix.get(module_names[k]),
                                    'yang-version': yang_version.get(module_names[k]),
-                                   'organization': organization.get(module_names[k]),
+                                   'organization': organization_module.get(module_names[k]),
                                    'description': description.get(module_names[k]),
                                    'contact': contact.get(module_names[k]),
                                    'submodule': json.loads(
@@ -363,7 +405,7 @@ class Capability:
                                for k, val in
                                enumerate(module_names)]
                        }
-                       }, outfile)
+                       }, ietf_mode)
 
         print('missing imports')
         print(list(missing_module.keys()))
@@ -374,9 +416,8 @@ class Capability:
         print('\n')
 
     def get_submodule_info(self, imports_or_includes, missing_module):
-        if imports_or_includes is not None and not imports_or_includes:
+        if imports_or_includes is not None and bool(imports_or_includes):
             revision = {}
-            namespace = {}
             schema = {}
 
             for imp in imports_or_includes:
@@ -385,7 +426,6 @@ class Capability:
                     missing_module[imp] = imp
                     yang_file = find_first_file('/'.join(self.split[0:1]), imp + '.yang', imp + '@*.yang')
                 self.parsed_yang = None
-                self.find_yang_var(namespace, 'namespace', imp, yang_file)
                 self.find_yang_var(revision, 'revision', imp, yang_file)
                 self.find_yang_var(schema, 'schema', imp, yang_file)
             my_json = json.dumps([{'name': imports_or_includes[k],
@@ -401,7 +441,7 @@ class Capability:
     def parse_imports_includes(self, imports_or_includes, missing_module, missing_includes, features,
                                revision, yang_version, namespace, prefix, organization, contact, description, includes,
                                imports, reference, conformance_type, deviations, module_names, comp_status, schema,
-                               email, wg):
+                               email, wg, organization_module, is_include, parent_ns):
         if imports_or_includes is not None:
             for imp in imports_or_includes:
                 if imp not in module_names:
@@ -412,7 +452,26 @@ class Capability:
                     self.parsed_yang = None
                     devs = {'name': [], 'revision': []}
                     deviations[imp] = devs
-                    self.find_yang_var(namespace, 'namespace', imp, yang_file)
+                    if is_include:
+                        namespace[imp] = parent_ns
+                    else:
+                        self.find_yang_var(namespace, 'namespace', imp, yang_file)
+                    namespace_exist = False
+                    for ns, org in NS_MAP.items():
+                        if self.os_version is '1651':
+                            if ns is 'urn:cisco':
+                                if ns in namespace[imp]:
+                                    organization_module[imp] = org
+                                    namespace_exist = True
+                        else:
+                            if ns in namespace[imp]:
+                                organization_module[imp] = org
+                                namespace_exist = True
+                    if not namespace_exist:
+                        organization_module[imp] = 'missing_element'
+                        if namespace[imp] is None:
+                            namespace[imp] = 'missing data'
+                        print(imp + ' : ' + namespace[imp])
                     self.find_yang_var(prefix, 'prefix', imp, yang_file)
                     self.find_yang_var(yang_version, 'yang-version', imp, yang_file)
                     self.find_yang_var(organization, 'organization', imp, yang_file)
@@ -431,16 +490,20 @@ class Capability:
                     conformance_type[imp] = 'implement'
                     module_names.append(imp)
 
+                    self.prepare.add_key(imp + '@' + revision[imp] + '@' + namespace[imp] + '@' + conformance_type[imp])
+
                     self.parse_imports_includes(includes[imp]['name'],
                                                 missing_module, missing_includes, features, revision,
                                                 yang_version, namespace, prefix, organization, contact, description,
                                                 includes, imports, reference, conformance_type, deviations, module_names
-                                                , comp_status, schema, email, wg)
+                                                , comp_status, schema, email, wg, organization_module, True
+                                                , namespace[imp])
                     self.parse_imports_includes(imports[imp], missing_module,
                                                 missing_includes, features, revision,
                                                 yang_version, namespace, prefix, organization, contact, description,
                                                 includes, imports, reference, conformance_type, deviations, module_names
-                                                , comp_status, schema, email, wg)
+                                                , comp_status, schema, email, wg, organization_module, False
+                                                , namespace[imp])
 
     def parse_status(self, module_name, revision):
         # try to find in rfc without revision

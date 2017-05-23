@@ -5,6 +5,7 @@ import os
 import time
 
 import capability as cap
+import prepare
 
 
 def find_files(directory, pattern):
@@ -16,10 +17,15 @@ def find_files(directory, pattern):
 
 
 start = time.time()
-for filename in find_files('../', '*netconf-capabilit*.xml'):
+i = 1
+prepare = prepare.Prepare("prepare")
+for filename in find_files('../../', '*capabilit*.xml'):
     print('Found xml source:' + filename)
-    capability = cap.Capability(filename)
+    capability = cap.Capability(filename, i, prepare)
     capability.parse_and_dump()
+    i += 1
+
+prepare.dump()
 # for filename in find_files('../', '*restconf-capabilit*.xml'):
 #    print('Found xml source:' + filename)
 #    capability = cap.Capability(filename)
