@@ -282,11 +282,10 @@ class Capability:
                 if not namespace_exist:
                     organization_module[module_name] = 'missing_data'
                     if namespace[module_name] is None:
-                        self.integrity_checker.add_namespace()
+                        self.integrity_checker.add_namespace(self.split, module_name + ' : missing data')
                         namespace[module_name] = 'missing data'
                     self.integrity_checker.add_namespace(self.split, module_name + ' : ' + namespace[module_name])
-                if module_name in 'openconfig-mpls':
-                    pass
+
                 self.find_yang_var(prefix, 'prefix', module_name, yang_file)
                 self.find_yang_var(yang_version, 'yang-version', module_name, yang_file)
                 self.find_yang_var(organization, 'organization', module_name, yang_file)
