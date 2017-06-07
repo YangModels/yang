@@ -82,12 +82,18 @@ parser.add_argument('--port', default=8008, type=int,
                     help='Set port where the confd is started. Default -> 8008')
 parser.add_argument('--ip', default='127.0.0.1', type=str,
                     help='Set ip address where the confd is started. Default -> 127.0.0.1')
+parser.add_argument('--add', type=str,
+                    help='Set path to folder or file you want to add.')
+#parser.add_argument('--check_only', type=str, choices= ['true', 'false', 'do-both'], default='false',
+#                    help='Wheter to run parse and populate or just check for integrity or do both at the same time.'
+#                         'default is to parse document without check. Options are true for check only, false for parse'
+#                         'and populate only , do-both for check parse and populate')
 parser.add_argument('--credentials', help='Set authorization parameters username password respectively.'
                                           ' Default parameters are admin admin', nargs=2, default=['admin', 'admin']
                     , type=str)
 args = parser.parse_args()
 prefix = 'http://{}:{}'.format(args.ip, args.port)
-subprocess.call("python runCapabilities.py", shell=True)
+subprocess.call('python runCapabilities.py', shell=True)
 files = []
 # Find all parsed json files
 for filename in find_files('./', 'normal*.json'):
@@ -252,7 +258,7 @@ for data in files:
                     '"implementation":[{'
                         '"vendor": "' + data['vendor'] + '",'
                         '"platform":"' + data['platform'] + '",'
-                        '"version": "' + data['os-version'] + '",'
+                        '"os-version": "' + data['os-version'] + '",'
                         '"os-type": "' + data['os-type'] + '",'
                         '"feature-set": "' + data['feature-set'] + '"'
                  '}]}'
