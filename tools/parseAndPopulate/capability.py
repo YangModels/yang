@@ -57,7 +57,8 @@ def load_json_from_url(url):
 class Capability:
     def __init__(self, hello_message_file, index, prepare, integrity_checker):
         self.index = index
-
+        self.feature_set = 'ALL'
+        self.software_version = repr(165) + self.feature_set
         self.prepare = prepare
         self.integrity_checker = integrity_checker
         self.parsed_yang = None
@@ -71,14 +72,18 @@ class Capability:
         # Solve for os-type
         if 'nx' in self.split[4]:
             self.os = 'NX-OS'
+            self.platform = self.split[6].split('-')[0]
         elif 'xe' in self.split[4]:
             self.os = 'IOS-XE'
+            self.platform = self.split[6].split('-')[0]
         elif 'xr' in self.split[4]:
             self.os = 'IOS-XR'
+            self.platform = self.split[6].split('-')[1]
         else:
             self.os = 'Unknown'
         self.os_version = self.split[5]
-        self.platform = self.split[6].split('-')[0]
+        self.software_flavor = self.os + '|' + self.os_version
+        integrity_checker.add_platform('/'.join(self.split[:-2]), self.platform)
         self.ietf_rfc_json = {}
         self.ietf_draft_json = {}
         self.ietf_rfc_json = load_json_from_url('http://www.claise.be/IETFYANGRFC.json')
@@ -304,8 +309,16 @@ class Capability:
                 author_email[module_name] = self.parse_email(module_name, revision[module_name])
                 working_group[module_name] = self.parse_wg(module_name, revision[module_name])
 
-                self.prepare.add_key(module_name + '@' + revision[module_name] + '@' + namespace[module_name] + '@'
-                                     + conformance_type[module_name])
+                self.prepare.add_key(module_name + '@' + revision[module_name], namespace[module_name],
+                                     conformance_type[module_name], self.vendor, self.platform, self.software_version,
+                                     self.software_flavor, self.os, self.os_version, self.feature_set,
+                                     reference[module_name], prefix[module_name], yang_version[module_name],
+                                     organization[module_name], description[module_name], contact[module_name],
+                                     compilations_status[module_name], author_email[module_name], schema[module_name],
+                                     features[module_name], working_group[module_name],
+                                     compilations_result[module_name], deviations[module_name],
+                                       self.get_submodule_info(includes[module_name]['name']))
+
                 self.parse_imports_includes(includes[module_name]['name'], features, revision, name_revision,
                                             yang_version, namespace, prefix, organization, contact, description,
                                             includes, imports, reference, conformance_type, deviations, module_names,
@@ -366,51 +379,86 @@ class Capability:
         self.integrity_checker.add_unique(name_revision)
         # Write dictionary to file
         # Create json dictionary out of parsed information
-        with open('normal' + repr(self.index) + '.json', "w") as ietf_mode:
-            json.dump({'vendor': self.vendor, 'os-type': self.os, 'os-version': self.os_version,
-                       'platform': self.platform,
-                       'feature-set': 'ALL',
-                       'protocols': {
-                           'protocol': [{
-                               'name': 'netconf',
-                               'capabilities': capability,
-                               'protocol-version': netconf_version,
-                           }]
-                       },
-                       'modules': {
-                           'module': [
-                               {
-                                   'reference': reference.get(module_names[k]),
-                                   'prefix': prefix.get(module_names[k]),
-                                   'yang-version': yang_version.get(module_names[k]),
-                                   'organization': organization_module.get(module_names[k]),
-                                   'description': description.get(module_names[k]),
-                                   'contact': contact.get(module_names[k]),
-                                   'submodule': json.loads(
-                                       self.get_submodule_info(includes[module_names[k]]['name'])),
-                                   # 'imports': json.loads(
-                                   #    self.get_submodule_info(imports[module_names[k]]['name'], missing_module,
-                                   #                            missing_includes)),
-                                   'conformance-type': conformance_type.get(module_names[k]),
-                                   'compilation-status': compilations_status.get(module_names[k]),
-                                   'author-email': author_email.get(module_names[k]),
-                                   'revision': revision.get(module_names[k]),
-                                   'namespace': namespace.get(module_names[k]),
-                                   'name': module_names[k],
-                                   'schema': schema.get(module_names[k]),
-                                   'feature': features.get(module_names[k]),
-                                   'maturity-level': working_group.get(module_names[k]),
-                                   'compilation-result': compilations_result.get(module_names[k]),
-                                   'deviation': [
-                                       {'name': deviations[module_names[k]]['name'][i],
-                                        'revision': deviations[module_names[k]]['revision'][i]
-                                        } for
-                                       i, val in enumerate(deviations.get(module_names[k])['name'])],
-                               }
-                               for k, val in
-                               enumerate(module_names)]
-                       }
-                       }, ietf_mode)
+        with open('normal' + repr(self.index) + '.json', "w") as ietf_model:
+            json.dump({
+                'vendors': {
+                    'vendor': [{
+                        'name': self.vendor,
+                        'platforms': {
+                            'platform': [{
+                                'name': self.platform,
+                                'software-versions': {
+                                    'software-version': [{
+                                        'name': self.software_version,
+                                        'software-flavors': {
+                                            'software-flavor': [{
+                                                'name': self.software_flavor,
+                                                'protocols': {
+                                                    'protocol': [{
+                                                        'name': 'netconf',
+                                                        'capabilities': capability,
+                                                        'protocol-version': netconf_version,
+                                                    }]
+                                                },
+                                                'modules': {
+                                                    'module': [{
+                                                        'name': module_names[k],
+                                                        'revision': revision.get(module_names[k])
+                                                    } for k, val in enumerate(module_names)],
+                                                }
+                                            }]
+                                        }
+                                    }]
+                                }
+                            }]
+                        }
+                    }]
+                }
+            }, ietf_model)
+            #json.dump({'vendor': self.vendor, 'os-type': self.os, 'os-version': self.os_version,
+            #           'platform': self.platform,
+            #           'feature-set': 'ALL',
+            #           'protocols': {
+            #               'protocol': [{
+            #                   'name': 'netconf',
+            #                   'capabilities': capability,
+            #                   'protocol-version': netconf_version,
+            #               }]
+            #           },
+            #           'modules': {
+            #               'module': [
+            #                   {
+            #                       'reference': reference.get(module_names[k]),
+            #                       'prefix': prefix.get(module_names[k]),
+            #                       'yang-version': yang_version.get(module_names[k]),
+            #                       'organization': organization_module.get(module_names[k]),
+            #                       'description': description.get(module_names[k]),
+            #                       'contact': contact.get(module_names[k]),
+            #                       'submodule': json.loads(
+            #                           self.get_submodule_info(includes[module_names[k]]['name'])),
+            #                       # 'imports': json.loads(
+            #                       #    self.get_submodule_info(imports[module_names[k]]['name'], missing_module,
+            #                       #                            missing_includes)),
+            #                       'conformance-type': conformance_type.get(module_names[k]),
+            #                       'compilation-status': compilations_status.get(module_names[k]),
+            #                       'author-email': author_email.get(module_names[k]),
+            #                       'revision': revision.get(module_names[k]),
+            #                       'namespace': namespace.get(module_names[k]),
+            #                       'name': module_names[k],
+            #                       'schema': schema.get(module_names[k]),
+            #                       'feature': features.get(module_names[k]),
+            #                       'maturity-level': working_group.get(module_names[k]),
+            #                       'compilation-result': compilations_result.get(module_names[k]),
+            #                       'deviation': [
+            #                           {'name': deviations[module_names[k]]['name'][i],
+            #                            'revision': deviations[module_names[k]]['revision'][i]
+            #                            } for
+            #                           i, val in enumerate(deviations.get(module_names[k])['name'])],
+            #                   }
+            #                   for k, val in
+            #                   enumerate(module_names)]
+            #           }
+            #           }, ietf_model)
 
     def get_submodule_info(self, imports_or_includes):
         if imports_or_includes is not None and bool(imports_or_includes):
@@ -499,7 +547,12 @@ class Capability:
                     module_names.append(imp)
                     name_revision.append(imp + '@' + revision[imp])
 
-                    self.prepare.add_key(imp + '@' + revision[imp] + '@' + namespace[imp] + '@' + conformance_type[imp])
+                    self.prepare.add_key(imp + '@' + revision[imp], namespace[imp], conformance_type[imp], self.vendor,
+                                         self.platform, self.software_version, self.software_flavor, self.os,
+                                         self.os_version, self.feature_set, reference[imp], prefix[imp], yang_version[imp],
+                                         organization[imp], description[imp], contact[imp], comp_status[imp],
+                                         email[imp], schema[imp], features[imp], wg[imp], comp_result[imp],
+                                         deviations[imp], self.get_submodule_info(includes[imp]['name']))
 
                     self.parse_imports_includes(includes[imp]['name'], features, revision, name_revision,
                                                 yang_version, namespace, prefix, organization, contact, description,
