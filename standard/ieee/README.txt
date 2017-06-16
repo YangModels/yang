@@ -8,6 +8,10 @@
 
 IEEE Copyright policy:
 
+<<<<<<< HEAD
+=======
+ 
+>>>>>>> 388092e4bc31755fb535c2239d5c42b7c643102b
 
 - All files contained within this
 sub-directory are considered to be intended as IEEE Contributions.
