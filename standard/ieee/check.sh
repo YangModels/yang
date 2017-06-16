@@ -3,6 +3,7 @@
 # check script. Assumes that pyang is on path and that
 # all standard modules are on its internal module path.
 #
+base_dir="`pwd`/standard/ieee/"
 to_check="802.1 802.3"
 
 # relax constraint for now
@@ -13,7 +14,7 @@ checkDir () {
     echo Checking yang files in $1
     exit_status=""
     cwd=`pwd`
-    cd "./$1"
+    cd "$base_dir/$1"
     printf "\n"
     for f in *.yang; do
         printf "pyang $pyang_flags $f\n"
@@ -32,7 +33,9 @@ checkDir () {
 
 
 # check modules in IEEE 802.X subdirectories
-printf "\n Checking IEEE modules... \n" 
+printf "\n Checking IEEE modules in $base_dir \n" 
+
+echo cd "./$base_dir"
 
 for d in $to_check; do
     printf "\n Checking modules with pyang in $to_check : \n"
