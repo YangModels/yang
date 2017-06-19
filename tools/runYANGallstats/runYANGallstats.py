@@ -2,6 +2,7 @@
 import argparse
 import os
 
+
 __author__ = 'Benoit Claise'
 __copyright__ = "Copyright(c) 2017, Cisco Systems, Inc."
 __license__ = "New-style BSD"

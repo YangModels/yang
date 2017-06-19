@@ -3,7 +3,7 @@
 # check script. Assumes that pyang is on path and that
 # all standard modules are on its internal module path.
 #
-base_dir="`pwd`/experimental/ieee/"
+base_dir="`pwd`/standard/ieee/"
 to_check="802.1 802.3"
 
 # relax constraint for now
