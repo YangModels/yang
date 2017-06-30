@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Utility belt for working with ``pyang`` and ``pyangext``."""
+import codecs
 import io
 import logging
 from os.path import isfile
@@ -187,8 +188,9 @@ def parse(text, ctx=None):
 
     if isfile(text):
         filename = text
-        with open(filename, 'r') as fp:
-            text = fp.read()
+        text = codecs.open(filename, encoding="utf-8").read()
+        #with open(filename, 'r') as fp:
+        #    text = fp.read()
 
     # ensure reported errors are just from parsing
     # old_errors = ctx_.errors

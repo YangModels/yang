@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import argparse
 import fnmatch
 import os
 import time
@@ -7,7 +8,6 @@ import time
 import capability as cap
 import statistics
 import prepare
-import statisticsInCatalog
 import yangIntegrity
 
 
@@ -29,11 +29,11 @@ def find_files(directory, pattern):
 
 def do_stats():
     integrity_file = open('integrity.html', 'w')
-    stats_file = open('stats.html', 'w')
     integrity.dump()
     integrity.dumps(integrity_file)
-
     integrity_file.close()
+
+    stats_file = open('stats.html', 'w')
     unique_files = set()
     files = find_files('./../../vendor/', '*.yang')
     for file in files:
@@ -219,59 +219,63 @@ def do_stats():
                      + '</p>')
     stats_file.close()
 
-#def create_yang_integrity():
-#    start = time.time()
-#    files_with_capabilities = {}
-#    for filename in find_files('../../vendor/', '*capabilit*.xml'):
-#        path = '/'.join(filename.split('/')[:-1])
-#        name = filename.split('/')[-1]
-#        if path not in files_with_capabilities:
-#            files_with_capabilities[path] = []
-#        files_with_capabilities[path].append(name)
-#    integ = None
-#    for key in files_with_capabilities:
-#        integ = yangIntegrity.Integrity(key, files_with_capabilities[key])
-#    stop = time.time()
-#    print(stop - start)
-#
-#
-#create_yang_integrity()
-start = time.time()
-index = 1
-prepare = prepare.Prepare("prepare")
-update = True
-integrity = None
 
-for filename in find_files('../../vendor', '*capabilit*.xml'):
-    try:
-        file_modification = open('fileModificationDate/' + '-'.join(filename.split('/')[-4:]) + '.txt', 'rw')
-        time_in_file = file_modification.readline()
-        if time_in_file in str(time.ctime(os.path.getmtime(filename))):
-            update = False
-            file_modification.close()
-        else:
-            file_modification.seek(0)
-            file_modification.write(time.ctime(os.path.getmtime(filename)))
-            file_modification.truncate()
-            file_modification.close()
-    except IOError:
-        file_modification = open('fileModificationDate/' + '-'.join(filename.split('/')[-4:]) + '.txt', 'w')
-        file_modification.write(str(time.ctime(os.path.getmtime(filename))))
-        file_modification.close()
-    if update:
-        integrity = statistics.Statistics(filename)
-        print('Found xml source:' + filename)
-        capability = cap.Capability(filename, index, prepare, integrity)
-        capability.parse_and_dump()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dir', default='../../vendor', type=str,
+                        help='Set dir where to look for hello message xml files.Default -> ../../vendor')
+    parser.add_argument('--implementation-metadata', nargs=5, type=str, help='list of metadata if we are doing apis')
+    parser.add_argument('--api', action='store_true', default=False, help='if we are doing apis')
+    parser.add_argument('--sdo', action='store_true', default=False, help='if we are doing apis')
+    parser.add_argument('--run-statistics', action='store_true', default=False, help='if we are doing apis')
+    args = parser.parse_args()
+    start = time.time()
+    index = 1
+    prepare = prepare.Prepare("prepare")
+    integrity = None
+
+    if args.sdo:
+        integrity = statistics.Statistics(args.dir)
+        print('Found dir:' + args.dir)
+        capability = cap.Capability(args.dir, index, prepare, integrity, args.api, args.sdo, args.run_statistics)
+        capability.parse_and_dump_sdo()
         index += 1
+    else:
+        for filename in find_files(args.dir, '*capabilit*.xml'):
+            update = True
+            if not args.api:
+                try:
+                    print(filename)
+                    file_modification = open('fileModificationDate/' + '-'.join(filename.split('/')[-4:]) + '.txt', 'rw')
+                    time_in_file = file_modification.readline()
+                    if time_in_file in str(time.ctime(os.path.getmtime(filename))):
+                        update = False
+                        file_modification.close()
+                    else:
+                        file_modification.seek(0)
+                        file_modification.write(time.ctime(os.path.getmtime(filename)))
+                        file_modification.truncate()
+                        file_modification.close()
+                except IOError:
+                    file_modification = open('fileModificationDate/' + '-'.join(filename.split('/')[-4:]) + '.txt', 'w')
+                    file_modification.write(str(time.ctime(os.path.getmtime(filename))))
+                    file_modification.close()
+            if update:
+                integrity = statistics.Statistics(filename)
+                print('Found xml source:' + filename)
+                capability = cap.Capability(filename, index, prepare, integrity, args.api, args.sdo, args.run_statistics)
+                capability.parse_and_dump()
+                index += 1
 
-
-prepare.dump()
-# for filename in find_files('../', '*restconf-capabstatisticilit*.xml'):
-#    print('Found xml source:' + filename)
-#    capability = cap.Capability(filename)
-#    capability.parse_and_dump()
-if integrity is not None:
-    do_stats()
-end = time.time()
-print(end - start)
+    if args.sdo:
+        prepare.dump_sdo()
+    else:
+        prepare.dump()
+    # for filename in find_files('../', '*restconf-capabstatisticilit*.xml'):
+    #    print('Found xml source:' + filename)
+    #    capability = cap.Capability(filename)
+    #    capability.parse_and_dump()
+    if integrity is not None and args.run_statistics:
+        do_stats()
+    end = time.time()
+    print(end - start)

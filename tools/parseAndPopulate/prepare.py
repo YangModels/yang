@@ -23,6 +23,27 @@ class Prepare:
         self.deviations = {}
         self.json_submodules = {}
 
+    def add_key_sdo(self, key, namespace, conformance_type, reference, prefix, yang_version, organization, description,
+                    contact, schema, feature, json_submodules, compilation_status, author_email, maturity_level,
+                    compilation_result):
+        self.name_revision.add(key)
+        self.namespace[key] = namespace
+        self.conformance_type[key] = conformance_type
+        self.reference[key] = reference
+        self.prefix[key] = prefix
+        self.yang_version[key] = yang_version
+        self.organization[key] = organization
+        self.description[key] = description
+        self.contact[key] = contact
+        self.compilation_status[key] = compilation_status
+        self.author_email[key] = author_email
+        self.schema[key] = schema
+        self.feature[key] = feature
+        self.maturity_level[key] = maturity_level
+        self.compilation_result[key] = compilation_result
+        # self.deviations[key] = deviations
+        self.json_submodules[key] = json_submodules
+
     def add_key(self, key, namespace, conformance_type, vendor, platform, software_version, software_flavor, os_type,
                 os_version, feature_set, reference, prefix, yang_version, organization, description, contact,
                 compilation_status, author_email, schema, feature, maturity_level, compilation_result, deviations,
@@ -56,7 +77,29 @@ class Prepare:
              'os-version': os_version,
              'feature-set': feature_set
              }
-        pass
+
+    # - deviations, implementations
+    def dump_sdo(self):
+        with open(self.file_name + '.json', "w") as prepare_model:
+            json.dump({'module': [{
+                'name': key.split('@')[0],
+                'revision': key.split('@')[1],
+                'namespace': self.namespace[key],
+                'reference': self.reference[key],
+                'prefix': self.prefix[key],
+                'yang-version': self.yang_version[key],
+                'organization': self.organization[key],
+                'description': self.description[key],
+                'contact': self.contact[key],
+                'conformance-type': self.conformance_type[key],
+                'compilation-status': self.compilation_status[key],
+                'schema': self.schema[key],
+                'feature': self.feature[key],
+                'maturity-level': self.maturity_level[key],
+                'compilation-result': self.compilation_result[key],
+                'author-email': self.author_email[key],
+                'submodule': json.loads(self.json_submodules[key])
+            } for key in self.name_revision]}, prepare_model)
 
     def dump(self):
         with open(self.file_name + '.json', "w") as prepare_model:
