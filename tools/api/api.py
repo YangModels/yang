@@ -123,7 +123,7 @@ def add_modules():
     #                + ' '.join(credentials))
     with open("log.txt", "wr") as f:
         try:
-            arguments = ["python", "populate.py", "--sdo", "--port", repr(confdPort), "--dir",
+            arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port", repr(confdPort), "--dir",
                           "temp", "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1]]
             subprocess.check_call(arguments, stderr=f)
             #df = subprocess.Popen(args, stdout=subprocess.PIPE)
@@ -134,11 +134,17 @@ def add_modules():
                 repo[key].remove()
             return jsonify({'error': 'Was not able to write all or partial yang files'})
 
+    try:
+        os.makedirs('../../api/sdo/')
+    except OSError as e:
+        # be happy if someone already created the path
+        if e.errno != errno.EEXIST:
+            raise
     subprocess.call(["cp", "-r", "temp/.", "../../api/sdo/"])
 
     shutil.rmtree('temp')
     for item in os.listdir('./'):
-        if 'log' in item:
+        if 'log' in item and '.txt' in item:
             os.remove(item)
     for key in repo:
         repo[key].remove()
@@ -184,7 +190,7 @@ def add_vendors():
     #          + ' '.join(credentials))
     with open("log.txt", "wr") as f:
         try:
-            arguments = ["python", "populate.py", "--port", repr(confdPort), "--dir", "temp",
+            arguments = ["python", "../parseAndPopulate/populate.py", "--port", repr(confdPort), "--dir", "temp",
                          "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1]]
             subprocess.check_call(arguments, stderr=f)
             #df = subprocess.Popen(args, stdout=subprocess.PIPE)
@@ -194,10 +200,18 @@ def add_vendors():
             for key in repo:
                 repo[key].remove()
             return jsonify({'error': 'Was not able to write all or partial yang files'})
-
+    try:
+        os.makedirs('../../api/vendor/')
+    except OSError as e:
+        # be happy if someone already created the path
+        if e.errno != errno.EEXIST:
+            raise
     subprocess.call(["cp", "-r", "temp/.", "../../api/vendor/"])
 
     shutil.rmtree('temp/')
+    for item in os.listdir('./'):
+        if 'log' in item and '.txt' in item:
+            os.remove(item)
     for key in repo:
         repo[key].remove()
     return jsonify({'info': 'success'})

@@ -81,7 +81,7 @@ if __name__ == "__main__":
         if args.sdo:
             with open("log_api_sdo.txt", "wr") as f:
                 try:
-                    arguments = ["python", "runCapabilities.py", "--api", "--sdo", "--dir", args.dir]
+                    arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--sdo", "--dir", args.dir]
                     subprocess.check_call(arguments, stderr=f)
                     #os.system("python runCapabilities.py --api --sdo --dir " + args.dir)
                 except subprocess.CalledProcessError as e:
@@ -89,7 +89,7 @@ if __name__ == "__main__":
         else:
             with open("log_api.txt", "wr") as f:
                 try:
-                    arguments = ["python", "runCapabilities.py", "--api", "--dir", args.dir]
+                    arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--dir", args.dir]
                     subprocess.check_call(arguments, stderr=f)
                     # os.system("python runCapabilities.py --api --dir " + args.dir)
                 except subprocess.CalledProcessError as e:
@@ -150,5 +150,5 @@ if __name__ == "__main__":
     print("Removing temporary json files")
 
     for item in os.listdir('./'):
-        if item.endswith(".json") or 'log' in item:
+        if item.endswith(".json") or ('log' in item and '.txt' in item):
             os.remove(item)
