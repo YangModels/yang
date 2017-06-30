@@ -123,7 +123,7 @@ def add_modules():
     #                + ' '.join(credentials))
     with open("log.txt", "wr") as f:
         try:
-            arguments = ["python", "populate.py", "--sdo", "--port", repr(confdPort), "--dir",
+            arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port", repr(confdPort), "--dir",
                           "temp", "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1]]
             subprocess.check_call(arguments, stderr=f)
             #df = subprocess.Popen(args, stdout=subprocess.PIPE)
@@ -184,7 +184,7 @@ def add_vendors():
     #          + ' '.join(credentials))
     with open("log.txt", "wr") as f:
         try:
-            arguments = ["python", "populate.py", "--port", repr(confdPort), "--dir", "temp",
+            arguments = ["python", "../parseAndPopulate/populate.py", "--port", repr(confdPort), "--dir", "temp",
                          "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1]]
             subprocess.check_call(arguments, stderr=f)
             #df = subprocess.Popen(args, stdout=subprocess.PIPE)
