@@ -60,5 +60,5 @@ if __name__ == "__main__":
         yang_file.close()
     repo.add_all_untracked()
     repo.commit_all('Crone job every day pull of ietf draft yang files.')
-    #repo.push()
+    repo.push()
     repo.remove()
