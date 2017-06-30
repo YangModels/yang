@@ -9,6 +9,7 @@ from numpy.f2py.auxfuncs import throw_error
 #from ..api import repoutil
 import repoutil
 
+
 def load_json_from_url(url):
     failed = True
     loaded_json = None
