@@ -1,0 +1,1064 @@
+module ietf-nat {
+    namespace "urn:ietf:params:xml:ns:yang:ietf-nat";
+    //namespace to be assigned by IANA
+    prefix "nat";
+        import ietf-inet-types {
+       prefix "inet";
+    }
+organization "IETF NetMod Working Group";
+contact
+  "Senthil Sivakumar <ssenthil@cisco.com>
+   Mohamed Boucadair <mohamed.boucadair@orange.com>
+   Suresh Vinapamula <sureshk@juniper.net>";
+
+ description
+    "This module is a YANG module for NAT implementations
+    (including both NAT44 and NAT64 flavors.
+
+    Copyright (c) 2015 IETF Trust and the persons identified as
+    authors of the code.  All rights reserved.
+
+    Redistribution and use in source and binary forms, with or
+    without modification, is permitted pursuant to, and subject
+    to the license terms contained in, the Simplified BSD License
+    set forth in Section 4.c of the IETF Trust's Legal Provisions
+    Relating to IETF Documents
+    (http://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC XXXX; see
+    the RFC itself for full legal notices.";
+
+ revision 2015-09-08 {
+   description "Fixes few YANG errors.";
+   reference "-02";
+ }
+
+ revision 2015-09-07 {
+   description "Completes the NAT64 model.";
+   reference "01";
+ }
+
+ revision 2015-08-29 {
+   description "Initial version.";
+   reference "00";
+ }
+
+ typedef percent {
+      type uint8 {
+           range "0 .. 100";
+      }
+      description
+          "Percentage";
+ }
+
+ /*
+  * Grouping
+  */
+
+ grouping timeouts {
+     description
+     "Configure values of various timeouts.";
+
+     leaf udp-timeouts {
+       type uint32;
+       default 300;
+       description
+        "UDP inactivity timeout.";
+     }
+
+     leaf tcp-idle-timeout {
+         type uint32;
+         default 7440;
+         description
+            "TCP Idle timeout, as per RFC 5382 should be no
+             2 hours and 4 minutes.";
+     }
+
+     leaf tcp-trans-open-timeout {
+         type uint32;
+         default 240;
+         description
+        "The value of the transitory open connection
+        idle-timeout.";
+     }
+
+     leaf tcp-trans-close-timeout {
+         type uint32;
+          default 240;
+          description
+            "The value of the transitory close connection
+             idle-timeout.";
+      }
+
+      leaf tcp-in-syn-timeout {
+          type uint32;
+          default 6;
+          description
+            "6 seconds, as defined in [RFC5382].";
+      }
+
+      leaf fragment-min-timeout {
+          type uint32;
+          default 2;
+          description
+            "As long as the NAT has available resources,
+            the NAT allows the fragments to arrive
+            over fragment-min-timeout interval.
+            The default value is inspired from RFC6146.";
+      }
+
+      leaf icmp-timeout {
+          type uint32;
+          default 60;
+          description
+              "60 seconds, as defined in [RFC5508].";
+      }
+ }
+
+ // port numbers: single or port range
+
+ grouping port-number {
+     description
+    "Individual port or a range of ports.";
+
+     choice port-type {
+         default single-port-number;
+         description
+             "Port type: single or port-range.";
+
+         case single-port-number {
+             leaf single-port-number {
+                 type inet:port-number;
+                 description
+                     "Used for single port numbers.";
+             }
+         }
+
+         case port-range {
+             leaf start-port-number {
+                 type inet:port-number;
+                 description
+                     "Begining of the port range.";
+             }
+
+             leaf end-port-number {
+                 type inet:port-number;
+                 description
+                     "End of the port range.";
+             }
+         }
+     }
+ }
+
+ grouping mapping-entry {
+      description
+      "NAT mapping entry.";
+
+      leaf index {
+          type uint32;
+          description
+            "A unique identifier of a mapping entry.";
+      }
+
+      leaf type {
+           type enumeration {
+               enum "static"  {
+                  description
+                     "The mapping entry is manually configured.";
+               }
+               enum "dynamic" {
+                  description
+                   "This mapping is created by an outgoing
+                   packet.";
+               }
+           }
+           description
+             "Indicates the type of a mapping entry. E.g.,
+             a mapping can be: static or dynamic";
+      }
+
+      leaf internal-src-address {
+          type inet:ip-address;
+          mandatory true;
+          description
+           "Corresponds to the source IPv4/IPv6 address
+            of the IPv4 packet";
+      }
+
+      container internal-src-port {
+          description
+             "Corresponds to the source port of the
+              IPv4 packet.";
+          uses port-number;
+      }
+
+      leaf external-src-address {
+           type inet:ipv4-address;
+           mandatory true;
+           description
+            "External IPv4 address assigned by NAT";
+      }
+
+      container external-src-port {
+         description
+        "External source port number assigned by NAT.";
+         uses port-number;
+      }
+
+      leaf transport-protocol {
+          type uint8;
+          mandatory true;
+          description
+            "Upper-layer protocol associated with this mapping.
+             Values are taken from the IANA protocol registry.
+             For example, this field contains 6 (TCP) for a TCP
+             mapping or 17 (UDP) for a UDP mapping.";
+      }
+      leaf internal-dst-address {
+          type inet:ipv4-prefix;
+          description
+           "Corresponds to the destination IPv4 address
+            of the IPv4 packet, for example, some NAT
+            implementation support translating both source
+            and destination address and ports referred to as
+            Twice NAT";
+      }
+
+      container internal-dst-port {
+          description
+             "Corresponds to the destination port of the
+              IPv4 packet.";
+           uses port-number;
+      }
+
+      leaf external-dst-address {
+           type inet:ipv4-address;
+           description
+            "External destination IPv4 address";
+      }
+
+      container external-dst-port {
+         description
+        "External source port number.";
+         uses port-number;
+      }
+
+      leaf lifetime {
+           type uint32;
+           mandatory true;
+           description
+             "Lifetime of the mapping.";
+      }
+ }
+
+ grouping nat-parameters {
+      description
+        "NAT parameters for a given instance";
+
+          list external-ip-address-pool {
+               key pool-id;
+
+               description
+             "Pool of external IP addresses used to service
+              internal hosts.
+              Both contiguous and non-contiguous pools
+              can be configured for NAT.";
+
+               leaf pool-id {
+                    type uint32;
+                    description
+                      "An identifier of the address pool.";
+                }
+
+                leaf external-ip-pool {
+                     type inet:ipv4-prefix;
+                     description
+                       "An IPv4 prefix used for NAT purposes.";
+                }
+          }
+
+          leaf subscriber-mask-v6 {
+              type uint8 {
+                  range "0 .. 128";
+              }
+              description
+               "The subscriber-mask is an integer that indicates
+               the length of significant bits to be applied on
+               the source IP address (internal side) to
+               unambiguously identify a CPE.
+
+               Subscriber-mask is a system-wide configuration
+               parameter that is used to enforce generic
+               per-subscriberpolicies (e.g., port-quota).
+
+               The enforcement of these generic policies does not
+               require the configuration of every subscriber's
+               prefix.
+
+               Example: suppose the 2001:db8:100:100::/56 prefix
+               is assigned to a NAT64 serviced CPE. Suppose also
+               that 2001:db8:100:100::1 is the IPv6 address used
+               by the client that resides in that CPE. When the
+               NAT64 receives a packet from this client,
+               it applies the subscriber-mask (e.g., 56) on
+               the source IPv6 address to compute the associated
+               prefix for this client (2001:db8:100:100::/56).
+               Then, the NAT64 enforces policies based on that
+               prefix (2001:db8:100:100::/56), not on the exact
+               source IPv6 address.";
+          }
+
+          list subscriber-mask-v4 {
+
+               key sub-mask-id;
+
+               description
+                  "IPv4 subscriber mask.";
+
+               leaf sub-mask-id {
+                    type uint32;
+                    description
+                      "An identifier of the subscriber masks.";
+               }
+               leaf sub-mask {
+                     type inet:ipv4-prefix;
+                     mandatory true;
+                     description
+                      "The IP address subnets that matches
+                      should be translated. E.g., If the
+                      private realms that are to be translated
+                      by NAT would be 192.0.2.0/24";
+               }
+           }
+
+           leaf paired-address-pooling {
+               type boolean;
+               default true;
+               description
+                "Paired address pooling is indicating to NAT
+                that all the flows from an internal IP
+                address must be assigned the same external
+                address. This is defined in RFC 4007.";
+           }
+
+           leaf nat-mapping-type {
+                type enumeration {
+                    enum "eim"  {
+                       description
+                          "endpoint-independent-mapping.
+                          Refer section 4 of RFC 4787.";
+                    }
+
+                    enum "adm"  {
+                       description
+                          "address-dependent-mapping.
+                          Refer section 4 of RFC 4787.";
+                    }
+
+                    enum "edm"  {
+                       description
+                          "address-and-port-dependent-mapping.
+                          Refer section 4 of RFC 4787.";
+                    }
+                 }
+                description
+                  "Indicates the type of a NAT mapping.";
+           }
+           leaf nat-filtering-type {
+                type enumeration {
+                    enum "eif"  {
+                       description
+                          "endpoint-independent- filtering.
+                          Refer section 5 of RFC 4787.";
+                    }
+
+                    enum "adf"  {
+                       description
+                          "address-dependent- filtering.
+                          Refer section 5 of RFC 4787.";
+                    }
+
+                    enum "edf"  {
+                       description
+                          "address-and-port-dependent- filtering.
+                          Refer section 5 of RFC 4787.";
+                    }
+                   }
+                description
+                  "Indicates the type of a NAT filtering.";
+           }
+
+           leaf port-quota {
+                type uint16;
+                description
+                  "Configures a port quota to be assigned per
+                  subscriber.";
+           }
+
+           container port-set {
+                description
+                 "Manages port-set assignments.";
+
+                leaf port-set-enable {
+                    type boolean;
+                    description
+                       "Enable/Disable port set assignment.";
+                }
+                leaf port-set-size {
+                     type uint16;
+                     description
+                      "Indicates the size of assigned port
+                      sets.";
+                }
+
+                leaf port-set-timeout {
+                   type uint32;
+                   description
+                       "Inactivty timeout for port sets.";
+                }
+           }
+
+          leaf port-randomization-enable {
+             type boolean;
+             description
+               "Enable/disable port randomization
+                 feature.";
+          }
+
+          leaf port-preservation-enable {
+             type boolean;
+             description
+               "Indicates whether the PCP server should
+                 preserve the internal port number.";
+          }
+
+          leaf port-range-preservation-enable {
+               type boolean;
+               description
+                "Indicates whether the NAT device should
+                preserve the internal port range.";
+           }
+
+          leaf port-parity-preservation-enable {
+             type boolean;
+             description
+               "Indicates whether the PCP server should
+                 preserve the port parity of the
+                 internal port number.";
+          }
+          leaf address-roundrobin-enable {
+             type boolean;
+             description
+               "Enable/disable address allocation
+               round robin.";
+           }
+      uses timeouts;
+      container logging-info {
+           description
+             "Information about Logging NAT events";
+
+           leaf destination-address {
+                type inet:ipv4-prefix;
+                mandatory true;
+                description
+                  "Address of the collector that receives
+                  the logs";
+           }
+           leaf destination-port {
+                type inet:port-number;
+                mandatory true;
+                description
+                   "Destination port of the collector.";
+           }
+
+      }
+      container connection-limit {
+           description
+             "Information on the config parameters that
+              rate limit the translations based on various
+              criteria";
+
+           leaf limit-per-subscriber {
+                type uint32;
+                description
+                  "Maximum number of NAT mappings per
+                  subscriber.";
+           }
+           leaf limit-per-vrf {
+                type uint32;
+                description
+                  "Maximum number of NAT mappings per
+                  VLAN/VRF.";
+           }
+           leaf limit-per-subnet {
+                type inet:ipv4-prefix;
+                description
+                 "Maximum number of NAT mappings per
+                  subnet.";
+           }
+           leaf limit-per-instance {
+                type uint32;
+                mandatory true;
+                description
+                  "Maximum number of NAT mappings per
+                  instance.";
+           }
+      }
+      container mapping-limit {
+           description
+             "Information on the config parameters that
+              rate limit the mappings based on various
+              criteria";
+
+           leaf limit-per-subscriber {
+                type uint32;
+                description
+                  "Maximum number of NAT mappings per
+                  subscriber.";
+           }
+           leaf limit-per-vrf {
+                type uint32;
+                description
+                  "Maximum number of NAT mappings per
+                  VLAN/VRF.";
+           }
+           leaf limit-per-subnet {
+                type inet:ipv4-prefix;
+                description
+                 "Maximum number of NAT mappings per
+                  subnet.";
+           }
+           leaf limit-per-instance {
+                type uint32;
+                mandatory true;
+                description
+                  "Maximum number of NAT mappings per
+                  instance.";
+           }
+      }
+      leaf ftp-alg-enable {
+           type boolean;
+           description
+              "Enable/Disable FTP ALG";
+      }
+
+      leaf dns-alg-enable {
+           type boolean;
+           description
+              "Enable/Disable DNSALG";
+      }
+
+      leaf tftp-alg-enable {
+           type boolean;
+           description
+              "Enable/Disable TFTP ALG";
+      }
+
+      leaf msrpc-alg-enable {
+           type boolean;
+           description
+              "Enable/Disable MS-RPC ALG";
+      }
+
+      leaf netbios-alg-enable {
+           type boolean;
+           description
+              "Enable/Disable NetBIOS ALG";
+      }
+
+      leaf rcmd-alg-enable {
+           type boolean;
+           description
+              "Enable/Disable rcmd ALG";
+      }
+
+      leaf ldap-alg-enable {
+           type boolean;
+           description
+              "Enable/Disable LDAP ALG";
+      }
+
+      leaf sip-alg-enable {
+           type boolean;
+           description
+              "Enable/Disable SIP ALG";
+      }
+
+      leaf rtsp-alg-enable {
+           type boolean;
+           description
+              "Enable/Disable RTSP ALG";
+      }
+
+      leaf h323-alg-enable {
+           type boolean;
+           description
+              "Enable/Disable H323 ALG";
+      }
+
+      leaf all-algs-enable {
+           type boolean;
+           description
+              "Enable/Disable all the ALGs";
+      }
+
+      container notify-pool-usage {
+           description
+              "Notification of Pool usage when certain criteria
+               is met";
+
+           leaf pool-id {
+                type uint32;
+                description
+                  "Pool-ID for which the notification
+                  criteria is defined";
+           }
+
+           leaf notify-pool-hi-threshold {
+                type percent;
+                mandatory true;
+                description
+                 "Notification must be generated when the
+                 defined high threshold is reached.
+                 For example, if a notification is
+                 required when the pool utilization reaches
+                 90%, this configuration parameter must
+                 be set to 90%";
+           }
+
+           leaf notify-pool-low-threshold {
+                type percent;
+                description
+                 "Notification must be generated when the defined
+                 low threshold is reached.
+                 For example, if a notification is required when
+                 the pool utilization reaches below 10%,
+                 this configuration parameter must be set to
+                 10%";
+           }
+      }
+      list nat64-prefixes {
+           key nat64-prefix-id;
+
+           description
+            "Provides one or a list of NAT64 prefixes
+            With or without a list of destination IPv4 prefixes.
+
+            Destination-based Pref64::/n is discussed in
+            Section 5.1 of [RFC7050]). For example:
+            192.0.2.0/24 is mapped to 2001:db8:122:300::/56.
+            198.51.100.0/24 is mapped to 2001:db8:122::/48.";
+
+           leaf nat64-prefix-id {
+               type uint32;
+               description
+                 "An identifier of the NAT64 prefix.";
+           }
+
+           leaf nat64-prefix {
+               type inet:ipv6-prefix;
+               default "64:ff9b::/96";
+               description
+                 "A NAT64 prefix. Can be NSP or WKP [RFC6052].";
+           }
+
+           list destination-ipv4-prefix {
+
+                key ipv4-prefix-id;
+
+                description
+                  "An IPv4 prefix/address.";
+
+                leaf ipv4-prefix-id {
+                   type uint32;
+                   description
+                    "An identifier of the IPv4 prefix/address.";
+                }
+
+                leaf ipv4-prefix {
+                   type inet:ipv4-prefix;
+                   description
+                    "An IPv4 address/prefix. ";
+                }
+           }
+      }
+ } //nat-parameters group
+
+ container nat-config {
+     description
+      "NAT";
+
+     container nat-instances {
+        description
+          "nat instances";
+
+         list nat-instance {
+
+             key "id";
+
+             description
+                "A NAT instance.";
+
+             leaf id {
+                 type uint32;
+                 description
+                  "NAT instance identifier.";
+             }
+
+             leaf enable {
+                 type boolean;
+                 description
+                  "Status of the the NAT instance.";
+             }
+
+             uses nat-parameters;
+
+             container mapping-table {
+                description
+                  "NAT dynamic mapping table used to track
+                  sessions";
+
+                  list mapping-entry {
+                       key "index";
+                       description
+                         "NAT mapping entry.";
+                       uses mapping-entry;
+                  }
+             }
+         }
+     }
+ }
+
+ /*
+  * NAT State
+  */
+
+ container nat-state {
+
+      config false;
+
+      description
+         "nat-state";
+
+      container nat-instances {
+          description
+              "nat instances";
+
+          list nat-instance {
+              key "id";
+
+              description
+               "nat instance";
+
+              leaf id {
+                  type int32;
+                   description
+                    "The identifier of the nat instance.";
+              }
+
+              container nat-capabilities {
+                 description
+                    "NAT Capabilities";
+
+                  leaf nat44-support {
+                      type boolean;
+                       description
+                         "Indicates NAT44 support";
+                   }
+
+                   leaf nat64-support {
+                       type boolean;
+                        description
+                         "Indicates NAT64 support";
+                   }
+
+                   leaf static-mapping-support {
+                      type boolean;
+                       description
+                         "Indicates whether static mappings are
+                         supported.";
+                   }
+
+                   leaf port-set-support {
+                       type boolean;
+                        description
+                         "Indicates port set assignment
+                         support ";
+                   }
+
+                   leaf port-randomization-support {
+                      type boolean;
+                      description
+                       "Indicates whether port randomization is
+                         supported.";
+                   }
+
+                   leaf port-range-preservation-support {
+                        type boolean;
+                        description
+                        "Indicates whether port range
+                        preservation is supported.";
+                   }
+
+                   leaf port-preservation-suport {
+                        type boolean;
+                        description
+                         "Indicates whether port preservation
+                           is supported.";
+                   }
+
+                   leaf port-parity-preservation-support {
+                        type boolean;
+                        description
+                         "Indicates whether port parity
+                         preservation is supported.";
+                   }
+
+                   leaf address-roundrobin-support {
+                        type boolean;
+                        description
+                         "Indicates whether address allocation
+                         round robin is supported.";
+                   }
+
+      leaf ftp-alg-support {
+           type boolean;
+           description
+              "Indicates whether FTP ALG is supported";
+      }
+
+      leaf dns-alg-support {
+           type boolean;
+           description
+              "Indicates whether DNSALG is supported";
+      }
+
+      leaf tftp-support {
+           type boolean;
+           description
+              "Indicates whether TFTP ALG is supported";
+      }
+
+      leaf msrpc-alg-support {
+           type boolean;
+           description
+              "Indicates whether MS-RPC ALG is supported";
+      }
+
+      leaf netbios-alg-support {
+           type boolean;
+           description
+              "Indicates whether NetBIOS ALG is supported";
+      }
+
+      leaf rcmd-alg-support {
+           type boolean;
+           description
+              "Indicates whether rcmd ALG is supported";
+      }
+
+      leaf ldap-alg-support {
+           type boolean;
+           description
+              "Indicates whether LDAP ALG is supported";
+      }
+
+      leaf sip-alg-support {
+           type boolean;
+           description
+              "Indicates whether SIP ALG is supported";
+      }
+
+      leaf rtsp-alg-support {
+           type boolean;
+           description
+              "Indicates whether RTSP ALG is supported";
+      }
+
+      leaf h323-alg-support {
+           type boolean;
+           description
+              "Indicates whether H323 ALG is supported";
+      }
+
+      leaf paired-address-pooling-support {
+           type boolean;
+           description
+            "Indicates whether paired-address-pooling is
+            supported";
+      }
+
+      leaf endpoint-independent-mapping-support {
+            type boolean;
+            description
+            "Indicates whether endpoint-independent-mapping
+            in Section 4 of RFC 4787 is supported.";
+      }
+
+      leaf address-dependent-mapping-support {
+           type boolean;
+           description
+           "Indicates whether endpoint-independent-mapping
+           in Section 4 of RFC 4787 is supported.";
+      }
+
+      leaf address-and-port-dependent-mapping-support {
+           type boolean;
+           description
+           "Indicates whether endpoint-independent-mapping in
+           section 4 of RFC 4787 is supported.";
+     }
+
+     leaf endpoint-independent-filtering-support {
+           type boolean;
+          description
+           "Indicates whether endpoint-independent-mapping in
+           section 5 of RFC 4787 is supported.";
+      }
+
+      leaf address-dependent-filtering {
+          type boolean;
+          description
+          "Indicates whether endpoint-independent-mapping in
+          section 5 of RFC 4787 is supported.";
+      }
+
+      leaf address-and-port-dependent-filtering {
+          type boolean;
+          description
+          "Indicates whether endpoint-independent-mapping in
+          section 5 of RFC 4787 is supported.";
+      }
+
+      leaf stealth-mode-support {
+          type boolean;
+          description
+          "Indicates whether to respond for unsolicited
+          traffic.";
+      }
+
+             }
+
+              container nat-current-config {
+                 description
+                      "current config";
+
+                 uses nat-parameters;
+              }
+
+              container mapping-table {
+                  description
+                      "Mapping table";
+                  list mapping-entry {
+                      key "index";
+                      description
+                    "mapping entry";
+                      uses mapping-entry;
+                  }
+              }
+
+              container statistics {
+                   description
+                     "Statistics related to the NAT instance";
+
+                   leaf total-mappings {
+                        type uint32;
+                        description
+                         "Total number of NAT Mappings present
+                         at the time. This includes all the
+                         static and dynamic mappings";
+                   }
+                   leaf total-tcp-mappings {
+                        type uint32;
+                        description
+                         "Total number of TCP Mappings present
+                         at the time.";
+                   }
+                   leaf total-udp-mappings {
+                        type uint32;
+                        description
+                         "Total number of UDP Mappings present
+                         at the time.";
+                   }
+                   leaf total-icmp-mappings {
+                        type uint32;
+                        description
+                         "Total number of ICMP Mappings present
+                         at the time.";
+                   }
+                   container pool-stats {
+                        description
+                           "Statistics related to Pool usage";
+                        leaf pool-id {
+                             type uint32;
+                             description
+                              "Unique Identifier that represents
+                              a pool";
+                        }
+                        leaf address-allocated {
+                             type uint32;
+                             description
+                                "Number of allocated addresses in
+                                the pool";
+                        }
+                        leaf address-free {
+                             type uint32;
+                             description
+                               "Number of free addresses in
+                               the pool.The sum of free
+                               addresses and allocated
+                               addresses are the total
+                               addresses in the pool";
+                        }
+                        container port-stats {
+                             description
+                               "Statistics related to port
+                               usage.";
+
+                             leaf ports-allocated {
+                                  type uint32;
+                                  description
+                                     "Number of allocated ports
+                                     in the pool";
+                             }
+
+                             leaf ports-free {
+                                  type uint32;
+                                  description
+                                     "Number of free addresses
+                                     in the pool";
+                             }
+                        }
+                   }
+              } //statistics
+          } //nat-instance
+      } //nat-instances
+ } //nat-state
+ /*
+  * Notifications
+  */
+ notification nat-event {
+      description
+       "Notifications must be generated when the defined
+        high/low threshold is reached. Related configuration
+        parameters must be provided to trigger
+        the notifications.";
+
+      leaf id {
+            type leafref {
+            path
+            "/nat-state/nat-instances/"
+           + "nat-instance/id";
+            }
+            description
+             "NAT instance ID.";
+      }
+
+      leaf notify-pool-threshold {
+           type percent;
+            mandatory true;
+              description
+                   "A treshhold has been fired.";
+      }
+ }
+} //module nat
