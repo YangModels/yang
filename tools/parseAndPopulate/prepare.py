@@ -22,10 +22,11 @@ class Prepare:
         self.compilation_result = {}
         self.deviations = {}
         self.json_submodules = {}
+        self.module_or_submodule = {}
 
     def add_key_sdo(self, key, namespace, conformance_type, reference, prefix, yang_version, organization, description,
                     contact, schema, feature, json_submodules, compilation_status, author_email, maturity_level,
-                    compilation_result):
+                    compilation_result, module_or_submodule):
         self.name_revision.add(key)
         self.namespace[key] = namespace
         self.conformance_type[key] = conformance_type
@@ -43,11 +44,12 @@ class Prepare:
         self.compilation_result[key] = compilation_result
         # self.deviations[key] = deviations
         self.json_submodules[key] = json_submodules
+        self.module_or_submodule[key] = module_or_submodule
 
     def add_key(self, key, namespace, conformance_type, vendor, platform, software_version, software_flavor, os_type,
                 os_version, feature_set, reference, prefix, yang_version, organization, description, contact,
                 compilation_status, author_email, schema, feature, maturity_level, compilation_result, deviations,
-                json_submodules):
+                json_submodules,module_or_submodule):
         self.name_revision.add(key)
         self.namespace[key] = namespace
         self.conformance_type[key] = conformance_type
@@ -65,6 +67,7 @@ class Prepare:
         self.compilation_result[key] = compilation_result
         self.deviations[key] = deviations
         self.json_submodules[key] = json_submodules
+        self.module_or_submodule[key] = module_or_submodule
 
         if key not in self.implementations:
             self.implementations[key] = {}
@@ -83,7 +86,7 @@ class Prepare:
         with open(self.file_name + '.json', "w") as prepare_model:
             json.dump({'module': [{
                 'name': key.split('@')[0],
-                'revision': key.split('@')[1],
+                'revision': key.split('@')[1].split('.')[0],
                 'namespace': self.namespace[key],
                 'reference': self.reference[key],
                 'prefix': self.prefix[key],
@@ -98,7 +101,8 @@ class Prepare:
                 'maturity-level': self.maturity_level[key],
                 'compilation-result': self.compilation_result[key],
                 'author-email': self.author_email[key],
-                'submodule': json.loads(self.json_submodules[key])
+                'submodule': json.loads(self.json_submodules[key]),
+                'module-type': self.module_or_submodule[key]
             } for key in self.name_revision]}, prepare_model)
 
     def dump(self):
@@ -121,6 +125,7 @@ class Prepare:
                 'maturity-level': self.maturity_level[key],
                 'compilation-result': self.compilation_result[key],
                 'submodule': json.loads(self.json_submodules[key]),
+                'module-type': self.module_or_submodule[key],
                 'implementations': {
                     'implementation': [{
                         'vendor': self.implementations[key][implementation]['vendor'],

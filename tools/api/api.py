@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import argparse
-import base64
 import errno
 import hashlib
 import json
@@ -9,9 +8,9 @@ import os
 import shutil
 import subprocess
 import unicodedata
-import urllib2
 
 import MySQLdb
+import requests
 from flask import Flask, jsonify, abort, make_response, request
 from flask_httpauth import HTTPBasicAuth
 
@@ -83,6 +82,33 @@ def authorize(request, response):
         if vendor != check_vendor:
             return unauthorized()
     return 'passed'
+
+
+@app.route('/checkComplete', methods=['POST'])
+@auth.login_required
+def check_local():
+    body = request.json
+    if body['repository']['owner_name'] == 'yang-catalog':
+        if body['result_message'] == 'Passed':
+            if body['type'] == 'push':
+                # After build was successful only locally
+                json_body = jsonify({
+                    "title": "Crone job - every day pull of ietf draft yang files.",
+                    "body": "ietf extracted yang modules",
+                    "head": "yang-catalog:master",
+                    "base": "master"
+                })
+                requests.post('https://api.github.com/repos/YangModels/yang/pulls', json=json_body,
+                              headers={'Authorization': 'token ' + token})
+
+            if body['type'] == 'pull_request':
+                # If build was successful on pull request
+                pull_number = body['pull_request_number']
+                log.write('pull request was successful %s' % repr(pull_number))
+                #requests.put('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number +
+                #             '/merge', headers={'Authorization': 'token ' + token})
+                requests.delete('https://api.github.com/repos/yang-catalog/yang',
+                                headers={'Authorization': 'token ' + token})
 
 
 @app.route('/modules', methods=['PUT'])
@@ -276,6 +302,7 @@ if __name__ == '__main__':
     parser.add_argument('--credentials', help='Set authorization parameters username password respectively.'
                                               ' Default parameters are admin admin', nargs=2, default=['admin', 'admin']
                         , type=str)
+    parser.add_argument('--yang-catalog-token', type=str, help='Token for automatic pushing')
     args = parser.parse_args()
     global dbHost
     dbHost = args.dbIp
@@ -291,7 +318,11 @@ if __name__ == '__main__':
     confd_ip =args.confd_ip
     global confdPort
     confdPort = args.confd_port
+    global token
+    token = args.yang_catalog_token
     ssl_context = None
+    global log
+    log = open('api_log_file.txt', 'w')
     if args.ssl_cert:
         ssl_context = (args.ssl_cert, args.ssl_key)
     app.run(host=args.ip, debug=args.debug, port=args.port, ssl_context=ssl_context)

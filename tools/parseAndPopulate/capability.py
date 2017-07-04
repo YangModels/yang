@@ -56,6 +56,34 @@ def load_json_from_url(url):
     return loaded_json
 
 
+def module_or_submodule(input_file):
+    if input_file:
+        file_input = open(input_file, "r")
+        all_lines = file_input.readlines()
+        file_input.close()
+        commented_out = False
+        for each_line in all_lines:
+            module_position = each_line.find('module')
+            submodule_position = each_line.find('submodule')
+            cpos = each_line.find('//')
+            if commented_out:
+                mcpos = each_line.find('*/')
+            else:
+                mcpos = each_line.find('/*')
+            if mcpos != -1 and cpos > mcpos:
+                if commented_out:
+                    commented_out = False
+                else:
+                    commented_out = True
+            if submodule_position >= 0 and (submodule_position < cpos or cpos == -1) and not commented_out:
+                return 'submodule'
+            if module_position >= 0 and (module_position < cpos or cpos == -1) and not commented_out:
+                return 'module'
+        print ('File ' + input_file + ' not yang file or not well formated')
+        return 'wrong file'
+    else:
+        return None
+
 class Capability:
     def __init__(self, hello_message_file, index, prepare, integrity_checker, api, sdo, do_stats):
         self.index = index
@@ -227,35 +255,41 @@ class Capability:
                 namespace = {}
                 features = {}
 
-                conformance_type = unicodedata.normalize('NFKD', sdo['conformance-type']).encode('ascii', 'ignore')
-                self.find_yang_var(prefix, 'prefix', file_name, root + '/' + file_name)
-                self.find_yang_var(yang_version, 'yang-version', file_name, root + '/' + file_name)
-                self.find_yang_var(organization, 'organization', file_name, root + '/' + file_name)
-                self.find_yang_var(contact, 'contact', file_name, root + '/' + file_name)
-                self.find_yang_var(description, 'description', file_name, root + '/' + file_name)
-                self.find_yang_var(includes, 'include', file_name, root + '/' + file_name)
-                self.find_yang_var(imports, 'import', file_name, root + '/' + file_name)
-                self.find_yang_var(reference, 'reference', file_name, root + '/' + file_name)
-                self.find_yang_var(schema, 'schema', file_name, root + '/' + file_name)
-                self.find_yang_var(namespace, 'namespace', file_name, root + '/' + file_name)
-                self.find_yang_var(features, 'feature', file_name, root + '/' + file_name)
-                self.find_yang_var(revision, 'revision', file_name, root + '/' + file_name)
-                compilations_status = self.parse_status(file_name, revision[file_name])
-                if compilations_status not in 'PASSED':
-                    compilations_result = self.parse_result(file_name, revision[file_name])
-                else:
-                    compilations_result = ''
-                author_email = unicodedata.normalize('NFKD', sdo['author-email']).encode('ascii', 'ignore')
-                working_group = unicodedata.normalize('NFKD', sdo['maturity-level']).encode('ascii', 'ignore')
-                self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name), namespace.get(file_name),
-                                         conformance_type, reference.get(file_name),
-                                         prefix.get(file_name), yang_version.get(file_name),
-                                         organization.get(file_name), description.get(file_name),
-                                         contact.get(file_name), schema.get(file_name), features.get(file_name),
-                                         self.get_submodule_info(includes.get(file_name)['name']),
-                                         compilations_status, author_email, working_group, compilations_result)
+                module_submodule = module_or_submodule(root + '/' + file_name)
+                if '[1]' in file_name:
+                    print('file name contains invalid characters')
+                    module_submodule = 'wrong file'
+                if module_submodule != 'wrong file':
+                    conformance_type = unicodedata.normalize('NFKD', sdo['conformance-type']).encode('ascii', 'ignore')
+                    self.find_yang_var(prefix, 'prefix', file_name, root + '/' + file_name)
+                    self.find_yang_var(yang_version, 'yang-version', file_name, root + '/' + file_name)
+                    self.find_yang_var(organization, 'organization', file_name, root + '/' + file_name)
+                    self.find_yang_var(contact, 'contact', file_name, root + '/' + file_name)
+                    self.find_yang_var(description, 'description', file_name, root + '/' + file_name)
+                    self.find_yang_var(includes, 'include', file_name, root + '/' + file_name)
+                    self.find_yang_var(imports, 'import', file_name, root + '/' + file_name)
+                    self.find_yang_var(reference, 'reference', file_name, root + '/' + file_name)
+                    self.find_yang_var(schema, 'schema', file_name, root + '/' + file_name)
+                    self.find_yang_var(namespace, 'namespace', file_name, root + '/' + file_name)
+                    self.find_yang_var(features, 'feature', file_name, root + '/' + file_name)
+                    self.find_yang_var(revision, 'revision', file_name, root + '/' + file_name)
+                    compilations_status = self.parse_status(file_name, revision[file_name])
+                    if compilations_status not in 'PASSED':
+                        compilations_result = self.parse_result(file_name, revision[file_name])
+                    else:
+                        compilations_result = ''
+                    author_email = unicodedata.normalize('NFKD', sdo['author-email']).encode('ascii', 'ignore')
+                    working_group = unicodedata.normalize('NFKD', sdo['maturity-level']).encode('ascii', 'ignore')
+                    self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name), namespace.get(file_name),
+                                             conformance_type, reference.get(file_name),
+                                             prefix.get(file_name), yang_version.get(file_name),
+                                             organization.get(file_name), description.get(file_name),
+                                             contact.get(file_name), schema.get(file_name), features.get(file_name),
+                                             self.get_submodule_info(includes.get(file_name)['name']),
+                                             compilations_status, author_email, working_group, compilations_result,
+                                             module_submodule)
 
-        if not self.sdo:
+        if not self.api:
             for root, subdirs, sdos in os.walk('/'.join(self.split)):
                 for file_name in sdos:
                     if '.yang' in file_name and ('vendor' not in root or 'odp' not in root):
@@ -272,34 +306,40 @@ class Capability:
                         revision = {}
                         namespace = {}
                         features = {}
+                        module_submodule = module_or_submodule(root + '/' + file_name)
 
-                        conformance_type = 'implement'
-                        self.find_yang_var(prefix, 'prefix', file_name, root + '/' + file_name)
-                        self.find_yang_var(yang_version, 'yang-version', file_name, root + '/' + file_name)
-                        self.find_yang_var(organization, 'organization', file_name, root + '/' + file_name)
-                        self.find_yang_var(contact, 'contact', file_name, root + '/' + file_name)
-                        self.find_yang_var(description, 'description', file_name, root + '/' + file_name)
-                        self.find_yang_var(includes, 'include', file_name, root + '/' + file_name)
-                        self.find_yang_var(imports, 'import', file_name, root + '/' + file_name)
-                        self.find_yang_var(reference, 'reference', file_name, root + '/' + file_name)
-                        self.find_yang_var(schema, 'schema', file_name, root + '/' + file_name)
-                        self.find_yang_var(revision, 'revision', file_name, root + '/' + file_name)
-                        self.find_yang_var(namespace, 'namespace', file_name, root + '/' + file_name)
-                        self.find_yang_var(features, 'feature', file_name, root + '/' + file_name)
-                        compilations_status = self.parse_status(file_name, revision[file_name])
-                        if compilations_status not in 'PASSED':
-                            compilations_result = self.parse_result(file_name, revision[file_name])
-                        else:
-                            compilations_result = ''
-                        author_email = self.parse_email(file_name, revision[file_name])
-                        working_group = self.parse_wg(file_name, revision[file_name])
-                        self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name), namespace.get(file_name),
-                                                 conformance_type, reference.get(file_name),
-                                                 prefix.get(file_name), yang_version.get(file_name),
-                                                 organization.get(file_name), description.get(file_name),
-                                                 contact.get(file_name), schema.get(file_name), features.get(file_name),
-                                                 self.get_submodule_info(includes.get(file_name)['name']),
-                                                 compilations_status, author_email, working_group, compilations_result)
+                        if '[1]' in file_name:
+                            print('file name contains invalid characters')
+                            module_submodule = 'wrong file'
+                        if module_submodule != 'wrong file':
+                            conformance_type = 'implement'
+                            self.find_yang_var(prefix, 'prefix', file_name, root + '/' + file_name)
+                            self.find_yang_var(yang_version, 'yang-version', file_name, root + '/' + file_name)
+                            self.find_yang_var(organization, 'organization', file_name, root + '/' + file_name)
+                            self.find_yang_var(contact, 'contact', file_name, root + '/' + file_name)
+                            self.find_yang_var(description, 'description', file_name, root + '/' + file_name)
+                            self.find_yang_var(includes, 'include', file_name, root + '/' + file_name)
+                            self.find_yang_var(imports, 'import', file_name, root + '/' + file_name)
+                            self.find_yang_var(reference, 'reference', file_name, root + '/' + file_name)
+                            self.find_yang_var(schema, 'schema', file_name, root + '/' + file_name)
+                            self.find_yang_var(revision, 'revision', file_name, root + '/' + file_name)
+                            self.find_yang_var(namespace, 'namespace', file_name, root + '/' + file_name)
+                            self.find_yang_var(features, 'feature', file_name, root + '/' + file_name)
+                            compilations_status = self.parse_status(file_name, revision[file_name])
+                            if compilations_status not in 'PASSED':
+                                compilations_result = self.parse_result(file_name, revision[file_name])
+                            else:
+                                compilations_result = ''
+                            author_email = self.parse_email(file_name, revision[file_name])
+                            working_group = self.parse_wg(file_name, revision[file_name])
+                            self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name), namespace.get(file_name),
+                                                     conformance_type, reference.get(file_name),
+                                                     prefix.get(file_name), yang_version.get(file_name),
+                                                     organization.get(file_name), description.get(file_name),
+                                                     contact.get(file_name), schema.get(file_name), features.get(file_name),
+                                                     self.get_submodule_info(includes.get(file_name)['name']),
+                                                     compilations_status, author_email, working_group, compilations_result,
+                                                     module_submodule)
 
     # parse capability xml and save to file
     def parse_and_dump(self):
@@ -327,6 +367,7 @@ class Capability:
         netconf_version = ''
         compilations_result = {}
         organization_module = {}
+        module_submodule = {}
 
         # Parse deviations and features from each module from netconf hello message
         def deviations_and_features(search_for):
@@ -427,6 +468,7 @@ class Capability:
                         namespace[module_name] = 'missing data'
                     self.integrity_checker.add_namespace(self.split, module_name + ' : ' + namespace[module_name])
 
+                module_submodule = module_or_submodule(yang_file)
                 self.find_yang_var(prefix, 'prefix', module_name, yang_file)
                 self.find_yang_var(yang_version, 'yang-version', module_name, yang_file)
                 self.find_yang_var(organization, 'organization', module_name, yang_file)
@@ -453,18 +495,20 @@ class Capability:
                                      compilations_status[module_name], author_email[module_name], schema[module_name],
                                      features[module_name], working_group[module_name],
                                      compilations_result[module_name], deviations[module_name],
-                                       self.get_submodule_info(includes[module_name]['name']))
+                                     self.get_submodule_info(includes[module_name]['name']), module_submodule)
 
                 self.parse_imports_includes(includes[module_name]['name'], features, revision, name_revision,
                                             yang_version, namespace, prefix, organization, contact, description,
                                             includes, imports, reference, conformance_type, deviations, module_names,
                                             compilations_status, schema, author_email, working_group,
-                                            organization_module, True, namespace[module_name], compilations_result)
+                                            organization_module, True, namespace[module_name], compilations_result,
+                                            module_submodule)
                 self.parse_imports_includes(imports[module_name], features, revision, name_revision,
                                             yang_version, namespace, prefix, organization, contact, description,
                                             includes, imports, reference, conformance_type, deviations, module_names,
                                             compilations_status, schema, author_email, working_group,
-                                            organization_module, False, namespace[module_name], compilations_result)
+                                            organization_module, False, namespace[module_name], compilations_result,
+                                            module_submodule)
 
         # restconf capability parsing
         for module in self.root.iter('module'):
@@ -578,7 +622,7 @@ class Capability:
     def parse_imports_includes(self, imports_or_includes, features, revision, name_revision,
                                yang_version, namespace, prefix, organization, contact, description, includes,
                                imports, reference, conformance_type, deviations, module_names, comp_status, schema,
-                               email, wg, organization_module, is_include, parent_ns, comp_result):
+                               email, wg, organization_module, is_include, parent_ns, comp_result, module_submodule):
         if imports_or_includes is not None:
             for imp in imports_or_includes:
                 if imp not in module_names:
@@ -614,6 +658,7 @@ class Capability:
                         if namespace[imp] is None:
                             namespace[imp] = 'missing data'
                         self.integrity_checker.add_namespace(self.split, imp + ' : ' + namespace[imp])
+                    module_submodule = module_or_submodule(yang_file)
                     self.find_yang_var(prefix, 'prefix', imp, yang_file)
                     self.find_yang_var(yang_version, 'yang-version', imp, yang_file)
                     self.find_yang_var(organization, 'organization', imp, yang_file)
@@ -642,18 +687,19 @@ class Capability:
                                          self.os_version, self.feature_set, reference[imp], prefix[imp], yang_version[imp],
                                          organization[imp], description[imp], contact[imp], comp_status[imp],
                                          email[imp], schema[imp], features[imp], wg[imp], comp_result[imp],
-                                         deviations[imp], self.get_submodule_info(includes[imp]['name']))
+                                         deviations[imp], self.get_submodule_info(includes[imp]['name']),
+                                         module_submodule)
 
                     self.parse_imports_includes(includes[imp]['name'], features, revision, name_revision,
                                                 yang_version, namespace, prefix, organization, contact, description,
                                                 includes, imports, reference, conformance_type, deviations, module_names
                                                 , comp_status, schema, email, wg, organization_module, True
-                                                , namespace[imp], comp_result)
+                                                , namespace[imp], comp_result, module_submodule)
                     self.parse_imports_includes(imports[imp], features, revision, name_revision,
                                                 yang_version, namespace, prefix, organization, contact, description,
                                                 includes, imports, reference, conformance_type, deviations, module_names
                                                 , comp_status, schema, email, wg, organization_module, False
-                                                , namespace[imp], comp_result)
+                                                , namespace[imp], comp_result, module_submodule)
 
     def parse_status(self, module_name, revision):
         # try to find in rfc without revision

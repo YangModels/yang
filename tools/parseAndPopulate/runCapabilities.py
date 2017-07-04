@@ -224,10 +224,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--dir', default='../../vendor', type=str,
                         help='Set dir where to look for hello message xml files.Default -> ../../vendor')
-    parser.add_argument('--implementation-metadata', nargs=5, type=str, help='list of metadata if we are doing apis')
+    parser.add_argument('--save-modification-date', action='store_true', default=False,
+                        help='if True than it will create a file with modification date and also it will check if '
+                             'file was modified from last time if not it will skip it.')
     parser.add_argument('--api', action='store_true', default=False, help='if we are doing apis')
-    parser.add_argument('--sdo', action='store_true', default=False, help='if we are doing apis')
-    parser.add_argument('--run-statistics', action='store_true', default=False, help='if we are doing apis')
+    parser.add_argument('--sdo', action='store_true', default=False, help='if we are doing sdos')
+    parser.add_argument('--run-statistics', action='store_true', default=False, help='if we are running statistics')
     args = parser.parse_args()
     start = time.time()
     index = 1
@@ -243,13 +245,13 @@ if __name__ == "__main__":
     else:
         for filename in find_files(args.dir, '*capabilit*.xml'):
             update = True
-            if not args.api:
+            if not args.api and args.save_modification_date:
                 try:
-                    print(filename)
                     file_modification = open('fileModificationDate/' + '-'.join(filename.split('/')[-4:]) + '.txt', 'rw')
                     time_in_file = file_modification.readline()
                     if time_in_file in str(time.ctime(os.path.getmtime(filename))):
                         update = False
+                        print (filename + ' is not modified. Skipping this file.')
                         file_modification.close()
                     else:
                         file_modification.seek(0)
