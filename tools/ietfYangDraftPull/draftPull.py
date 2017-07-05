@@ -4,9 +4,11 @@ import json
 import os
 import urllib2
 
+import requests
 from numpy.f2py.auxfuncs import throw_error
+from travispy import TravisPy
 
-#from ..api import repoutil
+# from ..api import repoutil
 import repoutil
 
 
@@ -33,15 +35,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--username', type=str, default='',
                         help='Set name of the repository for automatic push')
-    parser.add_argument('--password', type=str, default='',
-                        help='Set password of the repository for automatic push')
+    parser.add_argument('--token', type=str, default='',
+                        help='Set token of the repository for automatic push')
     args = parser.parse_args()
+
     github_credentials = ''
     if len(args.username) > 0:
-        github_credentials = args.username + ':' + args.password + '@'
-    ietf_draft_json = load_json_from_url('http://www.claise.be/IETFYANGDraft.json')
-    repo = repoutil.RepoUtil('https://' + github_credentials + 'github.com/YangModels/yang.git')
+        github_credentials = args.username + ':' + args.token + '@'
+
+    # Fork and clone the repository YangModles/yang
+    reponse = requests.post('https://' + github_credentials + 'api.github.com/repos/YangModels/yang/forks')
+    repo = repoutil.RepoUtil('https://github.com/' + args.username + '/yang.git')
+
     repo.clone()
+    travis = TravisPy.github_auth(args.token)
+    # Download all the latest yang modules out of http://www.claise.be/IETFYANGDraft.json and store them in tmp folder
+    ietf_draft_json = load_json_from_url('http://www.claise.be/IETFYANGDraft.json')
     try:
         os.makedirs(repo.localdir + '/experimental/ietf-extracted-YANG-modules/')
     except OSError as e:
@@ -58,7 +67,12 @@ if __name__ == "__main__":
             print(key + ' - ' + yang_download_link)
             yang_file.write('')
         yang_file.close()
+
+    travis_repo = travis.repo(args.username + '/yang')
+    travis_repo.enable()  # Switch is now on
+    # Add commit and push to the forked repository
     repo.add_all_untracked()
-    repo.commit_all('Crone job every day pull of ietf draft yang files.')
+    repo.commit_all('Crone job - every day pull of ietf draft yang files.')
     repo.push()
+    # Remove tmp folder
     repo.remove()
