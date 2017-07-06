@@ -20,7 +20,7 @@ PYANG_FLAGS="-p ../../../../standard/ietf/RFC"
 
 trap ctrl_c INT
 
-function ctrl_c() {
+ctrl_c() {
   echo 'User interruption, exiting ..' 
   exit -1
 }
