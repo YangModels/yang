@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import fnmatch
-import glob
 import json
 import os
 import unicodedata
@@ -84,8 +83,11 @@ def module_or_submodule(input_file):
     else:
         return None
 
+
 class Capability:
-    def __init__(self, hello_message_file, index, prepare, integrity_checker, api, sdo, do_stats):
+    def __init__(self, hello_message_file, index, prepare, integrity_checker, api, sdo, do_stats,
+                 statistics_in_catalog=None):
+        self.statistics_in_catalog = statistics_in_catalog
         self.index = index
         self.do_stats = do_stats
         self.prepare = prepare
@@ -136,10 +138,11 @@ class Capability:
                 self.platform = self.split[6].split('-')[1]
             else:
                 self.os = 'Unknown'
+                self.platform = 'Unknown'
             self.os_version = self.split[5]
             self.software_flavor = self.os + '|' + self.os_version
-        if do_stats:
-            integrity_checker.add_platform('/'.join(self.split[:-2]), self.platform)
+            if do_stats:
+                integrity_checker.add_platform('/'.join(self.split[:-2]), self.platform)
         self.ietf_rfc_json = {}
         self.ietf_draft_json = {}
         self.ietf_draft_example_json = {}
@@ -274,7 +277,7 @@ class Capability:
                     self.find_yang_var(features, 'feature', file_name, root + '/' + file_name)
                     self.find_yang_var(revision, 'revision', file_name, root + '/' + file_name)
                     compilations_status = self.parse_status(file_name, revision[file_name])
-                    if compilations_status not in 'PASSED':
+                    if compilations_status != 'PASSED':
                         compilations_result = self.parse_result(file_name, revision[file_name])
                     else:
                         compilations_result = ''
@@ -326,12 +329,14 @@ class Capability:
                             self.find_yang_var(namespace, 'namespace', file_name, root + '/' + file_name)
                             self.find_yang_var(features, 'feature', file_name, root + '/' + file_name)
                             compilations_status = self.parse_status(file_name, revision[file_name])
-                            if compilations_status not in 'PASSED':
+                            self.statistics_in_catalog.set_passed(root, compilations_status)
+                            if compilations_status != 'PASSED':
                                 compilations_result = self.parse_result(file_name, revision[file_name])
                             else:
                                 compilations_result = ''
                             author_email = self.parse_email(file_name, revision[file_name])
                             working_group = self.parse_wg(file_name, revision[file_name])
+                            self.statistics_in_catalog.add_in_catalog(root)
                             self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name), namespace.get(file_name),
                                                      conformance_type, reference.get(file_name),
                                                      prefix.get(file_name), yang_version.get(file_name),
@@ -702,6 +707,8 @@ class Capability:
                                                 , namespace[imp], comp_result, module_submodule)
 
     def parse_status(self, module_name, revision):
+        # if module name contains .yang get only name
+        module_name = module_name.split('.')[0]
         # try to find in rfc without revision
         try:
             if module_name + '.yang' in self.ietf_rfc_json.keys():
@@ -726,8 +733,6 @@ class Capability:
 
     @staticmethod
     def get_module_status(files_json, module_name, revision, index):
-        # if module name contains .yang get only name
-        module_name = module_name.split('.')[0]
         # try to find in rfc without revision
         try:
             status = files_json[module_name + '.yang'][index]

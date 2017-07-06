@@ -123,7 +123,6 @@ class Statistics:
         missing = ', '.join(missing).replace('./../..', '')
         file.write('<h3>Folders with yang files but missing hello message inside of file:</h3><p>' + missing + '</p>')
         file.write('</body></html>')
-        file.write('</body></html>')
 
     @staticmethod
     def add_submodule(path, value):

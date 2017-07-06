@@ -1,26 +1,31 @@
-import glob
-
-
 class StatisticsInCatalog:
     def __init__(self):
-        self.bbf_standard = glob.glob('./../../standard/bbf/standard' + '/*.yang')
-        self.bbf_draft = glob.glob('./../../standard/bbf/draft' + '/*.yang')
-        self.ieee_two_one_par = glob.glob('./../../standard/802.1' + '/*.yang')
-        self.ieee_two_one_nopar = glob.glob('./../../experimental/802.1' + '/*.yang')
-        self.ieee_two_three_par = glob.glob('./../../standard/802.3' + '/*.yang')
-        self.ieee_two_three_nopar = glob.glob('./../../experimental/802.3' + '/*.yang')
-        self.ieee_draft_par = glob.glob('./../../standard/draft' + '/*.yang')
-        self.ietf_rfc = glob.glob('./../../standard/ietf/RFC' + '/*.yang')
-        self.ietf_draft = glob.glob('./../../standard/ietf/DRAFT' + '/*.yang')
-        self.openconfig = glob.glob('./../../experimental/openconfig' + '/*.yang')
+        self.sdos = {'standard/bbf/standard': [0, 0], 'standard/bbf/draft': [0, 0], 'standard/ieee/802.1': [0, 0],
+                     'experimental/ieee/802.1': [0, 0], 'standard/ieee/802.3': [0, 0],
+                     'experimental/ieee/802.3': [0, 0], 'standard/ieee/draft': [0, 0], 'standard/ietf/RFC': [0, 0],
+                     'standard/ietf/DRAFT': [0, 0], 'experimental/openconfig': [0, 0], 'experimental/ietf': [0, 0],
+                     'experimental/vendor': [0, 0], 'experimental/odp': [0, 0]}  # last line of dictionaries
+                                                                                 # are not used in code
 
-        self.num_bbf_standard = 0
-        self.num_bbf_draft = 0
-        self.num_ieee_two_one_par = 0
-        self.num_ieee_two_one_nopar = 0
-        self.num_ieee_two_three_par = 0
-        self.num_ieee_two_three_nopar = 0
-        self.num_ieee_draft_par = 0
-        self.num_ietf_rfc = 0
-        self.num_ietf_draft = 0
-        self.num_openconfig = 0
+    def add_in_catalog(self, key):
+        key = '/'.join(key.split('/')[2:5])
+        try:
+            self.sdos[key][0] += 1
+        except KeyError:
+            key = '/'.join(key.split('/')[0:2])
+            self.sdos[key][0] += 1
+
+    def set_passed(self, key, status):
+        key = '/'.join(key.split('/')[2:5])
+        if status == 'PASSED':
+            try:
+                self.sdos[key][1] += 1
+            except KeyError:
+                key = '/'.join(key.split('/')[0:2])
+                self.sdos[key][1] += 1
+
+    def get_passed(self, key):
+        return self.sdos[key][1]
+
+    def get_in_catalog(self, key):
+        return self.sdos[key][0]

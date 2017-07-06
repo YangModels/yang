@@ -3,10 +3,10 @@ import base64
 import fnmatch
 import json
 import os
+import subprocess
 import sys
 import unicodedata
 import urllib2
-import subprocess
 
 
 def progress_bar(done, total, time_diff, old_percentage, suffix=''):
@@ -57,6 +57,7 @@ def http_request(path, method, json_data, credentials):
         print('Could not send request with body ' + json_data + ' and path ' + path)
         raise
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parse hello messages and yang files to json dictionary. These"
                                                  " dictionaries are used for populating a yangcatalog. This script runs"
@@ -73,7 +74,6 @@ if __name__ == "__main__":
                         help='Set dir where to look for hello message xml files.Default -> ../../vendor')
     parser.add_argument('--api', action='store_true', default=False, help='If we are doing apis')
     parser.add_argument('--sdo', action='store_true', default=False, help='If we are sneding SDOs only')
-
     args = parser.parse_args()
 
     prefix = 'http://{}:{}'.format(args.ip, args.port)
@@ -81,9 +81,10 @@ if __name__ == "__main__":
         if args.sdo:
             with open("log_api_sdo.txt", "wr") as f:
                 try:
-                    arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--sdo", "--dir", args.dir]
+                    arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--sdo", "--dir",
+                                 args.dir]
                     subprocess.check_call(arguments, stderr=f)
-                    #os.system("python runCapabilities.py --api --sdo --dir " + args.dir)
+                    # os.system("python runCapabilities.py --api --sdo --dir " + args.dir)
                 except subprocess.CalledProcessError as e:
                     sys.exit()
         else:
@@ -102,7 +103,7 @@ if __name__ == "__main__":
                     subprocess.check_call(arguments, stderr=f)
                 except subprocess.CalledProcessError as e:
                     sys.exit()
-            #os.system("python runCapabilities.py --sdo --dir" + args.dir)
+                    # os.system("python runCapabilities.py --sdo --dir" + args.dir)
         else:
             with open("log_no_sdo_api.txt", "wr") as f:
                 try:
@@ -110,7 +111,7 @@ if __name__ == "__main__":
                     subprocess.check_call(arguments, stderr=f)
                 except subprocess.CalledProcessError as e:
                     sys.exit()
-            #os.system("python runCapabilities.py --dir " + args.dir)
+                    # os.system("python runCapabilities.py --dir " + args.dir)
 
     files = []
     # Find all parsed json files
@@ -126,7 +127,7 @@ if __name__ == "__main__":
 
     print("Populating yang catalog with data")
     print("adding modules")
-    for filename_prepare in find_files('./', 'prepare.json'):
+    for filename_prepare in find_files('./', 'prepare*.json'):
         with open(filename_prepare) as data_file:
             read = data_file.read()
             json_modules_data = json.dumps({
