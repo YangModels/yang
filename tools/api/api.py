@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import unicodedata
+import ConfigParser
 
 import MySQLdb
 import requests
@@ -280,49 +281,35 @@ def unauthorized():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dbIp', type=str, default='localhost',
-                        help='Set ip where the mysql database is running')
-    parser.add_argument('--dbName', type=str, default='yang_catalog',
-                        help='Set name of the mysql database is running')
-    parser.add_argument('--dbUser', type=str, default='root',
-                        help='Set name of the user where the mysql database is running')
-    parser.add_argument('--dbPassword', type=str, default='root',
-                        help='Set password where the mysql database is running')
-    parser.add_argument('--port', default=5000, type=int,
-                        help='Set port where the api should be running')
-    parser.add_argument('--ssl-cert', type=str, help='path to SSL certification file')
-    parser.add_argument('--ssl-key', type=str, help='path to SSL key file')
-    parser.add_argument('--confd-port', default=8008, type=int,
-                        help='Set port where the confd is running')
-    parser.add_argument('--ip', type=str, default='127.0.0.1',
-                        help='Set ip address where this api will run default 127.0.0.1')
-    parser.add_argument('--debug', action='store_true', default=False, help='debug API')
-    parser.add_argument('--confd-ip', default='127.0.0.1', type=str,
-                        help='Set ip address where the confd is started. Default -> 127.0.0.1')
-    parser.add_argument('--credentials', help='Set authorization parameters username password respectively.'
-                                              ' Default parameters are admin admin', nargs=2, default=['admin', 'admin']
-                        , type=str)
-    parser.add_argument('--yang-catalog-token', type=str, help='Token for automatic pushing')
+    parser.add_argument('--config-path', type=str, default='./config.ini',
+                        help='Set path to config file')
     args = parser.parse_args()
+    config = ConfigParser.ConfigParser()
+    config.read(args.config_path)
     global dbHost
-    dbHost = args.dbIp
+    dbHost = config.get('SectionOne', 'dbIp')
     global dbName
-    dbName = args.dbName
+    dbName = config.get('SectionOne', 'dbName')
     global dbUser
-    dbUser = args.dbUser
+    dbUser = config.get('SectionOne', 'dbUser')
     global dbPass
-    dbPass = args.dbPassword
+    dbPass = config.get('SectionOne', 'dbPassword')
     global credentials
-    credentials =args.credentials
+    credentials = config.get('SectionOne', 'credentials').split(' ')
     global confd_ip
-    confd_ip =args.confd_ip
+    confd_ip = config.get('SectionOne', 'confd-ip')
     global confdPort
-    confdPort = args.confd_port
+    confdPort = int(config.get('SectionOne', 'confd-port'))
     global token
-    token = args.yang_catalog_token
+    token = config.get('SectionOne', 'yang-catalog-token')
     ssl_context = None
     global log
+    ip = config.get('SectionOne', 'ip')
+    port = int(config.get('SectionOne', 'port'))
+    debug = config.get('SectionOne', 'debug')
+    key = config.get('SectionOne', 'ssl-key')
+    cert = config.get('SectionOne', 'ssl-cert')
     log = open('api_log_file.txt', 'w')
-    if args.ssl_cert:
-        ssl_context = (args.ssl_cert, args.ssl_key)
-    app.run(host=args.ip, debug=args.debug, port=args.port, ssl_context=ssl_context)
+    if cert:
+        ssl_context = (cert, key)
+    app.run(host=ip, debug=debug, port=port, ssl_context=ssl_context)
