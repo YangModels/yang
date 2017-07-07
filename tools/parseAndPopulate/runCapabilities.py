@@ -343,8 +343,8 @@ if __name__ == "__main__":
     #    capability.parse_and_dump()
     if integrity is not None:
         create_integrity()
-   # if statistics_in_catalog is not None and args.run_statistics:
-    do_stats()
+    if statistics_in_catalog is not None and args.run_statistics:
+        do_stats()
     end = time.time()
     print(end - start)
     if args.run_statistics:
