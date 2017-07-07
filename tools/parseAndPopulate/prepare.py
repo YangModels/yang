@@ -23,10 +23,16 @@ class Prepare:
         self.deviations = {}
         self.json_submodules = {}
         self.module_or_submodule = {}
+        self.document_name = {}
+        self.owner = {}
+        self.repo = {}
+        self.repo_file_path = {}
+        self.local_file_path = {}
 
     def add_key_sdo(self, key, namespace, conformance_type, reference, prefix, yang_version, organization, description,
                     contact, schema, feature, json_submodules, compilation_status, author_email, maturity_level,
-                    compilation_result, module_or_submodule):
+                    compilation_result, module_or_submodule, document_name, owner, repo, repo_file_path,
+                    local_file_path):
         self.name_revision.add(key)
         self.namespace[key] = namespace
         self.conformance_type[key] = conformance_type
@@ -45,11 +51,17 @@ class Prepare:
         # self.deviations[key] = deviations
         self.json_submodules[key] = json_submodules
         self.module_or_submodule[key] = module_or_submodule
+        self.document_name[key] = document_name
+        self.repo_file_path[key] = repo_file_path
+        self.repo[key] = repo
+        self.owner[key] = owner
+        self.local_file_path[key] = local_file_path
 
     def add_key(self, key, namespace, conformance_type, vendor, platform, software_version, software_flavor, os_type,
                 os_version, feature_set, reference, prefix, yang_version, organization, description, contact,
                 compilation_status, author_email, schema, feature, maturity_level, compilation_result, deviations,
-                json_submodules,module_or_submodule):
+                json_submodules,module_or_submodule, document_name, owner, repo, repo_file_path,
+                local_file_path):
         self.name_revision.add(key)
         self.namespace[key] = namespace
         self.conformance_type[key] = conformance_type
@@ -68,6 +80,11 @@ class Prepare:
         self.deviations[key] = deviations
         self.json_submodules[key] = json_submodules
         self.module_or_submodule[key] = module_or_submodule
+        self.document_name[key] = document_name
+        self.repo_file_path[key] = repo_file_path
+        self.repo[key] = repo
+        self.owner[key] = owner
+        self.local_file_path[key] = local_file_path
 
         if key not in self.implementations:
             self.implementations[key] = {}
@@ -102,7 +119,18 @@ class Prepare:
                 'compilation-result': self.compilation_result[key],
                 'author-email': self.author_email[key],
                 'submodule': json.loads(self.json_submodules[key]),
-                'module-type': self.module_or_submodule[key]
+                'module-type': self.module_or_submodule[key],
+                'document-name': self.document_name[key],
+                'source-url': {
+                    'online': {
+                        'owner': self.owner[key],
+                        'repository': self.repo[key],
+                        'path': self.repo_file_path[key]
+                    },
+                    'local': {
+                        'path': self.local_file_path[key]
+                    }
+                }
             } for key in self.name_revision]}, prepare_model)
 
     def dump(self):

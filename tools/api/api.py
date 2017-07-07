@@ -11,14 +11,18 @@ import unicodedata
 import ConfigParser
 
 import MySQLdb
+import datetime
 import requests
 from flask import Flask, jsonify, abort, make_response, request
 from flask_httpauth import HTTPBasicAuth
 
 import repoutil
 
-#url = 'https://api.github.com/repos/'
 url = 'https://github.com/'
+
+github_api_url = 'https://api.github.com'
+github_repos_url = github_api_url + '/repos'
+yang_models_url = github_repos_url + '/YangModels/yang'
 
 auth = HTTPBasicAuth()
 app = Flask(__name__)
@@ -33,7 +37,35 @@ def not_found():
     return make_response(jsonify({'error': 'Not found'}), 404)
 
 
-def authorize(request, response):
+def authorize_for_sdos(request, body):
+    username = request.authorization['username']
+    accessRigths = None
+    try:
+        db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
+        # prepare a cursor object using cursor() method
+        cursor = db.cursor()
+        # execute SQL query using execute() method.
+        cursor.execute("SELECT * FROM `users`")
+        data = cursor.fetchall()
+
+        for row in data:
+            if row[1] == username:
+                accessRigths = row[8]
+                break
+        db.close()
+    except MySQLdb.MySQLError as err:
+        print("Cannot connect to database. MySQL error: " + str(err))
+
+    rights = accessRigths.split('/')
+    for path in body['modules']['module']['sdo-file']['path']:
+        access = path.split('/')[:-2]
+        if rights in access:
+            return 'passed'
+        else:
+            unauthorized()
+
+
+def authorize_for_vendors(request, body):
     username = request.authorization['username']
     accessRigths = None
     try:
@@ -47,7 +79,7 @@ def authorize(request, response):
         for row in data:
             if row[1] == username:
                 accessRigths = row[7]
-                break;
+                break
         db.close()
     except MySQLdb.MySQLError as err:
         print("Cannot connect to database. MySQL error: " + str(err))
@@ -68,7 +100,7 @@ def authorize(request, response):
     if len(rights) > 4:
         check_software_flavor = rights[4]
 
-    for platform in response['platforms']:
+    for platform in body['platforms']:
         vendor = platform['vendor']
         platform_name = platform['name']
         software_version = platform['software-version']
@@ -88,18 +120,20 @@ def authorize(request, response):
 @app.route('/checkComplete', methods=['POST'])
 @auth.login_required
 def check_local():
+    global yang_models_url
+
     body = request.json
     if body['repository']['owner_name'] == 'yang-catalog':
         if body['result_message'] == 'Passed':
             if body['type'] == 'push':
                 # After build was successful only locally
                 json_body = jsonify({
-                    "title": "Crone job - every day pull of ietf draft yang files.",
+                    "title": "Cron job - every day pull of ietf draft yang files.",
                     "body": "ietf extracted yang modules",
                     "head": "yang-catalog:master",
                     "base": "master"
                 })
-                requests.post('https://api.github.com/repos/YangModels/yang/pulls', json=json_body,
+                requests.post(yang_models_url + '/pulls', json=json_body,
                               headers={'Authorization': 'token ' + token})
 
             if body['type'] == 'pull_request':
@@ -108,7 +142,7 @@ def check_local():
                 log.write('pull request was successful %s' % repr(pull_number))
                 #requests.put('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number +
                 #             '/merge', headers={'Authorization': 'token ' + token})
-                requests.delete('https://api.github.com/repos/yang-catalog/yang',
+                requests.delete(yang_models_url,
                                 headers={'Authorization': 'token ' + token})
 
 
@@ -118,7 +152,9 @@ def add_modules():
     if not request.json:
         abort(400)
     body = request.json
-    #TODO authorization
+    resolved_authorization = authorize_for_sdos(request, body)
+    if 'passed' != resolved_authorization:
+        return resolved_authorization
 
     with open('./prepare-sdo.json', "w") as plat:
          json.dump(body, plat)
@@ -184,7 +220,7 @@ def add_vendors():
     if not request.json:
         abort(400)
     body = request.json
-    resolved_authorization = authorize(request, body)
+    resolved_authorization = authorize_for_vendors(request, body)
     if 'passed' != resolved_authorization:
         return resolved_authorization
 
@@ -241,7 +277,15 @@ def add_vendors():
             os.remove(item)
     for key in repo:
         repo[key].remove()
-    return jsonify({'info': 'success'})
+    integrity_file_name = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%m:%S.%f")[:-3]+'Z'
+
+    shutil.move('./integrity.html', integrity_file_location + 'integrity' + integrity_file_name + '.html')
+    return jsonify({'result':
+                    {
+                        'integrity-file': 'www.yangcatalog.org/integrity/integrity' + integrity_file_name + '.html',
+                        'info': 'success'
+                    }
+                })
 
 
 @auth.hash_password
@@ -303,6 +347,8 @@ if __name__ == '__main__':
     global token
     token = config.get('SectionOne', 'yang-catalog-token')
     ssl_context = None
+    global integrity_file_location
+    integrity_file_location = config.get('SectionOne', 'integrity-file-location')
     global log
     ip = config.get('SectionOne', 'ip')
     port = int(config.get('SectionOne', 'port'))
