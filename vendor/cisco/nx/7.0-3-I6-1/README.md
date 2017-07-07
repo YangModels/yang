@@ -4,9 +4,9 @@ The YANG files in this directory detail the native and OpenConfig YANG models wi
 
 As a convenience, a copy of the "hello" message is also provided (netconf-capabilities.xml).
 
-### YANG Syntax Issues With ```top.yang```
+### YANG Syntax Issues With ```Cisco-NX-OS-device.yang```
 
-The core native device model for NX-OS is [```top.yang```](top.yang). This model currently has a number of problems relating to non-compliant regular expresssion constraints (per RFC 6020) and incorrect default values. These issues will be fixed in a subsequent release.  Developers can examine the script [```check.sh```](../check.sh) for details of how the model is currently compiled to pass CI builds.
+The core native device model for NX-OS is [```Cisco-NX-OS-device.yang```](Cisco-NX-OS-device.yang). This model currently has a number of problems relating to non-compliant regular expresssion constraints (per RFC 6020) and incorrect default values. These issues will be fixed in a subsequent release.  Developers can examine the script [```check.sh```](../check.sh) for details of how the model is currently compiled to pass CI builds.
 
 
 ### Compliance With "pyang --lint"
