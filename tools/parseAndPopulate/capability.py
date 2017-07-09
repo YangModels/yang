@@ -85,11 +85,10 @@ def module_or_submodule(input_file):
 
 
 class Capability:
-    def __init__(self, hello_message_file, index, prepare, integrity_checker, api, sdo, do_stats,
+    def __init__(self, hello_message_file, index, prepare, integrity_checker, api, sdo,
                  statistics_in_catalog=None):
         self.statistics_in_catalog = statistics_in_catalog
         self.index = index
-        self.do_stats = do_stats
         self.prepare = prepare
         self.integrity_checker = integrity_checker
         self.parsed_yang = None
@@ -111,38 +110,36 @@ class Capability:
         self.hello_message_file = hello_message_file
 
         if self.api and not self.sdo:
-            metadata_json = open(hello_message_file.split('.xml')[0] + '.json')
-            impl = json.load(metadata_json)
-            metadata_json.close()
-            self.feature_set = 'ALL'
-            self.os_version = impl['software-version']
-            self.software_flavor = impl['software-flavor']
-            self.vendor = impl['vendor']
-            self.platform = impl['name']
-            self.os = impl['os-type']
-            self.software_version = repr(165) + self.feature_set
+            self.initialize(hello_message_file.split('.xml')[0] + '.json')
 
         if not self.api and not self.sdo:
-            self.feature_set = 'ALL'
-            self.software_version = repr(165) + self.feature_set
-            self.vendor = self.split[3]
-            # Solve for os-type
-            if 'nx' in self.split[4]:
-                self.os = 'NX-OS'
-                self.platform = self.split[6].split('-')[0]
-            elif 'xe' in self.split[4]:
-                self.os = 'IOS-XE'
-                self.platform = self.split[6].split('-')[0]
-            elif 'xr' in self.split[4]:
-                self.os = 'IOS-XR'
-                self.platform = self.split[6].split('-')[1]
+            if os.path.isfile('/'.join(self.split[:-1]) + '/platform-metadata.json'):
+                self.initialize('/'.join(self.split[:-1]) + '/platform-metadata.json')
             else:
-                self.os = 'Unknown'
-                self.platform = 'Unknown'
-            self.os_version = self.split[5]
-            self.software_flavor = self.os + '|' + self.os_version
-            if do_stats:
-                integrity_checker.add_platform('/'.join(self.split[:-2]), self.platform)
+                self.owner = 'YangModels'
+                self.repo = 'yang'
+                self.repo_file_path = None
+                self.local_file_path = None
+                self.feature_set = 'ALL'
+                self.software_version = repr(165) + self.feature_set
+                self.vendor = self.split[3]
+                # Solve for os-type
+                if 'nx' in self.split[4]:
+                    self.os = 'NX-OS'
+                    self.platform = self.split[6].split('-')[0]
+                elif 'xe' in self.split[4]:
+                    self.os = 'IOS-XE'
+                    self.platform = self.split[6].split('-')[0]
+                elif 'xr' in self.split[4]:
+                    self.os = 'IOS-XR'
+                    self.platform = self.split[6].split('-')[1]
+                else:
+                    self.os = 'Unknown'
+                    self.platform = 'Unknown'
+                self.os_version = self.split[5]
+                self.software_flavor = self.os + '|' + self.os_version
+            integrity_checker.add_platform('/'.join(self.split[:-2]), self.platform)
+
         self.ietf_rfc_json = {}
         self.ietf_draft_json = {}
         self.ietf_draft_example_json = {}
@@ -154,6 +151,22 @@ class Capability:
         self.ieee_standard_json = load_json_from_url('http://www.claise.be/IEEEStandard.json')
         self.ieee_experimental_json = load_json_from_url('http://www.claise.be/IEEEExperimental.json')
         self.ietf_draft_json = load_json_from_url('http://www.claise.be/IETFYANGDraft.json')
+
+    def initialize(self, file_path):
+        metadata_json = open(file_path)
+        impl = json.load(metadata_json)['platforms'][0]
+        metadata_json.close()
+        self.feature_set = 'ALL'
+        self.os_version = impl['software-version']
+        self.software_flavor = impl['software-flavor']
+        self.vendor = impl['vendor']
+        self.platform = impl['name']
+        self.os = impl['os-type']
+        self.software_version = repr(165) + self.feature_set
+        self.owner = impl['capabilities-file']['owner']
+        self.repo = impl['capabilities-file']['repo']
+        self.repo_file_path = impl['capabilities-file']['path']
+        self.local_file_path = 'api/vendor/' + self.owner + '/' + self.repo + '/' + self.repo_file_path
 
     def handle_exception(self, field, object, module_name):
         # In case of include exception create empty
@@ -234,16 +247,26 @@ class Capability:
         except UnicodeDecodeError:
             self.handle_exception(field, object, module_name)
 
+    @staticmethod
+    def get_json(js):
+        if js:
+            return js
+        else:
+            return 'missing element'
+
     def parse_and_dump_sdo(self):
         if self.api:
             sdos_json = json.load(open('./prepare-sdo.json', 'r'))
             sdos_list = sdos_json['modules']['module']
             for sdo in sdos_list:
-                root = sdo['sdo-file']['owner'] + '/' + sdo['sdo-file']['repo'].split('.')[0] + '/' +\
-                        '/'.join(sdo['sdo-file']['path'].split('/')[:-1])
+                owner = sdo['sdo-file']['owner']
+                repo = sdo['sdo-file']['repo'].split('.')[0]
+                repo_file_path = sdo['sdo-file']['path']
+                root = owner + '/' + repo + '/' + '/'.join(repo_file_path.split('/')[:-1])
                 root = 'temp/' + unicodedata.normalize('NFKD', root).encode('ascii', 'ignore')
                 file_name = unicodedata.normalize('NFKD', sdo['sdo-file']['path'].split('/')[-1])\
                     .encode('ascii', 'ignore')
+                local_file_path = 'api/sdo/' + owner + '/' + repo + '/' + repo_file_path
                 self.parsed_yang = None
                 prefix = {}
                 yang_version = {}
@@ -252,7 +275,6 @@ class Capability:
                 includes = {}
                 imports = {}
                 description = {}
-                reference = {}
                 schema = {}
                 revision = {}
                 namespace = {}
@@ -271,7 +293,6 @@ class Capability:
                     self.find_yang_var(description, 'description', file_name, root + '/' + file_name)
                     self.find_yang_var(includes, 'include', file_name, root + '/' + file_name)
                     self.find_yang_var(imports, 'import', file_name, root + '/' + file_name)
-                    self.find_yang_var(reference, 'reference', file_name, root + '/' + file_name)
                     self.find_yang_var(schema, 'schema', file_name, root + '/' + file_name)
                     self.find_yang_var(namespace, 'namespace', file_name, root + '/' + file_name)
                     self.find_yang_var(features, 'feature', file_name, root + '/' + file_name)
@@ -281,16 +302,23 @@ class Capability:
                         compilations_result = self.parse_result(file_name, revision[file_name])
                     else:
                         compilations_result = ''
-                    author_email = unicodedata.normalize('NFKD', sdo['author-email']).encode('ascii', 'ignore')
-                    working_group = unicodedata.normalize('NFKD', sdo['maturity-level']).encode('ascii', 'ignore')
+                    author_email = unicodedata.normalize('NFKD', self.get_json(sdo.get('author-email')))\
+                        .encode('ascii', 'ignore')
+                    working_group = unicodedata.normalize('NFKD', self.get_json(sdo.get('maturity-level')))\
+                        .encode('ascii', 'ignore')
+                    reference = unicodedata.normalize('NFKD', self.get_json(sdo.get('reference')))\
+                        .encode('ascii', 'ignore')
+                    document_name = unicodedata.normalize('NFKD', self.get_json(sdo.get('document-name')))\
+                        .encode('ascii', 'ignore')
                     self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name), namespace.get(file_name),
-                                             conformance_type, reference.get(file_name),
-                                             prefix.get(file_name), yang_version.get(file_name),
-                                             organization.get(file_name), description.get(file_name),
-                                             contact.get(file_name), schema.get(file_name), features.get(file_name),
+                                             conformance_type, reference, prefix.get(file_name),
+                                             yang_version.get(file_name), organization.get(file_name),
+                                             description.get(file_name), contact.get(file_name), schema.get(file_name),
+                                             features.get(file_name),
                                              self.get_submodule_info(includes.get(file_name)['name']),
                                              compilations_status, author_email, working_group, compilations_result,
-                                             module_submodule)
+                                             module_submodule, document_name, owner, repo, repo_file_path,
+                                             local_file_path)
 
         if not self.api:
             for root, subdirs, sdos in os.walk('/'.join(self.split)):
@@ -304,7 +332,6 @@ class Capability:
                         includes = {}
                         imports = {}
                         description = {}
-                        reference = {}
                         schema = {}
                         revision = {}
                         namespace = {}
@@ -315,6 +342,10 @@ class Capability:
                             print('file name contains invalid characters')
                             module_submodule = 'wrong file'
                         if module_submodule != 'wrong file':
+                            owner = 'YangModels'
+                            repo = 'yang'
+                            repo_file_path = root + '/' + file_name
+                            local_file_path = root + '/' + file_name
                             conformance_type = 'implement'
                             self.find_yang_var(prefix, 'prefix', file_name, root + '/' + file_name)
                             self.find_yang_var(yang_version, 'yang-version', file_name, root + '/' + file_name)
@@ -323,12 +354,15 @@ class Capability:
                             self.find_yang_var(description, 'description', file_name, root + '/' + file_name)
                             self.find_yang_var(includes, 'include', file_name, root + '/' + file_name)
                             self.find_yang_var(imports, 'import', file_name, root + '/' + file_name)
-                            self.find_yang_var(reference, 'reference', file_name, root + '/' + file_name)
                             self.find_yang_var(schema, 'schema', file_name, root + '/' + file_name)
                             self.find_yang_var(revision, 'revision', file_name, root + '/' + file_name)
                             self.find_yang_var(namespace, 'namespace', file_name, root + '/' + file_name)
                             self.find_yang_var(features, 'feature', file_name, root + '/' + file_name)
+                            reference = 'missing element'
+                            document_name = 'missing element'
                             compilations_status = self.parse_status(file_name, revision[file_name])
+                            if 'bbf-l2-forwarding-base' in file_name:
+                                pass
                             self.statistics_in_catalog.set_passed(root, compilations_status)
                             if compilations_status != 'PASSED':
                                 compilations_result = self.parse_result(file_name, revision[file_name])
@@ -337,14 +371,16 @@ class Capability:
                             author_email = self.parse_email(file_name, revision[file_name])
                             working_group = self.parse_wg(file_name, revision[file_name])
                             self.statistics_in_catalog.add_in_catalog(root)
-                            self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name), namespace.get(file_name),
-                                                     conformance_type, reference.get(file_name),
+                            self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name),
+                                                     namespace.get(file_name), conformance_type, reference,
                                                      prefix.get(file_name), yang_version.get(file_name),
                                                      organization.get(file_name), description.get(file_name),
-                                                     contact.get(file_name), schema.get(file_name), features.get(file_name),
+                                                     contact.get(file_name), schema.get(file_name),
+                                                     features.get(file_name),
                                                      self.get_submodule_info(includes.get(file_name)['name']),
-                                                     compilations_status, author_email, working_group, compilations_result,
-                                                     module_submodule)
+                                                     compilations_status, author_email, working_group,
+                                                     compilations_result, module_submodule, document_name, owner, repo,
+                                                     repo_file_path, local_file_path)
 
     # parse capability xml and save to file
     def parse_and_dump(self):
@@ -481,9 +517,10 @@ class Capability:
                 self.find_yang_var(description, 'description', module_name, yang_file)
                 self.find_yang_var(includes, 'include', module_name, yang_file)
                 self.find_yang_var(imports, 'import', module_name, yang_file)
-                self.find_yang_var(reference, 'reference', module_name, yang_file)
                 self.find_yang_var(schema, 'schema', module_name, yang_file)
 
+                reference = 'missing element'
+                document_name = 'missing element'
                 compilations_status[module_name] = self.parse_status(module_name, revision[module_name])
                 if compilations_status[module_name] not in 'PASSED':
                     compilations_result[module_name] = self.parse_result(module_name, revision[module_name])
@@ -492,28 +529,31 @@ class Capability:
                 author_email[module_name] = self.parse_email(module_name, revision[module_name])
                 working_group[module_name] = self.parse_wg(module_name, revision[module_name])
 
+                if self.repo_file_path is None:
+                    self.repo_file_path = yang_file
+                    self.local_file_path = yang_file
+
                 self.prepare.add_key(module_name + '@' + revision[module_name], namespace[module_name],
                                      conformance_type[module_name], self.vendor, self.platform, self.software_version,
                                      self.software_flavor, self.os, self.os_version, self.feature_set,
-                                     reference[module_name], prefix[module_name], yang_version[module_name],
+                                     reference, prefix[module_name], yang_version[module_name],
                                      organization[module_name], description[module_name], contact[module_name],
                                      compilations_status[module_name], author_email[module_name], schema[module_name],
                                      features[module_name], working_group[module_name],
                                      compilations_result[module_name], deviations[module_name],
-                                     self.get_submodule_info(includes[module_name]['name']), module_submodule)
+                                     self.get_submodule_info(includes[module_name]['name']), module_submodule,
+                                     document_name, self.owner, self.repo , self.repo_file_path, self.local_file_path)
 
                 self.parse_imports_includes(includes[module_name]['name'], features, revision, name_revision,
                                             yang_version, namespace, prefix, organization, contact, description,
-                                            includes, imports, reference, conformance_type, deviations, module_names,
+                                            includes, imports, conformance_type, deviations, module_names,
                                             compilations_status, schema, author_email, working_group,
-                                            organization_module, True, namespace[module_name], compilations_result,
-                                            module_submodule)
+                                            organization_module, True, namespace[module_name], compilations_result)
                 self.parse_imports_includes(imports[module_name], features, revision, name_revision,
                                             yang_version, namespace, prefix, organization, contact, description,
-                                            includes, imports, reference, conformance_type, deviations, module_names,
+                                            includes, imports, conformance_type, deviations, module_names,
                                             compilations_status, schema, author_email, working_group,
-                                            organization_module, False, namespace[module_name], compilations_result,
-                                            module_submodule)
+                                            organization_module, False, namespace[module_name], compilations_result)
 
         # restconf capability parsing
         for module in self.root.iter('module'):
@@ -626,8 +666,8 @@ class Capability:
 
     def parse_imports_includes(self, imports_or_includes, features, revision, name_revision,
                                yang_version, namespace, prefix, organization, contact, description, includes,
-                               imports, reference, conformance_type, deviations, module_names, comp_status, schema,
-                               email, wg, organization_module, is_include, parent_ns, comp_result, module_submodule):
+                               imports, conformance_type, deviations, module_names, comp_status, schema,
+                               email, wg, organization_module, is_include, parent_ns, comp_result):
         if imports_or_includes is not None:
             for imp in imports_or_includes:
                 if imp not in module_names:
@@ -671,7 +711,6 @@ class Capability:
                     self.find_yang_var(description, 'description', imp, yang_file)
                     self.find_yang_var(includes, 'include', imp, yang_file)
                     self.find_yang_var(imports, 'import', imp, yang_file)
-                    self.find_yang_var(reference, 'reference', imp, yang_file)
                     self.find_yang_var(revision, 'revision', imp, yang_file)
                     self.find_yang_var(features, 'feature', imp, yang_file)
                     self.find_yang_var(schema, 'schema', imp, yang_file)
@@ -686,25 +725,31 @@ class Capability:
                     conformance_type[imp] = 'implement'
                     module_names.append(imp)
                     name_revision.append(imp + '@' + revision[imp])
+                    reference = 'missing element'
+                    document_name = 'missing element'
 
+                    if self.repo_file_path is None:
+                        self.repo_file_path = yang_file
+                        self.local_file_path = yang_file
                     self.prepare.add_key(imp + '@' + revision[imp], namespace[imp], conformance_type[imp], self.vendor,
                                          self.platform, self.software_version, self.software_flavor, self.os,
-                                         self.os_version, self.feature_set, reference[imp], prefix[imp], yang_version[imp],
+                                         self.os_version, self.feature_set, reference, prefix[imp], yang_version[imp],
                                          organization[imp], description[imp], contact[imp], comp_status[imp],
                                          email[imp], schema[imp], features[imp], wg[imp], comp_result[imp],
                                          deviations[imp], self.get_submodule_info(includes[imp]['name']),
-                                         module_submodule)
+                                         module_submodule, document_name, self.owner, self.repo, self.repo_file_path,
+                                         self.local_file_path)
 
                     self.parse_imports_includes(includes[imp]['name'], features, revision, name_revision,
                                                 yang_version, namespace, prefix, organization, contact, description,
-                                                includes, imports, reference, conformance_type, deviations, module_names
+                                                includes, imports, conformance_type, deviations, module_names
                                                 , comp_status, schema, email, wg, organization_module, True
-                                                , namespace[imp], comp_result, module_submodule)
+                                                , namespace[imp], comp_result)
                     self.parse_imports_includes(imports[imp], features, revision, name_revision,
                                                 yang_version, namespace, prefix, organization, contact, description,
-                                                includes, imports, reference, conformance_type, deviations, module_names
+                                                includes, imports, conformance_type, deviations, module_names
                                                 , comp_status, schema, email, wg, organization_module, False
-                                                , namespace[imp], comp_result, module_submodule)
+                                                , namespace[imp], comp_result)
 
     def parse_status(self, module_name, revision):
         # if module name contains .yang get only name
@@ -736,7 +781,7 @@ class Capability:
         # try to find in rfc without revision
         try:
             status = files_json[module_name + '.yang'][index]
-            if status in 'PASSED WITH WARNINGS':
+            if status == 'PASSED WITH WARNINGS':
                 status = 'PASSED-WITH-WARNINGS'
             return status
         except KeyError:
@@ -744,7 +789,7 @@ class Capability:
         # try to find in draft with revision
         try:
             status = files_json[module_name + '@' + revision + '.yang'][index]
-            if status in 'PASSED WITH WARNINGS':
+            if status == 'PASSED WITH WARNINGS':
                 status = 'PASSED-WITH-WARNINGS'
             return status
         except KeyError:

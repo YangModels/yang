@@ -4,6 +4,7 @@ import argparse
 import fnmatch
 import os
 import time
+import json
 
 import capability as cap
 import statistics
@@ -228,8 +229,13 @@ def do_stats():
                     for xml in find_files(key + '/' + directory, '*.xml'):
                         if platforms[x-1] in xml:
                             exist = True
+                    for json_file in find_files(key + '/' + directory, '*.json'):
+                        read = json.load(open(json_file, 'r'))
+                        for plat in read['platforms']:
+                            if plat['name'] == platforms[x-1]:
+                                exist = True
                     if exist:
-                        stats_file.write('<td>X</td>')
+                        stats_file.write('<td>&#x2713</td>')
                     else:
                         stats_file.write('<td>O</td>')
             stats_file.write('</tr>')
@@ -293,7 +299,7 @@ if __name__ == "__main__":
 
                 print('Found dir:' + search_dir)
                 capability = cap.Capability(search_dir, index, prepare_sdo, integrity, args.api, sdo,
-                                            args.run_statistics, statistics_in_catalog)
+                                            statistics_in_catalog)
                 capability.parse_and_dump_sdo()
                 index += 1
             prepare_sdo.dump_sdo()
@@ -326,8 +332,7 @@ if __name__ == "__main__":
 
                         integrity = statistics.Statistics(filename)
                         print('Found xml source:' + filename)
-                        capability = cap.Capability(filename, index, prepare_vendor, integrity, args.api, sdo,
-                                                    args.run_statistics)
+                        capability = cap.Capability(filename, index, prepare_vendor, integrity, args.api, sdo)
                         capability.parse_and_dump()
                         index += 1
             prepare_vendor.dump()
