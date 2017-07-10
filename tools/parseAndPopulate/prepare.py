@@ -121,7 +121,7 @@ class Prepare:
                 'submodule': json.loads(self.json_submodules[key]),
                 'module-type': self.module_or_submodule[key],
                 'document-name': self.document_name[key],
-                'source-url': {
+                'source-file': {
                     'online': {
                         'owner': self.owner[key],
                         'repository': self.repo[key],
