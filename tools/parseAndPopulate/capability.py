@@ -112,11 +112,16 @@ class Capability:
         self.hello_message_file = hello_message_file
 
         if self.api and not self.sdo:
-            self.initialize(hello_message_file.split('.xml')[0] + '.json')
+            json_file = open(hello_message_file.split('.xml')[0] + '.json')
+            self.initialize(json_file)
+            json_file.close()
 
         if not self.api and not self.sdo:
+
             if os.path.isfile('/'.join(self.split[:-1]) + '/platform-metadata.json'):
-                self.initialize('/'.join(self.split[:-1]) + '/platform-metadata.json')
+                json_file = open('/'.join(self.split[:-1]) + '/platform-metadata.json')
+                self.initialize(json_file)
+                json_file.close()
             else:
                 self.owner = 'YangModels'
                 self.repo = 'yang'
@@ -154,22 +159,22 @@ class Capability:
         self.ieee_experimental_json = load_json_from_url('http://www.claise.be/IEEEExperimental.json')
         self.ietf_draft_json = load_json_from_url('http://www.claise.be/IETFYANGDraft.json')
 
-    def initialize(self, file_path):
-        metadata_json = open(file_path)
-        impl = json.load(metadata_json)
-        metadata_json.close()
-        self.feature_set = 'ALL'
-        self.os_version = impl['software-version']
-        self.software_flavor = impl['software-flavor']
-        self.vendor = impl['vendor']
-        self.platform = impl['name']
-        self.os = impl['os-type']
-        self.software_version = repr(165) + self.feature_set
-        self.owner = impl['capabilities-file']['owner']
-        self.repo = github + '/' + self.owner + impl['capabilities-file']['repo']
-        self.repo_file_path = impl['capabilities-file']['path']
-        self.local_file_path = 'api/vendor/' + self.owner + '/' + impl['capabilities-file']['repo'] + '/'\
-                               + self.repo_file_path
+    def initialize(self, json_file):
+        platforms = json.load(json_file)['platforms']
+        for impl in platforms:
+            if impl['capabilities-file']['path'] in self.hello_message_file:
+                self.feature_set = 'ALL'
+                self.os_version = impl['software-version']
+                self.software_flavor = impl['software-flavor']
+                self.vendor = impl['vendor']
+                self.platform = impl['name']
+                self.os = impl['os-type']
+                self.software_version = repr(165) + self.feature_set
+                self.owner = impl['capabilities-file']['owner']
+                self.repo = github + '/' + self.owner + impl['capabilities-file']['repo']
+                self.repo_file_path = impl['capabilities-file']['path']
+                self.local_file_path = 'api/vendor/' + self.owner + '/' + impl['capabilities-file']['repo'] + '/'\
+                                       + self.repo_file_path
 
     def handle_exception(self, field, object, module_name):
         # In case of include exception create empty
