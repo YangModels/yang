@@ -56,13 +56,16 @@ def authorize_for_sdos(request, body):
     except MySQLdb.MySQLError as err:
         print("Cannot connect to database. MySQL error: " + str(err))
 
+    passed = True
     rights = accessRigths.split('/')
-    for path in body['modules']['module']['sdo-file']['path']:
-        access = path.split('/')[:-2]
-        if rights in access:
-            return 'passed'
-        else:
-            unauthorized()
+    rights = filter(bool, rights)
+    for module in body['modules']['module']:
+        path = module['sdo-file']['path']
+        access = path.split('/')[:-1]
+        for right in rights:
+            if right not in access:
+                passed = False
+    return passed
 
 
 def authorize_for_vendors(request, body):
@@ -153,8 +156,8 @@ def add_modules():
         abort(400)
     body = request.json
     resolved_authorization = authorize_for_sdos(request, body)
-    if 'passed' != resolved_authorization:
-        return resolved_authorization
+    if not resolved_authorization:
+        return unauthorized()
 
     with open('./prepare-sdo.json', "w") as plat:
          json.dump(body, plat)

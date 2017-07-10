@@ -21,6 +21,8 @@ NS_MAP = {
     "urn:cisco": "cisco"
 }
 
+github = 'https://github.com/'
+
 
 # searching for file based on pattern or pattern_with_revision
 def find_first_file(directory, pattern, pattern_with_revision):
@@ -154,7 +156,7 @@ class Capability:
 
     def initialize(self, file_path):
         metadata_json = open(file_path)
-        impl = json.load(metadata_json)['platforms'][0]
+        impl = json.load(metadata_json)
         metadata_json.close()
         self.feature_set = 'ALL'
         self.os_version = impl['software-version']
@@ -164,9 +166,10 @@ class Capability:
         self.os = impl['os-type']
         self.software_version = repr(165) + self.feature_set
         self.owner = impl['capabilities-file']['owner']
-        self.repo = impl['capabilities-file']['repo']
+        self.repo = github + '/' + self.owner + impl['capabilities-file']['repo']
         self.repo_file_path = impl['capabilities-file']['path']
-        self.local_file_path = 'api/vendor/' + self.owner + '/' + self.repo + '/' + self.repo_file_path
+        self.local_file_path = 'api/vendor/' + self.owner + '/' + impl['capabilities-file']['repo'] + '/'\
+                               + self.repo_file_path
 
     def handle_exception(self, field, object, module_name):
         # In case of include exception create empty
@@ -252,7 +255,7 @@ class Capability:
         if js:
             return js
         else:
-            return 'missing element'
+            return u'missing element'
 
     def parse_and_dump_sdo(self):
         if self.api:
@@ -542,7 +545,7 @@ class Capability:
                                      features[module_name], working_group[module_name],
                                      compilations_result[module_name], deviations[module_name],
                                      self.get_submodule_info(includes[module_name]['name']), module_submodule,
-                                     document_name, self.owner, self.repo , self.repo_file_path, self.local_file_path)
+                                     document_name, self.owner, self.repo, self.repo_file_path, self.local_file_path)
 
                 self.parse_imports_includes(includes[module_name]['name'], features, revision, name_revision,
                                             yang_version, namespace, prefix, organization, contact, description,
