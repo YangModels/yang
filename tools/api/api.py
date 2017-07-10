@@ -282,7 +282,8 @@ def add_vendors():
         repo[key].remove()
     integrity_file_name = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%m:%S.%f")[:-3]+'Z'
 
-    shutil.move('./integrity.html', integrity_file_location + 'integrity' + integrity_file_name + '.html')
+    if integrity_file_name != './':
+        shutil.move('./integrity.html', integrity_file_location + 'integrity' + integrity_file_name + '.html')
     return jsonify({'result':
                     {
                         'integrity-file': 'www.yangcatalog.org/integrity/integrity' + integrity_file_name + '.html',
