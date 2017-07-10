@@ -9,7 +9,7 @@ import json
 import capability as cap
 import statistics
 import prepare
-import yangIntegrity
+import shutil
 from tools.parseAndPopulate import statisticsInCatalog
 
 
@@ -264,6 +264,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--dir', default='../../vendor', type=str,
                         help='Set dir where to look for hello message xml files.Default -> ../../vendor')
+    parser.add_argument('--stats-dir', default='./', type=str, help=' If run-statistics is true it will copy the '
+                                                                    'statistics html file to the set directory.')
     parser.add_argument('--save-modification-date', action='store_true', default=False,
                         help='if True than it will create a file with modification date and also it will check if '
                              'file was modified from last time if not it will skip it.')
@@ -348,6 +350,9 @@ if __name__ == "__main__":
     end = time.time()
     print(end - start)
     if args.run_statistics:
+        if args.stats_dir != './':
+            shutil.move('stats.html', args.stats_dir)
+            shutil.move('integrity.html', args.stats_dir)
         for item in os.listdir('./'):
             if item.endswith(".json") or ('log' in item and '.txt' in item):
                 os.remove(item)
