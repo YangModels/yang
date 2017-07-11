@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import argparse
+import base64
 import errno
 import hashlib
 import json
@@ -9,11 +10,12 @@ import shutil
 import subprocess
 import unicodedata
 import ConfigParser
+import urllib2
 
 import MySQLdb
 import datetime
 import requests
-from flask import Flask, jsonify, abort, make_response, request
+from flask import Flask, jsonify, abort, make_response, request, Response
 from flask_httpauth import HTTPBasicAuth
 
 import repoutil
@@ -30,6 +32,22 @@ app = Flask(__name__)
 
 def unicode_normalize(variable):
     return unicodedata.normalize('NFKD', variable).encode('ascii', 'ignore')
+
+
+# Make a http request on path with json_data
+def http_request(path, method, json_data, http_credentials):
+    try:
+        opener = urllib2.build_opener(urllib2.HTTPHandler)
+        request = urllib2.Request(path, data=json_data)
+        request.add_header('Content-Type', 'application/vnd.yang.data+json')
+        request.add_header('Accept', 'application/vnd.yang.data+json')
+        base64string = base64.b64encode('%s:%s' % (http_credentials[0], http_credentials[1]))
+        request.add_header("Authorization", "Basic %s" % base64string)
+        request.get_method = lambda: method
+        return opener.open(request)
+    except:
+        print('Could not send request with body ' + json_data + ' and path ' + path)
+        raise
 
 
 @app.errorhandler(404)
@@ -292,6 +310,50 @@ def add_vendors():
                 })
 
 
+# Generic read-only get request
+@app.route('/search/<key>/<value>', methods=['GET'])
+def search(key, value):
+    split = key.split('$')
+    module_keys = ['revision', 'ietf$ietf-wg', 'maturity-level', 'submodule$revision']
+    for module_key in module_keys:
+        if key == module_key:
+            path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules?deep'
+            data = json.loads(http_request(path, 'GET', '', credentials).read())
+            passed_data = []
+            data = data['yang-catalog:modules']['module']
+            for module in data:
+                count = -1
+                process(module, passed_data, value, module, split, count)
+                #if isinstance(module, dict):
+                #    if module.get(key) == value:
+                #        passed_data.append(module)
+
+            if len(passed_data) > 0:
+                return Response(json.dumps({
+                    'yang-catalog:modules': {
+                        'module': json.loads(json.dumps(passed_data))
+                    }
+                }), mimetype='application/json')
+            else:
+                return Response(mimetype='application/json', status=204)
+
+
+def process(data, passed_data, value, module, split, count):
+    if isinstance(data, unicode):
+        if data == value:
+            passed_data.append(module)
+            return True
+    elif isinstance(data, list):
+        for part in data:
+            if process(part, passed_data, value, module, split, count):
+                break
+    elif isinstance(data, dict):
+        if data:
+            count += 1
+            return process(data.get(split[count]), passed_data, value, module, split, count)
+    return False
+
+
 @auth.hash_password
 def hash_pw(password):
     return hashlib.sha256(password).hexdigest()
@@ -348,6 +410,8 @@ if __name__ == '__main__':
     confd_ip = config.get('SectionOne', 'confd-ip')
     global confdPort
     confdPort = int(config.get('SectionOne', 'confd-port'))
+    global protocol
+    protocol = config.get('SectionOne', 'protocol')
     global token
     token = config.get('SectionOne', 'yang-catalog-token')
     ssl_context = None
