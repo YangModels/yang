@@ -113,18 +113,20 @@ class Capability:
 
         if self.api and not self.sdo:
             json_file = open(hello_message_file.split('.xml')[0] + '.json')
-            self.initialize(json_file)
+            impl = json.load(json_file)
+            self.initialize(impl)
             json_file.close()
 
         if not self.api and not self.sdo:
-
             if os.path.isfile('/'.join(self.split[:-1]) + '/platform-metadata.json'):
                 json_file = open('/'.join(self.split[:-1]) + '/platform-metadata.json')
-                self.initialize(json_file)
+                platforms = json.load(json_file)['platforms']
+                for impl in platforms:
+                    self.initialize(impl)
                 json_file.close()
             else:
                 self.owner = 'YangModels'
-                self.repo = 'yang'
+                self.repo = 'https://github.com/YangModels/yang/'
                 self.repo_file_path = None
                 self.local_file_path = None
                 self.feature_set = 'ALL'
@@ -159,22 +161,20 @@ class Capability:
         self.ieee_experimental_json = load_json_from_url('http://www.claise.be/IEEEExperimental.json')
         self.ietf_draft_json = load_json_from_url('http://www.claise.be/IETFYANGDraft.json')
 
-    def initialize(self, json_file):
-        platforms = json.load(json_file)['platforms']
-        for impl in platforms:
-            if impl['capabilities-file']['path'] in self.hello_message_file:
-                self.feature_set = 'ALL'
-                self.os_version = impl['software-version']
-                self.software_flavor = impl['software-flavor']
-                self.vendor = impl['vendor']
-                self.platform = impl['name']
-                self.os = impl['os-type']
-                self.software_version = repr(165) + self.feature_set
-                self.owner = impl['capabilities-file']['owner']
-                self.repo = github + '/' + self.owner + impl['capabilities-file']['repo']
-                self.repo_file_path = impl['capabilities-file']['path']
-                self.local_file_path = 'api/vendor/' + self.owner + '/' + impl['capabilities-file']['repo'] + '/'\
-                                       + self.repo_file_path
+    def initialize(self, impl):
+        if impl['capabilities-file']['path'] in self.hello_message_file:
+            self.feature_set = 'ALL'
+            self.os_version = impl['software-version']
+            self.software_flavor = impl['software-flavor']
+            self.vendor = impl['vendor']
+            self.platform = impl['name']
+            self.os = impl['os-type']
+            self.software_version = repr(165) + self.feature_set
+            self.owner = impl['capabilities-file']['owner']
+            self.repo = github + '/' + self.owner + impl['capabilities-file']['repo']
+            self.repo_file_path = impl['capabilities-file']['path']
+            self.local_file_path = 'api/vendor/' + self.owner + '/' + impl['capabilities-file']['repo'] + '/'\
+                                    + self.repo_file_path
 
     def handle_exception(self, field, object, module_name):
         # In case of include exception create empty
@@ -268,13 +268,15 @@ class Capability:
             sdos_list = sdos_json['modules']['module']
             for sdo in sdos_list:
                 owner = sdo['sdo-file']['owner']
-                repo = sdo['sdo-file']['repo'].split('.')[0]
+                repo = github + '/' + owner + '/' + sdo['sdo-file']['repo'].split('.')[0]
                 repo_file_path = sdo['sdo-file']['path']
-                root = owner + '/' + repo + '/' + '/'.join(repo_file_path.split('/')[:-1])
+                root = owner + '/' + sdo['sdo-file']['repo'].split('.')[0] + '/'\
+                       + '/'.join(repo_file_path.split('/')[:-1])
                 root = 'temp/' + unicodedata.normalize('NFKD', root).encode('ascii', 'ignore')
                 file_name = unicodedata.normalize('NFKD', sdo['sdo-file']['path'].split('/')[-1])\
                     .encode('ascii', 'ignore')
-                local_file_path = 'api/sdo/' + owner + '/' + repo + '/' + repo_file_path
+                local_file_path = 'api/sdo/' + owner + '/' + sdo['sdo-file']['repo'].split('.')[0] + '/'\
+                                  + repo_file_path
                 self.parsed_yang = None
                 prefix = {}
                 yang_version = {}
@@ -312,6 +314,8 @@ class Capability:
                         compilations_result = ''
                     author_email = unicodedata.normalize('NFKD', self.get_json(sdo.get('author-email')))\
                         .encode('ascii', 'ignore')
+                    if author_email == 'missing element':
+                        author_email = None
                     working_group = unicodedata.normalize('NFKD', self.get_json(sdo.get('maturity-level')))\
                         .encode('ascii', 'ignore')
                     reference = unicodedata.normalize('NFKD', self.get_json(sdo.get('reference')))\
@@ -325,8 +329,8 @@ class Capability:
                                              features.get(file_name),
                                              self.get_submodule_info(includes.get(file_name)['name']),
                                              compilations_status, author_email, working_group, compilations_result,
-                                             module_submodule, document_name, owner, repo, repo_file_path,
-                                             local_file_path)
+                                             module_submodule, document_name, owner, repo,
+                                             repo_file_path, local_file_path)
 
         if not self.api:
             for root, subdirs, sdos in os.walk('/'.join(self.split)):
@@ -351,8 +355,8 @@ class Capability:
                             module_submodule = 'wrong file'
                         if module_submodule != 'wrong file':
                             owner = 'YangModels'
-                            repo = 'yang'
                             repo_file_path = root + '/' + file_name
+                            repo = github + '/' + owner + '/yang'
                             local_file_path = root + '/' + file_name
                             conformance_type = 'implement'
                             self.find_yang_var(prefix, 'prefix', file_name, root + '/' + file_name)
@@ -387,8 +391,8 @@ class Capability:
                                                      features.get(file_name),
                                                      self.get_submodule_info(includes.get(file_name)['name']),
                                                      compilations_status, author_email, working_group,
-                                                     compilations_result, module_submodule, document_name, owner, repo,
-                                                     repo_file_path, local_file_path)
+                                                     compilations_result, module_submodule, document_name, owner,
+                                                     repo, repo_file_path, local_file_path)
 
     # parse capability xml and save to file
     def parse_and_dump(self):
@@ -832,7 +836,7 @@ class Capability:
             return email
         except KeyError:
             pass
-        return 'missing element'
+        return None
 
     def parse_result(self, module_name, revision):
         # if module name contains .yang get only name
