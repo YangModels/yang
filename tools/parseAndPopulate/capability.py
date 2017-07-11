@@ -118,6 +118,7 @@ class Capability:
             json_file.close()
 
         if not self.api and not self.sdo:
+
             if os.path.isfile('/'.join(self.split[:-1]) + '/platform-metadata.json'):
                 json_file = open('/'.join(self.split[:-1]) + '/platform-metadata.json')
                 platforms = json.load(json_file)['platforms']
