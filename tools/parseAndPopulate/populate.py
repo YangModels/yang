@@ -74,6 +74,8 @@ if __name__ == "__main__":
                         help='Set dir where to look for hello message xml files.Default -> ../../vendor')
     parser.add_argument('--api', action='store_true', default=False, help='If we are doing apis')
     parser.add_argument('--sdo', action='store_true', default=False, help='If we are sneding SDOs only')
+    parser.add_argument('--protocol', type=str, default='http', help='Whether confd-6.4 runs on http or https.'
+                                                                     ' Default is set to http')
     args = parser.parse_args()
 
     prefix = 'http://{}:{}'.format(args.ip, args.port)
