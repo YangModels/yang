@@ -62,7 +62,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parse hello messages and yang files to json dictionary. These"
                                                  " dictionaries are used for populating a yangcatalog. This script runs"
                                                  " first a runCapabilities.py script to create a Json files which are used"
-                                                 " to populate database.o")
+                                                 " to populate database.")
     parser.add_argument('--port', default=8008, type=int,
                         help='Set port where the confd is started. Default -> 8008')
     parser.add_argument('--ip', default='127.0.0.1', type=str,
@@ -78,7 +78,7 @@ if __name__ == "__main__":
                                                                      ' Default is set to http')
     args = parser.parse_args()
 
-    prefix = 'http://{}:{}'.format(args.ip, args.port)
+    prefix = args.protocol + '://{}:{}'.format(args.ip, args.port)
     if args.api:
         if args.sdo:
             with open("log_api_sdo.txt", "wr") as f:
