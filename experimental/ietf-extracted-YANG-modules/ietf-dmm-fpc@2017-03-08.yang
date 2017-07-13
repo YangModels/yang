@@ -1,0 +1,792 @@
+module ietf-dmm-fpc {
+    namespace "urn:ietf:params:xml:ns:yang:ietf-dmm-fpc";
+    prefix fpc;
+
+    import ietf-inet-types { prefix inet; revision-date 2013-07-15; }
+
+    include ietf-dmm-fpc-base;
+
+    organization "IETF Distributed Mobility Management (DMM)
+      Working Group";
+
+    contact
+       "WG Web:   <http://tools.ietf.org/wg/netmod/>
+        WG List:  <mailto:netmod@ietf.org>
+
+        WG Chair: Dapeng Liu
+                  <mailto:maxpassion@gmail.com>
+
+        WG Chair: Jouni Korhonen
+                  <mailto:jouni.nospam@gmail.com>
+
+        Editor:   Satoru Matsushima
+                  <mailto:satoru.matsushima@g.softbank.co.jp>
+
+        Editor:   Lyle Bertz
+                  <mailto:lylebe551144@gmail.com>";
+
+    description
+    "This module contains YANG definition for
+     Forwarding Policy Configuration Protocol (FPCP).
+
+     Copyright (c) 2016 IETF Trust and the persons identified as the
+     document authors. All rights reserved.
+
+     This document is subject to BCP 78 and the IETF Trust's Legal
+     Provisions Relating to IETF Documents
+     (http://trustee.ietf.org/license-info) in effect on the date of
+     publication of this document. Please review these documents
+     carefully, as they describe your rights and restrictions with
+     respect to this document. Code Components extracted from this
+     document must include Simplified BSD License text as described
+     in Section 4.e of the Trust Legal Provisions and are provided
+     without warranty as described in the Simplified BSD License.";
+
+    revision 2017-03-08 {
+        description "Version 06 updates.";
+        reference "draft-ietf-dmm-fpc-cpdp-06";
+    }
+
+    revision 2016-08-03 {
+        description "Initial Revision.";
+        reference "draft-ietf-dmm-fpc-cpdp-05";
+    }
+    feature fpc-cloning {
+      description "An ability to support cloning in the RPC.";
+    }
+    feature fpc-basename-registry {
+      description "Ability to track Base Names already provisioned
+        on the Agent";
+    }
+    feature fpc-bundles {
+      description "Ability for Client to send multiple bundles of
+        actions to an Agent";
+    }
+    feature fpc-client-binding {
+      description "Allows a FPC Client to bind a DPN to an Topology
+        Object";
+    }
+    feature fpc-auto-binding {
+      description "Allows a FPC Agent to advertise Topology Objects
+        that could be DPNs";
+    }
+    feature instruction-bitset {
+      description "Allows the expression of instructions (bit sets)
+        over FPC.";
+    }
+    feature operation-ref-scope {
+      description "Provides the scope of refeneces in an operation.
+        Used to optmize the Agent processing.";
+    }
+    feature policy-rpc-provisioning {
+      description "Enables the ability to send policy elements
+        (Policy Groups, Policies, Descriptors and Actions) to be sent
+        in CONF or CONF_BUNDLE operations.";
+    }
+
+    typedef agent-identifier {
+        type fpc:fpc-identity;
+        description "Agent Identifier";
+    }
+
+    typedef client-identifier {
+        type fpc:fpc-identity;
+        description "Client Identifier";
+    }
+    grouping basename-info {
+          leaf basename {
+            if-feature fpc:fpc-basename-registry;
+            type fpc:fpc-identity;
+            description "Rules Basename";
+          }
+          leaf base-state {
+            if-feature fpc:fpc-basename-registry;
+            type string;
+            description "Current State";
+          }
+          leaf base-checkpoint {
+            if-feature fpc:fpc-basename-registry;
+            type string;
+            description "Checkpoint";
+          }
+          description "Basename Information";
+    }
+
+    // Top Level Structures
+    container tenants {
+        list tenant {
+            key "tenant-id";
+            leaf tenant-id {
+                type fpc:fpc-identity;
+                description "Tenant ID";
+            }
+
+            container fpc-policy {
+              list policy-groups {
+                  key "policy-group-id";
+                  uses fpc:fpc-policy-group;
+                  description "Policy Groups";
+              }
+              list policies {
+                  key "policy-id";
+                  uses fpc:fpc-policy;
+                  description "Policies";
+              }
+              list descriptors {
+                key descriptor-id;
+                uses fpc:fpc-descriptor;
+                description "Descriptors";
+              }
+              list actions {
+                  key action-id;
+                  uses fpc:fpc-action;
+                  description "Actions";
+              }
+              description "Policy";
+            }
+
+            container fpc-mobility {
+              config false;
+              list contexts {
+                  key context-id;
+                  uses fpc:fpc-context;
+                  description "Contexts";
+              }
+              list vports {
+                  key vport-id;
+                  uses fpc:fpc-vport;
+                  description "Ports";
+              }
+              list monitors {
+                  uses fpc:monitor-config;
+                  description "Monitors";
+              }
+              description "Mobility";
+            }
+            container fpc-topology {
+              // Basic Agent Topology Structures
+              list domains {
+                key domain-id;
+                uses fpc:fpc-domain;
+                uses fpc:basename-info;
+                description "Domains";
+              }
+
+              leaf dpn-id {
+                if-feature fpc:fpc-basic-agent;
+                type fpc:fpc-dpn-id;
+                description "DPN ID";
+              }
+              leaf-list control-protocols {
+                if-feature fpc:fpc-basic-agent;
+                type identityref {
+                  base "fpc:fpc-dpn-control-protocol";
+                }
+                description "Control Protocols";
+              }
+
+              list dpn-groups {
+                  if-feature fpc:fpc-multi-dpn;
+                  key dpn-group-id;
+                  uses fpc:fpc-dpn-group;
+                  list domains {
+                    key domain-id;
+                    uses fpc:fpc-domain;
+                    uses fpc:basename-info;
+                    description "Domains";
+                  }
+                  description "DPN Groups";
+              }
+              list dpns {
+                  if-feature fpc:fpc-multi-dpn;
+                  key dpn-id;
+                  uses fpc:fpc-dpn;
+                  description "DPNs";
+              }
+              description "Topology";
+            }
+          description "Tenant";
+        }
+        description "Tenant List";
+    }
+
+    container fpc-agent-info {
+      // General Agent Structures
+      leaf-list supported-features {
+        type string;
+        description "Agent Features";
+      }
+
+      // Common Agent Info
+      list supported-events {
+        key event;
+        leaf event {
+          type identityref {
+            base "fpc:event-type";
+          }
+          description "Event Types";
+        }
+        leaf event-id {
+          type fpc:event-type-id;
+          description "Event ID";
+        }
+        description "Supported Events";
+      }
+
+      list supported-error-types {
+        key error-type;
+        leaf error-type {
+          type identityref {
+            base "fpc:error-type";
+          }
+          description "Error Type";
+        }
+        leaf error-type-id {
+          type fpc:error-type-id;
+          description "Error Type ID";
+        }
+        description "Supported Error Types";
+      }
+      description "General Agent Information";
+    }
+
+    // Multi-DPN Agent Structures
+    grouping fpc-dpn-group {
+        leaf dpn-group-id {
+            type fpc:fpc-dpn-group-id;
+            description "DPN Group ID";
+        }
+        leaf data-plane-role {
+            type identityref {
+                base "fpc:fpc-data-plane-role";
+            }
+            description "Dataplane Role";
+        }
+        leaf access-type {
+            type identityref {
+                base "fpc:fpc-access-type";
+            }
+            description "Access Type";
+        }
+        leaf mobility-profile {
+            type identityref {
+                base "fpc:fpc-mobility-profile-type";
+            }
+            description "Mobility Profile";
+        }
+        list dpn-group-peers {
+            key "remote-dpn-group-id";
+            uses fpc:fpc-dpn-peer-group;
+            description "Peer DPN Groups";
+        }
+        description "FPC DPN Group";
+    }
+
+    // RPC
+    // RPC Specific Structures
+    //Input Structures
+    typedef admin-status {
+        type enumeration {
+            enum enabled {
+              value 0;
+              description "enabled";
+            }
+            enum disabled {
+              value 1;
+              description "disabled";
+            }
+            enum virtual {
+              value 2;
+              description "virtual";
+            }
+        }
+        description "Adminstrative Status";
+    }
+
+    typedef session-status {
+        type enumeration {
+            enum complete {
+              value 0;
+              description "complete";
+            }
+            enum incomplete {
+              value 1;
+              description "incomplete";
+            }
+            enum outdated {
+              value 2;
+              description "outdated";
+            }
+        }
+        description "Session Status";
+    }
+
+    typedef op-delay {
+        type uint32;
+        description "Operation Delay (ms)";
+    }
+
+    typedef op-identifier {
+        type uint64;
+        description "Operation Identifier";
+    }
+
+    typedef ref-scope {
+      type enumeration {
+        enum none {
+          value 0;
+          description "no references";
+        }
+        enum op {
+          value 1;
+          description "op - All references are contained in the
+            operation body (intra-op)";
+        }
+        enum bundle {
+          value 2;
+          description "bundle - All references in exist in bundle
+            (inter-operation/intra-bundle).
+            NOTE - If this value comes in CONFIG call it is
+              equivalent to 'op'.";
+        }
+        enum storage {
+          value 3;
+          description "storage - One or more references exist outside
+            of the operation and bundle. A lookup to a cache /
+            storage is required.";
+        }
+        enum unknown {
+          value 4;
+          description " unknown - the location of the references are
+            unknown.  This is treated as a 'storage' type.";
+        }
+      }
+      description "Search scope for references in the operation.";
+    }
+
+    grouping instructions {
+      container instructions {
+        if-feature instruction-bitset;
+        choice instr-type {
+          description "Instruction Value Choice";
+        }
+        description "Instructions";
+      }
+      description "Instructions Value";
+    }
+
+    grouping op-header {
+      leaf client-id {
+        type fpc:client-identifier;
+        description "Client ID";
+      }
+      leaf delay {
+        type op-delay;
+        description "Delay";
+      }
+      leaf session-state {
+        type session-status;
+        description "Session State";
+      }
+      leaf admin-state {
+        type admin-status;
+        description "Admin State";
+      }
+      leaf op-type {
+        type enumeration {
+          enum create {
+            value 0;
+            description "create";
+          }
+          enum update {
+            value 1;
+            description "update";
+          }
+          enum query {
+            value 2;
+            description "query";
+          }
+          enum delete {
+            value 3;
+            description "delete";
+          }
+        }
+        description "Type";
+      }
+      leaf op-ref-scope {
+          if-feature operation-ref-scope;
+          type fpc:ref-scope;
+          description "Reference Scope";
+      }
+      uses fpc:instructions;
+      description "Operation Header";
+    }
+
+    grouping clone-ref {
+      leaf entity {
+        type fpc:fpc-identity;
+        description "Clone ID";
+      }
+      leaf source {
+        type fpc:fpc-identity;
+        description "Source";
+      }
+      description "Clone Reference";
+    }
+
+    identity command-set {
+      description "protocol specific commands";
+    }
+
+    grouping context-operation {
+      uses fpc:fpc-context;
+      uses fpc:instructions;
+      description "Context Operation";
+    }
+
+    // Output Structure
+    grouping payload {
+      list ports {
+        uses fpc:fpc-vport;
+        description "Ports";
+      }
+      list contexts {
+        uses fpc:context-operation;
+        description "Contexts";
+      }
+      list policy-groups {
+        if-feature fpc:policy-rpc-provisioning;
+        key "policy-group-id";
+        uses fpc:fpc-policy-group;
+        description "Policy Groups";
+      }
+      list policies {
+        if-feature fpc:policy-rpc-provisioning;
+        key "policy-id";
+        uses fpc:fpc-policy;
+        description "Policies";
+      }
+      list descriptors {
+        if-feature fpc:policy-rpc-provisioning;
+        key descriptor-id;
+        uses fpc:fpc-descriptor;
+        description "Descriptors";
+      }
+      list actions {
+        if-feature fpc:policy-rpc-provisioning;
+        key action-id;
+        uses fpc:fpc-action;
+        description "Actions";
+      }
+      description "Payload";
+    }
+
+    grouping op-input {
+      uses fpc:op-header;
+      leaf op-id {
+        type op-identifier;
+        description "Operation ID";
+      }
+      choice op_body {
+        case create_or_update {
+          list clones {
+            if-feature fpc-cloning;
+            key entity;
+            uses fpc:clone-ref;
+            description "Clones";
+          }
+          uses fpc:payload;
+          description "Create/Update input";
+        }
+        case delete_or_query {
+          uses fpc:targets-value;
+          description "Delete/Query input";
+        }
+        description "Opeartion Input value";
+      }
+      description "Operation Input";
+    }
+
+    typedef result {
+      type enumeration {
+        enum ok {
+          value 0;
+          description "OK";
+        }
+        enum err {
+          value 1;
+          description "Error";
+        }
+        enum ok-notify-follows {
+          value 2;
+          description "OK with NOTIFY following";
+        }
+      }
+      description "Result Status";
+    }
+
+    identity error-type {
+      description "Base Error Type";
+    }
+    identity name-already-exists {
+      description "Notification that an entity of the same name
+        already exists";
+    }
+
+    typedef error-type-id {
+      type uint32;
+      description "Integer form of the Error Type";
+    }
+
+    grouping op-status-value {
+      leaf op-status {
+        type enumeration {
+          enum ok {
+            value 0;
+            description "OK";
+          }
+          enum err {
+            value 1;
+            description "Error";
+          }
+        }
+        description "Operation Status";
+      }
+      description "Operation Status Value";
+    }
+
+    grouping error-info {
+          leaf error-type-id {
+            type fpc:error-type-id;
+            description "Error ID";
+          }
+          leaf error-info {
+            type string {
+              length "1..1024";
+            }
+            description "Error Detail";
+          }
+          description "Error Information";
+    }
+
+    grouping result-body {
+      leaf op-id {
+        type op-identifier;
+        description "Operation Identifier";
+      }
+      choice result-type {
+        case err {
+          uses fpc:error-info;
+          description "Error Information";
+        }
+        case create-or-update-success {
+          uses fpc:payload;
+          description "Create/Update Success";
+        }
+        case delete_or_query-success {
+          uses fpc:targets-value;
+          description "Delete/Query Success";
+        }
+        case empty-case {
+          description "Empty Case";
+        }
+        description "Result Value";
+      }
+      description "Result Body";
+    }
+
+    // Common RPCs
+    rpc configure {
+      description "CONF message";
+      input {
+        uses fpc:op-input;
+      }
+      output {
+        leaf result {
+          type result;
+          description "Result";
+        }
+        uses fpc:result-body;
+      }
+    }
+
+    rpc configure-bundles {
+      if-feature fpc:fpc-bundles;
+      description "CONF_BUNDLES message";
+      input {
+        leaf highest-op-ref-scope {
+            if-feature operation-ref-scope;
+            type fpc:ref-scope;
+            description "Highest Op-Ref used in the input";
+        }
+        list bundles {
+          key op-id;
+          uses fpc:op-input;
+          description "List of operations";
+        }
+      }
+      output {
+        list bundles {
+          key op-id;
+          uses fpc:result-body;
+          description "Operation Identifier";
+        }
+      }
+    }
+
+    // Notification Messages & Structures
+    typedef notification-id {
+      type uint32;
+      description "Notification Identifier";
+    }
+
+    grouping notification-header {
+      leaf notification-id {
+          type fpc:notification-id;
+          description "Notification ID";
+      }
+      leaf timestamp {
+          type uint32;
+          description "timestamp";
+      }
+      description "Notification Header";
+    }
+
+    notification config-result-notification {
+      uses fpc:notification-header;
+      choice value {
+        case config-result {
+          uses fpc:op-status-value;
+          uses fpc:result-body;
+          description "CONF Result";
+        }
+        case config-bundle-result {
+          list bundles {
+            uses fpc:op-status-value;
+            uses fpc:result-body;
+            description "Operation Results";
+          }
+          description "CONF_BUNDLES Result";
+        }
+        description "Config Result value";
+      }
+      description "CONF/CONF_BUNDLES Async Result";
+    }
+
+    rpc event_register {
+      description "Used to register monitoring of parameters/events";
+        input {
+          uses fpc:monitor-config;
+        }
+        output {
+          leaf monitor-result {
+            type fpc:result;
+            description "Result";
+          }
+          uses fpc:error-info;
+        }
+    }
+
+    rpc event_deregister {
+      description "Used to de-register monitoring of
+          parameters/events";
+        input {
+          list monitors {
+            uses fpc:monitor-id;
+            description "Monitor ID";
+          }
+        }
+        output {
+          leaf monitor-result {
+            type fpc:result;
+            description "Result";
+          }
+          uses fpc:error-info;
+        }
+
+    }
+
+    rpc probe {
+        description "Probe the status of a registered monitor";
+        input {
+          uses fpc:targets-value;
+        }
+        output {
+          leaf monitor-result {
+            type fpc:result;
+            description "Result";
+          }
+          uses fpc:error-info;
+        }
+    }
+
+    notification notify {
+        uses fpc:notification-header;
+        choice value {
+            case dpn-candidate-available {
+              if-feature fpc:fpc-auto-binding;
+              leaf node-id {
+                type inet:uri;
+                description "Topology URI";
+              }
+              leaf-list access-types {
+                type identityref {
+                  base "fpc:fpc-access-type";
+                }
+                description "Access Types";
+              }
+              leaf-list mobility-profiles {
+                type identityref {
+                  base "fpc:fpc-mobility-profile-type";
+                }
+                description "Mobility Profiles";
+              }
+              leaf-list forwarding-plane-roles {
+                type identityref {
+                  base "fpc:fpc-data-plane-role";
+                }
+                description "Forwarding Plane Role";
+              }
+              description "DPN Candidate Availability";
+            }
+            case monitor-notification {
+              choice monitor-notification-value {
+                case monitoring-suspension {
+                  leaf monitoring-suspended {
+                    type empty;
+                    description "Indicates that monitoring has
+                      uspended";
+                  }
+                  leaf suspension-note {
+                    type string;
+                    description "Indicates the monitoring
+                      suspension reason";
+                  }
+                }
+                case monitoring-resumption {
+                  leaf monitoring-resumed {
+                    type empty;
+                    description "Indicates that monitoring
+                      has resumed";
+                  }
+                }
+                case simple-monitor {
+                  uses fpc:report;
+                  description "Report";
+                }
+                case bulk-monitors {
+                  list reports {
+                    uses fpc:report;
+                    description "Reports";
+                  }
+                  description "Bulk Monitor Response";
+                }
+                description "Monitor Notification value";
+              }
+              description "Monitor Notification";
+            }
+            description "Notify Value";
+        }
+        description "Notify Message";
+    }
+}
