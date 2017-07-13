@@ -289,8 +289,7 @@ if __name__ == "__main__":
     else:
         stats_list = {'vendor': search_dirs}
     if args.run_statistics:
-        stats_list = {'sdo': ['../../experimental', '../../standard',  '../../api/sdo'], 'vendor': ['../../vendor',
-                      '../../api/vendor']}
+        stats_list = {'sdo': ['../../experimental', '../../standard'], 'vendor': ['../../vendor']}
     statistics_in_catalog = statisticsInCatalog.StatisticsInCatalog()
     for key in stats_list:
         search_dirs = stats_list[key]
@@ -300,6 +299,7 @@ if __name__ == "__main__":
             for search_dir in search_dirs:
 
                 print('Found dir:' + search_dir)
+                integrity = statistics.Statistics(search_dir)
                 capability = cap.Capability(search_dir, index, prepare_sdo, integrity, args.api, sdo,
                                             statistics_in_catalog)
                 capability.parse_and_dump_sdo()

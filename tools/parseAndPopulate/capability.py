@@ -357,8 +357,10 @@ class Capability:
                         if module_submodule != 'wrong file':
                             owner = 'YangModels'
                             repo_file_path = root + '/' + file_name
+                            repo_file_path = repo_file_path.replace('../', '')
                             repo = github + '/' + owner + '/yang'
                             local_file_path = root + '/' + file_name
+                            local_file_path = local_file_path.replace('../', '')
                             conformance_type = 'implement'
                             self.find_yang_var(prefix, 'prefix', file_name, root + '/' + file_name)
                             self.find_yang_var(yang_version, 'yang-version', file_name, root + '/' + file_name)
