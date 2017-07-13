@@ -100,7 +100,6 @@ def delete():
         db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
         # prepare a cursor object using cursor() method
         cursor = db.cursor()
-        db
         # execute SQL query using execute() method.
         cursor.execute("DELETE FROM users_temp WHERE Id = " + str(row[0]) + " LIMIT 1")
         db.commit()
@@ -117,8 +116,11 @@ def copy():
         # execute SQL query using execute() method.
 
         cursor.execute("""UPDATE users_temp SET AccessRightsVendor=%s, AccessRightsSdo=%s WHERE Id=%s""",
-                       (vendor_path, sdo_path, row[0], ))
-        cursor.execute("""INSERT INTO users SELECT * FROM users_temp WHERE Id=%s""", (row[0], ))
+                       (vendor_path, sdo_path, row[0],))
+        cursor.execute("""INSERT INTO users(Username, Password, Email, ModelsProvider, FirstName, LastName,
+                          AccessRightsVendor, AccessRightsSdo) SELECT Username, Password, Email, ModelsProvider,
+                          FirstName, LastName, AccessRightsVendor, AccessRightsSdo FROM users_temp WHERE Id=%s""",
+                       (row[0],))
         db.commit()
         db.close()
     except MySQLdb.MySQLError as err:
