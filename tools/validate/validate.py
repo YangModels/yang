@@ -100,7 +100,6 @@ def delete():
         db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
         # prepare a cursor object using cursor() method
         cursor = db.cursor()
-        db
         # execute SQL query using execute() method.
         cursor.execute("DELETE FROM users_temp WHERE Id = " + str(row[0]) + " LIMIT 1")
         db.commit()
