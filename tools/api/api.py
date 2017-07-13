@@ -270,15 +270,11 @@ def add_vendors():
             json.dump(platform, plat)
         shutil.copy(repo[repo_url].localdir + '/' + capability['path'], save_to,)
 
-    #os.system('python populate.py --port ' + repr(confdPort) + ' --dir temp --api --ip ' + confd_ip + ' --credentials '
-    #          + ' '.join(credentials))
     with open("log.txt", "wr") as f:
         try:
             arguments = ["python", "../parseAndPopulate/populate.py", "--port", repr(confdPort), "--dir", "temp",
                          "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1]]
             subprocess.check_call(arguments, stderr=f)
-            #df = subprocess.Popen(args, stdout=subprocess.PIPE)
-            #output, err = df.communicate()
         except subprocess.CalledProcessError as e:
             shutil.rmtree('temp/')
             for key in repo:
@@ -314,7 +310,8 @@ def add_vendors():
 @app.route('/search/<key>/<value>', methods=['GET'])
 def search(key, value):
     split = key.split('$')
-    module_keys = ['revision', 'ietf$ietf-wg', 'maturity-level', 'submodule$revision']
+    module_keys = ['ietf$ietf-wg', 'maturity-level', 'document-name', 'author-email', 'compilation-status',
+                   'conformance-type', 'module-type', 'organization', 'yang-version']
     for module_key in module_keys:
         if key == module_key:
             path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules?deep'
@@ -324,9 +321,6 @@ def search(key, value):
             for module in data:
                 count = -1
                 process(module, passed_data, value, module, split, count)
-                #if isinstance(module, dict):
-                #    if module.get(key) == value:
-                #        passed_data.append(module)
 
             if len(passed_data) > 0:
                 return Response(json.dumps({
