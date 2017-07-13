@@ -4,8 +4,9 @@ class StatisticsInCatalog:
                      'experimental/ieee/802.1': [0, 0], 'standard/ieee/802.3': [0, 0],
                      'experimental/ieee/802.3': [0, 0], 'standard/ieee/draft': [0, 0], 'standard/ietf/RFC': [0, 0],
                      'standard/ietf/DRAFT': [0, 0], 'experimental/openconfig': [0, 0], 'experimental/ietf': [0, 0],
-                     'experimental/vendor': [0, 0], 'experimental/odp': [0, 0]}  # last line of dictionaries
-                                                                                 # are not used in code
+                     'experimental/vendor': [0, 0], 'experimental/odp': [0, 0], # this line of dictionaries are not used in code
+                     'experimental/ietf-extracted-YANG-modules': [0, 0]}
+
 
     def add_in_catalog(self, key):
         key = '/'.join(key.split('/')[2:5])
