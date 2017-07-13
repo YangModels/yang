@@ -51,7 +51,20 @@ def query_create(question):
     while True:
         sys.stdout.write(question)
         choice = raw_input().lower()
-        choice_without_last = '/'.join(choice.split('/')[:-1])
+
+        if choice.startswith('/'):
+            choice = choice[1:]
+        if choice.endswith('/'):
+            choice = choice[:-1]
+
+        if choice == '/':
+            choice_without_last = '/'
+        else:
+            if len(choice.split('/')) > 1:
+                choice_without_last = '/'.join(choice.split('/')[:-1])
+            else:
+                choice_without_last = choice
+
         if os.path.isdir('../../' + choice):
             return choice
         else:
@@ -73,7 +86,7 @@ def connect():
         # prepare a cursor object using cursor() method
         cursor = db.cursor()
         # execute SQL query using execute() method.
-        cursor.execute("SELECT * FROM `users_temp`")
+        cursor.execute("SELECT * FROM users_temp")
         data = cursor.fetchall()
         db.close()
 
@@ -87,8 +100,10 @@ def delete():
         db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
         # prepare a cursor object using cursor() method
         cursor = db.cursor()
+        db
         # execute SQL query using execute() method.
-        cursor.execute("DELETE FROM `users_temp` WHERE Id = " + str(row[0]) + " LIMIT 1")
+        cursor.execute("DELETE FROM users_temp WHERE Id = " + str(row[0]) + " LIMIT 1")
+        db.commit()
         db.close()
     except MySQLdb.MySQLError as err:
         print("Cannot connect to database. MySQL error: " + str(err))
@@ -101,9 +116,10 @@ def copy():
         cursor = db.cursor()
         # execute SQL query using execute() method.
 
-        cursor.execute("UPDATE `users_temp` SET AccessRightsVendor='" + vendor_path + "', AccessRightsSdo='" + sdo_path
-                       + "' WHERE Id=" + str(row[0]))
-        cursor.execute("INSERT INTO users SELECT * FROM users_temp WHERE Id=" + str(row[0]))
+        cursor.execute("""UPDATE users_temp SET AccessRightsVendor=%s, AccessRightsSdo=%s WHERE Id=%s""",
+                       (vendor_path, sdo_path, row[0], ))
+        cursor.execute("""INSERT INTO users SELECT * FROM users_temp WHERE Id=%s""", (row[0], ))
+        db.commit()
         db.close()
     except MySQLdb.MySQLError as err:
         print("Cannot connect to database. MySQL error: " + str(err))
