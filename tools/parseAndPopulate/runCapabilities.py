@@ -289,7 +289,8 @@ if __name__ == "__main__":
     else:
         stats_list = {'vendor': search_dirs}
     if args.run_statistics:
-        stats_list = {'sdo': ['../../experimental', '../../standard'], 'vendor': ['../../vendor']}
+        stats_list = {'sdo': ['../../experimental', '../../standard',  '../../api/sdo'], 'vendor': ['../../vendor',
+                      '../../api/vendor']}
     statistics_in_catalog = statisticsInCatalog.StatisticsInCatalog()
     for key in stats_list:
         search_dirs = stats_list[key]
