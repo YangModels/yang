@@ -2,7 +2,9 @@ import ConfigParser
 import argparse
 import errno
 import os
+import smtplib
 import sys
+from email.mime.text import MIMEText
 
 import MySQLdb
 
@@ -127,6 +129,17 @@ def copy():
         print("Cannot connect to database. MySQL error: " + str(err))
 
 
+def send_email(to, vendor, sdo):
+    msg = MIMEText('Your rights were granted ')
+    msg['Subject'] = 'Access rights granted for vendor path ' + vendor + ' and organization for sdo ' + sdo
+    msg['From'] = 'info@yangcatalog.org'
+    msg['To'] = to
+
+    s = smtplib.SMTP('localhost')
+    s.sendmail('info@yangcatalog.org', to, msg.as_string())
+    s.quit()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Script to validate user and add him to database")
     parser.add_argument('--config-path', type=str, default='./config.ini',
@@ -149,12 +162,12 @@ if __name__ == "__main__":
                 vendor_path = query_create('What is their vendor branch ')
             sdo_access = query_yes_no('Do they need sdo (model) access?')
             if sdo_access:
-                sdo_path = query_create('What is their model branch ')
+                sdo_path = query_create('What is their model organization ')
             want_to_create = False
             if sdo_path or vendor_path:
                 want_to_create = query_yes_no('Do you want to create user ' + row[5] + ' ' + row[6] + ' (' + row[1]
                                               + ')' + ' from organization ' + row[4] + ' with path for vendor '
-                                              + repr(vendor_path) + ' and path for sdo ' + repr(sdo_path))
+                                              + repr(vendor_path) + ' and organization for sdo ' + repr(sdo_path))
             if want_to_create:
                 if sdo_path is None:
                     sdo_path = ''
@@ -162,6 +175,7 @@ if __name__ == "__main__":
                     vendor_path = ''
                 copy()
                 delete()
+                send_email(row[3], repr(vendor_path), repr(sdo_path))
                 break
             else:
                 print('Skipping user ' + row[5] + ' ' + row[6] + ' (' + row[1] + ')' + ' from organization ' + row[4]
