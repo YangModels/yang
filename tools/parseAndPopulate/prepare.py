@@ -28,11 +28,12 @@ class Prepare:
         self.repo = {}
         self.repo_file_path = {}
         self.local_file_path = {}
+        self.generated_from = {}
 
     def add_key_sdo(self, key, namespace, conformance_type, reference, prefix, yang_version, organization, description,
                     contact, schema, feature, json_submodules, compilation_status, author_email, maturity_level,
                     compilation_result, module_or_submodule, document_name, owner, repo, repo_file_path,
-                    local_file_path):
+                    local_file_path, generated_from):
         self.name_revision.add(key)
         self.namespace[key] = namespace
         self.conformance_type[key] = conformance_type
@@ -56,6 +57,7 @@ class Prepare:
         self.repo[key] = repo
         self.owner[key] = owner
         self.local_file_path[key] = local_file_path
+        self.generated_from[key] = generated_from
 
     def add_key(self, key, namespace, conformance_type, vendor, platform, software_version, software_flavor, os_type,
                 os_version, feature_set, reference, prefix, yang_version, organization, description, contact,
@@ -121,6 +123,7 @@ class Prepare:
                 'submodule': json.loads(self.json_submodules[key]),
                 'module-type': self.module_or_submodule[key],
                 'document-name': self.document_name[key],
+                'generated-from': self.generated_from[key],
                 'source-file': {
                     'online': {
                         'owner': self.owner[key],

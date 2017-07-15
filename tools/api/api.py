@@ -19,6 +19,7 @@ from flask import Flask, jsonify, abort, make_response, request, Response
 from flask_httpauth import HTTPBasicAuth
 
 import repoutil
+from tools.api import yangParser
 
 url = 'https://github.com/'
 
@@ -55,7 +56,7 @@ def not_found():
     return make_response(jsonify({'error': 'Not found'}), 404)
 
 
-def authorize_for_sdos(request, body):
+def authorize_for_sdos(request, organizations_sent, organization_parsed):
     username = request.authorization['username']
     accessRigths = None
     try:
@@ -74,15 +75,15 @@ def authorize_for_sdos(request, body):
     except MySQLdb.MySQLError as err:
         print("Cannot connect to database. MySQL error: " + str(err))
 
-    passed = True
-    rights = accessRigths.split('/')
-    rights = filter(bool, rights)
-    for module in body['modules']['module']:
-        path = module['sdo-file']['path']
-        access = path.split('/')[:-1]
-        for right in rights:
-            if right not in access:
-                passed = False
+    passed = False
+    if accessRigths == '/':
+        if organization_parsed != organizations_sent:
+            return "module`s organization is not the same as organization provided"
+        return True
+    if organizations_sent in accessRigths:
+        if organization_parsed != organizations_sent:
+            return "module`s organization is not the same as organization provided"
+        passed = True
     return passed
 
 
@@ -173,16 +174,15 @@ def add_modules():
     if not request.json:
         abort(400)
     body = request.json
-    resolved_authorization = authorize_for_sdos(request, body)
-    if not resolved_authorization:
-        return unauthorized()
 
     with open('./prepare-sdo.json', "w") as plat:
          json.dump(body, plat)
 
     repo = {}
+    warning = []
     for mod in body['modules']['module']:
         sdo = mod['sdo-file']
+        org = mod['organization']
 
         directory = '/'.join(sdo['path'].split('/')[:-1])
 
@@ -202,16 +202,22 @@ def add_modules():
             if e.errno != errno.EEXIST:
                 raise
         shutil.copy(repo[repo_url].localdir + '/' + sdo['path'], save_to)
+        organization = yangParser.parse(os.path.abspath(save_to + '/' + sdo['path'].split('/')[-1])) \
+            .search('organization')[0].arg
+        resolved_authorization = authorize_for_sdos(request, org, organization)
+        if not resolved_authorization:
+            shutil.rmtree('temp/')
+            for key in repo:
+                repo[key].remove()
+            return unauthorized()
+        if 'organization' in repr(resolved_authorization):
+            warning.append(sdo['path'].split('/')[-1] + ' ' + resolved_authorization)
 
-    #os.system('python populate.py --sdo --port ' + repr(confdPort) + ' --dir temp --api --ip ' + confd_ip + ' --credentials '
-    #                + ' '.join(credentials))
     with open("log.txt", "wr") as f:
         try:
             arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port", repr(confdPort), "--dir",
                           "temp", "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1]]
             subprocess.check_call(arguments, stderr=f)
-            #df = subprocess.Popen(args, stdout=subprocess.PIPE)
-            #output, err = df.communicate()
         except subprocess.CalledProcessError as e:
             shutil.rmtree('temp/')
             for key in repo:
@@ -232,7 +238,10 @@ def add_modules():
             os.remove(item)
     for key in repo:
         repo[key].remove()
-    return jsonify({'info': 'success'})
+    if len(warning) > 0:
+        return jsonify({'info': 'success', 'warnings': [{'warning': val}for val in warning]})
+    else:
+        return jsonify({'info': 'success'})
 
 
 @app.route('/platforms', methods=['PUT'])

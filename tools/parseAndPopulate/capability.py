@@ -86,6 +86,13 @@ def module_or_submodule(input_file):
         return None
 
 
+def create_generated_from(namespace):
+    if ':yang:smiv2:' in namespace:
+        return 'mib'
+    else:
+        return 'not-applicable'
+
+
 class Capability:
     def __init__(self, hello_message_file, index, prepare, integrity_checker, api, sdo,
                  statistics_in_catalog=None):
@@ -323,6 +330,9 @@ class Capability:
                         .encode('ascii', 'ignore')
                     document_name = unicodedata.normalize('NFKD', self.get_json(sdo.get('document-name')))\
                         .encode('ascii', 'ignore')
+                    generated_from = sdo.get('generated-from')
+                    if generated_from is None:
+                        generated_from = 'not-applicable'
                     self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name), namespace.get(file_name),
                                              conformance_type, reference, prefix.get(file_name),
                                              yang_version.get(file_name), organization.get(file_name),
@@ -331,7 +341,7 @@ class Capability:
                                              self.get_submodule_info(includes.get(file_name)['name']),
                                              compilations_status, author_email, working_group, compilations_result,
                                              module_submodule, document_name, owner, repo,
-                                             repo_file_path, local_file_path)
+                                             repo_file_path, local_file_path, generated_from)
 
         if not self.api:
             for root, subdirs, sdos in os.walk('/'.join(self.split)):
@@ -386,6 +396,7 @@ class Capability:
                             author_email = self.parse_email(file_name, revision[file_name])
                             working_group = self.parse_wg(file_name, revision[file_name])
                             self.statistics_in_catalog.add_in_catalog(root)
+                            generated_from = create_generated_from(namespace.get(file_name))
                             self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name),
                                                      namespace.get(file_name), conformance_type, reference,
                                                      prefix.get(file_name), yang_version.get(file_name),
@@ -395,7 +406,7 @@ class Capability:
                                                      self.get_submodule_info(includes.get(file_name)['name']),
                                                      compilations_status, author_email, working_group,
                                                      compilations_result, module_submodule, document_name, owner,
-                                                     repo, repo_file_path, local_file_path)
+                                                     repo, repo_file_path, local_file_path, generated_from)
 
     # parse capability xml and save to file
     def parse_and_dump(self):
