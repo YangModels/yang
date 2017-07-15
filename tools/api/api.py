@@ -305,7 +305,7 @@ def add_vendors():
         repo[key].remove()
     integrity_file_name = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%m:%S.%f")[:-3]+'Z'
 
-    if integrity_file_name != './':
+    if integrity_file_location != './':
         shutil.move('./integrity.html', integrity_file_location + 'integrity' + integrity_file_name + '.html')
     return jsonify({'result':
                     {
