@@ -131,7 +131,7 @@ class Capability:
                 self.repo_file_path = None
                 self.local_file_path = None
                 self.feature_set = 'ALL'
-                self.software_version = repr(165) + self.feature_set
+                self.software_version = self.split[5]#repr(165) + self.feature_set
                 self.vendor = self.split[3]
                 # Solve for os-type
                 if 'nx' in self.split[4]:
@@ -170,7 +170,7 @@ class Capability:
             self.vendor = impl['vendor']
             self.platform = impl['name']
             self.os = impl['os-type']
-            self.software_version = repr(165) + self.feature_set
+            self.software_version = impl['software-version']#repr(165) + self.feature_set
             self.owner = impl['capabilities-file']['owner']
             self.repo = github + '/' + self.owner + impl['capabilities-file']['repo']
             self.repo_file_path = impl['capabilities-file']['path']
