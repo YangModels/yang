@@ -29,11 +29,12 @@ class Prepare:
         self.repo_file_path = {}
         self.local_file_path = {}
         self.generated_from = {}
+        self.working_group = {}
 
     def add_key_sdo(self, key, namespace, conformance_type, reference, prefix, yang_version, organization, description,
                     contact, schema, feature, json_submodules, compilation_status, author_email, maturity_level,
                     compilation_result, module_or_submodule, document_name, owner, repo, repo_file_path,
-                    local_file_path, generated_from):
+                    local_file_path, generated_from, working_group):
         self.name_revision.add(key)
         self.namespace[key] = namespace
         self.conformance_type[key] = conformance_type
@@ -58,12 +59,13 @@ class Prepare:
         self.owner[key] = owner
         self.local_file_path[key] = local_file_path
         self.generated_from[key] = generated_from
+        self.working_group[key] = working_group
 
     def add_key(self, key, namespace, conformance_type, vendor, platform, software_version, software_flavor, os_type,
                 os_version, feature_set, reference, prefix, yang_version, organization, description, contact,
                 compilation_status, author_email, schema, feature, maturity_level, compilation_result, deviations,
                 json_submodules,module_or_submodule, document_name, owner, repo, repo_file_path,
-                local_file_path):
+                local_file_path, working_group):
         self.name_revision.add(key)
         self.namespace[key] = namespace
         self.conformance_type[key] = conformance_type
@@ -87,6 +89,7 @@ class Prepare:
         self.repo[key] = repo
         self.owner[key] = owner
         self.local_file_path[key] = local_file_path
+        self.working_group = working_group
 
         if key not in self.implementations:
             self.implementations[key] = {}
@@ -116,7 +119,10 @@ class Prepare:
                 'contact': self.contact[key],
                 'compilation-status': self.compilation_status[key],
                 'schema': self.schema[key],
-                'feature': self.feature[key],
+                #'ietf': {
+                #    'ietf-wg': self.working_group.get(key)
+                #},
+                #'feature': self.feature[key],
                 'maturity-level': self.maturity_level[key],
                 'compilation-result': self.compilation_result[key],
                 'author-email': self.author_email[key],
@@ -142,7 +148,7 @@ class Prepare:
                 'name': key.split('@')[0],
                 'revision': key.split('@')[1],
                 'namespace': self.namespace[key],
-                'conformance-type': self.conformance_type[key],
+   #             'conformance-type': self.conformance_type[key],
                 'reference': self.reference[key],
                 'prefix': self.prefix[key],
                 'yang-version': self.yang_version[key],
@@ -152,7 +158,10 @@ class Prepare:
                 'compilation-status': self.compilation_status[key],
                 'author-email': self.author_email[key],
                 'schema': self.schema[key],
-                'feature': self.feature[key],
+                #'ietf': {
+                #   'ietf-wg': self.working_group[key]
+                #},
+                #'feature': self.feature[key],
                 'maturity-level': self.maturity_level[key],
                 'compilation-result': self.compilation_result[key],
                 'submodule': json.loads(self.json_submodules[key]),
@@ -168,10 +177,10 @@ class Prepare:
                         'feature-set': self.implementations[key][implementation]['feature-set'],
                      #   'conformance-type': self.implementations[key][implementation]['conformance-type'],
                     } for implementation in self.implementations[key]],
-                },
-                'deviation': [
-                    {'name': self.deviations[key]['name'][i],
-                     'revision': self.deviations[key]['revision'][i]
-                     } for
-                    i, val in enumerate(self.deviations[key]['name'])],
+                }#,
+               # 'deviation': [
+               #     {'name': self.deviations[key]['name'][i],
+               #      'revision': self.deviations[key]['revision'][i]
+               #      } for
+               #     i, val in enumerate(self.deviations[key]['name'])],
             } for key in self.name_revision]}, prepare_model)

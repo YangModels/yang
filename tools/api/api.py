@@ -186,7 +186,7 @@ def add_modules():
 
         directory = '/'.join(sdo['path'].split('/')[:-1])
 
-        repo_url = url + sdo['owner'] + '/' + sdo['repo']
+        repo_url = url + sdo['owner'] + '/' + sdo['repository']
         if repo_url not in repo:
             repo[repo_url] = repoutil.RepoUtil(repo_url)
             repo[repo_url].clone()
@@ -194,7 +194,7 @@ def add_modules():
         for submodule in repo[repo_url].repo.submodules:
             submodule.update(init=True)
 
-        save_to = 'temp/' + sdo['owner'] + '/' + sdo['repo'].split('.')[0] + '/' + directory
+        save_to = 'temp/' + sdo['owner'] + '/' + sdo['repository'].split('.')[0] + '/' + directory
         try:
             os.makedirs(save_to)
         except OSError as e:
@@ -259,7 +259,7 @@ def add_vendors():
         capability = platform['capabilities-file']
         file_name = capability['path'].split('/')[-1]
 
-        repo_url = url + capability['owner'] + '/' + capability['repo']
+        repo_url = url + capability['owner'] + '/' + capability['repository']
         if repo_url not in repo:
             repo[repo_url] = repoutil.RepoUtil(repo_url)
             repo[repo_url].clone()
@@ -268,7 +268,7 @@ def add_vendors():
             submodule.update(init=True)
 
         directory = '/'.join(capability['path'].split('/')[:-1])
-        save_to = 'temp/' + capability['owner'] + '/' + capability['repo'].split('.')[0] + '/' + directory
+        save_to = 'temp/' + capability['owner'] + '/' + capability['repository'].split('.')[0] + '/' + directory
 
         try:
             shutil.copytree(repo[repo_url].localdir + '/' + directory, save_to,

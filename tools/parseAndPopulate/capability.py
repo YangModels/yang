@@ -341,7 +341,7 @@ class Capability:
                                              self.get_submodule_info(includes.get(file_name)['name']),
                                              compilations_status, author_email, working_group, compilations_result,
                                              module_submodule, document_name, owner, repo,
-                                             repo_file_path, local_file_path, generated_from)
+                                             repo_file_path, local_file_path, generated_from, None)
 
         if not self.api:
             for root, subdirs, sdos in os.walk('/'.join(self.split)):
@@ -395,6 +395,7 @@ class Capability:
                                 compilations_result = ''
                             author_email = self.parse_email(file_name, revision[file_name])
                             working_group = self.parse_maturityLevel(file_name, revision[file_name])
+                            wg = self.parse_wg(file_name, revision[file_name])
                             self.statistics_in_catalog.add_in_catalog(root)
                             generated_from = create_generated_from(namespace.get(file_name))
                             self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name),
@@ -406,7 +407,7 @@ class Capability:
                                                      self.get_submodule_info(includes.get(file_name)['name']),
                                                      compilations_status, author_email, working_group,
                                                      compilations_result, module_submodule, document_name, owner,
-                                                     repo, repo_file_path, local_file_path, generated_from)
+                                                     repo, repo_file_path, local_file_path, generated_from, wg)
 
     # parse capability xml and save to file
     def parse_and_dump(self):
@@ -554,6 +555,7 @@ class Capability:
                     compilations_result[module_name] = ''
                 author_email[module_name] = self.parse_email(module_name, revision[module_name])
                 working_group[module_name] = self.parse_maturityLevel(module_name, revision[module_name])
+                wg = self.parse_wg(module_name, revision[module_name])
 
                 if self.repo_file_path is None:
                     self.repo_file_path = yang_file
@@ -568,7 +570,8 @@ class Capability:
                                      features[module_name], working_group[module_name],
                                      compilations_result[module_name], deviations[module_name],
                                      self.get_submodule_info(includes[module_name]['name']), module_submodule,
-                                     document_name, self.owner, self.repo, self.repo_file_path, self.local_file_path)
+                                     document_name, self.owner, self.repo, self.repo_file_path, self.local_file_path,
+                                     wg)
 
                 self.parse_imports_includes(includes[module_name]['name'], features, revision, name_revision,
                                             yang_version, namespace, prefix, organization, contact, description,
@@ -747,7 +750,9 @@ class Capability:
                     else:
                         comp_result[imp] = ''
                     email[imp] = self.parse_email(imp, revision[imp])
-                    wg[imp] = self.parse_maturityLevel(imp, revision[imp], 1)
+                    wg[imp] = self.parse_maturityLevel(imp, revision[imp])
+                    working_group = self.parse_wg(imp, revision[imp])
+
                     conformance_type[imp] = 'implement'
                     module_names.append(imp)
                     name_revision.append(imp + '@' + revision[imp])
@@ -764,7 +769,7 @@ class Capability:
                                          email[imp], schema[imp], features[imp], wg[imp], comp_result[imp],
                                          deviations[imp], self.get_submodule_info(includes[imp]['name']),
                                          module_submodule, document_name, self.owner, self.repo, self.repo_file_path,
-                                         self.local_file_path)
+                                         self.local_file_path, working_group)
 
                     self.parse_imports_includes(includes[imp]['name'], features, revision, name_revision,
                                                 yang_version, namespace, prefix, organization, contact, description,
