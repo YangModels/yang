@@ -275,15 +275,15 @@ class Capability:
             sdos_json = json.load(open('./prepare-sdo.json', 'r'))
             sdos_list = sdos_json['modules']['module']
             for sdo in sdos_list:
-                owner = sdo['sdo-file']['owner']
-                repo = github + '/' + owner + '/' + sdo['sdo-file']['repo'].split('.')[0]
-                repo_file_path = sdo['sdo-file']['path']
-                root = owner + '/' + sdo['sdo-file']['repo'].split('.')[0] + '/'\
+                owner = sdo['source-file']['owner']
+                repo = github + '/' + owner + '/' + sdo['source-file']['repo'].split('.')[0]
+                repo_file_path = sdo['source-file']['path']
+                root = owner + '/' + sdo['source-file']['repo'].split('.')[0] + '/'\
                        + '/'.join(repo_file_path.split('/')[:-1])
                 root = 'temp/' + unicodedata.normalize('NFKD', root).encode('ascii', 'ignore')
-                file_name = unicodedata.normalize('NFKD', sdo['sdo-file']['path'].split('/')[-1])\
+                file_name = unicodedata.normalize('NFKD', sdo['source-file']['path'].split('/')[-1])\
                     .encode('ascii', 'ignore')
-                local_file_path = 'api/sdo/' + owner + '/' + sdo['sdo-file']['repo'].split('.')[0] + '/'\
+                local_file_path = 'api/sdo/' + owner + '/' + sdo['source-file']['repo'].split('.')[0] + '/'\
                                   + repo_file_path
                 self.parsed_yang = None
                 prefix = {}
@@ -394,7 +394,7 @@ class Capability:
                             else:
                                 compilations_result = ''
                             author_email = self.parse_email(file_name, revision[file_name])
-                            working_group = self.parse_wg(file_name, revision[file_name])
+                            working_group = self.parse_maturityLevel(file_name, revision[file_name])
                             self.statistics_in_catalog.add_in_catalog(root)
                             generated_from = create_generated_from(namespace.get(file_name))
                             self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name),
@@ -553,7 +553,7 @@ class Capability:
                 else:
                     compilations_result[module_name] = ''
                 author_email[module_name] = self.parse_email(module_name, revision[module_name])
-                working_group[module_name] = self.parse_wg(module_name, revision[module_name])
+                working_group[module_name] = self.parse_maturityLevel(module_name, revision[module_name])
 
                 if self.repo_file_path is None:
                     self.repo_file_path = yang_file
@@ -747,7 +747,7 @@ class Capability:
                     else:
                         comp_result[imp] = ''
                     email[imp] = self.parse_email(imp, revision[imp])
-                    wg[imp] = self.parse_wg(imp, revision[imp])
+                    wg[imp] = self.parse_maturityLevel(imp, revision[imp], 1)
                     conformance_type[imp] = 'implement'
                     module_names.append(imp)
                     name_revision.append(imp + '@' + revision[imp])
@@ -935,7 +935,7 @@ class Capability:
             pass
         return ''
 
-    def parse_wg(self, module_name, revision):
+    def parse_maturityLevel(self, module_name, revision):
         # if module name contains .yang get only name
         module_name = module_name.split('.')[0]
         # try to find in draft without revision
@@ -970,3 +970,20 @@ class Capability:
         except KeyError:
             pass
         return None
+
+    def parse_wg(self, module_name, revision):
+        # if module name contains .yang get only name
+        module_name = module_name.split('.')[0]
+        # try to find in draft without revision
+        try:
+            return self.ietf_draft_json[module_name + '.yang'][0].split('</a>')[0].split('\">')[1].split('-')[2]
+        except KeyError:
+            pass
+        # try to find in draft with revision
+        try:
+            return self.ietf_draft_json[module_name + '@' + revision + '.yang'][0].split('</a>')[0].split('\">')[1]\
+            .split('-')[2]
+        except KeyError:
+            pass
+        return None
+

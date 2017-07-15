@@ -19,7 +19,7 @@ from flask import Flask, jsonify, abort, make_response, request, Response
 from flask_httpauth import HTTPBasicAuth
 
 import repoutil
-from tools.api import yangParser
+import yangParser
 
 url = 'https://github.com/'
 
@@ -181,7 +181,7 @@ def add_modules():
     repo = {}
     warning = []
     for mod in body['modules']['module']:
-        sdo = mod['sdo-file']
+        sdo = mod['source-file']
         org = mod['organization']
 
         directory = '/'.join(sdo['path'].split('/')[:-1])
@@ -305,7 +305,7 @@ def add_vendors():
         repo[key].remove()
     integrity_file_name = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%m:%S.%f")[:-3]+'Z'
 
-    if integrity_file_location != './':
+    if integrity_file_name != './':
         shutil.move('./integrity.html', integrity_file_location + 'integrity' + integrity_file_name + '.html')
     return jsonify({'result':
                     {

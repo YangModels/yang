@@ -10,7 +10,7 @@ import capability as cap
 import statistics
 import prepare
 import shutil
-from tools.parseAndPopulate import statisticsInCatalog
+import statisticsInCatalog
 
 
 def find_missing_hello(directory, pattern):

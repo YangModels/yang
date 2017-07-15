@@ -98,6 +98,7 @@ class Prepare:
              'os-type': os_type,
              'os-version': os_version,
              'feature-set': feature_set
+             #'conformance-type': conformance_type
              }
 
     # - deviations, implementations
@@ -113,7 +114,6 @@ class Prepare:
                 'organization': self.organization[key],
                 'description': self.description[key],
                 'contact': self.contact[key],
-                'conformance-type': self.conformance_type[key],
                 'compilation-status': self.compilation_status[key],
                 'schema': self.schema[key],
                 'feature': self.feature[key],
@@ -165,7 +165,8 @@ class Prepare:
                         'software-flavor': self.implementations[key][implementation]['software-flavor'],
                         'os-type': self.implementations[key][implementation]['os-type'],
                         'os-version': self.implementations[key][implementation]['os-version'],
-                        'feature-set': self.implementations[key][implementation]['feature-set']
+                        'feature-set': self.implementations[key][implementation]['feature-set'],
+                     #   'conformance-type': self.implementations[key][implementation]['conformance-type'],
                     } for implementation in self.implementations[key]],
                 },
                 'deviation': [
