@@ -30,6 +30,16 @@ yang_models_url = github_repos_url + '/YangModels/yang'
 auth = HTTPBasicAuth()
 app = Flask(__name__)
 
+NS_MAP = {
+    "http://cisco.com/ns/yang/": "cisco",
+    "http://www.huawei.com/netconf": "huawei",
+    "http://openconfig.net/yang/": "openconfig",
+    "http://tail-f.com/": "tail-f",
+    "urn:ietf": "ietf",
+    "urn:cisco": "cisco",
+    "urn:bbf": "bbf"
+}
+
 
 def unicode_normalize(variable):
     return unicodedata.normalize('NFKD', variable).encode('ascii', 'ignore')
@@ -69,7 +79,7 @@ def authorize_for_sdos(request, organizations_sent, organization_parsed):
 
         for row in data:
             if row[1] == username:
-                accessRigths = row[8]
+                accessRigths = row[7]
                 break
         db.close()
     except MySQLdb.MySQLError as err:
@@ -100,7 +110,7 @@ def authorize_for_vendors(request, body):
 
         for row in data:
             if row[1] == username:
-                accessRigths = row[7]
+                accessRigths = row[8]
                 break
         db.close()
     except MySQLdb.MySQLError as err:
@@ -182,7 +192,7 @@ def add_modules():
     warning = []
     for mod in body['modules']['module']:
         sdo = mod['source-file']
-        org = mod['organization']
+        orgz = mod['organization']
 
         directory = '/'.join(sdo['path'].split('/')[:-1])
 
@@ -204,7 +214,16 @@ def add_modules():
         shutil.copy(repo[repo_url].localdir + '/' + sdo['path'], save_to)
         organization = yangParser.parse(os.path.abspath(save_to + '/' + sdo['path'].split('/')[-1])) \
             .search('organization')[0].arg
-        resolved_authorization = authorize_for_sdos(request, org, organization)
+        try:
+            namespace = yangParser.parse(os.path.abspath(save_to + '/' + sdo['path'].split('/')[-1])) \
+                .search('namespace')[0].arg
+
+            for ns, org in NS_MAP.items():
+                if ns in namespace:
+                    organization = org
+        except:
+            pass
+        resolved_authorization = authorize_for_sdos(request, orgz, organization)
         if not resolved_authorization:
             shutil.rmtree('temp/')
             for key in repo:

@@ -18,7 +18,8 @@ NS_MAP = {
     "http://openconfig.net/yang/": "openconfig",
     "http://tail-f.com/": "tail-f",
     "urn:ietf": "ietf",
-    "urn:cisco": "cisco"
+    "urn:cisco": "cisco",
+    "urn:bbf": "bbf"
 }
 
 github = 'https://github.com/'
@@ -86,9 +87,11 @@ def module_or_submodule(input_file):
         return None
 
 
-def create_generated_from(namespace):
+def create_generated_from(namespace, module_name):
     if ':yang:smiv2:' in namespace:
         return 'mib'
+    elif 'Cisco-IOS-XR' in module_name:
+        return 'native'
     else:
         return 'not-applicable'
 
@@ -169,6 +172,49 @@ class Capability:
         self.ieee_experimental_json = load_json_from_url('http://www.claise.be/IEEEExperimental.json')
         self.ietf_draft_json = load_json_from_url('http://www.claise.be/IETFYANGDraft.json')
 
+        self.xe1631 = ''
+        if '1631' in self.split:
+            self.xe1631 = load_json_from_url('http://www.claise.be/CiscoXE1631.json')
+        self.xe1632 = ''
+        if '1633' in self.split:
+            self.xe1632 = load_json_from_url('http://www.claise.be/CiscoXE1632.json')
+        self.xe1641 = ''
+        if '1641' in self.split:
+            self.xe1641 = load_json_from_url('http://www.claise.be/CiscoXE1641.json')
+        self.xe1651 = ''
+        if '1651' in self.split:
+            self.xe1651 = load_json_from_url('http://www.claise.be/CiscoXE1651.json')
+
+        self.xr611 = ''
+        if '611' in self.split:
+            self.xr611 = load_json_from_url('http://www.claise.be/CiscoXR611.json')
+        self.xr612 = ''
+        if '612' in self.split:
+            self.xr612 = load_json_from_url('http://www.claise.be/CiscoXR612.json')
+        self.xr613 = ''
+        if '613' in self.split:
+            self.xr613 = load_json_from_url('http://www.claise.be/CiscoXR613.json')
+        self.xr621 = ''
+        if '621' in self.split:
+            self.xr621 = load_json_from_url('http://www.claise.be/CiscoXR621.json')
+
+        self.nx703f11 = ''
+        if '7.0-3-F1-1' in self.split:
+            self.nx703f11 = load_json_from_url('http://www.claise.be/CiscoNX703F11.json')
+        self.nx703f21 = ''
+        if '7.0-3-F2-1' in self.split or '7.0-3-F2-2' in self.split:
+            self.nx703f21 = load_json_from_url('http://www.claise.be/CiscoNX703F21.json')
+        self.nx703i51 = ''
+        if '7.0-3-I5-1' in self.split:
+            self.nx703i51 = load_json_from_url('http://www.claise.be/CiscoNX703I51.json')
+        self.nx703i52 = ''
+        if '7.0-3-I5-2' in self.split:
+            self.nx703i52 = load_json_from_url('http://www.claise.be/CiscoNX703I52.json')
+        self.nx703i61 = ''
+        if '7.0-3-I6-1' in self.split:
+            self.nx703i61 = load_json_from_url('http://www.claise.be/CiscoNX703I61.json')
+        self.huawei8910 = load_json_from_url('http://www.claise.be/NETWORKROUTER8910.json')
+
     def initialize(self, impl):
         if impl['capabilities-file']['path'] in self.hello_message_file:
             self.feature_set = 'ALL'
@@ -179,9 +225,9 @@ class Capability:
             self.os = impl['os-type']
             self.software_version = impl['software-version']#repr(165) + self.feature_set
             self.owner = impl['capabilities-file']['owner']
-            self.repo = github + '/' + self.owner + impl['capabilities-file']['repo']
+            self.repo = github + '/' + self.owner + impl['capabilities-file']['repository']
             self.repo_file_path = impl['capabilities-file']['path']
-            self.local_file_path = 'api/vendor/' + self.owner + '/' + impl['capabilities-file']['repo'] + '/'\
+            self.local_file_path = 'api/vendor/' + self.owner + '/' + impl['capabilities-file']['repository'] + '/'\
                                     + self.repo_file_path
 
     def handle_exception(self, field, object, module_name):
@@ -276,14 +322,14 @@ class Capability:
             sdos_list = sdos_json['modules']['module']
             for sdo in sdos_list:
                 owner = sdo['source-file']['owner']
-                repo = github + '/' + owner + '/' + sdo['source-file']['repo'].split('.')[0]
+                repo = github + '/' + owner + '/' + sdo['source-file']['repository'].split('.')[0]
                 repo_file_path = sdo['source-file']['path']
-                root = owner + '/' + sdo['source-file']['repo'].split('.')[0] + '/'\
+                root = owner + '/' + sdo['source-file']['repository'].split('.')[0] + '/'\
                        + '/'.join(repo_file_path.split('/')[:-1])
                 root = 'temp/' + unicodedata.normalize('NFKD', root).encode('ascii', 'ignore')
                 file_name = unicodedata.normalize('NFKD', sdo['source-file']['path'].split('/')[-1])\
                     .encode('ascii', 'ignore')
-                local_file_path = 'api/sdo/' + owner + '/' + sdo['source-file']['repo'].split('.')[0] + '/'\
+                local_file_path = 'api/sdo/' + owner + '/' + sdo['source-file']['repository'].split('.')[0] + '/'\
                                   + repo_file_path
                 self.parsed_yang = None
                 prefix = {}
@@ -303,7 +349,8 @@ class Capability:
                     print('file name contains invalid characters')
                     module_submodule = 'wrong file'
                 if module_submodule != 'wrong file':
-                    conformance_type = unicodedata.normalize('NFKD', sdo['conformance-type']).encode('ascii', 'ignore')
+                    #conformance_type = unicodedata.normalize('NFKD', sdo['conformance-type']).encode('ascii', 'ignore')
+                    conformance_type = 'implement'
                     self.find_yang_var(prefix, 'prefix', file_name, root + '/' + file_name)
                     self.find_yang_var(yang_version, 'yang-version', file_name, root + '/' + file_name)
                     self.find_yang_var(organization, 'organization', file_name, root + '/' + file_name)
@@ -333,6 +380,9 @@ class Capability:
                     generated_from = sdo.get('generated-from')
                     if generated_from is None:
                         generated_from = 'not-applicable'
+                    for ns, org in NS_MAP.items():
+                        if ns in namespace:
+                            organization = org
                     self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name), namespace.get(file_name),
                                              conformance_type, reference, prefix.get(file_name),
                                              yang_version.get(file_name), organization.get(file_name),
@@ -383,8 +433,7 @@ class Capability:
                             self.find_yang_var(revision, 'revision', file_name, root + '/' + file_name)
                             self.find_yang_var(namespace, 'namespace', file_name, root + '/' + file_name)
                             self.find_yang_var(features, 'feature', file_name, root + '/' + file_name)
-                            reference = 'missing element'
-                            document_name = 'missing element'
+
                             compilations_status = self.parse_status(file_name, revision[file_name])
                             if 'bbf-l2-forwarding-base' in file_name:
                                 pass
@@ -395,9 +444,20 @@ class Capability:
                                 compilations_result = ''
                             author_email = self.parse_email(file_name, revision[file_name])
                             working_group = self.parse_maturityLevel(file_name, revision[file_name])
-                            wg = self.parse_wg(file_name, revision[file_name])
+
+
                             self.statistics_in_catalog.add_in_catalog(root)
-                            generated_from = create_generated_from(namespace.get(file_name))
+                            generated_from = create_generated_from(namespace.get(file_name), file_name)
+                            doc_name_reference = self.parse_document_reference(file_name, revision[file_name])
+                            reference = doc_name_reference[1]
+                            document_name = doc_name_reference[0]
+                            for ns, org in NS_MAP.items():
+                                if ns in namespace[file_name]:
+                                    organization[file_name] = org
+                            if organization[file_name] == 'ietf':
+                                wg = self.parse_wg(file_name, revision[file_name])
+                            else:
+                                wg = None
                             self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name),
                                                      namespace.get(file_name), conformance_type, reference,
                                                      prefix.get(file_name), yang_version.get(file_name),
@@ -539,7 +599,10 @@ class Capability:
                 module_submodule = module_or_submodule(yang_file)
                 self.find_yang_var(prefix, 'prefix', module_name, yang_file)
                 self.find_yang_var(yang_version, 'yang-version', module_name, yang_file)
-                self.find_yang_var(organization, 'organization', module_name, yang_file)
+                if 'urn:ietf:' in namespace:
+                    organization[module_name] = 'ietf'
+                else:
+                    self.find_yang_var(organization, 'organization', module_name, yang_file)
                 self.find_yang_var(contact, 'contact', module_name, yang_file)
                 self.find_yang_var(description, 'description', module_name, yang_file)
                 self.find_yang_var(includes, 'include', module_name, yang_file)
@@ -555,8 +618,10 @@ class Capability:
                     compilations_result[module_name] = ''
                 author_email[module_name] = self.parse_email(module_name, revision[module_name])
                 working_group[module_name] = self.parse_maturityLevel(module_name, revision[module_name])
-                wg = self.parse_wg(module_name, revision[module_name])
-
+                if organization_module[module_name] == 'ietf':
+                    wg = self.parse_wg(module_name, revision[module_name])
+                else:
+                    wg = None
                 if self.repo_file_path is None:
                     self.repo_file_path = yang_file
                     self.local_file_path = yang_file
@@ -564,14 +629,14 @@ class Capability:
                 self.prepare.add_key(module_name + '@' + revision[module_name], namespace[module_name],
                                      conformance_type[module_name], self.vendor, self.platform, self.software_version,
                                      self.software_flavor, self.os, self.os_version, self.feature_set,
-                                     reference, prefix[module_name], yang_version[module_name],
-                                     organization[module_name], description[module_name], contact[module_name],
+                                     reference, prefix[module_name], yang_version[module_name],# changed organization[module_name] for organization_module
+                                     organization_module[module_name], description[module_name], contact[module_name],
                                      compilations_status[module_name], author_email[module_name], schema[module_name],
                                      features[module_name], working_group[module_name],
                                      compilations_result[module_name], deviations[module_name],
                                      self.get_submodule_info(includes[module_name]['name']), module_submodule,
                                      document_name, self.owner, self.repo, self.repo_file_path, self.local_file_path,
-                                     wg)
+                                     create_generated_from(namespace[module_name], module_name), wg)
 
                 self.parse_imports_includes(includes[module_name]['name'], features, revision, name_revision,
                                             yang_version, namespace, prefix, organization, contact, description,
@@ -751,7 +816,10 @@ class Capability:
                         comp_result[imp] = ''
                     email[imp] = self.parse_email(imp, revision[imp])
                     wg[imp] = self.parse_maturityLevel(imp, revision[imp])
-                    working_group = self.parse_wg(imp, revision[imp])
+                    if organization_module[imp] == 'ietf':
+                        working_group = self.parse_wg(imp, revision[imp])
+                    else:
+                        working_group = None
 
                     conformance_type[imp] = 'implement'
                     module_names.append(imp)
@@ -764,12 +832,13 @@ class Capability:
                         self.local_file_path = yang_file
                     self.prepare.add_key(imp + '@' + revision[imp], namespace[imp], conformance_type[imp], self.vendor,
                                          self.platform, self.software_version, self.software_flavor, self.os,
-                                         self.os_version, self.feature_set, reference, prefix[imp], yang_version[imp],
-                                         organization[imp], description[imp], contact[imp], comp_status[imp],
+                                         self.os_version, self.feature_set, reference, prefix[imp], yang_version[imp],#chage that for organization_module organization[imp]
+                                         organization_module[imp], description[imp], contact[imp], comp_status[imp],
                                          email[imp], schema[imp], features[imp], wg[imp], comp_result[imp],
                                          deviations[imp], self.get_submodule_info(includes[imp]['name']),
                                          module_submodule, document_name, self.owner, self.repo, self.repo_file_path,
-                                         self.local_file_path, working_group)
+                                         self.local_file_path,
+                                         create_generated_from(namespace[imp], imp), working_group)
 
                     self.parse_imports_includes(includes[imp]['name'], features, revision, name_revision,
                                                 yang_version, namespace, prefix, organization, contact, description,
@@ -805,6 +874,34 @@ class Capability:
             status = self.get_module_status(self.ieee_standard_json, module_name, revision, 0)
         if status == 'MISSING':
             status = self.get_module_status(self.ieee_experimental_json, module_name, revision, 0)
+        if status == 'MISSING':
+            status = self.get_module_status(self.xr611, module_name, revision, 0)
+        if status == 'MISSING':
+            status = self.get_module_status(self.xr612, module_name, revision, 0)
+        if status == 'MISSING':
+            status = self.get_module_status(self.xr613, module_name, revision, 0)
+        if status == 'MISSING':
+            status = self.get_module_status(self.xr621, module_name, revision, 0)
+        if status == 'MISSING':
+            status = self.get_module_status(self.xe1631, module_name, revision, 0)
+        if status == 'MISSING':
+            status = self.get_module_status(self.xe1632, module_name, revision, 0)
+        if status == 'MISSING':
+            status = self.get_module_status(self.xe1641, module_name, revision, 0)
+        if status == 'MISSING':
+            status = self.get_module_status(self.xe1651, module_name, revision, 0)
+        if status == 'MISSING':
+            status = self.get_module_status(self.nx703f11, module_name, revision, 0)
+        if status == 'MISSING':
+            status = self.get_module_status(self.nx703f21, module_name, revision, 0)
+        if status == 'MISSING':
+            status = self.get_module_status(self.nx703i51, module_name, revision, 0)
+        if status == 'MISSING':
+            status = self.get_module_status(self.nx703i61, module_name, revision, 0)
+        if status == 'MISSING':
+            status = self.get_module_status(self.nx703i52, module_name, revision, 0)
+        if status == 'MISSING':
+            status = self.get_module_status(self.huawei8910, module_name, revision, 0)
         return status
 
     @staticmethod
@@ -815,7 +912,7 @@ class Capability:
             if status == 'PASSED WITH WARNINGS':
                 status = 'PASSED-WITH-WARNINGS'
             return status
-        except KeyError:
+        except:
             pass
         # try to find in draft with revision
         try:
@@ -823,7 +920,7 @@ class Capability:
             if status == 'PASSED WITH WARNINGS':
                 status = 'PASSED-WITH-WARNINGS'
             return status
-        except KeyError:
+        except:
             pass
         return 'MISSING'
 
@@ -882,11 +979,11 @@ class Capability:
         except KeyError:
             pass
         try:
-            result += self.bbf_json[module_name + '@' + revision + '.yang'][1]
-            result += self.bbf_json[module_name + '@' + revision + '.yang'][2]
-            result += self.bbf_json[module_name + '@' + revision + '.yang'][3]
-            result += self.bbf_json[module_name + '@' + revision + '.yang'][4]
-            result += self.bbf_json[module_name + '@' + revision + '.yang'][5]
+            result += self.bbf_json[module_name + '.yang'][1]
+            result += self.bbf_json[module_name + '.yang'][2]
+            result += self.bbf_json[module_name + '.yang'][3]
+            result += self.bbf_json[module_name + '.yang'][4]
+            result += self.bbf_json[module_name + '.yang'][5]
             return result
         except KeyError:
             pass
@@ -901,11 +998,11 @@ class Capability:
         except KeyError:
             pass
         try:
-            result += self.ieee_standard_json[module_name + '@' + revision + '.yang'][1]
-            result += self.ieee_standard_json[module_name + '@' + revision + '.yang'][2]
-            result += self.ieee_standard_json[module_name + '@' + revision + '.yang'][3]
-            result += self.ieee_standard_json[module_name + '@' + revision + '.yang'][4]
-            result += self.ieee_standard_json[module_name + '@' + revision + '.yang'][5]
+            result += self.ieee_standard_json[module_name + '.yang'][1]
+            result += self.ieee_standard_json[module_name + '.yang'][2]
+            result += self.ieee_standard_json[module_name + '.yang'][3]
+            result += self.ieee_standard_json[module_name + '.yang'][4]
+            result += self.ieee_standard_json[module_name + '.yang'][5]
             return result
         except KeyError:
             pass
@@ -920,11 +1017,11 @@ class Capability:
         except KeyError:
             pass
         try:
-            result += self.ieee_experimental_json[module_name + '@' + revision + '.yang'][1]
-            result += self.ieee_experimental_json[module_name + '@' + revision + '.yang'][2]
-            result += self.ieee_experimental_json[module_name + '@' + revision + '.yang'][3]
-            result += self.ieee_experimental_json[module_name + '@' + revision + '.yang'][4]
-            result += self.ieee_experimental_json[module_name + '@' + revision + '.yang'][5]
+            result += self.ieee_experimental_json[module_name + '.yang'][1]
+            result += self.ieee_experimental_json[module_name + '.yang'][2]
+            result += self.ieee_experimental_json[module_name + '.yang'][3]
+            result += self.ieee_experimental_json[module_name + '.yang'][4]
+            result += self.ieee_experimental_json[module_name + '.yang'][5]
             return result
         except KeyError:
             pass
@@ -937,6 +1034,71 @@ class Capability:
             result += self.ieee_experimental_json[module_name + '@' + revision + '.yang'][5]
             return result
         except KeyError:
+            pass
+        result = self.parse_res(module_name, revision, self.nx703i52)
+        if result != '':
+            return result
+        result = self.parse_res(module_name, revision, self.nx703i61)
+        if result != '':
+            return result
+        result = self.parse_res(module_name, revision, self.nx703i51)
+        if result != '':
+            return result
+        result = self.parse_res(module_name, revision, self.nx703f21)
+        if result != '':
+            return result
+        result = self.parse_res(module_name, revision, self.nx703f11)
+        if result != '':
+            return result
+        result = self.parse_res(module_name, revision, self.xr621)
+        if result != '':
+            return result
+        result = self.parse_res(module_name, revision, self.xr613)
+        if result != '':
+            return result
+        result = self.parse_res(module_name, revision, self.xr612)
+        if result != '':
+            return result
+        result = self.parse_res(module_name, revision, self.xr611)
+        if result != '':
+            return result
+        result = self.parse_res(module_name, revision, self.xe1651)
+        if result != '':
+            return result
+        result = self.parse_res(module_name, revision, self.xe1641)
+        if result != '':
+            return result
+        result = self.parse_res(module_name, revision, self.xe1632)
+        if result != '':
+            return result
+        result = self.parse_res(module_name, revision, self.xe1631)
+        if result != '':
+            return result
+        result = self.parse_res(module_name, revision, self.huawei8910)
+        if result != '':
+            return result
+        return ''
+
+    def parse_res(self, module_name, revision, json_file):
+        result = ''
+        try:
+            result += json_file[module_name + '.yang'][1]
+            result += json_file[module_name + '.yang'][2]
+            result += json_file[module_name + '.yang'][3]
+            result += json_file[module_name + '.yang'][4]
+            result += json_file[module_name + '.yang'][5]
+            return result
+        except :
+            pass
+        # try to find in draft with revision
+        try:
+            result += json_file[module_name + '@' + revision + '.yang'][1]
+            result += json_file[module_name + '@' + revision + '.yang'][2]
+            result += json_file[module_name + '@' + revision + '.yang'][3]
+            result += json_file[module_name + '@' + revision + '.yang'][4]
+            result += json_file[module_name + '@' + revision + '.yang'][5]
+            return result
+        except :
             pass
         return ''
 
@@ -991,4 +1153,38 @@ class Capability:
         except KeyError:
             pass
         return None
+
+    def parse_document_reference(self, module_name, revision):
+        # if module name contains .yang get only name
+        module_name = module_name.split('.')[0]
+        # try to find in draft without revision
+        try:
+            doc_name = self.ietf_draft_json[module_name + '.yang'][0].split('</a>')[0].split('\">')[1]
+            doc_source = self.ietf_draft_json[module_name + '.yang'][0].split('a href=\"')[1].split('\">')[0]
+            return [doc_name, doc_source]
+        except KeyError:
+            pass
+        # try to find in draft with revision
+        try:
+            doc_name = self.ietf_draft_json[module_name + '@' + revision + '.yang'][0].split('</a>')[0].split('\">')[1]
+            doc_source = self.ietf_draft_json[module_name + '@' + revision + '.yang'][0].split('a href=\"')[1] \
+                .split('\">')[0]
+            return [doc_name, doc_source]
+        except KeyError:
+            pass
+            # try to find in rfc with revision
+            try:
+                doc_name = self.ietf_rfc_json[module_name + '@' + revision + '.yang'].split('</a>')[0].split('\">')[1]
+                doc_source = self.ietf_rfc_json[module_name + '@' + revision + '.yang'].split('a href=\"')[1]\
+                    .split('\">')[0]
+                return [doc_name, doc_source]
+            except KeyError:
+                pass
+            try:
+                doc_name = self.ietf_rfc_json[module_name + '.yang'].split('</a>')[0].split('\">')[1]
+                doc_source = self.ietf_rfc_json[module_name + '.yang'].split('a href=\"')[1].split('\">')[0]
+                return [doc_name, doc_source]
+            except KeyError:
+                pass
+        return 'missing element'
 
