@@ -65,7 +65,7 @@ class Prepare:
                 os_version, feature_set, reference, prefix, yang_version, organization, description, contact,
                 compilation_status, author_email, schema, feature, maturity_level, compilation_result, deviations,
                 json_submodules,module_or_submodule, document_name, owner, repo, repo_file_path,
-                local_file_path, working_group):
+                local_file_path, generated_from, working_group):
         self.name_revision.add(key)
         self.namespace[key] = namespace
         self.conformance_type[key] = conformance_type
@@ -89,7 +89,8 @@ class Prepare:
         self.repo[key] = repo
         self.owner[key] = owner
         self.local_file_path[key] = local_file_path
-        self.working_group = working_group
+        self.generated_from[key] = generated_from
+        self.working_group[key] = working_group
 
         if key not in self.implementations:
             self.implementations[key] = {}
@@ -119,9 +120,9 @@ class Prepare:
                 'contact': self.contact[key],
                 'compilation-status': self.compilation_status[key],
                 'schema': self.schema[key],
-                #'ietf': {
-                #    'ietf-wg': self.working_group.get(key)
-                #},
+                'ietf': {
+                    'ietf-wg': self.working_group.get(key)
+                },
                 #'feature': self.feature[key],
                 'maturity-level': self.maturity_level[key],
                 'compilation-result': self.compilation_result[key],
@@ -158,14 +159,15 @@ class Prepare:
                 'compilation-status': self.compilation_status[key],
                 'author-email': self.author_email[key],
                 'schema': self.schema[key],
-                #'ietf': {
-                #   'ietf-wg': self.working_group[key]
-                #},
+                'ietf': {
+                   'ietf-wg': self.working_group[key]
+                },
                 #'feature': self.feature[key],
                 'maturity-level': self.maturity_level[key],
                 'compilation-result': self.compilation_result[key],
                 'submodule': json.loads(self.json_submodules[key]),
                 'module-type': self.module_or_submodule[key],
+                'generated-from': self.generated_from[key],
                 'implementations': {
                     'implementation': [{
                         'vendor': self.implementations[key][implementation]['vendor'],
