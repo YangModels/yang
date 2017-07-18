@@ -168,6 +168,16 @@ class Prepare:
                 'submodule': json.loads(self.json_submodules[key]),
                 'module-type': self.module_or_submodule[key],
                 'generated-from': self.generated_from[key],
+                'source-file': {
+                    'online': {
+                        'owner': self.owner[key],
+                        'repository': self.repo[key],
+                        'path': self.repo_file_path[key]
+                    },
+                    'local': {
+                        'path': self.local_file_path[key]
+                    }
+                },
                 'implementations': {
                     'implementation': [{
                         'vendor': self.implementations[key][implementation]['vendor'],

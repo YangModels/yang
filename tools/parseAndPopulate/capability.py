@@ -16,10 +16,7 @@ NS_MAP = {
     "http://cisco.com/ns/yang/": "cisco",
     "http://www.huawei.com/netconf": "huawei",
     "http://openconfig.net/yang/": "openconfig",
-    "http://tail-f.com/": "tail-f",
-    "urn:ietf": "ietf",
-    "urn:cisco": "cisco",
-    "urn:bbf": "bbf"
+    "http://tail-f.com/": "tail-f"
 }
 
 github = 'https://github.com/'
@@ -353,7 +350,6 @@ class Capability:
                     conformance_type = 'implement'
                     self.find_yang_var(prefix, 'prefix', file_name, root + '/' + file_name)
                     self.find_yang_var(yang_version, 'yang-version', file_name, root + '/' + file_name)
-                    self.find_yang_var(organization, 'organization', file_name, root + '/' + file_name)
                     self.find_yang_var(contact, 'contact', file_name, root + '/' + file_name)
                     self.find_yang_var(description, 'description', file_name, root + '/' + file_name)
                     self.find_yang_var(includes, 'include', file_name, root + '/' + file_name)
@@ -381,8 +377,13 @@ class Capability:
                     if generated_from is None:
                         generated_from = 'not-applicable'
                     for ns, org in NS_MAP.items():
-                        if ns in namespace:
-                            organization = org
+                        if ns in namespace.get(file_name):
+                            organization[file_name] = org
+                    if organization.get(file_name) is None:
+                        if 'urn:' in namespace[file_name]:
+                            organization[file_name] = namespace[file_name].split('urn:')[1].split(':')[0]
+                    if organization.get(file_name) is None:
+                        self.find_yang_var(organization, 'organization', file_name, root + '/' + file_name)
                     self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name), namespace.get(file_name),
                                              conformance_type, reference, prefix.get(file_name),
                                              yang_version.get(file_name), organization.get(file_name),
@@ -424,7 +425,7 @@ class Capability:
                             conformance_type = 'implement'
                             self.find_yang_var(prefix, 'prefix', file_name, root + '/' + file_name)
                             self.find_yang_var(yang_version, 'yang-version', file_name, root + '/' + file_name)
-                            self.find_yang_var(organization, 'organization', file_name, root + '/' + file_name)
+                            #self.find_yang_var(organization, 'organization', file_name, root + '/' + file_name)
                             self.find_yang_var(contact, 'contact', file_name, root + '/' + file_name)
                             self.find_yang_var(description, 'description', file_name, root + '/' + file_name)
                             self.find_yang_var(includes, 'include', file_name, root + '/' + file_name)
@@ -454,6 +455,9 @@ class Capability:
                             for ns, org in NS_MAP.items():
                                 if ns in namespace[file_name]:
                                     organization[file_name] = org
+                            if organization.get(file_name) is None:
+                                if 'urn:' in namespace[file_name]:
+                                    organization[file_name] = namespace[file_name].split('urn:')[1].split(':')[0]
                             if organization[file_name] == 'ietf':
                                 wg = self.parse_wg(file_name, revision[file_name])
                             else:
@@ -589,9 +593,14 @@ class Capability:
                         if ns in namespace[module_name]:
                             organization_module[module_name] = org
                             namespace_exist = True
+                if organization_module.get(module_name) is None:
+                    if 'urn:' in namespace[module_name]:
+                        organization_module[module_name] = namespace[module_name].split('urn:')[1].split(':')[0]
+                        namespace_exist = True
+
                 if not namespace_exist:
                     organization_module[module_name] = 'missing_data'
-                    if namespace[module_name] is None:
+                    if namespace[module_name] is None or namespace[module_name] == 'missing element':
                         self.integrity_checker.add_namespace(self.split, module_name + ' : missing data')
                         namespace[module_name] = 'missing data'
                     self.integrity_checker.add_namespace(self.split, module_name + ' : ' + namespace[module_name])
@@ -625,6 +634,11 @@ class Capability:
                 if self.repo_file_path is None:
                     self.repo_file_path = yang_file
                     self.local_file_path = yang_file
+                if self.local_file_path is None:
+                    self.local_file_path = 'file/is/missing'
+                    self.repo_file_path = 'file/is/missing'
+                self.local_file_path = self.local_file_path.replace('../', '')
+                self.repo_file_path = self.repo_file_path.replace('../', '')
 
                 self.prepare.add_key(module_name + '@' + revision[module_name], namespace[module_name],
                                      conformance_type[module_name], self.vendor, self.platform, self.software_version,
@@ -792,9 +806,13 @@ class Capability:
                             if ns in namespace[imp]:
                                 organization_module[imp] = org
                                 namespace_exist = True
+                    if organization_module.get(imp) is None:
+                        if 'urn:' in namespace[imp]:
+                            organization_module[imp] = namespace[imp].split('urn:')[1].split(':')[0]
+                            namespace_exist = True
                     if not namespace_exist:
                         organization_module[imp] = 'missing_element'
-                        if namespace[imp] is None:
+                        if namespace[imp] is None or namespace[imp] == 'missing element':
                             namespace[imp] = 'missing data'
                         self.integrity_checker.add_namespace(self.split, imp + ' : ' + namespace[imp])
                     module_submodule = module_or_submodule(yang_file)
@@ -830,6 +848,12 @@ class Capability:
                     if self.repo_file_path is None:
                         self.repo_file_path = yang_file
                         self.local_file_path = yang_file
+                    if self.local_file_path is None:
+                        self.local_file_path = 'file/is/missing'
+                        self.repo_file_path = 'file/is/missing'
+                    self.local_file_path = self.local_file_path.replace('../', '')
+                    self.repo_file_path = self.repo_file_path.replace('../', '')
+
                     self.prepare.add_key(imp + '@' + revision[imp], namespace[imp], conformance_type[imp], self.vendor,
                                          self.platform, self.software_version, self.software_flavor, self.os,
                                          self.os_version, self.feature_set, reference, prefix[imp], yang_version[imp],#chage that for organization_module organization[imp]
