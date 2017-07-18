@@ -34,10 +34,7 @@ NS_MAP = {
     "http://cisco.com/ns/yang/": "cisco",
     "http://www.huawei.com/netconf": "huawei",
     "http://openconfig.net/yang/": "openconfig",
-    "http://tail-f.com/": "tail-f",
-    "urn:ietf": "ietf",
-    "urn:cisco": "cisco",
-    "urn:bbf": "bbf"
+    "http://tail-f.com/": "tail-f"
 }
 
 
@@ -46,19 +43,21 @@ def unicode_normalize(variable):
 
 
 # Make a http request on path with json_data
-def http_request(path, method, json_data, http_credentials):
+def http_request(path, method, json_data, http_credentials, header):
     try:
         opener = urllib2.build_opener(urllib2.HTTPHandler)
         request = urllib2.Request(path, data=json_data)
-        request.add_header('Content-Type', 'application/vnd.yang.data+json')
-        request.add_header('Accept', 'application/vnd.yang.data+json')
+        request.add_header('Content-Type', header)
+        request.add_header('Accept', header)
         base64string = base64.b64encode('%s:%s' % (http_credentials[0], http_credentials[1]))
         request.add_header("Authorization", "Basic %s" % base64string)
         request.get_method = lambda: method
         return opener.open(request)
-    except:
-        print('Could not send request with body ' + json_data + ' and path ' + path)
-        raise
+    except urllib2.HTTPError as e:
+        if method == 'DELETE':
+            return
+        print('Could not send request with body ' + repr(json_data) + ' and path ' + path)
+        raise e
 
 
 @app.errorhandler(404)
@@ -178,13 +177,53 @@ def check_local():
                                 headers={'Authorization': 'token ' + token})
 
 
+@app.route('/modules/module/<name>,<revision>', methods=['DELETE'])
+@auth.login_required
+def delete_modules(name, revision):
+    username = request.authorization['username']
+    accessRigths = None
+    try:
+        db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
+        # prepare a cursor object using cursor() method
+        cursor = db.cursor()
+        # execute SQL query using execute() method.
+        cursor.execute("SELECT * FROM `users`")
+        data = cursor.fetchall()
+
+        for row in data:
+            if row[1] == username:
+                accessRigths = row[7]
+                break
+        db.close()
+    except MySQLdb.MySQLError as err:
+        print("Cannot connect to database. MySQL error: " + str(err))
+    try:
+        response = http_request(
+        protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name +
+        ',' + revision, 'GET', None, credentials, 'application/vnd.yang.data+json')
+    except urllib2.HTTPError as e:
+        return not_found()
+    read = json.loads(response.read())
+    if read['yang-catalog:module']['organization'] != accessRigths:
+        return unauthorized()
+    try:
+        http_request(
+            protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name +
+            ',' + revision, 'DELETE', None, credentials, 'application/vnd.yang.data+json')
+    except urllib2.HTTPError as e:
+        make_response(jsonify({'error': e.msg}), 401)
+    return jsonify({'info': 'success'})
+
+
+
 @app.route('/modules', methods=['PUT'])
 @auth.login_required
 def add_modules():
     if not request.json:
         abort(400)
     body = request.json
-
+ #   http_request(protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/modules', 'PUT', json.dumps(body),
+ #                credentials)
     with open('./prepare-sdo.json', "w") as plat:
          json.dump(body, plat)
 
@@ -212,8 +251,9 @@ def add_modules():
             if e.errno != errno.EEXIST:
                 raise
         shutil.copy(repo[repo_url].localdir + '/' + sdo['path'], save_to)
-        organization = yangParser.parse(os.path.abspath(save_to + '/' + sdo['path'].split('/')[-1])) \
-            .search('organization')[0].arg
+        #organization = yangParser.parse(os.path.abspath(save_to + '/' + sdo['path'].split('/')[-1])) \
+        #    .search('organization')[0].arg
+        organization = ''
         try:
             namespace = yangParser.parse(os.path.abspath(save_to + '/' + sdo['path'].split('/')[-1])) \
                 .search('namespace')[0].arg
@@ -221,8 +261,28 @@ def add_modules():
             for ns, org in NS_MAP.items():
                 if ns in namespace:
                     organization = org
+            if organization == '':
+                if 'urn:' in namespace:
+                    organization = namespace.split('urn:')[1].split(':')[0]
         except:
-            pass
+            while True:
+                try:
+                    belongs_to = yangParser.parse(os.path.abspath(repo[repo_url].localdir + '/' + sdo['path'])) \
+                        .search('belongs-to')[0].arg
+                except:
+                    break
+                try:
+                    namespace = yangParser.parse(os.path.abspath(repo[repo_url].localdir + '/' + '/'.join(
+                        sdo['path'].split('/')[:-1]) + '/' + belongs_to + '.yang')).search('namespace')[0].arg
+                    for ns, org in NS_MAP.items():
+                        if ns in namespace:
+                            organization = org
+                    if organization == '':
+                        if 'urn:' in namespace:
+                            organization = namespace.split('urn:')[1].split(':')[0]
+                    break
+                except:
+                    pass
         resolved_authorization = authorize_for_sdos(request, orgz, organization)
         if not resolved_authorization:
             shutil.rmtree('temp/')
@@ -272,7 +332,13 @@ def add_vendors():
     resolved_authorization = authorize_for_vendors(request, body)
     if 'passed' != resolved_authorization:
         return resolved_authorization
-
+    http_request(protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/platforms/',
+                 'DELETE', None, credentials, 'application/vnd.yang.collection+json')
+    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/'
+    try:
+        http_request(path, 'POST', json.dumps(body), credentials, 'application/vnd.yang.data+json')
+    except urllib2.HTTPError as e:
+        abort(e.code)
     repo = {}
     for platform in body['platforms']:
         capability = platform['capabilities-file']
@@ -339,11 +405,11 @@ def add_vendors():
 def search(key, value):
     split = key.split('$')
     module_keys = ['ietf$ietf-wg', 'maturity-level', 'document-name', 'author-email', 'compilation-status',
-                   'conformance-type', 'module-type', 'organization', 'yang-version']
+                   'conformance-type', 'module-type', 'organization', 'yang-version', 'name', 'revision']
     for module_key in module_keys:
         if key == module_key:
             path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules?deep'
-            data = json.loads(http_request(path, 'GET', '', credentials).read())
+            data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
             passed_data = []
             data = data['yang-catalog:modules']['module']
             for module in data:
