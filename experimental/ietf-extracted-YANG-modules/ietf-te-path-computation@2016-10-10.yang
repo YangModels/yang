@@ -1,0 +1,247 @@
+module ietf-te-path-computation {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-te-path-computation";
+  // replace with IANA namespace when assigned
+
+  prefix "tepc";
+
+  import ietf-inet-types {
+    prefix "inet";
+  }
+
+  import ietf-yang-types {
+    prefix "yang-types";
+  }
+
+  import ietf-network-topology {
+    prefix "nt";
+  }
+
+  import ietf-te {
+    prefix "te";
+  }
+
+  import ietf-te-types {
+    prefix "te-types";
+  }
+
+  organization
+    "Traffic Engineering Architecture and Signaling (TEAS)
+     Working Group";
+
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/teas/>
+     WG List:  <mailto:teas@ietf.org>
+     WG Chair: Lou Berger
+               <mailto:lberger@labn.net>
+
+     WG Chair: Vishnu Pavan Beeram
+               <mailto:vbeeram@juniper.net>
+
+   ";
+
+  description "YANG model for stateless TE path computation";
+
+  revision "2016-10-10" {
+    description "Initial revision";
+    reference "YANG model for stateless TE path computation";
+  }
+
+  /*
+   * Features
+   */
+
+  feature stateless-path-computation {
+    description
+      "This feature indicates that the system supports
+       stateless path computation.";
+  }
+
+  /*
+   * Groupings
+   */
+
+  grouping Path {
+    list _telink {
+      key 'link-ref';
+      config false;
+      uses nt:link-ref;
+      description "List of telink refs.";
+    }
+    uses te-types:generic-path-constraints;
+    leaf path-id {
+      type yang-types:uuid;
+      config false;
+      description "path-id ref.";
+    }
+    description "Path is described by an ordered list of TE Links.";
+  }
+
+  grouping PathCompServicePort {
+    leaf source {
+      type inet:ip-address;
+      description "TE tunnel source address.";
+    }
+    leaf destination {
+      type inet:ip-address;
+      description "P2P tunnel destination address";
+    }
+    leaf src-tp-id {
+      type binary;
+      description "TE tunnel source termination point identifier.";
+    }
+    leaf dst-tp-id {
+      type binary;
+      description "TE tunnel destination termination point
+identifier.";
+    }
+    uses te:bidir-assoc-properties;
+    description "Path Computation Service Port grouping.";
+  }
+
+  grouping PathComputationService {
+    leaf-list _path-ref {
+      type leafref {
+        path '/paths/path/path-id';
+      }
+      config false;
+      description "List of previously computed path references.";
+    }
+    container _servicePort {
+      uses PathCompServicePort;
+      description "Path Computation Service Port.";
+    }
+    uses te-types:generic-path-constraints;
+    uses te-types:generic-path-optimization;
+
+    description "Path computation service.";
+  }
+
+  grouping synchronization-info {
+    description "Information for sync";
+    list synchronization {
+      key "synchronization-index";
+      description "sync list";
+      leaf synchronization-index {
+        type uint32;
+        description "index";
+      }
+      container svec {
+        description
+         "Synchronization VECtor";
+        leaf relaxable {
+          type boolean;
+          default true;
+          description
+           "If this leaf is true, path computation process is free
+to ignore svec content.
+            otherwise it must take into account this svec.";
+        }
+        leaf link-diverse {
+          type boolean;
+          default false;
+          description "link-diverse";
+        }
+        leaf node-diverse {
+          type boolean;
+          default false;
+          description "node-diverse";
+        }
+        leaf srlg-diverse {
+          type boolean;
+          default false;
+          description "srlg-diverse";
+        }
+        leaf-list request-id-number {
+          type uint32;
+          description
+           "This list reports the set of M path computation requests
+that must be synchronized.";
+        }
+      }
+      uses te-types:generic-path-constraints;
+    }
+  }
+
+  grouping no-path-info {
+    description "no-path-info";
+    container no-path {
+      description "no-path container";
+    }
+  }
+
+  /*
+   * Root container
+   */
+  container paths {
+    list path {
+      key "path-id";
+      config false;
+      uses Path;
+
+      description "List of previous computed paths.";
+    }
+    description "Root container for path-computation";
+  }
+
+  container pathComputationService {
+    config false;
+    uses PathComputationService;
+    description "Service for computing paths.";
+  }
+
+  /**
+   * AUGMENTS TO TE RPC
+   */
+
+  augment "/te:tunnels-rpc/te:input/te:tunnel-info" {
+    description "statelessComputeP2PPath input";
+    list request-list {
+      key "request-id-number";
+      description "request-list";
+      leaf request-id-number {
+        type uint32;
+        mandatory true;
+        description "Each path computation request is uniquely
+identified by the request-id-number.
+          It must be present also in rpcs.";
+      }
+      list servicePort {
+        min-elements 1;
+        uses PathCompServicePort;
+        description "List of service ports.";
+      }
+      uses te-types:generic-path-constraints;
+      uses te-types:generic-path-optimization;
+
+    }
+    uses synchronization-info;
+  }
+
+  augment "/te:tunnels-rpc/te:output/te:result" {
+    description "statelessComputeP2PPath output";
+    list response {
+      key response-index;
+      config false;
+      description "response";
+      leaf response-index {
+        type uint32;
+        description
+          "The list key that has to reuse request-id-number.";
+      }
+      choice response-type {
+        config false;
+        description "response-type";
+        case no-path-case {
+          uses no-path-info;
+        }
+        case path-case {
+          container pathCompService {
+            uses PathComputationService;
+            description "Path computation service.";
+          }
+        }
+      }
+    }
+  }
+}

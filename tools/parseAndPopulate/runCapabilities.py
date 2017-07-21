@@ -1,14 +1,16 @@
 from __future__ import print_function
 
+import argparse
 import fnmatch
 import os
 import time
+import json
 
 import capability as cap
 import statistics
 import prepare
+import shutil
 import statisticsInCatalog
-import yangIntegrity
 
 
 def find_missing_hello(directory, pattern):
@@ -27,19 +29,20 @@ def find_files(directory, pattern):
                 yield filename
 
 
-def do_stats():
+def create_integrity():
     integrity_file = open('integrity.html', 'w')
-    stats_file = open('stats.html', 'w')
     integrity.dump()
     integrity.dumps(integrity_file)
-
     integrity_file.close()
+
+
+def do_stats():
+    stats_file = open('stats.html', 'w')
     unique_files = set()
     files = find_files('./../../vendor/', '*.yang')
     for file in files:
         name = file.split('/')[-1]
         unique_files.add(name)
-
 
     stats_file.write('<!DOCTYPE html><html><body>'
                      + '<style>table { font-family: arial, sans-serif; border-collapse: collapse;  width: 100%;}'
@@ -51,64 +54,114 @@ def do_stats():
                      + '<th>number in the catalog</th>'
                      + '<th>% that pass compile</th>'
                      + '<th>% with metadata</th></tr>')
+    count = len(list(find_files('./../../standard/ietf/RFC/', '*.yang')))
+    if count is 0:
+        percent = repr(0)
+    else:
+        percent = repr(round((statistics_in_catalog.get_passed('standard/ietf/RFC') / float(count)) * 100, 2))
     stats_file.write('<tr><td>IETF RFCs</td>')
-    stats_file.write('<td>' + repr(len(list(find_files('./../../standard/ietf/RFC/', '*.yang')))) + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
+    stats_file.write('<td>' + repr(count) + '</td>')
+    stats_file.write('<td>' + repr(statistics_in_catalog.get_in_catalog('standard/ietf/RFC')) + '</td>')
+    stats_file.write('<td>' + percent + '</td>')
     stats_file.write('<td>' + 'unknown' + '</td></tr>')
 
+    count = len(list(find_files('./../../standard/ietf/DRAFT/', '*.yang')))
+    if count is 0:
+        percent = repr(0)
+    else:
+        percent = repr(round((statistics_in_catalog.get_passed('standard/ietf/DRAFT') / float(count)) * 100, 2))
     stats_file.write('<tr><td>IETF drafts</td>')
-    stats_file.write('<td>' + repr(len(list(find_files('./../../standard/ietf/DRAFT/', '*.yang')))) + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
+    stats_file.write('<td>' + repr(count) + '</td>')
+    stats_file.write('<td>' + repr(statistics_in_catalog.get_in_catalog('standard/ietf/DRAFT')) + '</td>')
+    stats_file.write('<td>' + percent + '</td>')
     stats_file.write('<td>' + 'unknown' + '</td></tr>')
 
+    count = len(list(find_files('./../../standard/bbf/standard', '*.yang')))
+    if count is 0:
+        percent = repr(0)
+    else:
+        percent = repr(round((statistics_in_catalog.get_passed('standard/bbf/standard') / float(count)) * 100))
     stats_file.write('<tr><td>BBF standard</td>')
-    stats_file.write('<td>' + repr(len(list(find_files('./../../standard/bbf/standard', '*.yang')))) + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
+    stats_file.write('<td>' + repr(count) + '</td>')
+    stats_file.write('<td>' + repr(statistics_in_catalog.get_in_catalog('standard/bbf/standard')) + '</td>')
+    stats_file.write('<td>' + percent + '</td>')
     stats_file.write('<td>' + 'unknown' + '</td></tr>')
 
+    count = len(list(find_files('./../../standard/bbf/draft', '*.yang')))
+    if count is 0:
+        percent = repr(0)
+    else:
+        percent = repr(round((statistics_in_catalog.get_passed('standard/bbf/draft') / float(count)) * 100))
     stats_file.write('<tr><td>BBF draft</td>')
-    stats_file.write('<td>' + repr(len(list(find_files('./../../standard/bbf/sraft', '*.yang')))) + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
+    stats_file.write('<td>' + repr(count) + '</td>')
+    stats_file.write('<td>' + repr(statistics_in_catalog.get_in_catalog('standard/bbf/draft')) + '</td>')
+    stats_file.write('<td>' + percent + '</td>')
     stats_file.write('<td>' + 'unknown' + '</td></tr>')
 
+    count = len(list(find_files('./../../standard/ieee/802.1', '*.yang')))
+    if count is 0:
+        percent = repr(0)
+    else:
+        percent = repr(round((statistics_in_catalog.get_passed('standard/ieee/802.1') / float(count)) * 100))
     stats_file.write('<tr><td>IEEE 802.1 with par</td>')
-    stats_file.write('<td>' + repr(len(list(find_files('./../../standard/ieee/802.1', '*.yang')))) + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
+    stats_file.write('<td>' + repr(count) + '</td>')
+    stats_file.write('<td>' + repr(statistics_in_catalog.get_in_catalog('standard/ieee/802.1')) + '</td>')
+    stats_file.write('<td>' + percent + '</td>')
     stats_file.write('<td>' + 'unknown' + '</td>')
 
+    count = len(list(find_files('./../../experimental/ieee/802.1', '*.yang')))
+    if count is 0:
+        percent = repr(0)
+    else:
+        percent = repr(round((statistics_in_catalog.get_passed('experimental/ieee/802.1') / float(count)) * 100))
     stats_file.write('<tr><td>IEEE 802.1 no par</td>')
-    stats_file.write('<td>' + repr(len(list(find_files('./../../experimental/ieee/802.1', '*.yang')))) + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
+    stats_file.write('<td>' + repr(count) + '</td>')
+    stats_file.write('<td>' + repr(statistics_in_catalog.get_in_catalog('experimental/ieee/802.1')) + '</td>')
+    stats_file.write('<td>' + percent + '</td>')
     stats_file.write('<td>' + 'unknown' + '</td>')
 
+    count = len(list(find_files('./../../standard/ieee/802.3', '*.yang')))
+    if count is 0:
+        percent = repr(0)
+    else:
+        percent = repr(round((statistics_in_catalog.get_passed('standard/ieee/802.3') / float(count)) * 100))
     stats_file.write('<tr><td>IEEE 802.3 with par</td>')
-    stats_file.write('<td>' + repr(len(list(find_files('./../../standard/ieee/802.3', '*.yang')))) + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
+    stats_file.write('<td>' + repr(count) + '</td>')
+    stats_file.write('<td>' + repr(statistics_in_catalog.get_in_catalog('standard/ieee/802.3')) + '</td>')
+    stats_file.write('<td>' + percent + '</td>')
     stats_file.write('<td>' + 'unknown' + '</td>')
 
+    count = len(list(find_files('./../../experimental/ieee/802.3', '*.yang')))
+    if count is 0:
+        percent = repr(0)
+    else:
+        percent = repr(round((statistics_in_catalog.get_passed('experimental/ieee/802.3') / float(count)) * 100))
     stats_file.write('<tr><td>IEEE 802.3 no par</td>')
-    stats_file.write('<td>' + repr(len(list(find_files('./../../experimental/ieee/802.3', '*.yang')))) + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
+    stats_file.write('<td>' + repr(count) + '</td>')
+    stats_file.write('<td>' + repr(statistics_in_catalog.get_in_catalog('experimental/ieee/802.3')) + '</td>')
+    stats_file.write('<td>' + percent + '</td>')
     stats_file.write('<td>' + 'unknown' + '</td>')
 
+    count = len(list(find_files('./../../standard/ieee/draft', '*.yang')))
+    if count is 0:
+        percent = repr(0)
+    else:
+        percent = repr(round((statistics_in_catalog.get_passed('standard/ieee/draft') / float(count)) * 100))
     stats_file.write('<tr><td>IEEE draft with par</td>')
-    stats_file.write('<td>' + repr(len(list(find_files('./../../standard/ieee/draft', '*.yang')))) + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
+    stats_file.write('<td>' + repr(count) + '</td>')
+    stats_file.write('<td>' + repr(statistics_in_catalog.get_in_catalog('standard/ieee/draft')) + '</td>')
+    stats_file.write('<td>' + percent + '</td>')
     stats_file.write('<td>' + 'unknown' + '</td>')
 
+    count = len(list(find_files('./../../experimental/openconfig', '*.yang')))
+    if count is 0:
+        percent = repr(0)
+    else:
+        percent = repr(round((statistics_in_catalog.get_passed('experimental/openconfig') / float(count)) * 100))
     stats_file.write('<tr><td>Openconfig</td>')
-    stats_file.write('<td>' + repr(len(list(find_files('./../../experimental/openconfig', '*.yang')))) + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
-    stats_file.write('<td>' + 'unknown' + '</td>')
+    stats_file.write('<td>' + repr(count) + '</td>')
+    stats_file.write('<td>' + repr(statistics_in_catalog.get_in_catalog('experimental/openconfig')) + '</td>')
+    stats_file.write('<td>' + percent + '</td>')
     stats_file.write('<td>' + 'unknown' + '</td></tr>')
 
     stats_file.write('<tr><td>MEF standard</td>')
@@ -161,7 +214,7 @@ def do_stats():
         generator = os.walk(key)
         directories = next(generator)[1]
         platforms = []
-        stats_file.write('<table><tr><th>version\platform</th>')
+        stats_file.write('<table><tr><th>' + key.split('/')[-1] + ' - version\platform</th>')
         for platform in list(integrity.os[key]):
             stats_file.write('<th>' + platform + '</th>')
             platforms.append(platform)
@@ -176,20 +229,17 @@ def do_stats():
                     for xml in find_files(key + '/' + directory, '*.xml'):
                         if platforms[x-1] in xml:
                             exist = True
+                    for json_file in find_files(key + '/' + directory, '*.json'):
+                        read = json.load(open(json_file, 'r'))
+                        for plat in read['platforms']:
+                            if plat['name'] == platforms[x-1]:
+                                exist = True
                     if exist:
-                        stats_file.write('<td>X</td>')
+                        stats_file.write('<td>&#x2713</td>')
                     else:
                         stats_file.write('<td>O</td>')
             stats_file.write('</tr>')
         stats_file.write('</table></p>')
-
-
-    #xml_files = find_files('./../../vendor/cisco/xr', '*.xml')
-    #for directory in directories:
-    #    for xml in xml_files:
-    #        platform = xml.split('-')[1]
-    #    stats_file.write('<th>' + platform + '</th>')
-    #stats_file.write('</tr></table>')
 
     stats_file.write('<h3>Basic statistics:</h3>'
                      + '<p>Number of yang files in vendor '
@@ -204,74 +254,105 @@ def do_stats():
         unique_files.add(name)
     stats_file.write('<p>Number of yang files in standard all together no duplicates ' + repr(len(unique_files))
                      + '</p>')
-    stats_file.write('<p>Number of yang files in bbf standard ' + repr(
-        len(list(find_files('./../../standard/bbf/standard/', '*.yang')))) + '</p>')
-    stats_file.write('<p>Number of yang files in ietf RFC ' + repr(
-        len(list(find_files('./../../standard/ietf/RFC/', '*.yang')))) + '</p>')
-    stats_file.write('<p>Number of yang files in bbf DRAFT ' + repr(
-        len(list(find_files('./../../standard/bbf/draft/', '*.yang')))) + '</p>')
-    stats_file.write(
-        '<p>Number of yang files in ieee DRAFT ' + repr(len(list(find_files('./../../standard/ieee/', '*.yang'))))
-        + '</p>')
-    stats_file.write('<p>Number of yang files in ietf DRAFT ' + repr(
-        len(list(find_files('./../../standard/ietf/DRAFT/', '*.yang')))) + '</p>')
-    stats_file.write('<p>Number of unique files parsed into yangcatalog ' + repr(len(integrity.unique_modules_per_vendor))
-                     + '</p>')
+    stats_file.write('<p>Number of unique files parsed into yangcatalog ' +
+                     repr(len(integrity.unique_modules_per_vendor)) + '</p>')
+    stats_file.write('</body></html>')
     stats_file.close()
 
-#def create_yang_integrity():
-#    start = time.time()
-#    files_with_capabilities = {}
-#    for filename in find_files('../../vendor/', '*capabilit*.xml'):
-#        path = '/'.join(filename.split('/')[:-1])
-#        name = filename.split('/')[-1]
-#        if path not in files_with_capabilities:
-#            files_with_capabilities[path] = []
-#        files_with_capabilities[path].append(name)
-#    integ = None
-#    for key in files_with_capabilities:
-#        integ = yangIntegrity.Integrity(key, files_with_capabilities[key])
-#    stop = time.time()
-#    print(stop - start)
-#
-#
-#create_yang_integrity()
-start = time.time()
-index = 1
-prepare = prepare.Prepare("prepare")
-update = True
-integrity = None
 
-for filename in find_files('../../vendor', '*capabilit*.xml'):
-    try:
-        file_modification = open('fileModificationDate/' + '-'.join(filename.split('/')[-4:]) + '.txt', 'rw')
-        time_in_file = file_modification.readline()
-        if time_in_file in str(time.ctime(os.path.getmtime(filename))):
-            update = False
-            file_modification.close()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dir', default='../../vendor', type=str,
+                        help='Set dir where to look for hello message xml files.Default -> ../../vendor')
+    parser.add_argument('--stats-dir', default='./', type=str, help=' If run-statistics is true it will copy the '
+                                                                    'statistics html file to the set directory.')
+    parser.add_argument('--save-modification-date', action='store_true', default=False,
+                        help='if True than it will create a file with modification date and also it will check if '
+                             'file was modified from last time if not it will skip it.')
+    parser.add_argument('--api', action='store_true', default=False, help='if we are doing apis')
+    parser.add_argument('--sdo', action='store_true', default=False, help='if we are doing sdos')
+    parser.add_argument('--run-statistics', action='store_true', default=False, help='if we are running statistics. '
+                                                                                     'Also if this is true it will run'
+                                                                                     ' all -SDOs and Vendors brought '
+                                                                                     'via api or not')
+    args = parser.parse_args()
+    start = time.time()
+    index = 1
+
+    integrity = None
+    statistics_in_catalog = None
+    sdo = args.sdo
+    search_dirs = [args.dir]
+
+    if sdo:
+        stats_list = {'sdo': search_dirs}
+    else:
+        stats_list = {'vendor': search_dirs}
+    if args.run_statistics:
+        stats_list = {'sdo': ['../../experimental', '../../standard'], 'vendor': ['../../vendor']}
+    statistics_in_catalog = statisticsInCatalog.StatisticsInCatalog()
+    for key in stats_list:
+        search_dirs = stats_list[key]
+        if key == 'sdo':
+            sdo = True
+            prepare_sdo = prepare.Prepare("prepare-sdo")
+            for search_dir in search_dirs:
+
+                print('Found dir:' + search_dir)
+                integrity = statistics.Statistics(search_dir)
+                capability = cap.Capability(search_dir, index, prepare_sdo, integrity, args.api, sdo,
+                                            statistics_in_catalog)
+                capability.parse_and_dump_sdo()
+                index += 1
+            prepare_sdo.dump_sdo()
         else:
-            file_modification.seek(0)
-            file_modification.write(time.ctime(os.path.getmtime(filename)))
-            file_modification.truncate()
-            file_modification.close()
-    except IOError:
-        file_modification = open('fileModificationDate/' + '-'.join(filename.split('/')[-4:]) + '.txt', 'w')
-        file_modification.write(str(time.ctime(os.path.getmtime(filename))))
-        file_modification.close()
-    if update:
-        integrity = statistics.Statistics(filename)
-        print('Found xml source:' + filename)
-        capability = cap.Capability(filename, index, prepare, integrity)
-        capability.parse_and_dump()
-        index += 1
+            sdo = False
+            prepare_vendor = prepare.Prepare("prepare")
+            for search_dir in search_dirs:
+                for filename in find_files(search_dir, '*capabilit*.xml'):
+                    update = True
+                    if not args.api and args.save_modification_date:
+                        try:
+                            file_modification = open('fileModificationDate/' + '-'.join(filename.split('/')[-4:]) +
+                                                     '.txt', 'rw')
+                            time_in_file = file_modification.readline()
+                            if time_in_file in str(time.ctime(os.path.getmtime(filename))):
+                                update = False
+                                print (filename + ' is not modified. Skipping this file.')
+                                file_modification.close()
+                            else:
+                                file_modification.seek(0)
+                                file_modification.write(time.ctime(os.path.getmtime(filename)))
+                                file_modification.truncate()
+                                file_modification.close()
+                        except IOError:
+                            file_modification = open('fileModificationDate/' + '-'.join(filename.split('/')[-4:]) +
+                                                     '.txt', 'w')
+                            file_modification.write(str(time.ctime(os.path.getmtime(filename))))
+                            file_modification.close()
+                    if update:
 
+                        integrity = statistics.Statistics(filename)
+                        print('Found xml source:' + filename)
+                        capability = cap.Capability(filename, index, prepare_vendor, integrity, args.api, sdo)
+                        capability.parse_and_dump()
+                        index += 1
+            prepare_vendor.dump()
 
-prepare.dump()
-# for filename in find_files('../', '*restconf-capabstatisticilit*.xml'):
-#    print('Found xml source:' + filename)
-#    capability = cap.Capability(filename)
-#    capability.parse_and_dump()
-if integrity is not None:
-    do_stats()
-end = time.time()
-print(end - start)
+    # for filename in find_files('../', '*restconf-capabstatisticilit*.xml'):
+    #    print('Found xml source:' + filename)
+    #    capability = cap.Capability(filename)
+    #    capability.parse_and_dump()
+    if integrity is not None:
+        create_integrity()
+    if statistics_in_catalog is not None and args.run_statistics:
+        do_stats()
+    end = time.time()
+    print(end - start)
+    if args.run_statistics:
+        if args.stats_dir != './':
+            shutil.move('stats.html', args.stats_dir)
+            shutil.move('integrity.html', args.stats_dir)
+        for item in os.listdir('./'):
+            if item.endswith(".json") or ('log' in item and '.txt' in item):
+                os.remove(item)

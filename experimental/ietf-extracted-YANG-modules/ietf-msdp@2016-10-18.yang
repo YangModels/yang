@@ -1,0 +1,728 @@
+module ietf-msdp {
+  namespace "urn:ietf:params:xml:ns:yang:ietf-msdp";
+  prefix msdp;
+
+  import ietf-yang-types {
+    prefix "yang";
+  }
+
+  import ietf-inet-types {
+    prefix "inet";
+  }
+
+  import ietf-routing {
+    prefix "rt";
+  }
+
+  import ietf-interfaces {
+    prefix "if";
+  }
+
+  import ietf-ip {
+    prefix "ip";
+  }
+
+  import ietf-key-chain {
+    prefix "key-chain";
+  }
+
+  organization
+    "IETF PIM( Protocols for IP Multicast ) Working Group";
+
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/pim/>
+     WG List:  <mailto:pim@ietf.org>
+     WG Chair: Stig Venaas
+               <mailto:stig@venaas.com>
+     WG Chair: Mike McBride
+               <mailto:mmcbride7@gmail.com>
+
+     Editors:   ";
+
+  description
+    "The module defines the YANG definitions for MSDP.";
+
+  revision 2016-10-18 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX: A YANG Data Model for MSDP.
+       RFC 3618: Multicast Source Discovery Protocol (MSDP).
+       RFC 4624: Multicast Source Discovery Protocol (MSDP) MIB";
+  }
+
+  /*
+   * Features
+   */
+  feature global-connect-source {
+    description
+      "Support configuration of global connect-source.";
+  }
+
+  feature global-default-peer {
+    description
+      "Support configuration of global default peer.";
+  }
+
+  feature global-default-peer-policy {
+    description
+      "Support configuration of global default peer.";
+  }
+
+  feature global-sa-filter {
+    description
+      "Support configuration of global SA filter.";
+  }
+
+  feature global-sa-limit {
+    description
+      "Support configuration of global limit on SA entries.";
+  }
+
+  feature global-ttl-threshold {
+    description
+      "Support configuration of global ttl-threshold.";
+  }
+
+  feature rpc-clear-sa-cache {
+    description
+      "Support the rpc to clear SA cache.";
+  }
+
+  feature peer-admin-enable {
+    description
+      "Support configuration of peer administrative enabling.";
+  }
+
+  feature peer-as {
+    description
+      "Support configuration of peer AS number.";
+  }
+
+  feature peer-connect-source {
+    description
+      "Support configuration of global connect-source.";
+  }
+
+  feature peer-description {
+    description
+      "Support configuration of peer description.";
+  }
+
+  feature peer-key-chain {
+    description
+      "Support configuration of peer key-chain.";
+  }
+
+  feature peer-password {
+    description
+      "Support configuration of peer key-chain.";
+  }
+
+  feature peer-sa-limit {
+    description
+      "Support configuration of per peer limit on SA entries.";
+  }
+
+  feature peer-timer-connect-retry {
+    description
+      "Support configuration of peer timer for connect-retry.";
+  }
+
+  feature peer-timer-keepalive {
+    description
+      "Support configuration of peer timer for keepalive.";
+  }
+
+  feature peer-timer-holdtime {
+    description
+      "Support configuration of peer timer for holdtime.";
+  }
+
+  /*
+   * Groupings
+   */
+  grouping authentication-container {
+    description
+      "A container defining authentication attributes.";
+    container authentication {
+      description
+        "A container defining authentication attributes.";
+      choice authentication-type {
+        case key-chain {
+          if-feature peer-key-chain;
+          leaf key-chain {
+            type key-chain:key-chain-ref;
+            description
+              "Reference to a key-chain.";
+          }
+        }
+        case password {
+          if-feature peer-key-chain;
+          leaf key {
+            type string;
+            description
+              "This leaf describes the authentication key.";
+          }
+          /*uses key-chain:crypto-algorithm-types;*/ /*will be modified in next version*/
+        }
+        description
+          "Choice of authentication.";
+      }
+    }
+  } // authentication-container
+
+  grouping connect-source {
+    description "Attribute to configure connect-source.";
+    leaf connect-source {
+      type if:interface-ref;
+      must "/if:interfaces/if:interface[if:name = current()]/"
+        + "ip:ipv4" {
+        description
+          "The interface must have IPv4 enabled.";
+      }
+      description
+        "The interface is to be the source for the TCP connection.
+         It is a reference to an entry in the global interface
+         list.";
+    }
+  } // connect-source
+
+  grouping global-config-attributes {
+    description "Global MSDP configuration.";
+
+    uses connect-source {
+      if-feature global-connect-source;
+    }
+    container default-peer {
+      if-feature global-default-peer;
+      presence "";
+      description
+        "The default peer accepts all MSDP SA messages.
+         A default peer is needed in topologies where MSDP peers do
+         not coexist with BGP peers. The reverse path forwarding
+         (RPF) check on SA messages can fail, and no SA messages are
+         accepted. In these cases, you can configure the peer as a
+         default peer and bypass RPF checks.";
+      leaf peer-addr {
+        type leafref {
+          path "../../../peers/peer/address";
+        }
+        mandatory true;
+        description
+          "Reference to a peer that is in the peer list.";
+      }
+      leaf prefix-policy {
+        if-feature global-default-peer-policy;
+        type string;
+        description
+          "If specified, only those SA entries whose RP is permitted
+           in the prefix list are allowed;
+           if not specified, all SA messages from the default peer
+           are accepted.";
+      }
+    } // default-peer
+
+    container originating-rp {
+      description
+        "The container of originating-rp.";
+      leaf interface {
+        type if:interface-ref;
+        must "/if:interfaces/if:interface[if:name = current()]/"
+          + "ip:ipv4" {
+          description
+            "The interface must have IPv4 enabled.";
+        }
+        description
+          "Reference to an entry in the global interface
+           list.
+           IP address of the interface is used in the RP field of an
+           SA message entry. When Anycast RPs are used, all RPs use
+           the same IP address. This parameter can be used to define
+           a unique IP address for the RP of each MSDP peer.
+           By default, the software uses the RP address of the
+           local system.";
+      }
+    } // originating-rp
+
+    uses sa-filter-container {
+      if-feature global-sa-filter;
+    }
+    leaf sa-limit {
+      if-feature global-sa-limit;
+      type uint32;
+      description
+        "A limit on the number of SA entries accepted. By default,
+         there is no limit.";
+    }
+    uses ttl-threshold {
+      if-feature global-ttl-threshold;
+    }
+  } // global-config-attributes
+
+  grouping global-state-attributes {
+    description "Global MSDP state attributes.";
+  } // global-state-attributes
+
+  grouping peer-config-attributes {
+    description "Per peer configuration for MSDP.";
+
+    uses authentication-container;
+    leaf enable {
+      if-feature peer-admin-enable;
+      type boolean;
+      description
+        "true to enable peer;
+         false to disable peer.";
+    }
+    uses connect-source {
+      if-feature peer-connect-source;
+    }
+    leaf description {
+      if-feature peer-description;
+      type string;
+      description
+        "The peer description.";
+    }
+    leaf mesh-group {
+      type string;
+      description
+        "Configure this peer to be a member of a mesh group";
+    }
+    leaf peer-as {
+      if-feature peer-as;
+      type string;
+      description
+        "Peer's autonomous system number (ASN).";
+    }
+    uses sa-filter-container;
+    leaf sa-limit {
+      if-feature peer-sa-limit;
+      type uint32;
+      description
+        "A limit on the number of SA entries accepted from this peer.
+         By default, there is no limit.";
+    }
+    container timer {
+      description "Timer attributes.";
+      leaf connect-retry-interval {
+        if-feature peer-timer-connect-retry;
+        type uint16;
+        units seconds;
+        default 30;
+        description "SHOULD be set to 30 seconds. ";
+      }
+      leaf holdtime-interval {
+        if-feature peer-timer-holdtime;
+        type uint16;
+        units seconds;
+        must ". > 3";
+        default 75;
+        description "The SA-Hold-Down-Period of this msdp peer.";
+      }
+      leaf keepalive-interval {
+        if-feature peer-timer-keepalive;
+        type uint16;
+        units seconds;
+        must ". > 1 and . < ../holdtime-interval";
+        default 60;
+        description "The keepalive timer of this msdp peer.";
+      }
+    } // timer
+    uses ttl-threshold;
+  } // peer-config-attributes
+
+  grouping peer-state-attributes {
+    description "Per peer state attributes for MSDP.";
+
+    leaf session-state {
+      type enumeration {
+        enum disabled  {
+          description "Disabled.";
+        }
+        enum inactive {
+          description "Inactive.";
+        }
+        enum listen {
+          description "Listen.";
+        }
+        enum connecting {
+          description "Connecting.";
+        }
+        enum established {
+          description "Established.";
+        }
+      }
+      description
+        "Peer session state.";
+      reference
+        "RFC3618: Multicast Source Discovery Protocol (MSDP).";
+    }
+    leaf elapsed-time {
+      type uint32;
+      units seconds;
+      description "Elapsed time for being in a state.";
+    }
+    leaf connect-retry-expire {
+      type uint32;
+      units seconds;
+      description "Connect retry expire time of peer connection.";
+    }
+    leaf hold-expire {
+      type uint32;
+      units seconds;
+      description "Hold expire time of peer connection.";
+    }
+    leaf is-default-peer {
+      type boolean;
+      description "If this peer is default peer.";
+    }
+    leaf keepalive-expire {
+      type uint32;
+      units seconds;
+      description "Keepalive expire time of this peer.";
+    }
+    leaf reset-count {
+      type uint32;
+      description "The reset count of this peer.";
+    }
+    uses statistics-container;
+  } // peer-config-attributes
+
+  grouping sa-cache-state-attributes {
+    description "SA cache state attributes for MSDP.";
+
+    leaf up-time {
+      type uint32;
+      units seconds;
+      description "The up time of this sa cache.";
+    }
+    leaf expire {
+      type uint32;
+      units seconds;
+      description "If this cache has expired.";
+    }
+    leaf holddown-interval {
+      type uint32;
+      units seconds;
+      description "Holddown timer value for SA forwarding.";
+    }
+    leaf peer-learned-from {
+      type inet:ipv4-address;
+      description
+        "The address of peer that we learned this SA from .";
+    }
+    leaf rpf-peer {
+      type inet:ipv4-address;
+      description "RPF peer.";
+    }
+  } // sa-cache-state-attributes
+
+  grouping sa-filter-container {
+    description "A container defining SA filters.";
+    container sa-filter {
+      description
+        "Specifies an access control list (ACL) to filter source
+         active (SA) messages coming in to or going out of the
+         peer.";
+      leaf in {
+        type string;
+        description
+          "Filters incoming SA messages only.";
+      }
+      leaf out {
+        type string;
+        description
+          "Filters outgoing SA messages only.";
+      }
+    } // sa-filter
+  } // sa-filter-container
+
+  grouping ttl-threshold {
+    description "Attribute to configure TTL threshold.";
+    leaf ttl-threshold {
+      type uint8 {
+        range 1..255;
+      }
+      description
+        "Maximum number of hops data packets can traverse before
+         being dropped.";
+    }
+  } // sa-ttl-threshold
+
+  grouping statistics-container {
+    description
+      "A container defining statistics attributes.";
+    container statistics {
+      description "";
+      leaf discontinuity-time {
+        type yang:date-and-time;
+        description
+          "The time on the most recent occasion at which any one
+          or more of the statistic counters suffered a
+          discontinuity. If no such discontinuities have occurred
+          since the last re-initialization of the local
+          management subsystem, then this node contains the time
+          the local management subsystem re-initialized itself.";
+      }
+      container error {
+        description "";
+        uses statistics-error;
+      }
+      container queue {
+        description "";
+        uses statistics-queue;
+      }
+      container received {
+        description "";
+        uses statistics-sent-received;
+      }
+      container sent {
+        description "";
+        uses statistics-sent-received;
+      }
+    }
+  } // statistics-container
+
+  grouping statistics-error {
+    description
+      "A grouping defining error statistics
+      attributes.";
+    leaf rpf-failure {
+      type uint32;
+      description "";
+    }
+  } // statistics-error
+
+  grouping statistics-queue {
+    description
+      "A grouping defining queue statistics
+      attributes.";
+    leaf size-in {
+      type uint32;
+      description
+        "The size of the input queue.";
+    }
+    leaf size-out {
+      type uint32;
+      description
+        "The size of the output queue.";
+    }
+  } // statistics-queue
+
+  grouping statistics-sent-received {
+    description
+      "A grouping defining sent and received statistics
+      attributes.";
+    leaf keepalive {
+      type yang:counter64;
+      description
+        "The number of keepalive messages.";
+    }
+    leaf notification {
+      type yang:counter64;
+      description
+        "The number of notification messages.";
+    }
+    leaf sa-message {
+      type yang:counter64;
+      description
+        "The number of SA messages.";
+    }
+    leaf sa-response {
+      type yang:counter64;
+      description
+        "The number of SA response messages.";
+    }
+    leaf sa-request {
+      type yang:counter64;
+      description
+        "The number of SA request messages.";
+    }
+    leaf total {
+      type yang:counter64;
+      description
+        "The number of total messages.";
+    }
+  } // statistics-sent-received
+
+  /*
+   * Configuration data nodes
+   */
+  augment "/rt:routing/rt:control-plane-protocols" {
+    description
+      "MSDP augmentation to routing instance configuration.";
+
+    container msdp {
+      presence "Container for MSDP protocol.";
+      description
+        "MSDP configuration data.";
+
+      container global {
+        description
+          "Global attributes.";
+        uses global-config-attributes;
+      }
+
+      container peers {
+        description
+          "Containing a list of peers.";
+        list peer {
+          key "address";
+          description
+            "List of MSDP peers.";
+          leaf address {
+            type inet:ipv4-address;
+            description
+              "";
+          }
+          uses peer-config-attributes;
+        } // peer
+      } // peers
+    } // msdp
+  } // augment
+
+  /*
+   * Operational state data nodes
+   */
+  augment "/rt:routing-state/rt:control-plane-protocols" {
+    description
+      "MSDP augmentation to routing instance state.";
+
+    container msdp {
+      presence "Container for MSDP protocol.";
+      description
+        "MSDP state data.";
+
+      container global {
+        description
+          "Global attributes.";
+        uses global-config-attributes;
+        uses global-state-attributes;
+      }
+
+      container peers {
+        description
+          "Containing a list of peers.";
+
+        list peer {
+          key "address";
+          description
+            "List of MSDP peers.";
+          leaf address {
+            type inet:ipv4-address;
+            description
+              "The address of peer";
+          }
+          uses peer-config-attributes;
+          uses peer-state-attributes;
+        } // peer
+      } // peers
+
+      container sa-cache {
+        description
+          "The sa cache information.";
+        list entry {
+          key "group source-addr";
+          description "";
+          leaf group {
+            type inet:ipv4-address;
+            description "The group address of this sa cache.";
+          }
+          leaf source-addr {
+            type union {
+              type enumeration {
+                enum '*' {
+                  description "The source addr of this sa cache.";
+                }
+              }
+              type inet:ipv4-address;
+            }
+            description "";
+          }
+          list origin-rp {
+            key "rp-address";
+            description
+              "";
+            leaf rp-address {
+              type inet:ip-address;
+              description "The rp address.";
+            }
+            leaf is-local-rp {
+              type boolean;
+              description "";
+            }
+            leaf sa-adv-expire {
+              type uint32;
+              units seconds;
+              description
+                "Periodic SA advertisement timer exipiring time on
+                 a local RP.";
+            }
+          }
+          uses sa-cache-state-attributes;
+        } // entry
+      } // sa-cache
+    } // msdp
+  } // augment
+
+  /*
+   * RPCs
+   */
+  rpc msdp-clear-peer {
+    description
+      "Clears the session to the peer.";
+    input {
+      leaf peer-address {
+        type inet:ipv4-address;
+        description
+          "Address of peer to be cleared. If this is not provided
+           then all peers are cleared.";
+      }
+    }
+  }
+
+  rpc msdp-clear-sa-cache {
+    if-feature rpc-clear-sa-cache;
+    description
+      "Clears MSDP source active (SA) cache entries.";
+    input {
+      container entry {
+        presence "";
+        description
+          "The SA cache (S,G) or (*,G) entry to be cleared. If this
+           is not provided, all entries are cleared.";
+        leaf group {
+          type inet:ipv4-address;
+          mandatory true;
+          description "";
+        }
+        leaf source-addr {
+          type union {
+            type enumeration {
+              enum '*' {
+                description "";
+              }
+            }
+            type inet:ipv4-address;
+          }
+          description "";
+        }
+      } // s-g
+      leaf peer-address {
+        type inet:ipv4-address;
+        description
+          "Peer IP address from which MSDP SA cache entries have been
+           learned. If this is not provided, entries learned from all
+           peers are cleared.";
+      }
+      leaf peer-as {
+        type string;
+        description
+          "ASN from which MSDP SA cache entries have been learned.
+           If this is not provided, entries learned from all AS's
+           are cleared.";
+      }
+    }
+  }
+}
