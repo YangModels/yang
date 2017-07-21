@@ -3,6 +3,8 @@ from __future__ import print_function
 import fnmatch
 import json
 import os
+import subprocess
+from subprocess import Popen, PIPE
 import unicodedata
 import urllib2
 import fileinput
@@ -93,6 +95,76 @@ def create_generated_from(namespace, module_name):
         return 'not-applicable'
 
 
+def get_tree_type(yang_file):
+    if yang_file:
+        arguments = ["pyang", "-p", "../../.", "-f", "tree", yang_file]
+        pyang = subprocess.Popen(arguments, stdout=PIPE, stderr=PIPE)
+        stdout, stderr = pyang.communicate()
+        if 'error' in stderr and 'is not found' in stderr:
+            return 'unclassified'
+        elif stdout == '':
+            return 'unclassified'
+        else:
+            pyang_list_of_rows = stdout.split('\n')[1:]
+            augment = False
+            for row in pyang_list_of_rows:
+                if 'augment' in row:
+                    augment = True
+            if augment:
+                return 'unclassified'
+            else:
+                return check_split(pyang_list_of_rows)
+    else:
+        return 'unclassified'
+
+
+def check_split(rows):
+    state = None
+    failed = False
+    row_num = 0
+    for row in rows:
+        if row == '':
+            failed = True
+            break
+        if len(row.split('+--')[0]) == 4:
+            if '-state' in row:
+                state = row.strip(' ').split('-state')[0].split(' ')[1]
+                for x in range(row_num, len(rows)):
+                    if rows[x] == '':
+                        break
+                    if state == rows[x].strip(' ').split(' ')[1]:
+                        break
+                    if '+--rw' in rows[x]:
+                        failed = True
+                        break
+
+                break
+        row_num += 1
+    if failed:
+        return 'unclassified'
+    row_num = 0
+    if state:
+        for row in rows:
+            if row == '':
+                failed = True
+                break
+            if len(row.split('+--')[0]) == 4:
+                if state == row.strip(' ').split(' ')[1]:
+                    for x in range(row_num, len(rows)):
+                        if rows[x] == '':
+                            break
+                        if '+--ro' in rows[x]:
+                            failed = True
+                            break
+
+                    break
+            row_num += 1
+    if failed:
+        return 'unclassified'
+    else:
+        return 'split config/state'
+
+
 class Capability:
     def __init__(self, hello_message_file, index, prepare, integrity_checker, api, sdo,
                  statistics_in_catalog=None):
@@ -154,7 +226,7 @@ class Capability:
                     self.os = 'Unknown'
                     self.platform = 'Unknown'
                 self.os_version = self.split[5]
-                self.software_flavor = self.os + '|' + self.os_version
+                self.software_flavor = 'ALL' #self.os + '|' + self.os_version
             integrity_checker.add_platform('/'.join(self.split[:-2]), self.platform)
 
         self.ietf_rfc_json = {}
@@ -222,10 +294,10 @@ class Capability:
             self.os = impl['os-type']
             self.software_version = impl['software-version']#repr(165) + self.feature_set
             self.owner = impl['capabilities-file']['owner']
-            self.repo = github + '/' + self.owner + impl['capabilities-file']['repository']
+            self.repo = github + self.owner + '/' + impl['capabilities-file']['repository'].split('.')[0]
             self.repo_file_path = impl['capabilities-file']['path']
-            self.local_file_path = 'api/vendor/' + self.owner + '/' + impl['capabilities-file']['repository'] + '/'\
-                                    + self.repo_file_path
+            self.local_file_path = 'api/vendor/' + self.owner + '/' + impl['capabilities-file']['repository'] + '/' \
+                                   + self.repo_file_path
 
     def handle_exception(self, field, object, module_name):
         # In case of include exception create empty
@@ -315,17 +387,20 @@ class Capability:
 
     def parse_and_dump_sdo(self):
         if self.api:
-            sdos_json = json.load(open('./prepare-sdo.json', 'r'))
+            with open('./prepare-sdo.json', 'r') as f:
+                sdos_json = json.load(f)
             sdos_list = sdos_json['modules']['module']
             for sdo in sdos_list:
                 owner = sdo['source-file']['owner']
-                repo = github + '/' + owner + '/' + sdo['source-file']['repository'].split('.')[0]
+                repo = github + owner + '/' + sdo['source-file']['repository'].split('.')[0]
                 repo_file_path = sdo['source-file']['path']
-                root = owner + '/' + sdo['source-file']['repository'].split('.')[0] + '/'\
-                       + '/'.join(repo_file_path.split('/')[:-1])
+                root = owner + '/' + sdo['source-file']['repository'].split('.')[0] + '/' \
+                    + '/'.join(repo_file_path.split('/')[:-1])
                 root = 'temp/' + unicodedata.normalize('NFKD', root).encode('ascii', 'ignore')
                 file_name = unicodedata.normalize('NFKD', sdo['source-file']['path'].split('/')[-1])\
                     .encode('ascii', 'ignore')
+                if not os.path.isfile(root + '/' + file_name):
+                    continue
                 local_file_path = 'api/sdo/' + owner + '/' + sdo['source-file']['repository'].split('.')[0] + '/'\
                                   + repo_file_path
                 self.parsed_yang = None
@@ -342,6 +417,7 @@ class Capability:
                 features = {}
 
                 module_submodule = module_or_submodule(root + '/' + file_name)
+                tree_type = get_tree_type(root + '/' + file_name)
                 if '[1]' in file_name:
                     print('file name contains invalid characters')
                     module_submodule = 'wrong file'
@@ -392,7 +468,7 @@ class Capability:
                                              self.get_submodule_info(includes.get(file_name)['name']),
                                              compilations_status, author_email, working_group, compilations_result,
                                              module_submodule, document_name, owner, repo,
-                                             repo_file_path, local_file_path, generated_from, None)
+                                             repo_file_path, local_file_path, generated_from, None, tree_type)
 
         if not self.api:
             for root, subdirs, sdos in os.walk('/'.join(self.split)):
@@ -411,7 +487,7 @@ class Capability:
                         namespace = {}
                         features = {}
                         module_submodule = module_or_submodule(root + '/' + file_name)
-
+                        tree_type = get_tree_type(root + '/' + file_name)
                         if '[1]' in file_name:
                             print('file name contains invalid characters')
                             module_submodule = 'wrong file'
@@ -419,7 +495,7 @@ class Capability:
                             owner = 'YangModels'
                             repo_file_path = root + '/' + file_name
                             repo_file_path = repo_file_path.replace('../', '')
-                            repo = github + '/' + owner + '/yang'
+                            repo = github + owner + '/yang'
                             local_file_path = root + '/' + file_name
                             local_file_path = local_file_path.replace('../', '')
                             conformance_type = 'implement'
@@ -446,7 +522,6 @@ class Capability:
                             author_email = self.parse_email(file_name, revision[file_name])
                             working_group = self.parse_maturityLevel(file_name, revision[file_name])
 
-
                             self.statistics_in_catalog.add_in_catalog(root)
                             generated_from = create_generated_from(namespace.get(file_name), file_name)
                             doc_name_reference = self.parse_document_reference(file_name, revision[file_name])
@@ -458,7 +533,7 @@ class Capability:
                             if organization.get(file_name) is None:
                                 if 'urn:' in namespace[file_name]:
                                     organization[file_name] = namespace[file_name].split('urn:')[1].split(':')[0]
-                            if organization[file_name] == 'ietf':
+                            if organization.get(file_name) == 'ietf':
                                 wg = self.parse_wg(file_name, revision[file_name])
                             else:
                                 wg = None
@@ -471,7 +546,8 @@ class Capability:
                                                      self.get_submodule_info(includes.get(file_name)['name']),
                                                      compilations_status, author_email, working_group,
                                                      compilations_result, module_submodule, document_name, owner,
-                                                     repo, repo_file_path, local_file_path, generated_from, wg)
+                                                     repo, repo_file_path, local_file_path, generated_from, wg,
+                                                     tree_type)
 
     # parse capability xml and save to file
     def parse_and_dump(self):
@@ -639,6 +715,7 @@ class Capability:
                     self.repo_file_path = 'file/is/missing'
                 self.local_file_path = self.local_file_path.replace('../', '')
                 self.repo_file_path = self.repo_file_path.replace('../', '')
+                tree_type = get_tree_type(yang_file)
 
                 self.prepare.add_key(module_name + '@' + revision[module_name], namespace[module_name],
                                      conformance_type[module_name], self.vendor, self.platform, self.software_version,
@@ -650,7 +727,7 @@ class Capability:
                                      compilations_result[module_name], deviations[module_name],
                                      self.get_submodule_info(includes[module_name]['name']), module_submodule,
                                      document_name, self.owner, self.repo, self.repo_file_path, self.local_file_path,
-                                     create_generated_from(namespace[module_name], module_name), wg)
+                                     create_generated_from(namespace[module_name], module_name), wg, tree_type)
 
                 self.parse_imports_includes(includes[module_name]['name'], features, revision, name_revision,
                                             yang_version, namespace, prefix, organization, contact, description,
@@ -853,6 +930,7 @@ class Capability:
                         self.repo_file_path = 'file/is/missing'
                     self.local_file_path = self.local_file_path.replace('../', '')
                     self.repo_file_path = self.repo_file_path.replace('../', '')
+                    tree_type = get_tree_type(yang_file)
 
                     self.prepare.add_key(imp + '@' + revision[imp], namespace[imp], conformance_type[imp], self.vendor,
                                          self.platform, self.software_version, self.software_flavor, self.os,
@@ -862,7 +940,7 @@ class Capability:
                                          deviations[imp], self.get_submodule_info(includes[imp]['name']),
                                          module_submodule, document_name, self.owner, self.repo, self.repo_file_path,
                                          self.local_file_path,
-                                         create_generated_from(namespace[imp], imp), working_group)
+                                         create_generated_from(namespace[imp], imp), working_group, tree_type)
 
                     self.parse_imports_includes(includes[imp]['name'], features, revision, name_revision,
                                                 yang_version, namespace, prefix, organization, contact, description,

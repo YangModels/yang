@@ -82,38 +82,26 @@ if __name__ == "__main__":
     if args.api:
         if args.sdo:
             with open("log_api_sdo.txt", "wr") as f:
-                try:
-                    arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--sdo", "--dir",
-                                 args.dir]
-                    subprocess.check_call(arguments, stderr=f)
-                    # os.system("python runCapabilities.py --api --sdo --dir " + args.dir)
-                except subprocess.CalledProcessError as e:
-                    sys.exit()
+                arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--sdo", "--dir",
+                              args.dir]
+                subprocess.check_call(arguments, stderr=f)
+                # os.system("python runCapabilities.py --api --sdo --dir " + args.dir)
         else:
             with open("log_api.txt", "wr") as f:
-                try:
-                    arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--dir", args.dir]
-                    subprocess.check_call(arguments, stderr=f)
-                    # os.system("python runCapabilities.py --api --dir " + args.dir)
-                except subprocess.CalledProcessError as e:
-                    sys.exit()
+                arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--dir", args.dir]
+                subprocess.check_call(arguments, stderr=f)
+                # os.system("python runCapabilities.py --api --dir " + args.dir)
     else:
         if args.sdo:
             with open("log_sdo.txt", "wr") as f:
-                try:
-                    arguments = ["python", "runCapabilities.py", "--sdo", "--dir", args.dir]
-                    subprocess.check_call(arguments, stderr=f)
-                except subprocess.CalledProcessError as e:
-                    sys.exit()
-                    # os.system("python runCapabilities.py --sdo --dir" + args.dir)
+                arguments = ["python", "runCapabilities.py", "--sdo", "--dir", args.dir]
+                subprocess.check_call(arguments, stderr=f)
+                # os.system("python runCapabilities.py --sdo --dir" + args.dir)
         else:
             with open("log_no_sdo_api.txt", "wr") as f:
-                try:
-                    arguments = ["python", "runCapabilities.py", "--dir", args.dir]
-                    subprocess.check_call(arguments, stderr=f)
-                except subprocess.CalledProcessError as e:
-                    sys.exit()
-                    # os.system("python runCapabilities.py --dir " + args.dir)
+                arguments = ["python", "runCapabilities.py", "--dir", args.dir]
+                subprocess.check_call(arguments, stderr=f)
+                # os.system("python runCapabilities.py --dir " + args.dir)
 
     files = []
     # Find all parsed json files
@@ -150,8 +138,8 @@ if __name__ == "__main__":
         http_request(prefix + '/api/config/catalog/vendors/', 'PATCH', json_implementations_data,
                      args.credentials)
 
-    print("Removing temporary json files")
-
-    for item in os.listdir('./'):
-        if item.endswith(".json") or ('log' in item and '.txt' in item):
-            os.remove(item)
+    if not args.api:
+        print("Removing temporary json files")
+        for item in os.listdir('./'):
+            if item.endswith(".json"):
+                os.remove(item)

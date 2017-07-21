@@ -230,7 +230,8 @@ def do_stats():
                         if platforms[x-1] in xml:
                             exist = True
                     for json_file in find_files(key + '/' + directory, '*.json'):
-                        read = json.load(open(json_file, 'r'))
+                        with open(json_file, 'r') as f:
+                            read = json.load(f)
                         for plat in read['platforms']:
                             if plat['name'] == platforms[x-1]:
                                 exist = True
