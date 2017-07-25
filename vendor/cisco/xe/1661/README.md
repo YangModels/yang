@@ -7,7 +7,7 @@ This directory contains the [MIBS](MIBS) subdirectory and YANG models supported 
 * Platform deviations to models
 * MIB-based models generated using the algorithms in [RFC 6643](https://tools.ietf.org/html/rfc6643)
 * Copies of **draft** IETF models implemented by IOS-XE 16.6.1 (some with modifications)
-* All IETF and tail-f models (without modification) that are supported by IOS-XE platforms 
+* All IETF, OpenConfig and tail-f models (without modification) that are supported by IOS-XE platforms 
 
 The schemas here may also be retrieved from devices running IOS-XE 16.6.1 by using the NETCONF "get-schema" RPC as detailed in Section 3.1 of [RFC 6022](https://tools.ietf.org/html/rfc6022). Models listed in this repository are supported by following IOS-XE platforms:
 
@@ -114,10 +114,10 @@ Exceptions to capability statement:
   - [nvo.yang](nvo.yang)
   - [nvo-devs.yang](nvo-devs.yang)
 
-#### Catalyst 9300, 9500
+#### Catalyst 9300
 NETCONF capability statement: [cat9300-netconf-capability.xml](cat9300-netconf-capability.xml)
+#### Catalyst 9500
 NETCONF capability statement: [cat9500-netconf-capability.xml](cat9500-netconf-capability.xml)
-
 #### ASR1000
 NETCONF capability statement: [asr1k-netconf-capability.xml](asr1k-netconf-capability.xml)
 #### CSR1000V
