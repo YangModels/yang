@@ -30,93 +30,65 @@ Model content may differ based on platform capability. As a convenience, copies 
 
 ### Major namespace and model changes in 16.6.1
 
-### 16.6.1 Major model changes
-  * 16.6.1 XE YANG model is changed from one single monolith model to 70+ individual feature modules. Top level feature has an anchor node in the main module (i.e. **module Cisco-IOS-XE-native**) and individual feature is argumenting the anchor node. As a result of this change, most of the features have **new module name, new namespace and prefix**.
+### 16.6.1 Major Model Changes
+
+ * 16.6.1 Model changes includes addition of Openconfig Models, new native models and existing native model updation.
+
+   * List of Openconfig models added in 16.6.1:
+
+	openconfig-interfaces
+        openconfig-routing-policy
+        openconfig-acl
+        openconfig-vlan
+        openconfig-network-instance
+        openconfig-platform
  
- e.g.
-  module Cisco-IOS-XE-aaa {
-  namespace "http://cisco.com/ns/yang/Cisco-IOS-XE-aaa";
-  prefix ios-aaa;
+   * List of Native models updated in 16.6.1
 
-   **Please contact your CISCO technical assistance center representive to migrate pre-16.6.1 NETCONF RPC requests.**
+        Cisco-IOS-XE-native.yang
+	Cisco-IOS-XE-types.yang
+	Cisco-IOS-XE-interfaces.yang
+	Cisco-IOS-XE-aaa.yang
+	Cisco-IOS-XE-acl.yang 
+	Cisco-IOS-XE-bfd.yang	
+	Cisco-IOS-XE-bgp.yang
+	Cisco-IOS-XE-cef.yang
+	Cisco-IOS-XE-crypto.yang
+	Cisco-IOS-XE-cts.yang
+	Cisco-IOS-XE-dhcp.yang
+	Cisco-IOS-XE-eem.yang
+	Cisco-IOS-XE-eigrp.yang
+	Cisco-IOS-XE-flow.yang
+	Cisco-IOS-XE-ip.yang
+	Cisco-IOS-XE-ipv6.yang
+	Cisco-IOS-XE-isis.yang
+	Cisco-IOS-XE-line.yang
+	Cisco-IOS-XE-lisp.yang
+	Cisco-IOS-XE-lldp.yang
+	Cisco-IOS-XE-logging.yang
+	Cisco-IOS-XE-mmode.yang
+	Cisco-IOS-XE-multicast.yang
+	Cisco-IOS-XE-nat.yang
+	Cisco-IOS-XE-nd.yang
+	Cisco-IOS-XE-ospf.yang
+	Cisco-IOS-XE-ospfv3.yang
+	Cisco-IOS-XE-policer.yang
+	Cisco-IOS-XE-policy.yang
+	Cisco-IOS-XE-rip.yang
+	Cisco-IOS-XE-route-map.yang
+	Cisco-IOS-XE-service-routing.yang
+	Cisco-IOS-XE-snmp.yang
+	Cisco-IOS-XE-switch.yang
+	Cisco-IOS-XE-template.yang
+	Cisco-IOS-XE-track.yang
+	Cisco-IOS-XE-tunnel.yang
+	Cisco-IOS-XE-vlan.yang
 
-  * access-list in **Cisco-IOS-XE-acl.yang** schema has changes that result in XPATH changes. 
+   * List of new native models added in 16.6.1:
 
-    *  **tags under access-list that are changed**
-
-     1. [**src-udp-eq**  | src-tcp-eq]  -> **src-eq**
-     2. [src-udp-gt  | src-tcp-gt]  -> src-gt
-     3. [src-udp-lt  | src-tcp-lt]  -> src-lt
-     4. [src-udp-neq | src-tcp-neq] -> src-neq
-     5. [src-udp-range1 | src-tcp-range1] -> src-range1
-     6. [src-udp-range2 | src-tcp-range2] -> src-range2
-     7. [dst-udp-eq  | dst-tcp-eq]  -> dst-eq
-     8. [dst-udp-gt  | dst-tcp-gt]  -> dst-gt
-     9. [dst-udp-lt  | dst-tcp-lt]  -> dst-lt
-     10. [dst-udp-neq | dst-tcp-neq] -> dst-neq
-     11. [dst-udp-range1 | dst-tcp-range1] -> dst-range1
-     12. [dst-udp-range2 | dst-tcp-range2] -> dst-range2
-
-     e.g.
-      * original XPATH   
-    /native/ip/access-list/extended/access-list-seq-rule/ace-rule/src-port-choice/src-eq-case/**src-udp-eq**)
-      * new XPATH
-    Cisco-IOS-XE-native/native/ip/access-list/ios-acl:extended/ios-acl:access-list-seq-rule/ios-acl:ace-rule/ios-acl:src-port-choice/ios-acl:src-eq-case/ios-acl:**src-eq**
-  
-  * There are 7 sub-modules that belong to the main Cisco-IOS-XE-native module
-
-    1. submodule Cisco-IOS-XE-interfaces 
-    2. submodule Cisco-IOS-XE-ip 
-    3. submodule Cisco-IOS-XE-ipv6 
-    4. submodule Cisco-IOS-XE-license 
-    5. submodule Cisco-IOS-XE-line 
-    6. submodule Cisco-IOS-XE-logging 
-    7. submodule Cisco-IOS-XE-parser 
-
-  * before and after the 16.6.1 netconf regquest
-   * pre-16.6.1 NETCONF request
-  ``` xml
-       <rpc message-id="101" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
-               <edit-config>
-                      <target>
-                             <running/>
-                      </target>
-                      <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0">
-                             <native xmlns="http://cisco.com/ns/yang/ned/ios">
-                                        <call-home>
-                                               <contact-email-addr xc:operation="create"> 
-                                                      john.doe@cisco.com
-                                               </contact-email-addr>
-                                        </call-home>
-                                        <hostname xc:operation="create">CISCO</hostname>
-                             </native>
-                      </config>
-               </edit-config>
-        </rpc>
-   ``` 
-
-   * post-16.6.1 NETCONF request
-
-   ``` xml
-       <rpc message-id="101" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
-               <edit-config>
-                      <target>
-                             <running/>
-                      </target>
-                      <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0">             
-                             <native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native" xmlns:ios-ch="http://cisco.com/ns/yang/Cisco-IOS-XE-call-home">                    
-                                        <call-home>                            
-                                               <ios-ch:contact-email-addr xc:operation="create">
-                                                      john.doe@cisco.com 
-                                               </ios-ch:contact-email-addr>                                                         
-                                        </call-home>
-                                     <hostname xc:operation="create">CISCO</hostname>
-                             </native>
-                      </config>
-               </edit-config>
-       </rpc>
-   ```
-
+	Cisco-IOS-XE-mmode.yang
+	Cisco-IOS-XE-template.yang
+	 
 ### Compliance With "pyang --lint"
 
 The native and some common YANG models are not fully compliant with all IETF guidelines as exemplified by running the pyang tool with the ```--lint``` flag. The errors and warnings exhibited by running pyang with the ```--lint``` flag are currently deemed to be non-critical as they do not impact the semantic of the models or prevent the models being used as part of toolchains. A script has been provided, "check-models.sh", that runs pyang with ```--lint``` validation enabled, but ignoring certain errors. This allows the developer to determine what issues may be present.
