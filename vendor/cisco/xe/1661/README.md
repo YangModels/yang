@@ -36,58 +36,58 @@ Model content may differ based on platform capability. As a convenience, copies 
 
    * List of Openconfig models added in 16.6.1:
 
-	openconfig-interfaces
-        openconfig-routing-policy
-        openconfig-acl
-        openconfig-vlan
-        openconfig-network-instance
-        openconfig-platform
+	* openconfig-interfaces
+        * openconfig-routing-policy
+        * openconfig-acl
+        * openconfig-vlan
+        * openconfig-network-instance
+        * openconfig-platform
  
    * List of Native models updated in 16.6.1
 
-        Cisco-IOS-XE-native.yang
-	Cisco-IOS-XE-types.yang
-	Cisco-IOS-XE-interfaces.yang
-	Cisco-IOS-XE-aaa.yang
-	Cisco-IOS-XE-acl.yang 
-	Cisco-IOS-XE-bfd.yang	
-	Cisco-IOS-XE-bgp.yang
-	Cisco-IOS-XE-cef.yang
-	Cisco-IOS-XE-crypto.yang
-	Cisco-IOS-XE-cts.yang
-	Cisco-IOS-XE-dhcp.yang
-	Cisco-IOS-XE-eem.yang
-	Cisco-IOS-XE-eigrp.yang
-	Cisco-IOS-XE-flow.yang
-	Cisco-IOS-XE-ip.yang
-	Cisco-IOS-XE-ipv6.yang
-	Cisco-IOS-XE-isis.yang
-	Cisco-IOS-XE-line.yang
-	Cisco-IOS-XE-lisp.yang
-	Cisco-IOS-XE-lldp.yang
-	Cisco-IOS-XE-logging.yang
-	Cisco-IOS-XE-mmode.yang
-	Cisco-IOS-XE-multicast.yang
-	Cisco-IOS-XE-nat.yang
-	Cisco-IOS-XE-nd.yang
-	Cisco-IOS-XE-ospf.yang
-	Cisco-IOS-XE-ospfv3.yang
-	Cisco-IOS-XE-policer.yang
-	Cisco-IOS-XE-policy.yang
-	Cisco-IOS-XE-rip.yang
-	Cisco-IOS-XE-route-map.yang
-	Cisco-IOS-XE-service-routing.yang
-	Cisco-IOS-XE-snmp.yang
-	Cisco-IOS-XE-switch.yang
-	Cisco-IOS-XE-template.yang
-	Cisco-IOS-XE-track.yang
-	Cisco-IOS-XE-tunnel.yang
-	Cisco-IOS-XE-vlan.yang
+        * Cisco-IOS-XE-native.yang
+	* Cisco-IOS-XE-types.yang
+	* Cisco-IOS-XE-interfaces.yang
+	* Cisco-IOS-XE-aaa.yang
+	* Cisco-IOS-XE-acl.yang 
+	* Cisco-IOS-XE-bfd.yang	
+	* Cisco-IOS-XE-bgp.yang
+	* Cisco-IOS-XE-cef.yang
+	* Cisco-IOS-XE-crypto.yang
+	* Cisco-IOS-XE-cts.yang
+	* Cisco-IOS-XE-dhcp.yang
+	* Cisco-IOS-XE-eem.yang
+	* Cisco-IOS-XE-eigrp.yang
+	* Cisco-IOS-XE-flow.yang
+	* Cisco-IOS-XE-ip.yang
+	* Cisco-IOS-XE-ipv6.yang
+	* Cisco-IOS-XE-isis.yang
+	* Cisco-IOS-XE-line.yang
+	* Cisco-IOS-XE-lisp.yang
+	* Cisco-IOS-XE-lldp.yang
+	* Cisco-IOS-XE-logging.yang
+	* Cisco-IOS-XE-mmode.yang
+	* Cisco-IOS-XE-multicast.yang
+	* Cisco-IOS-XE-nat.yang
+	* Cisco-IOS-XE-nd.yang
+	* Cisco-IOS-XE-ospf.yang
+	* Cisco-IOS-XE-ospfv3.yang
+	* Cisco-IOS-XE-policer.yang
+	* Cisco-IOS-XE-policy.yang
+	* Cisco-IOS-XE-rip.yang
+	* Cisco-IOS-XE-route-map.yang
+	* Cisco-IOS-XE-service-routing.yang
+	* Cisco-IOS-XE-snmp.yang
+	* Cisco-IOS-XE-switch.yang
+	* Cisco-IOS-XE-template.yang
+	* Cisco-IOS-XE-track.yang
+	* Cisco-IOS-XE-tunnel.yang
+	* Cisco-IOS-XE-vlan.yang
 
    * List of new native models added in 16.6.1:
 
-	Cisco-IOS-XE-mmode.yang
-	Cisco-IOS-XE-template.yang
+	* Cisco-IOS-XE-mmode.yang
+	* Cisco-IOS-XE-template.yang
 	 
 ### Compliance With "pyang --lint"
 
