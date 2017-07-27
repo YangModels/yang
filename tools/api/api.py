@@ -232,17 +232,25 @@ def add_modules():
 
     repo = {}
     warning = []
+
+    direc = 0
+    while True:
+        if os.path.isdir(repr(direc)):
+            direc += 1
+        else:
+            break
+    direc = repr(direc)
     for mod in body['modules']['module']:
         sdo = mod['source-file']
         orgz = mod['organization']
-        if request.method == 'POST':
-            try:
-                path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + \
-                       mod['name'] + ',' + mod['revision']
-                http_request(path, 'GET', None, credentials, 'application/vnd.yang.data+json')
-                continue
-            except urllib2.HTTPError as e:
-                pass
+       # if request.method == 'POST':
+       #     try:
+       #         path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + \
+       #                mod['name'] + ',' + mod['revision']
+       #         http_request(path, 'GET', None, credentials, 'application/vnd.yang.data+json')
+       #         continue
+       #     except urllib2.HTTPError as e:
+       #         pass
         directory = '/'.join(sdo['path'].split('/')[:-1])
 
         repo_url = url + sdo['owner'] + '/' + sdo['repository']
@@ -253,7 +261,7 @@ def add_modules():
         for submodule in repo[repo_url].repo.submodules:
             submodule.update(init=True)
 
-        save_to = 'temp/' + sdo['owner'] + '/' + sdo['repository'].split('.')[0] + '/' + directory
+        save_to = direc + '/temp/' + sdo['owner'] + '/' + sdo['repository'].split('.')[0] + '/' + directory
         try:
             os.makedirs(save_to)
         except OSError as e:
@@ -261,6 +269,8 @@ def add_modules():
             if e.errno != errno.EEXIST:
                 raise
         shutil.copy(repo[repo_url].localdir + '/' + sdo['path'], save_to)
+        if os.path.isfile('./prepare-sdo.json'):
+            shutil.move('./prepare-sdo.json', direc[0])
         tree_created = True
         organization = ''
         try:
@@ -294,7 +304,7 @@ def add_modules():
                     pass
         resolved_authorization = authorize_for_sdos(request, orgz, organization)
         if not resolved_authorization:
-            shutil.rmtree('temp/')
+            shutil.rmtree(direc + '/temp/')
             for key in repo:
                 repo[key].remove()
             return unauthorized()
@@ -304,10 +314,10 @@ def add_modules():
     with open("log.txt", "wr") as f:
         try:
             arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port", repr(confdPort), "--dir",
-                         "temp", "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1]]
+                         direc + "/temp", "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1]]
             subprocess.check_call(arguments, stderr=f)
         except subprocess.CalledProcessError as e:
-            shutil.rmtree('temp/')
+            shutil.rmtree(direc + '/temp/')
             for key in repo:
                 repo[key].remove()
             for item in os.listdir('./'):
@@ -323,9 +333,9 @@ def add_modules():
             raise
 
     if tree_created:
-        subprocess.call(["cp", "-r", "temp/.", "../../api/sdo/"])
-        shutil.rmtree('temp')
-        send_to_indexing('./prepare-sdo.json')
+        subprocess.call(["cp", "-r", direc + "/temp/.", "../../api/sdo/"])
+        send_to_indexing(direc + '/prepare-sdo.json')
+        shutil.rmtree(direc)
 
     for item in os.listdir('./'):
         if item.endswith(".json"):
@@ -364,17 +374,26 @@ def add_vendors():
     resolved_authorization = authorize_for_vendors(request, body)
     if 'passed' != resolved_authorization:
         return resolved_authorization
-    try:
-        http_request(protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/platforms/',
-                     'DELETE', None, credentials, 'application/vnd.yang.collection+json')
-    except:
-        pass
-    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/'
-    try:
-        http_request(path, 'POST', json.dumps(body), credentials, 'application/vnd.yang.data+json')
-    except urllib2.HTTPError as e:
-        abort(e.code)
+    #try:
+    #    http_request(protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/platforms/',
+    #                 'DELETE', None, credentials, 'application/vnd.yang.collection+json')
+    #except:
+    #    pass
+    #path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/'
+    #try:
+    #    http_request(path, 'POST', json.dumps(body), credentials, 'application/vnd.yang.data+json')
+    #except urllib2.HTTPError as e:
+    #    abort(e.code)
     repo = {}
+
+    direc = 0
+    while True:
+        if os.path.isdir(repr(direc)):
+            direc += 1
+        else:
+            break
+    direc = repr(direc)
+
     for platform in body['platforms']:
         capability = platform['capabilities-file']
         file_name = capability['path'].split('/')[-1]
@@ -393,7 +412,7 @@ def add_vendors():
             submodule.update(init=True)
 
         directory = '/'.join(capability['path'].split('/')[:-1])
-        save_to = 'temp/' + capability['owner'] + '/' + capability['repository'].split('.')[0] + '/' + directory
+        save_to = direc + '/temp/' + capability['owner'] + '/' + capability['repository'].split('.')[0] + '/' + directory
 
         try:
             shutil.copytree(repo[repo_url].localdir + '/' + directory, save_to,
@@ -402,16 +421,16 @@ def add_vendors():
             pass
         with open(save_to + '/' + file_name.split('.')[0] + '.json', "w") as plat:
             json.dump(platform, plat)
-        shutil.copy(repo[repo_url].localdir + '/' + capability['path'], save_to,)
+        shutil.copy(repo[repo_url].localdir + '/' + capability['path'], save_to)
         tree_created = True
 
     with open("log.txt", "wr") as f:
         try:
-            arguments = ["python", "../parseAndPopulate/populate.py", "--port", repr(confdPort), "--dir", "temp",
+            arguments = ["python", "../parseAndPopulate/populate.py", "--port", repr(confdPort), "--dir", direc + "/temp",
                          "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1]]
             subprocess.check_call(arguments, stderr=f)
         except subprocess.CalledProcessError as e:
-            shutil.rmtree('temp/')
+            shutil.rmtree(direc)
             for key in repo:
                 repo[key].remove()
             return jsonify({'error': 'Was not able to write all or partial yang files'})
@@ -422,11 +441,11 @@ def add_vendors():
         if e.errno != errno.EEXIST:
             raise
 
-    subprocess.call(["cp", "-r", "temp/.", "../../api/vendor/"])
+    subprocess.call(["cp", "-r", direc + "/temp/.", "../../api/vendor/"])
 
     if tree_created:
-        shutil.rmtree('temp/')
-        send_to_indexing('./prepare.json')
+        send_to_indexing(direc + '/prepare.json')
+        shutil.rmtree(direc)
 
     for item in os.listdir('./'):
         if item.endswith(".json"):
@@ -475,7 +494,10 @@ def search(key, value):
 def search_module(name, revision):
     path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name + ','\
            + revision + '?deep'
-    data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
+    try:
+        data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
+    except:
+        return not_found()
     return Response(json.dumps(data), mimetype='application/json')
 
 

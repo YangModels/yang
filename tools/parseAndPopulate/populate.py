@@ -8,6 +8,10 @@ import sys
 import unicodedata
 import urllib2
 
+import errno
+
+import shutil
+
 
 def progress_bar(done, total, time_diff, old_percentage, suffix=''):
     bar_len = 60
@@ -78,34 +82,48 @@ if __name__ == "__main__":
                                                                      ' Default is set to http')
     args = parser.parse_args()
 
+    if args.api:
+        direc = args.dir.split('/')[0]
+    else:
+        direc = 0
+        while True:
+            try:
+                os.makedirs('./' + repr(direc))
+                break
+            except OSError as e:
+                direc += 1
+                if e.errno != errno.EEXIST:
+                    raise
+        direc = repr(direc)
     prefix = args.protocol + '://{}:{}'.format(args.ip, args.port)
     if args.api:
         if args.sdo:
             with open("log_api_sdo.txt", "wr") as f:
                 arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--sdo", "--dir",
-                              args.dir]
+                              args.dir, "--json-dir", direc]
                 subprocess.check_call(arguments, stderr=f)
                 # os.system("python runCapabilities.py --api --sdo --dir " + args.dir)
         else:
             with open("log_api.txt", "wr") as f:
-                arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--dir", args.dir]
+                arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--dir", args.dir
+                             , "--json-dir", direc]
                 subprocess.check_call(arguments, stderr=f)
                 # os.system("python runCapabilities.py --api --dir " + args.dir)
     else:
         if args.sdo:
             with open("log_sdo.txt", "wr") as f:
-                arguments = ["python", "runCapabilities.py", "--sdo", "--dir", args.dir]
+                arguments = ["python", "runCapabilities.py", "--sdo", "--dir", args.dir, "--json-dir", direc]
                 subprocess.check_call(arguments, stderr=f)
                 # os.system("python runCapabilities.py --sdo --dir" + args.dir)
         else:
             with open("log_no_sdo_api.txt", "wr") as f:
-                arguments = ["python", "runCapabilities.py", "--dir", args.dir]
+                arguments = ["python", "runCapabilities.py", "--dir", args.dir, "--json-dir", direc]
                 subprocess.check_call(arguments, stderr=f)
                 # os.system("python runCapabilities.py --dir " + args.dir)
 
     files = []
     # Find all parsed json files
-    for filename in find_files('./', 'normal*.json'):
+    for filename in find_files('./' + direc, 'normal*.json'):
         with open(filename) as data_file:
             files.append(json.load(data_file))
 
@@ -117,7 +135,7 @@ if __name__ == "__main__":
 
     print("Populating yang catalog with data")
     print("adding modules")
-    for filename_prepare in find_files('./', 'prepare*.json'):
+    for filename_prepare in find_files('./' + direc, 'prepare*.json'):
         with open(filename_prepare) as data_file:
             read = data_file.read()
             json_modules_data = json.dumps({
@@ -140,6 +158,4 @@ if __name__ == "__main__":
 
     if not args.api:
         print("Removing temporary json files")
-        for item in os.listdir('./'):
-            if item.endswith(".json"):
-                os.remove(item)
+        shutil.rmtree('./' + direc)
