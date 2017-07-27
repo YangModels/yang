@@ -72,7 +72,6 @@ Model content may differ based on platform capability. As a convenience, copies 
          * Cisco-IOS-XE-nd.yang
          * Cisco-IOS-XE-ospf.yang
          * Cisco-IOS-XE-ospfv3.yang
-         * Cisco-IOS-XE-policer.yang
          * Cisco-IOS-XE-policy.yang
          * Cisco-IOS-XE-rip.yang
          * Cisco-IOS-XE-route-map.yang
