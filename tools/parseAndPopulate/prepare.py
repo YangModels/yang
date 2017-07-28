@@ -109,8 +109,8 @@ class Prepare:
              }
 
     # - deviations, implementations
-    def dump_sdo(self):
-        with open(self.file_name + '.json', "w") as prepare_model:
+    def dump_sdo(self, directory):
+        with open('./' + directory + '/' + self.file_name + '.json', "w") as prepare_model:
             json.dump({'module': [{
                 'name': key.split('@')[0],
                 'revision': key.split('@')[1].split('.')[0],
@@ -134,7 +134,7 @@ class Prepare:
                 'module-type': self.module_or_submodule[key],
                 'document-name': self.document_name[key],
                 'generated-from': self.generated_from[key],
-                #'tree-type': self.tree_type[key],
+                'tree-type': self.tree_type[key],
                 'source-file': {
                     'online': {
                         'owner': self.owner[key],
@@ -147,8 +147,8 @@ class Prepare:
                 }
             } for key in self.name_revision]}, prepare_model)
 
-    def dump(self):
-        with open(self.file_name + '.json', "w") as prepare_model:
+    def dump(self, directory):
+        with open('./' + directory + '/' + self.file_name + '.json', "w") as prepare_model:
             json.dump({'module': [{
                 'name': key.split('@')[0],
                 'revision': key.split('@')[1],
@@ -172,7 +172,7 @@ class Prepare:
                 'submodule': json.loads(self.json_submodules[key]),
                 'module-type': self.module_or_submodule[key],
                 'generated-from': self.generated_from[key],
-                #'tree-type': self.tree_type[key],
+                'tree-type': self.tree_type[key],
                 'source-file': {
                     'online': {
                         'owner': self.owner[key],

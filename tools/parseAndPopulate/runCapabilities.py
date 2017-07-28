@@ -276,6 +276,7 @@ if __name__ == "__main__":
                                                                                      'Also if this is true it will run'
                                                                                      ' all -SDOs and Vendors brought '
                                                                                      'via api or not')
+    parser.add_argument('--json-dir', type=str, help='Directory where json files to populate confd will be stored')
     args = parser.parse_args()
     start = time.time()
     index = 1
@@ -301,11 +302,11 @@ if __name__ == "__main__":
 
                 print('Found dir:' + search_dir)
                 integrity = statistics.Statistics(search_dir)
-                capability = cap.Capability(search_dir, index, prepare_sdo, integrity, args.api, sdo,
+                capability = cap.Capability(search_dir, index, prepare_sdo, integrity, args.api, sdo, args.json_dir,
                                             statistics_in_catalog)
                 capability.parse_and_dump_sdo()
                 index += 1
-            prepare_sdo.dump_sdo()
+            prepare_sdo.dump_sdo(args.json_dir)
         else:
             sdo = False
             prepare_vendor = prepare.Prepare("prepare")
@@ -335,10 +336,11 @@ if __name__ == "__main__":
 
                         integrity = statistics.Statistics(filename)
                         print('Found xml source:' + filename)
-                        capability = cap.Capability(filename, index, prepare_vendor, integrity, args.api, sdo)
+                        capability = cap.Capability(filename, index, prepare_vendor, integrity, args.api, sdo,
+                                                    args.json_dir)
                         capability.parse_and_dump()
                         index += 1
-            prepare_vendor.dump()
+            prepare_vendor.dump(args.json_dir)
 
     # for filename in find_files('../', '*restconf-capabstatisticilit*.xml'):
     #    print('Found xml source:' + filename)

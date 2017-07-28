@@ -106,68 +106,216 @@ def get_tree_type(yang_file):
             return 'unclassified'
         else:
             pyang_list_of_rows = stdout.split('\n')[1:]
-            augment = False
-            for row in pyang_list_of_rows:
-                if 'augment' in row:
-                    augment = True
-            if augment:
-                return 'unclassified'
+            if 'submodule' in stdout:
+                return 'N/A'
+            elif is_combined(pyang_list_of_rows, stdout):
+                return 'combined'
+            elif is_split(pyang_list_of_rows, stdout):
+                return 'split-config/state'
+            elif is_transational(pyang_list_of_rows, stdout):
+                return 'transitional-extra'
+            elif is_openconfig(pyang_list_of_rows, stdout):
+                return 'openconfig'
             else:
-                return check_split(pyang_list_of_rows)
+                return 'unclassified'
     else:
         return 'unclassified'
 
 
-def check_split(rows):
-    state = None
+def is_openconfig(rows, output):
+    #if 'openconfig' in output.split('\n')[0]:
+        count_config = output.count('+-- config')
+        count_state = output.count('+-- state')
+        if count_config != count_state:
+            return False
+        row_number = 0
+        skip = []
+        for row in rows:
+            if '' == row.strip(' '):
+                break
+            if '+--rw' in row and row_number != 0 and row_number not in skip and '[' not in row and \
+                    (len(row.replace('|', '').strip(' ').split(' ')) != 2 or '(' in row):
+                if '->' in row and 'config' in row.split('->')[1] and '+--rw config' not in rows[row_number - 1]:
+                    row_number += 1
+                    continue
+                if '+--rw config' not in rows[row_number - 1]:
+                    if 'augment' in rows[row_number - 1]:
+                        if not rows[row_number - 1].endswith(':config:'):
+                            return False
+                    else:
+                        return False
+                length_before = set([len(row.split('+--')[0])])
+                skip = []
+                for x in range(row_number, len(rows)):
+                    if len(rows[x].split('+--')[0]) not in length_before:
+                        if (len(rows[x].replace('|', '').strip(' ').split(' ')) != 2 and '[' not in rows[x]) \
+                                or '+--:' in rows[x] or '(' in rows[x]:
+                            length_before.add(len(rows[x].split('+--')[0]))
+                        else:
+                            break
+                    if '+--ro' in rows[x]:
+                        return False
+                    duplicate = rows[x].replace('+--rw', '+--ro').split('+--')[1]
+                    if duplicate.replace(' ', '') not in output.replace(' ', ''):
+                        return False
+                    skip.append(x)
+            if '+--ro' in row and row_number != 0 and row_number not in skip and '[' not in row and \
+                    (len(row.replace('|', '').strip(' ').split(' ')) != 2 or '(' in row):
+                if '->' in row and 'state' in row.split('->')[1] and '+--ro state' not in rows[row_number - 1]:
+                    row_number += 1
+                    continue
+                if '+--ro state' not in rows[row_number - 1]:
+                    if 'augment' in rows[row_number - 1]:
+                        if not rows[row_number - 1].endswith(':state:'):
+                            return False
+                    else:
+                        return False
+                length_before = len(row.split('+--')[0])
+                skip = []
+                for x in range(row_number, len(rows)):
+                    if len(rows[x].split('+--')[0]) < length_before:
+                        break
+                    if '+--rw' in rows[x]:
+                        return False
+                    skip.append(x)
+            row_number += 1
+        return True
+ #   else:
+  #      return False
+
+
+def is_combined(rows, output):
+    if output.split('\n')[0].endswith('-state'):
+        return False
+    for row in rows:
+        if '+--rw config' == row.replace('|', '').strip(' ') or '+--ro state' == row.replace('|', '').strip(' '):
+            return False
+        if len(row.split('+--')[0]) == 4:
+            if '-state' in row and '+--ro' in row:
+                return False
+        if len(row.split('augment')[0]) == 2:
+                part = row.strip(' ').split('/')[1]
+                if '-state' in part:
+                    return False
+                part = row.strip(' ').split('/')[-1]
+                if ':state:' in part or '/state:' in part or ':config:' in part or '/config:' in part:
+                    return False
+    return True
+
+
+def is_transational(rows, output):
+    if output.split('\n')[0].endswith('-state'):
+        if '+--rw' in output:
+            return False
+        name_of_module = output.split('\n')[0].split(': ')[1]
+        name_of_module = name_of_module.split('-state')[0]
+        coresponding_nmda_file = find_first_file('../../.', name_of_module + '.yang', name_of_module + '@*.yang')
+        arguments = ["pyang", "-p", "../../.", "-f", "tree", coresponding_nmda_file]
+        pyang = subprocess.Popen(arguments, stdout=PIPE, stderr=PIPE)
+        stdout, stderr = pyang.communicate()
+        pyang_list_of_rows = stdout.split('\n')[1:]
+        if 'error' in stderr and 'is not found' in stderr:
+            return False
+        elif stdout == '':
+            return False
+        for x in range(0, len(rows)):
+            if rows[x].strip(' ') == '':
+                break
+            if len(rows[x].split('+--')[0]) == 4:
+                if '-state' in rows[x]:
+                    return False
+            if len(rows[x].split('augment')[0]) == 2:
+                part = rows[x].strip(' ').split('/')[1]
+                if '-state' in part:
+                    return False
+            if '+--ro ' in rows[x]:
+                leaf = rows[x].split('+--ro ')[1].split(' ')[0].split('?')[0]
+
+                if leaf not in pyang_list_of_rows[x]:
+                    return False
+        return True
+    else:
+        return False
+
+
+def is_split(rows, output):
+    states = set()
     failed = False
     row_num = 0
+    if output.split('\n')[0].endswith('-state'):
+        return False
+    for row in rows:
+        if '+--rw config' == row.replace('|', '').strip(' ') or '+--ro state' == row.replace('|', '').strip(' '):
+            return False
+        if 'augment' in row:
+            part = row.strip(' ').split('/')[-1]
+            if ':state:' in part or '/state:' in part or ':config:' in part or '/config:' in part:
+                return False
     for row in rows:
         if row == '':
-            failed = True
             break
-        if len(row.split('+--')[0]) == 4:
+        if (len(row.split('+--')[0]) == 4 and 'augment' not in rows[row_num - 1]) or len(row.split('augment')[0]) == 2:
             if '-state' in row:
-                state = row.strip(' ').split('-state')[0].split(' ')[1]
-                for x in range(row_num, len(rows)):
-                    if rows[x] == '':
-                        break
-                    if state == rows[x].strip(' ').split(' ')[1]:
+                if 'augment' in row:
+                    part = row.strip(' ').split('/')[1]
+                    if '-state' not in part:
+                        row_num += 1
+                        continue
+                    if ':' in part:
+                        state = part.split(':')[1].split('-state')[0]
+                    else:
+                        state = part.split('-state')[0]
+                else:
+                    state = row.strip(' ').split('-state')[0].split(' ')[1]
+                for x in range(row_num + 1, len(rows)):
+                    if rows[x].strip(' ') == '' \
+                            or (len(row.split('+--')[0]) == 4 and 'augment' not in rows[row_num - 1])\
+                            or len(row.split('augment')[0]) == 2:
                         break
                     if '+--rw' in rows[x]:
                         failed = True
                         break
+                states.add(state)
 
-                break
         row_num += 1
     if failed:
-        return 'unclassified'
+        return False
     row_num = 0
-    if state:
+    for state in states:
+        failed = True
         for row in rows:
-            if row == '':
+            if '+--:' in row:
+                continue
+            if row.strip(' ') == '':
                 failed = True
                 break
-            if len(row.split('+--')[0]) == 4:
-                if state == row.strip(' ').split(' ')[1]:
-                    for x in range(row_num, len(rows)):
-                        if rows[x] == '':
+            if (len(row.split('+--')[0]) == 4 and 'augment' not in rows[row_num - 1])\
+                    or len(row.split('augment')[0]) == 2:
+                if ('augment' in row and (':' + state + '/' in row or '/' + state + '/' in row)) \
+                        or ('augment' in row
+                            and (':' + state + '-config' + '/' in row or '/' + state + '-config' + '/' in row)) \
+                        or (state + '-config' == row.strip(' ').split(' ')[1]) \
+                        or (state == row.strip(' ').split(' ')[1]):
+                    failed = False
+                    for x in range(row_num + 1, len(rows)):
+                        if rows[x].strip(' ') == '' or len(rows[x].split('+--')[0]) == 4\
+                                or len(row.split('augment')[0]) == 2:
                             break
                         if '+--ro' in rows[x]:
                             failed = True
                             break
-
                     break
             row_num += 1
     if failed:
-        return 'unclassified'
+        return False
     else:
-        return 'split config/state'
+        return True
 
 
 class Capability:
     def __init__(self, hello_message_file, index, prepare, integrity_checker, api, sdo,
-                 statistics_in_catalog=None):
+                 json_dir, statistics_in_catalog=None):
+        self.json_dir = json_dir
         self.statistics_in_catalog = statistics_in_catalog
         self.index = index
         self.prepare = prepare
@@ -387,7 +535,7 @@ class Capability:
 
     def parse_and_dump_sdo(self):
         if self.api:
-            with open('./prepare-sdo.json', 'r') as f:
+            with open('./' + self.json_dir + '/prepare-sdo.json', 'r') as f:
                 sdos_json = json.load(f)
             sdos_list = sdos_json['modules']['module']
             for sdo in sdos_list:
@@ -396,7 +544,7 @@ class Capability:
                 repo_file_path = sdo['source-file']['path']
                 root = owner + '/' + sdo['source-file']['repository'].split('.')[0] + '/' \
                     + '/'.join(repo_file_path.split('/')[:-1])
-                root = 'temp/' + unicodedata.normalize('NFKD', root).encode('ascii', 'ignore')
+                root = self.json_dir + '/temp/' + unicodedata.normalize('NFKD', root).encode('ascii', 'ignore')
                 file_name = unicodedata.normalize('NFKD', sdo['source-file']['path'].split('/')[-1])\
                     .encode('ascii', 'ignore')
                 if not os.path.isfile(root + '/' + file_name):
@@ -789,7 +937,7 @@ class Capability:
         self.integrity_checker.add_unique(name_revision)
         # Write dictionary to file
         # Create json dictionary out of parsed information
-        with open('normal' + repr(self.index) + '.json', "w") as ietf_model:
+        with open('./' + self.json_dir + '/normal' + repr(self.index) + '.json', "w") as ietf_model:
             json.dump({
                 'vendors': {
                     'vendor': [{
