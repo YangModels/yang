@@ -87,6 +87,19 @@ Model content may differ based on platform capability. As a convenience, copies 
 
          * Cisco-IOS-XE-mmode.yang
          * Cisco-IOS-XE-template.yang
+
+  ##### List of models that requires ODM configuration in 16.6.1:
+
+         * Cisco-IOS-XE-bfd-oper.yang
+         * Cisco-IOS-XE-cfm-oper.yang
+         * Cisco-IOS-XE-mpls-fwd-oper.yang
+         * Cisco-IOS-XE-mpls-ldp.yang
+         * Cisco-IOS-XE-virtual-service-oper.yang
+         * cisco-bridge-domain.yang
+         * common-mpls-static.yang
+         * ietf-diffserv-target.yang
+         * ietf-ospf.yang
+         * ietf-routing.yang
 	 
 ### Compliance With "pyang --lint"
 
