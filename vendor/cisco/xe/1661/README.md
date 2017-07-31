@@ -34,7 +34,7 @@ Model content may differ based on platform capability. As a convenience, copies 
 
 #### 16.6.1 Model changes includes addition of Openconfig Models, new native models and existing native model updation.
 
-##### List of Openconfig models added in 16.6.1:
+#### List of Openconfig models added in 16.6.1:
 
 * openconfig-interfaces
 * openconfig-routing-policy
@@ -43,7 +43,7 @@ Model content may differ based on platform capability. As a convenience, copies 
 * openconfig-network-instance
 * openconfig-platform
  
-##### List of Native models updated in 16.6.1:
+#### List of Native models updated in 16.6.1:
 
 * Cisco-IOS-XE-native.yang
 * Cisco-IOS-XE-types.yang
@@ -83,12 +83,12 @@ Model content may differ based on platform capability. As a convenience, copies 
 * Cisco-IOS-XE-tunnel.yang
 * Cisco-IOS-XE-vlan.yang
 
-##### List of new native models added in 16.6.1:
+#### List of new native models added in 16.6.1:
 
 * Cisco-IOS-XE-mmode.yang
 * Cisco-IOS-XE-template.yang
 
-##### List of models that requires ODM configuration in 16.6.1:
+#### List of models that requires ODM configuration in 16.6.1:
 
 * Cisco-IOS-XE-bfd-oper.yang
 * Cisco-IOS-XE-cfm-oper.yang
