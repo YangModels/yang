@@ -1,0 +1,459 @@
+/*-------------------------------------------------------------------
+ *  common-mpls-static.yang - Common MPLS Static Yang Model
+ *
+ *  April 2015, Robert Sawaya
+ *
+ *  Copyright (c) 2015 by Cisco Systems, Inc.
+ *  All rights reserved.
+ *-------------------------------------------------------------------
+ */
+
+module common-mpls-static {
+  namespace "urn:ietf:params:xml:ns:yang:common-mpls-static";
+  prefix ms;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import ietf-interfaces {
+        prefix if;
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import common-mpls-types {
+        prefix mpls;
+  }
+  organization "Cisco Systems
+     170 West Tasman Drive
+     San Jose, CA 95134-1706
+     USA";
+  contact "Robert Sawaya - rsawaya@cisco.com
+           Vasanth Sabavat - vsabavat@cisco.com";
+
+  description "YANG module describing configuration and
+               operational data relating to MPLS Static.";
+
+  revision 2015-07-22 {
+    description "Provisional model after Gov review";
+    reference "";
+  }
+
+  grouping lsp-stats {
+        container stats {
+            leaf packets {
+              type uint64;
+              description "stats for packet count";
+            }
+            leaf bytes {
+              type uint64;
+              description "stats for byte count";
+            }
+            leaf dropped-packets {
+              type uint64;
+              description "stats for dropped-packets";
+            }
+            leaf dropped-bytes {
+              type uint64;
+              description "stats for dropped-bytes";
+            }
+            description "Statistics";
+    }
+    description "LSP statistics";
+  }
+
+
+  identity lsp-type {
+        description "The type of Label Switched Path";
+  }
+
+  identity lsp-IPv4 {
+    base lsp-type;
+        description "The LSP is for an IPv4 prefix";
+  }
+
+  identity lsp-IPv6 {
+    base lsp-type;
+        description "The LSP is for an IPv6 prefix";
+  }
+
+  identity lsp-vrf {
+    base lsp-type;
+        description "The LSP is per VRF";
+  }
+
+  identity lsp {
+        base lsp-type;
+        description "The LSP is cross-connect";
+  }
+
+
+  typedef hoptype {
+    type enumeration {
+      enum PRIMARY { value "0"; description "Primary next hop";}
+      enum BACKUP { value "1"; description "Backup next hop";}
+    }
+    description "The Nexthop type";
+  }
+
+  identity nexthop-resolution-type {
+    description
+      "The Routing Protocol from which the nexthop is resolved";
+  }
+  identity static-nexthop {
+    base nexthop-resolution-type;
+    description
+      "The nexthop resolved from statically configured route";
+  }
+  identity bgp-route-nexthop {
+    base nexthop-resolution-type;
+    description "The nexthop resolved from a BGP route";
+  }
+  identity ospf-route-nexthop {
+    base nexthop-resolution-type;
+    description "The nexthop resolved from an OSPF route";
+  }
+  identity isis-route-nexthop {
+    base nexthop-resolution-type;
+    description "The nexthop resolved from an ISIS route";
+  }
+
+  grouping label-processing {
+        container operations {
+    choice operation {
+      case preserve-stack {
+        description "Do not modify the incoming label stack";
+        leaf preserve {
+          type empty;
+          mandatory true;
+          description "preserve incoming label stack";
+        }
+      }
+      case swap-with-label-stack {
+        description "Pop the incoming label and push a label stack";
+        container swap {
+          description "Push outgoing label stack";
+          uses mpls:out-label-stack;
+        }
+      }
+      case push-label-stack {
+        description "Push a label stack";
+        container push {
+          description "Push outgoing label stack";
+          uses mpls:out-label-stack;
+        }
+      }
+      case pop-and-forward {
+        description "Pop the incoming label and forward";
+        leaf pop-and-forward {
+          type empty;
+          mandatory true;
+          description "Pop the incoming label and forward";
+        }
+      }
+      description "The type of mpls operation on incoming label";
+    }
+    description "The incoming label processing";
+    }
+    description "The grouping of label-processing elements";
+  }
+
+  grouping next-hop {
+        container next-hop-type {
+      choice address-type {
+        case unnumberd {
+          leaf if-index {
+            type uint32;
+            mandatory true;
+            description "The interface index";
+          }
+        }
+        case layer3-ipv4 {
+          leaf ipv4-address {
+            type inet:ipv4-address-no-zone; mandatory true;
+            description "IPv4 Address of the nexthop";
+          }
+        }
+        case layer3-ipv6 {
+          leaf ipv6-address {
+            type inet:ipv6-address-no-zone; mandatory true;
+            description "IPv6 Address of the nexthop";
+          }
+        }
+        case layer2 {
+          leaf mac-address {
+            type yang:mac-address; mandatory true;
+            description "MAC address of the nexthop";
+          }
+        }
+        description "Next-hop type";
+      }
+      leaf out-interface-name {
+        type if:interface-ref;
+        description "Name of the outgoing interface";
+      }
+      description "Next-hop";
+    }
+    description "The grouping of next-hop type elements";
+  }
+
+grouping forwarding-path {
+   container path {
+    choice resolution {
+      case auto-next-hops {
+        description
+          "Nexthops are determined from the routing table";
+        uses label-processing;
+        leaf auto-protect {
+          type boolean; default false;
+          description "Enables automatic protection if true";
+        }
+      }
+      case explicit-next-hops {
+        list next-hop {
+          key "index";
+          leaf index { type uint32; mandatory true;
+            description "Index of the nexthop";
+          }
+          leaf type {
+            type hoptype; mandatory true;
+            description "The forwarding path's hoptype";
+          }
+          leaf protected-by {
+            type uint32;
+            description
+              "Index of the nexthop that protects this nexthop";
+          }
+
+          uses next-hop;
+          uses label-processing;
+          description "next-hops list";
+        }/* end of hops */
+      } /* end of explicit-next-hops */
+      description "Forwarding path choice";
+    }
+    description "Fowarding path";
+  }
+  description "The grouping of forwarding path elements";
+}
+
+  container mpls-static {
+    description "MPLS Static module";
+
+    container mpls-static-cfg {
+      description "MPLS Static configuration commands";
+
+      /* This is the list of interfaces that can be enabled
+       * under MPLS Static.
+       */
+      container interfaces {
+        list interface {
+          key   "name";
+          leaf  name {
+            type if:interface-ref;
+            mandatory true;
+            description "Interface name";
+          }
+          leaf  enabled {
+            type uint32;
+            mandatory true;
+            description "Interface Enabled boolean";
+          }
+          description "List of interfaces that can be enabled under
+            mpls static";
+        }
+        description "The list of interfaces configured with mpls";
+      }
+      container ipv4-ingress-lsps {
+        list ipv4-ingress-lsp {
+          key "vrf-name prefix";
+          leaf vrf-name {
+            type string;
+            description "Name of the VRF";
+          }
+          leaf prefix {
+            type inet:ipv4-prefix;
+            description
+             "IPv4 prefix of packets that will ingress on this LSP";
+          }
+          leaf name {
+            type string;
+            description "Name of the LSP";
+          }
+          leaf in-label {
+            type mpls:ietf-mpls-label;
+            description
+              "Value of the local label. Optional for ingress";
+          }
+          uses forwarding-path;
+          description
+            "MPLS Static IPv4 Label Switched
+            Path Configuration at Ingress";
+        }
+        description "The LSPs indexed by ipv4 prefix";
+      }/* end of ipv4-ingress-lsps */
+
+      container ipv6-ingress-lsps {
+        list ipv6-ingress-lsp {
+          key "vrf-name prefix";
+          leaf prefix {
+            type inet:ipv6-prefix;
+            description
+             "IPv6 prefix of packets that will ingress on this LSP";
+          }
+          leaf name {
+            type string;
+            description "Name of the LSP";
+          }
+          leaf in-label {
+            type mpls:ietf-mpls-label;
+            description
+              "Value of the local label. Optional for ingress";
+          }
+          leaf vrf-name {
+            type string;
+            description "Name of the VRF";
+          }
+          uses forwarding-path;
+          description
+            "MPLS Static IPv6 Label Switched Path
+            Configuration at Ingress";
+        }
+        description "The LSPs indexed by ipv6 prefix";
+      } /* end of ipv6-ingress-lsps */
+
+      container in-label-lsps {
+        list in-label-lsp {
+          key "vrf-name in-label";
+          leaf in-label {
+            type mpls:ietf-mpls-label;
+            description "Value of the local label";
+          }
+          leaf vrf-name {
+            type string;
+            description "Name of the VRF";
+          }
+          uses forwarding-path;
+          description
+            "Non-ingress MPLS Static LSPs,
+            keyed on the incoming label";
+        }
+        description "The LSPs indexed by in-label";
+      }
+
+    container named-lsps {
+      list named-lsp {
+        key "vrf-name name";
+        leaf name {
+          type string; mandatory true;
+          description "Name of the LSP";
+        }
+        leaf lsp-type {
+          type identityref {
+            base lsp-type;
+          }
+          mandatory true;
+          description "lsp type";
+        }
+
+        leaf vrf-name {
+          type string;
+          description "Name of the VRF";
+        }
+
+        leaf in-label {
+          type mpls:ietf-mpls-label;
+          description "Value of the local label";
+        }
+
+        leaf ipv4-prefix {
+          when "../lsp-type = 'lsp-IPv4'" {
+            description "ipv4 prefix";
+          }
+          type inet:ipv4-prefix;
+          description "ipv4 prefix";
+        }
+
+        leaf ipv6-prefix {
+          when "../lsp-type = 'lsp-IPv6'" {
+            description "ipv6 prefix";
+          }
+          type inet:ipv6-prefix;
+          description "ipv6 prefix";
+        }
+
+        uses forwarding-path;
+        description "MPLS Static Label Switched Path Configuration.
+          The LSPs in this list are referenced by a string name.
+          The LSPs may be ingress/egress/crossconnect,
+              may have v4/v6 prefixes and may be associated with any
+              VRF. The other specialized lists above are for
+              implemetations that are keyed on prefixes or in-labels
+              instead of the LSP name.";
+      } /* end of label-switched-path */
+      description "The LSPs indexed by name";
+    } /* named-lsps */
+
+   } /* mpls-static-cfg */
+
+
+    container mpls-static-state {
+       config false;
+       container label-switched-paths {
+         list label-switched-path {
+           key "vrf-name prefix";
+           leaf name {
+             type string;
+             description "Name of the LSP";
+           }
+
+           leaf vrf-name {
+             type string;
+             description "Name of the VRF";
+           }
+
+           leaf in-label-value {
+             type mpls:ietf-mpls-label;
+             description "Value of the local label";
+           }
+
+           leaf prefix {
+              type inet:ip-prefix;
+              description "IP v4/v6 prefix";
+           }
+
+           container ingress-stats {
+              uses lsp-stats;
+              description "ingress stats";
+           }
+           container egress-stats {
+              uses lsp-stats;
+              description "egress stats";
+           }
+
+           uses forwarding-path {
+             augment "path/resolution/explicit-next-hops/next-hop" {
+               leaf origin {
+                 type identityref {
+                   base nexthop-resolution-type;
+                 }
+                 description "The origin of this nexthop";
+               }
+               container nexthop-stats {
+                 uses lsp-stats;
+                 description "lsp stats";
+               }
+               description
+                 "Augmenting forwarding-path for operational data";
+             }
+           }
+
+           description "MPLS LSPs list";
+         }/* label-switched-path */
+         description "MPLS Static Label Switched Paths";
+       } /* label-switched-paths */
+       description "MPLS static operational data";
+    } /* mpls-static-state */
+  } /* mpls-static */
+} /* end of module */
