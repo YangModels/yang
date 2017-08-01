@@ -21,6 +21,7 @@ from flask_httpauth import HTTPBasicAuth
 
 import repoutil
 import yangParser
+from tools.api.sender import Sender
 
 url = 'https://github.com/'
 
@@ -225,8 +226,7 @@ def add_modules():
         abort(400)
     body = request.json
     tree_created = False
-    #   http_request(protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/modules', 'PUT', json.dumps(body),
-    #                credentials)
+
     with open('./prepare-sdo.json', "w") as plat:
         json.dump(body, plat)
 
@@ -235,7 +235,7 @@ def add_modules():
 
     direc = 0
     while True:
-        if os.path.isdir(repr(direc)):
+        if os.path.isdir('../parseAndPopulate/' + repr(direc)):
             direc += 1
         else:
             break
@@ -243,14 +243,14 @@ def add_modules():
     for mod in body['modules']['module']:
         sdo = mod['source-file']
         orgz = mod['organization']
-       # if request.method == 'POST':
-       #     try:
-       #         path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + \
-       #                mod['name'] + ',' + mod['revision']
-       #         http_request(path, 'GET', None, credentials, 'application/vnd.yang.data+json')
-       #         continue
-       #     except urllib2.HTTPError as e:
-       #         pass
+        if request.method == 'POST':
+            try:
+                path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + \
+                       mod['name'] + ',' + mod['revision']
+                http_request(path, 'GET', None, credentials, 'application/vnd.yang.data+json')
+                continue
+            except urllib2.HTTPError as e:
+                pass
         directory = '/'.join(sdo['path'].split('/')[:-1])
 
         repo_url = url + sdo['owner'] + '/' + sdo['repository']
@@ -261,7 +261,12 @@ def add_modules():
         for submodule in repo[repo_url].repo.submodules:
             submodule.update(init=True)
 
-        save_to = direc + '/temp/' + sdo['owner'] + '/' + sdo['repository'].split('.')[0] + '/' + directory
+        if sdo.get('branch'):
+            branch = sdo.get('branch')
+        else:
+            branch = 'master'
+        save_to = '../parseAndPopulate/' + direc + '/temp/' + sdo['owner'] + '/' + sdo['repository'].split('.')[0]\
+                  + '/' + branch + '/' + directory
         try:
             os.makedirs(save_to)
         except OSError as e:
@@ -270,7 +275,7 @@ def add_modules():
                 raise
         shutil.copy(repo[repo_url].localdir + '/' + sdo['path'], save_to)
         if os.path.isfile('./prepare-sdo.json'):
-            shutil.move('./prepare-sdo.json', direc[0])
+            shutil.move('./prepare-sdo.json', '../parseAndPopulate/' + direc[0])
         tree_created = True
         organization = ''
         try:
@@ -304,64 +309,25 @@ def add_modules():
                     pass
         resolved_authorization = authorize_for_sdos(request, orgz, organization)
         if not resolved_authorization:
-            shutil.rmtree(direc + '/temp/')
+            shutil.rmtree('../parseAndPopulate/' + direc)
             for key in repo:
                 repo[key].remove()
             return unauthorized()
         if 'organization' in repr(resolved_authorization):
             warning.append(sdo['path'].split('/')[-1] + ' ' + resolved_authorization)
 
-    with open("log.txt", "wr") as f:
-        try:
-            arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port", repr(confdPort), "--dir",
-                         direc + "/temp", "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1]]
-            subprocess.check_call(arguments, stderr=f)
-        except subprocess.CalledProcessError as e:
-            shutil.rmtree(direc + '/temp/')
-            for key in repo:
-                repo[key].remove()
-            for item in os.listdir('./'):
-                if item.endswith(".json"):
-                    os.remove(item)
-            return jsonify({'error': 'Was not able to write all or partial yang files'})
-
-    try:
-        os.makedirs('../../api/sdo/')
-    except OSError as e:
-        # be happy if someone already created the path
-        if e.errno != errno.EEXIST:
-            raise
-
-    if tree_created:
-        subprocess.call(["cp", "-r", direc + "/temp/.", "../../api/sdo/"])
-        send_to_indexing(direc + '/prepare-sdo.json')
-        shutil.rmtree(direc)
-
-    for item in os.listdir('./'):
-        if item.endswith(".json"):
-            os.remove(item)
     for key in repo:
         repo[key].remove()
+    arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port", repr(confdPort), "--dir",
+                 direc + "/temp", "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1],
+                 repr(tree_created)]
+    job_id = sender.send('#'.join(arguments))
+
     if len(warning) > 0:
-        return jsonify({'info': 'success', 'warnings': [{'warning': val} for val in warning]})
+        return jsonify({'info': 'Verification successful', 'job-id': job_id, 'warnings': [{'warning': val}
+                                                                                          for val in warning]})
     else:
-        return jsonify({'info': 'success'})
-
-
-def send_to_indexing(file_to_index):
-    with open(file_to_index, 'r') as f:
-        sdos_json = json.load(f)
-    post_body = {}
-    for sdo in sdos_json['module']:
-        post_body[sdo['name'] + '@' + sdo['revision']] = sdo['source-file']['local']['path']
-    body_to_send = json.dumps({'modules-to-index': post_body})
-    try:
-        http_request('https://' + confd_ip + '/yang-search/metadata-update.php', 'POST', body_to_send,
-                     credentials, 'application/json')
-    except urllib2.HTTPError as e:
-        print('could not send data for indexing. Reason: ' + e.msg)
-    except URLError as e:
-        print('could not send data for indexing. Reason: ' + repr(e.message))
+        return jsonify({'info': 'Verification successful', 'job-id': job_id})
 
 
 @app.route('/platforms', methods=['PUT', 'POST'])
@@ -388,18 +354,18 @@ def add_vendors():
 
     direc = 0
     while True:
-        if os.path.isdir(repr(direc)):
+        if os.path.isdir('../parseAndPopulate/' + repr(direc)):
             direc += 1
         else:
             break
     direc = repr(direc)
 
     for platform in body['platforms']:
-        capability = platform['capabilities-file']
+        capability = platform['module-list-file']
         file_name = capability['path'].split('/')[-1]
         if request.method == 'POST':
             repo_split = capability['repository'].split('.')[0]
-            if os.path.isfile('../../' + capability['owner'] + '/' + repo_split + '/' + capability['path']):
+            if os.path.isfile('../../api/vendor/' + capability['owner'] + '/' + repo_split + '/' + capability['path']):
                 continue
 
         repo_url = url + capability['owner'] + '/' + capability['repository']
@@ -411,8 +377,13 @@ def add_vendors():
         for submodule in repo[repo_url].repo.submodules:
             submodule.update(init=True)
 
+        if capability.get('branch'):
+            branch = capability.get('branch')
+        else:
+            branch = 'master'
         directory = '/'.join(capability['path'].split('/')[:-1])
-        save_to = direc + '/temp/' + capability['owner'] + '/' + capability['repository'].split('.')[0] + '/' + directory
+        save_to = '../parseAndPopulate/' + direc + '/temp/' + capability['owner'] + '/'\
+                  + capability['repository'].split('.')[0] + '/' + branch + '/' + directory
 
         try:
             shutil.copytree(repo[repo_url].localdir + '/' + directory, save_to,
@@ -424,56 +395,31 @@ def add_vendors():
         shutil.copy(repo[repo_url].localdir + '/' + capability['path'], save_to)
         tree_created = True
 
-    with open("log.txt", "wr") as f:
-        try:
-            arguments = ["python", "../parseAndPopulate/populate.py", "--port", repr(confdPort), "--dir", direc + "/temp",
-                         "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1]]
-            subprocess.check_call(arguments, stderr=f)
-        except subprocess.CalledProcessError as e:
-            shutil.rmtree(direc)
-            for key in repo:
-                repo[key].remove()
-            return jsonify({'error': 'Was not able to write all or partial yang files'})
-    try:
-        os.makedirs('../../api/vendor/')
-    except OSError as e:
-        # be happy if someone already created the path
-        if e.errno != errno.EEXIST:
-            raise
-
-    subprocess.call(["cp", "-r", direc + "/temp/.", "../../api/vendor/"])
-
-    if tree_created:
-        send_to_indexing(direc + '/prepare.json')
-        shutil.rmtree(direc)
-
-    for item in os.listdir('./'):
-        if item.endswith(".json"):
-            os.remove(item)
     for key in repo:
         repo[key].remove()
-    integrity_file_name = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%m:%S.%f")[:-3]+'Z'
+    arguments = ["python", "../parseAndPopulate/populate.py", "--port", repr(confdPort), "--dir", direc + "/temp",
+                 "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1], repr(tree_created),
+                 integrity_file_location]
+    job_id = sender.send('#'.join(arguments))
 
-    if integrity_file_name != './':
-        shutil.move('./integrity.html', integrity_file_location + 'integrity' + integrity_file_name + '.html')
-    return jsonify({'result':
-                    {
-                        'integrity-file': 'www.yangcatalog.org/integrity/integrity' + integrity_file_name + '.html',
-                        'info': 'success'
-                    }
-                })
+    return jsonify({'info': 'Verification successful', 'job-id': job_id})
 
 
 # Generic read-only get request
-@app.route('/search/<key>/<value>', methods=['GET'])
-def search(key, value):
-    split = key.split('$')
-    module_keys = ['ietf$ietf-wg', 'maturity-level', 'document-name', 'author-email', 'compilation-status',
+@app.route('/search/<path:value>', methods=['GET'])
+def search(value):
+    split = value.split('/')[:-1]
+    key = '/'.join(value.split('/')[:-1])
+    value = value.split('/')[-1]
+    module_keys = ['ietf/ietf-wg', 'maturity-level', 'document-name', 'author-email', 'compilation-status',
                    'conformance-type', 'module-type', 'organization', 'yang-version', 'name', 'revision']
     for module_key in module_keys:
         if key == module_key:
             path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules?deep'
-            data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
+            try:
+                data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
+            except:
+                return not_found()
             passed_data = []
             data = data['yang-catalog:modules']['module']
             for module in data:
@@ -499,6 +445,14 @@ def search_module(name, revision):
     except:
         return not_found()
     return Response(json.dumps(data), mimetype='application/json')
+
+
+@app.route('/job/<job_id>', methods=['GET'])
+def get_job(job_id):
+    result = sender.get(job_id)
+    return jsonify({'info': {'job-id': job_id,
+                             'result': result}
+                    })
 
 
 def process(data, passed_data, value, module, split, count):
@@ -559,6 +513,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     config = ConfigParser.ConfigParser()
     config.read(args.config_path)
+    global sender
+    sender = Sender()
     global dbHost
     dbHost = config.get('SectionOne', 'dbIp')
     global dbName
