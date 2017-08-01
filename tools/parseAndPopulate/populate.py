@@ -121,21 +121,9 @@ if __name__ == "__main__":
                 subprocess.check_call(arguments, stderr=f)
                 # os.system("python runCapabilities.py --dir " + args.dir)
 
-    files = []
-    # Find all parsed json files
-    for filename in find_files('./' + direc, 'normal*.json'):
-        with open(filename) as data_file:
-            files.append(json.load(data_file))
-
-    vendor = ''
-    os_from_yang = ''
-    feature_set = ''
-    platform = ''
-    os_version = ''
-
     print("Populating yang catalog with data")
     print("adding modules")
-    for filename_prepare in find_files('./' + direc, 'prepare*.json'):
+    for filename_prepare in find_files('./' + direc, 'prepare.json'):
         with open(filename_prepare) as data_file:
             read = data_file.read()
             json_modules_data = json.dumps({
@@ -145,6 +133,12 @@ if __name__ == "__main__":
             if '{"module": []}' not in read:
                 http_request(prefix + '/api/config/catalog/modules/', 'PATCH',
                              json_modules_data, args.credentials)
+
+    files = []
+    # Find all parsed json files
+    for filename in find_files('./' + direc, 'normal*.json'):
+        with open(filename) as data_file:
+            files.append(json.load(data_file))
 
     # In each json
     print("adding vendors")

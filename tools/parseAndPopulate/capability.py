@@ -22,7 +22,7 @@ NS_MAP = {
 }
 
 github = 'https://github.com/'
-
+github_raw = 'https://raw.githubusercontent.com/'
 
 # searching for file based on pattern or pattern_with_revision
 def find_first_file(directory, pattern, pattern_with_revision):
@@ -345,7 +345,6 @@ class Capability:
             json_file.close()
 
         if not self.api and not self.sdo:
-
             if os.path.isfile('/'.join(self.split[:-1]) + '/platform-metadata.json'):
                 json_file = open('/'.join(self.split[:-1]) + '/platform-metadata.json')
                 platforms = json.load(json_file)['platforms']
@@ -354,9 +353,9 @@ class Capability:
                 json_file.close()
             else:
                 self.owner = 'YangModels'
-                self.repo = 'https://github.com/YangModels/yang/'
-                self.repo_file_path = None
-                self.local_file_path = None
+                self.repo = 'yang'
+                self.path = None
+                self.branch = 'master'
                 self.feature_set = 'ALL'
                 self.software_version = self.split[5]#repr(165) + self.feature_set
                 self.vendor = self.split[3]
@@ -388,6 +387,7 @@ class Capability:
         self.ieee_standard_json = load_json_from_url('http://www.claise.be/IEEEStandard.json')
         self.ieee_experimental_json = load_json_from_url('http://www.claise.be/IEEEExperimental.json')
         self.ietf_draft_json = load_json_from_url('http://www.claise.be/IETFYANGDraft.json')
+        self.mef_experimental_json = load_json_from_url('http://www.claise.be/MEFExperimental.json')
 
         self.xe1631 = ''
         if '1631' in self.split:
@@ -433,7 +433,7 @@ class Capability:
         self.huawei8910 = load_json_from_url('http://www.claise.be/NETWORKROUTER8910.json')
 
     def initialize(self, impl):
-        if impl['capabilities-file']['path'] in self.hello_message_file:
+        if impl['module-list-file']['path'] in self.hello_message_file:
             self.feature_set = 'ALL'
             self.os_version = impl['software-version']
             self.software_flavor = impl['software-flavor']
@@ -441,11 +441,12 @@ class Capability:
             self.platform = impl['name']
             self.os = impl['os-type']
             self.software_version = impl['software-version']#repr(165) + self.feature_set
-            self.owner = impl['capabilities-file']['owner']
-            self.repo = github + self.owner + '/' + impl['capabilities-file']['repository'].split('.')[0]
-            self.repo_file_path = impl['capabilities-file']['path']
-            self.local_file_path = 'api/vendor/' + self.owner + '/' + impl['capabilities-file']['repository'] + '/' \
-                                   + self.repo_file_path
+            self.owner = impl['module-list-file']['owner']
+            self.repo = impl['module-list-file']['repository'].split('.')[0]
+            self.path = impl['module-list-file']['path']
+            self.branch = impl['module-list-file'].get('branch')
+            if not self.branch:
+                self.branch = 'master'
 
     def handle_exception(self, field, object, module_name):
         # In case of include exception create empty
@@ -512,6 +513,8 @@ class Capability:
                 # Search for the field and parse first one you find (in case of revision
                 # we want just first one which is the newest one)
                 yang_variable = self.parsed_yang.search(field)[0].arg
+                if yang_variable == '1' and field == 'yang-version':
+                    yang_variable = '1.0'
 
                 if isinstance(yang_variable, unicode):
                     object[module_name] = unicodedata.normalize('NFKD', yang_variable).encode('ascii', 'ignore')
@@ -540,17 +543,18 @@ class Capability:
             sdos_list = sdos_json['modules']['module']
             for sdo in sdos_list:
                 owner = sdo['source-file']['owner']
-                repo = github + owner + '/' + sdo['source-file']['repository'].split('.')[0]
                 repo_file_path = sdo['source-file']['path']
-                root = owner + '/' + sdo['source-file']['repository'].split('.')[0] + '/' \
+                branch = sdo['source-file'].get('branch')
+                if not branch:
+                    branch = 'master'
+                repo = sdo['source-file']['repository'].split('.')[0]
+                root = owner + '/' + sdo['source-file']['repository'].split('.')[0] + '/' + branch + '/'\
                     + '/'.join(repo_file_path.split('/')[:-1])
                 root = self.json_dir + '/temp/' + unicodedata.normalize('NFKD', root).encode('ascii', 'ignore')
                 file_name = unicodedata.normalize('NFKD', sdo['source-file']['path'].split('/')[-1])\
                     .encode('ascii', 'ignore')
                 if not os.path.isfile(root + '/' + file_name):
                     continue
-                local_file_path = 'api/sdo/' + owner + '/' + sdo['source-file']['repository'].split('.')[0] + '/'\
-                                  + repo_file_path
                 self.parsed_yang = None
                 prefix = {}
                 yang_version = {}
@@ -559,7 +563,6 @@ class Capability:
                 includes = {}
                 imports = {}
                 description = {}
-                schema = {}
                 revision = {}
                 namespace = {}
                 features = {}
@@ -572,14 +575,13 @@ class Capability:
                 if module_submodule != 'wrong file':
                     #conformance_type = unicodedata.normalize('NFKD', sdo['conformance-type']).encode('ascii', 'ignore')
                     conformance_type = 'implement'
-                    self.find_yang_var(prefix, 'prefix', file_name, root + '/' + file_name)
+                    schema = github_raw + owner + '/' + repo + '/' + branch + '/' + repo_file_path
                     self.find_yang_var(yang_version, 'yang-version', file_name, root + '/' + file_name)
                     self.find_yang_var(contact, 'contact', file_name, root + '/' + file_name)
                     self.find_yang_var(description, 'description', file_name, root + '/' + file_name)
                     self.find_yang_var(includes, 'include', file_name, root + '/' + file_name)
                     self.find_yang_var(imports, 'import', file_name, root + '/' + file_name)
-                    self.find_yang_var(schema, 'schema', file_name, root + '/' + file_name)
-                    self.find_yang_var(namespace, 'namespace', file_name, root + '/' + file_name)
+                    #self.find_yang_var(schema, 'schema', file_name, root + '/' + file_name)
                     self.find_yang_var(features, 'feature', file_name, root + '/' + file_name)
                     self.find_yang_var(revision, 'revision', file_name, root + '/' + file_name)
                     compilations_status = self.parse_status(file_name, revision[file_name])
@@ -598,8 +600,24 @@ class Capability:
                     document_name = unicodedata.normalize('NFKD', self.get_json(sdo.get('document-name')))\
                         .encode('ascii', 'ignore')
                     generated_from = sdo.get('generated-from')
+                    module_classification = sdo.get('module-classification')
+                    if module_classification is None:
+                        module_classification = 'unknown'
+                    if module_submodule == 'submodule':
+                        belongs_to = {}
+                        self.find_yang_var(belongs_to, 'belongs-to', file_name, root + '/' + file_name)
+                        yang_file = find_first_file('/'.join(self.split[0:-1]), belongs_to[file_name] + '.yang'
+                                                    , belongs_to[file_name] + '@*.yang')
+                        self.parsed_yang = None
+                        self.find_yang_var(namespace, 'namespace', file_name, yang_file)
+                        self.find_yang_var(prefix, 'prefix', file_name, yang_file)
+                        self.parsed_yang = None
+                    else:
+                        self.find_yang_var(namespace, 'namespace', file_name, root + '/' + file_name)
+                        self.find_yang_var(prefix, 'prefix', file_name, root + '/' + file_name)
+
                     if generated_from is None:
-                        generated_from = 'not-applicable'
+                        generated_from = create_generated_from(namespace.get(file_name), file_name)
                     for ns, org in NS_MAP.items():
                         if ns in namespace.get(file_name):
                             organization[file_name] = org
@@ -608,17 +626,19 @@ class Capability:
                             organization[file_name] = namespace[file_name].split('urn:')[1].split(':')[0]
                     if organization.get(file_name) is None:
                         self.find_yang_var(organization, 'organization', file_name, root + '/' + file_name)
-                    self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name), namespace.get(file_name),
+                    name = file_name.split('.')[0]
+                    self.prepare.add_key_sdo(name + '@' + revision.get(file_name) + ',' + organization.get(file_name),
+                                             namespace.get(file_name),
                                              conformance_type, reference, prefix.get(file_name),
                                              yang_version.get(file_name), organization.get(file_name),
-                                             description.get(file_name), contact.get(file_name), schema.get(file_name),
+                                             description.get(file_name), contact.get(file_name), schema,
                                              features.get(file_name),
                                              self.get_submodule_info(includes.get(file_name)['name']),
                                              compilations_status, author_email, working_group, compilations_result,
-                                             module_submodule, document_name, owner, repo,
-                                             repo_file_path, local_file_path, generated_from, None, tree_type)
+                                             module_submodule, document_name, generated_from, None, tree_type,
+                                             module_classification)
 
-        if not self.api:
+        else:
             for root, subdirs, sdos in os.walk('/'.join(self.split)):
                 for file_name in sdos:
                     if '.yang' in file_name and ('vendor' not in root or 'odp' not in root):
@@ -630,7 +650,6 @@ class Capability:
                         includes = {}
                         imports = {}
                         description = {}
-                        schema = {}
                         revision = {}
                         namespace = {}
                         features = {}
@@ -641,22 +660,23 @@ class Capability:
                             module_submodule = 'wrong file'
                         if module_submodule != 'wrong file':
                             owner = 'YangModels'
-                            repo_file_path = root + '/' + file_name
-                            repo_file_path = repo_file_path.replace('../', '')
-                            repo = github + owner + '/yang'
-                            local_file_path = root + '/' + file_name
-                            local_file_path = local_file_path.replace('../', '')
+                            repo = 'yang'
+                            branch = 'master'
+                            path = root + '/' + file_name
+                            schema = github_raw + owner + '/' + repo + '/' + branch + '/' + path.replace('../', '')
+                            #local_file_path = root + '/' + file_name
+                            #local_file_path = local_file_path.replace('../', '')
                             conformance_type = 'implement'
-                            self.find_yang_var(prefix, 'prefix', file_name, root + '/' + file_name)
+
                             self.find_yang_var(yang_version, 'yang-version', file_name, root + '/' + file_name)
                             #self.find_yang_var(organization, 'organization', file_name, root + '/' + file_name)
                             self.find_yang_var(contact, 'contact', file_name, root + '/' + file_name)
                             self.find_yang_var(description, 'description', file_name, root + '/' + file_name)
                             self.find_yang_var(includes, 'include', file_name, root + '/' + file_name)
                             self.find_yang_var(imports, 'import', file_name, root + '/' + file_name)
-                            self.find_yang_var(schema, 'schema', file_name, root + '/' + file_name)
+                            #self.find_yang_var(schema, 'schema', file_name, root + '/' + file_name)
                             self.find_yang_var(revision, 'revision', file_name, root + '/' + file_name)
-                            self.find_yang_var(namespace, 'namespace', file_name, root + '/' + file_name)
+
                             self.find_yang_var(features, 'feature', file_name, root + '/' + file_name)
 
                             compilations_status = self.parse_status(file_name, revision[file_name])
@@ -671,31 +691,47 @@ class Capability:
                             working_group = self.parse_maturityLevel(file_name, revision[file_name])
 
                             self.statistics_in_catalog.add_in_catalog(root)
-                            generated_from = create_generated_from(namespace.get(file_name), file_name)
+
                             doc_name_reference = self.parse_document_reference(file_name, revision[file_name])
                             reference = doc_name_reference[1]
                             document_name = doc_name_reference[0]
+
+                            if module_submodule == 'submodule':
+                                belongs_to = {}
+                                self.find_yang_var(belongs_to, 'belongs-to', file_name, root + '/' + file_name)
+                                yang_file = find_first_file('/'.join(self.split[0:-1]), belongs_to[file_name] + '.yang'
+                                                            , belongs_to[file_name] + '@*.yang')
+                                self.parsed_yang = None
+                                self.find_yang_var(namespace, 'namespace', file_name, yang_file)
+                                self.find_yang_var(prefix, 'prefix', file_name, yang_file)
+                                self.parsed_yang = None
+                            else:
+                                self.find_yang_var(namespace, 'namespace', file_name, root + '/' + file_name)
+                                self.find_yang_var(prefix, 'prefix', file_name, root + '/' + file_name)
+                            generated_from = create_generated_from(namespace.get(file_name), file_name)
                             for ns, org in NS_MAP.items():
                                 if ns in namespace[file_name]:
                                     organization[file_name] = org
                             if organization.get(file_name) is None:
                                 if 'urn:' in namespace[file_name]:
                                     organization[file_name] = namespace[file_name].split('urn:')[1].split(':')[0]
+                            if organization.get(file_name) is None:
+                                self.find_yang_var(organization, 'organization', file_name, root + '/' + file_name)
                             if organization.get(file_name) == 'ietf':
                                 wg = self.parse_wg(file_name, revision[file_name])
                             else:
                                 wg = None
-                            self.prepare.add_key_sdo(file_name + '@' + revision.get(file_name),
+                            name = file_name.split('.')[0]
+                            self.prepare.add_key_sdo(name + '@' + revision.get(file_name) +
+                                                     ',' + repr(organization.get(file_name)),
                                                      namespace.get(file_name), conformance_type, reference,
                                                      prefix.get(file_name), yang_version.get(file_name),
                                                      organization.get(file_name), description.get(file_name),
-                                                     contact.get(file_name), schema.get(file_name),
-                                                     features.get(file_name),
+                                                     contact.get(file_name), schema, features.get(file_name),
                                                      self.get_submodule_info(includes.get(file_name)['name']),
                                                      compilations_status, author_email, working_group,
-                                                     compilations_result, module_submodule, document_name, owner,
-                                                     repo, repo_file_path, local_file_path, generated_from, wg,
-                                                     tree_type)
+                                                     compilations_result, module_submodule, document_name,
+                                                     generated_from, wg, tree_type, 'unknown')
 
     # parse capability xml and save to file
     def parse_and_dump(self):
@@ -713,7 +749,7 @@ class Capability:
         contact = {}
         description = {}
         includes = {}
-        schema = {}
+
         imports = {}
         reference = {}
         conformance_type = {}
@@ -723,7 +759,6 @@ class Capability:
         netconf_version = ''
         compilations_result = {}
         organization_module = {}
-        module_submodule = {}
 
         # Parse deviations and features from each module from netconf hello message
         def deviations_and_features(search_for):
@@ -773,7 +808,10 @@ class Capability:
                         self.integrity_checker.remove_one(self.split, yang_file)
                 devs['name'] = names
                 devs['revision'] = revs
-                deviations[module_name] = devs
+                if len(devs['name']) == 0:
+                    deviations[module_name] = None
+                else:
+                    deviations[module_name] = devs
 
                 # Parse features of the module
                 features[module_name] = deviations_and_features('features=')
@@ -840,7 +878,7 @@ class Capability:
                 self.find_yang_var(description, 'description', module_name, yang_file)
                 self.find_yang_var(includes, 'include', module_name, yang_file)
                 self.find_yang_var(imports, 'import', module_name, yang_file)
-                self.find_yang_var(schema, 'schema', module_name, yang_file)
+                #self.find_yang_var(schema, 'schema', module_name, yang_file)
 
                 reference = 'missing element'
                 document_name = 'missing element'
@@ -855,84 +893,89 @@ class Capability:
                     wg = self.parse_wg(module_name, revision[module_name])
                 else:
                     wg = None
-                if self.repo_file_path is None:
-                    self.repo_file_path = yang_file
-                    self.local_file_path = yang_file
-                if self.local_file_path is None:
-                    self.local_file_path = 'file/is/missing'
-                    self.repo_file_path = 'file/is/missing'
-                self.local_file_path = self.local_file_path.replace('../', '')
-                self.repo_file_path = self.repo_file_path.replace('../', '')
-                tree_type = get_tree_type(yang_file)
 
-                self.prepare.add_key(module_name + '@' + revision[module_name], namespace[module_name],
+                tree_type = get_tree_type(yang_file)
+                if yang_file:
+                    if self.api:
+                        schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' +\
+                                 '/'.join(yang_file.split('/')[4:])
+                    else:
+                        schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' \
+                                 + '/'.join(yang_file.split('/')[4:])
+                else:
+                    schema = None
+                self.prepare.add_key(module_name + '@' + revision[module_name] + ',' + organization_module[module_name],
+                                     namespace[module_name],
                                      conformance_type[module_name], self.vendor, self.platform, self.software_version,
                                      self.software_flavor, self.os, self.os_version, self.feature_set,
                                      reference, prefix[module_name], yang_version[module_name],# changed organization[module_name] for organization_module
                                      organization_module[module_name], description[module_name], contact[module_name],
-                                     compilations_status[module_name], author_email[module_name], schema[module_name],
+                                     compilations_status[module_name], author_email[module_name], schema,
                                      features[module_name], working_group[module_name],
                                      compilations_result[module_name], deviations[module_name],
                                      self.get_submodule_info(includes[module_name]['name']), module_submodule,
-                                     document_name, self.owner, self.repo, self.repo_file_path, self.local_file_path,
-                                     create_generated_from(namespace[module_name], module_name), wg, tree_type)
+                                     document_name,
+                                     create_generated_from(namespace[module_name], module_name), wg, tree_type,
+                                     'unknown')
+
+                #self.prepare.add_vendor_key()
 
                 self.parse_imports_includes(includes[module_name]['name'], features, revision, name_revision,
                                             yang_version, namespace, prefix, organization, contact, description,
                                             includes, imports, conformance_type, deviations, module_names,
-                                            compilations_status, schema, author_email, working_group,
-                                            organization_module, True, namespace[module_name], compilations_result)
+                                            compilations_status, author_email, working_group,
+                                            organization_module, True, module_name, compilations_result)
                 self.parse_imports_includes(imports[module_name], features, revision, name_revision,
                                             yang_version, namespace, prefix, organization, contact, description,
                                             includes, imports, conformance_type, deviations, module_names,
-                                            compilations_status, schema, author_email, working_group,
-                                            organization_module, False, namespace[module_name], compilations_result)
+                                            compilations_status, author_email, working_group,
+                                            organization_module, False, module_name, compilations_result)
 
         # restconf capability parsing
-        for module in self.root.iter('module'):
-            module_name = module.find('name').text
-            module_names.append(module_name)
-            namespace[module_name] = module.find('namespace').text
-            revision[module_name] = module.find('revision').text
-            schema[module_name] = module.find('schema').text
-            conformance_type[module_name] = module.find('conformance-type').text
-            devs = {}
-            names = []
-            revs = []
-            for dev in self.root.iter('deviation'):
-                names.append(dev.find('name').text)
-                if dev.find('revision').text is None:
-                    revs.append('1500-01-01')
-                else:
-                    revs.append(dev.find('revision').text)
-            devs['name'] = names
-            devs['revision'] = revs
-            deviations[module_name] = devs
-            objs = []
-            for feat in self.root.iter('feature'):
-                objs.append(feat.text)
-            features[module_name] = objs
+        #for module in self.root.iter('module'):
+        #    module_name = module.find('name').text
+        #    module_names.append(module_name)
+        #    namespace[module_name] = module.find('namespace').text
+        #    revision[module_name] = module.find('revision').text
+        #    #schema[module_name] = module.find('schema').text
+        #    conformance_type[module_name] = module.find('conformance-type').text
+        #    devs = {}
+        #    names = []
+        #    revs = []
+        #    for dev in self.root.iter('deviation'):
+        #        names.append(dev.find('name').text)
+        #        if dev.find('revision').text is None:
+        #            revs.append('1500-01-01')
+        #        else:
+        #            revs.append(dev.find('revision').text)
+        #    devs['name'] = names
+        #    devs['revision'] = revs
+        #    deviations[module_name] = devs
+        #    objs = []
+        #    for feat in self.root.iter('feature'):
+        #        objs.append(feat.text)
+        #    features[module_name] = objs
 
-            # Find yang file in the same directory as capability.xml file is
-            # so we can parse all needed fields out of it
-            yang_file = find_first_file('/'.join(self.split[0:-1]), module_name + '.yang',
-                                        module_name + '@' + revision[module_name] + '.yang')
+        #    # Find yang file in the same directory as capability.xml file is
+        #    # so we can parse all needed fields out of it
+        #    yang_file = find_first_file('/'.join(self.split[0:-1]), module_name + '.yang',
+        #                                module_name + '@' + revision[module_name] + '.yang')
 
-            if yang_file is None:
-                # In case we didn`t find the module try to look for it in any other directory of this project
-                self.integrity_checker.add_module(self.split, module_name)
-                yang_file = find_first_file('/'.join(self.split[0:2]), module_name + '.yang',
-                                            module_name + '@' + revision[module_name] + '.yang')
+        #    if yang_file is None:
+        #        # In case we didn`t find the module try to look for it in any other directory of this project
+        #        self.integrity_checker.add_module(self.split, module_name)
+        #        yang_file = find_first_file('/'.join(self.split[0:2]), module_name + '.yang',
+        #                                    module_name + '@' + revision[module_name] + '.yang')
 
-            # Parse rest of the fields out of the yang file
-            self.find_yang_var(prefix, 'prefix', module_name, yang_file)
-            self.find_yang_var(yang_version, 'yang-version', module_name, yang_file)
-            self.find_yang_var(organization, 'organization', module_name, yang_file)
-            self.find_yang_var(contact, 'contact', module_name, yang_file)
-            self.find_yang_var(description, 'description', module_name, yang_file)
-            self.find_yang_var(reference, 'reference', module_name, yang_file)
-            self.find_yang_var(includes, 'include', module_name, yang_file)
-            self.find_yang_var(imports, 'import', module_name, yang_file)
+        #    # Parse rest of the fields out of the yang file
+        #    self.find_yang_var(prefix, 'prefix', module_name, yang_file)
+        #    self.find_yang_var(yang_version, 'yang-version', module_name, yang_file)
+        #    self.find_yang_var(organization, 'organization', module_name, yang_file)
+        #    self.find_yang_var(contact, 'contact', module_name, yang_file)
+        #    self.find_yang_var(description, 'description', module_name, yang_file)
+        #    self.find_yang_var(reference, 'reference', module_name, yang_file)
+        #    self.find_yang_var(includes, 'include', module_name, yang_file)
+        #    self.find_yang_var(imports, 'import', module_name, yang_file)
 
         self.integrity_checker.add_unique(name_revision)
         # Write dictionary to file
@@ -961,7 +1004,14 @@ class Capability:
                                                 'modules': {
                                                     'module': [{
                                                         'name': module_names[k],
-                                                        'revision': revision.get(module_names[k])
+                                                        'revision': revision.get(module_names[k]),
+                                                        'organization': organization_module.get(module_names[k]),
+                                                        'os-version': self.software_flavor,
+                                                        'feature-set': self.feature_set,
+                                                        'os-type': self.os,
+                                                        'feature': features.get(module_names[k]),
+                                                        'deviation': self.get_deviations(deviations, module_names[k]),
+                                                        'conformance-type': conformance_type.get(module_names[k])
                                                     } for k, val in enumerate(module_names)],
                                                 }
                                             }]
@@ -973,6 +1023,17 @@ class Capability:
                     }]
                 }
             }, ietf_model)
+
+    def get_deviations(self, deviations, key):
+        if deviations[key] is None:
+            return None
+        else:
+            return [
+                      {'name': deviations.get(key)['name'][i],
+                       'revision': deviations.get(key)['revision'][i]
+                       } for
+                      i, val in enumerate(deviations[key]['name'])
+                   ]
 
     def get_submodule_info(self, imports_or_includes):
         if imports_or_includes is not None and bool(imports_or_includes):
@@ -999,8 +1060,8 @@ class Capability:
 
     def parse_imports_includes(self, imports_or_includes, features, revision, name_revision,
                                yang_version, namespace, prefix, organization, contact, description, includes,
-                               imports, conformance_type, deviations, module_names, comp_status, schema,
-                               email, wg, organization_module, is_include, parent_ns, comp_result):
+                               imports, conformance_type, deviations, module_names, comp_status,
+                               email, wg, organization_module, is_include, parent, comp_result):
         if imports_or_includes is not None:
             for imp in imports_or_includes:
                 if imp not in module_names:
@@ -1014,46 +1075,50 @@ class Capability:
                     if yang_file is not None:
                         self.integrity_checker.remove_one(self.split, yang_file)
                     self.parsed_yang = None
-                    devs = {'name': [], 'revision': []}
-                    deviations[imp] = devs
+                    #devs = {'name': [], 'revision': []}
+                    deviations[imp] = None
                     if is_include:
-                        namespace[imp] = parent_ns
+                        namespace[imp] = namespace[parent]
+                        organization_module[imp] = organization_module[parent]
+                        prefix[imp] = prefix[parent]
                     else:
                         self.find_yang_var(namespace, 'namespace', imp, yang_file)
-                    namespace_exist = False
-                    for ns, org in NS_MAP.items():
-                        if self.os_version is '1651':
-                            if ns is 'urn:cisco':
+                        namespace_exist = False
+                        for ns, org in NS_MAP.items():
+                            if self.os_version is '1651':
+                                if ns is 'urn:cisco':
+                                    if ns in namespace[imp]:
+                                        organization_module[imp] = org
+                                        namespace_exist = True
+                            else:
                                 if ns in namespace[imp]:
                                     organization_module[imp] = org
                                     namespace_exist = True
-                        else:
-                            if ns in namespace[imp]:
-                                organization_module[imp] = org
+                        if organization_module.get(imp) is None:
+                            if 'urn:' in namespace[imp]:
+                                organization_module[imp] = namespace[imp].split('urn:')[1].split(':')[0]
                                 namespace_exist = True
-                    if organization_module.get(imp) is None:
-                        if 'urn:' in namespace[imp]:
-                            organization_module[imp] = namespace[imp].split('urn:')[1].split(':')[0]
-                            namespace_exist = True
-                    if not namespace_exist:
-                        organization_module[imp] = 'missing_element'
-                        if namespace[imp] is None or namespace[imp] == 'missing element':
-                            namespace[imp] = 'missing data'
-                        self.integrity_checker.add_namespace(self.split, imp + ' : ' + namespace[imp])
+                        if not namespace_exist:
+                            organization_module[imp] = 'missing_element'
+                            if namespace[imp] is None or namespace[imp] == 'missing element':
+                                namespace[imp] = 'missing data'
+                            self.integrity_checker.add_namespace(self.split, imp + ' : ' + namespace[imp])
+                        self.find_yang_var(prefix, 'prefix', imp, yang_file)
+
                     module_submodule = module_or_submodule(yang_file)
-                    self.find_yang_var(prefix, 'prefix', imp, yang_file)
+
                     self.find_yang_var(yang_version, 'yang-version', imp, yang_file)
-                    self.find_yang_var(organization, 'organization', imp, yang_file)
+                    #self.find_yang_var(organization, 'organization', imp, yang_file)
                     self.find_yang_var(contact, 'contact', imp, yang_file)
                     self.find_yang_var(description, 'description', imp, yang_file)
                     self.find_yang_var(includes, 'include', imp, yang_file)
                     self.find_yang_var(imports, 'import', imp, yang_file)
                     self.find_yang_var(revision, 'revision', imp, yang_file)
                     self.find_yang_var(features, 'feature', imp, yang_file)
-                    self.find_yang_var(schema, 'schema', imp, yang_file)
+                    #self.find_yang_var(schema, 'schema', imp, yang_file)
 
                     comp_status[imp] = self.parse_status(imp, revision[imp])
-                    if comp_status[imp] is not 'PASSED':
+                    if comp_status[imp] is not 'passed':
                         comp_result[imp] = self.parse_result(imp, revision[imp])
                     else:
                         comp_result[imp] = ''
@@ -1070,36 +1135,36 @@ class Capability:
                     reference = 'missing element'
                     document_name = 'missing element'
 
-                    if self.repo_file_path is None:
-                        self.repo_file_path = yang_file
-                        self.local_file_path = yang_file
-                    if self.local_file_path is None:
-                        self.local_file_path = 'file/is/missing'
-                        self.repo_file_path = 'file/is/missing'
-                    self.local_file_path = self.local_file_path.replace('../', '')
-                    self.repo_file_path = self.repo_file_path.replace('../', '')
-                    tree_type = get_tree_type(yang_file)
 
-                    self.prepare.add_key(imp + '@' + revision[imp], namespace[imp], conformance_type[imp], self.vendor,
+                    tree_type = get_tree_type(yang_file)
+                    if self.api:
+                        schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + \
+                                 '/'.join(yang_file.split('/')[4:])
+                    else:
+                        schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' \
+                                 + '/'.join(yang_file.split('/')[4:])
+
+                    self.prepare.add_key(imp + '@' + revision[imp] + ',' + organization_module[imp], namespace[imp],
+                                         conformance_type[imp], self.vendor,
                                          self.platform, self.software_version, self.software_flavor, self.os,
                                          self.os_version, self.feature_set, reference, prefix[imp], yang_version[imp],#chage that for organization_module organization[imp]
                                          organization_module[imp], description[imp], contact[imp], comp_status[imp],
-                                         email[imp], schema[imp], features[imp], wg[imp], comp_result[imp],
+                                         email[imp], schema, features[imp], wg[imp], comp_result[imp],
                                          deviations[imp], self.get_submodule_info(includes[imp]['name']),
-                                         module_submodule, document_name, self.owner, self.repo, self.repo_file_path,
-                                         self.local_file_path,
-                                         create_generated_from(namespace[imp], imp), working_group, tree_type)
+                                         module_submodule, document_name,
+                                         create_generated_from(namespace[imp], imp), working_group, tree_type,
+                                         'unknown')
 
                     self.parse_imports_includes(includes[imp]['name'], features, revision, name_revision,
                                                 yang_version, namespace, prefix, organization, contact, description,
                                                 includes, imports, conformance_type, deviations, module_names
-                                                , comp_status, schema, email, wg, organization_module, True
-                                                , namespace[imp], comp_result)
+                                                , comp_status, email, wg, organization_module, True
+                                                , parent, comp_result)
                     self.parse_imports_includes(imports[imp], features, revision, name_revision,
                                                 yang_version, namespace, prefix, organization, contact, description,
                                                 includes, imports, conformance_type, deviations, module_names
-                                                , comp_status, schema, email, wg, organization_module, False
-                                                , namespace[imp], comp_result)
+                                                , comp_status, email, wg, organization_module, False
+                                                , parent, comp_result)
 
     def parse_status(self, module_name, revision):
         # if module name contains .yang get only name
@@ -1107,51 +1172,53 @@ class Capability:
         # try to find in rfc without revision
         try:
             if module_name + '.yang' in self.ietf_rfc_json.keys():
-                return 'PASSED'
+                return 'passed'
         except KeyError:
             pass
         # try to find in rfc with revision
         try:
             if module_name + '@' + revision + '.yang' in self.ietf_rfc_json.keys():
-                return 'PASSED'
+                return 'passed'
         except KeyError:
             pass
 
         status = self.get_module_status(self.ietf_draft_json, module_name, revision, 3)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.bbf_json, module_name, revision, 0)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.ieee_standard_json, module_name, revision, 0)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.ieee_experimental_json, module_name, revision, 0)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.xr611, module_name, revision, 0)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.xr612, module_name, revision, 0)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.xr613, module_name, revision, 0)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.xr621, module_name, revision, 0)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.xe1631, module_name, revision, 0)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.xe1632, module_name, revision, 0)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.xe1641, module_name, revision, 0)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.xe1651, module_name, revision, 0)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.nx703f11, module_name, revision, 0)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.nx703f21, module_name, revision, 0)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.nx703i51, module_name, revision, 0)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.nx703i61, module_name, revision, 0)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.nx703i52, module_name, revision, 0)
-        if status == 'MISSING':
+        if status == 'unknown':
             status = self.get_module_status(self.huawei8910, module_name, revision, 0)
+        if status == 'unknown':
+            status = self.get_module_status(self.mef_experimental_json, module_name, revision, 0)
         return status
 
     @staticmethod
@@ -1160,7 +1227,8 @@ class Capability:
         try:
             status = files_json[module_name + '.yang'][index]
             if status == 'PASSED WITH WARNINGS':
-                status = 'PASSED-WITH-WARNINGS'
+                status = 'passed-with-warnings'
+            status = status.lower()
             return status
         except:
             pass
@@ -1168,11 +1236,12 @@ class Capability:
         try:
             status = files_json[module_name + '@' + revision + '.yang'][index]
             if status == 'PASSED WITH WARNINGS':
-                status = 'PASSED-WITH-WARNINGS'
+                status = 'passed-with-warnings'
+            status = status.lower()
             return status
         except:
             pass
-        return 'MISSING'
+        return 'unknown'
 
     def parse_email(self, module_name, revision):
         # if module name contains .yang get only name
@@ -1359,9 +1428,9 @@ class Capability:
         try:
             wg = self.ietf_draft_json[module_name + '.yang'][0].split('</a>')[0].split('\">')[1].split('-')[1]
             if 'ietf' in wg:
-                return 'working-group'
+                return 'adopted'
             else:
-                return 'individual'
+                return 'initial'
         except KeyError:
             pass
         # try to find in draft with revision
@@ -1370,9 +1439,9 @@ class Capability:
                 self.ietf_draft_json[module_name + '@' + revision + '.yang'][0].split('</a>')[0].split('\">')[1].split(
                     '-')[1]
             if 'ietf' in wg:
-                return 'working-group'
+                return 'adopted'
             else:
-                return 'individual'
+                return 'initial'
         except KeyError:
             pass
         # try to find in rfc with revision

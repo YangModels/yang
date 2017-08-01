@@ -297,7 +297,7 @@ if __name__ == "__main__":
         search_dirs = stats_list[key]
         if key == 'sdo':
             sdo = True
-            prepare_sdo = prepare.Prepare("prepare-sdo")
+            prepare_sdo = prepare.Prepare("prepare")
             for search_dir in search_dirs:
 
                 print('Found dir:' + search_dir)
