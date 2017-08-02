@@ -2,16 +2,18 @@ from __future__ import print_function
 
 import argparse
 import fnmatch
-import os
-import time
 import json
+import tools.utility.log as log
+import os
+import shutil
+import time
 
 import capability as cap
-import statistics
 import prepare
-import shutil
+import statistics
 import statisticsInCatalog
 
+LOGGER = log.get_logger('runCapabilities')
 
 def find_missing_hello(directory, pattern):
     for root, dirs, files in os.walk(directory):
@@ -277,6 +279,7 @@ if __name__ == "__main__":
                                                                                      ' all -SDOs and Vendors brought '
                                                                                      'via api or not')
     parser.add_argument('--json-dir', type=str, help='Directory where json files to populate confd will be stored')
+
     args = parser.parse_args()
     start = time.time()
     index = 1
@@ -293,6 +296,7 @@ if __name__ == "__main__":
     if args.run_statistics:
         stats_list = {'sdo': ['../../experimental', '../../standard'], 'vendor': ['../../vendor']}
     statistics_in_catalog = statisticsInCatalog.StatisticsInCatalog()
+    LOGGER.info('Starting to iterate through files')
     for key in stats_list:
         search_dirs = stats_list[key]
         if key == 'sdo':
@@ -300,10 +304,11 @@ if __name__ == "__main__":
             prepare_sdo = prepare.Prepare("prepare")
             for search_dir in search_dirs:
 
-                print('Found dir:' + search_dir)
+                LOGGER.info('Found directory for sdo {}'.format(search_dir))
                 integrity = statistics.Statistics(search_dir)
                 capability = cap.Capability(search_dir, index, prepare_sdo, integrity, args.api, sdo, args.json_dir,
                                             statistics_in_catalog)
+                LOGGER.info('Starting to parse files in sdo directory')
                 capability.parse_and_dump_sdo()
                 index += 1
             prepare_sdo.dump_sdo(args.json_dir)
@@ -320,7 +325,7 @@ if __name__ == "__main__":
                             time_in_file = file_modification.readline()
                             if time_in_file in str(time.ctime(os.path.getmtime(filename))):
                                 update = False
-                                print (filename + ' is not modified. Skipping this file.')
+                                LOGGER.warning('{} is not modified. Skipping this file'.format(filename))
                                 file_modification.close()
                             else:
                                 file_modification.seek(0)
@@ -333,29 +338,26 @@ if __name__ == "__main__":
                             file_modification.write(str(time.ctime(os.path.getmtime(filename))))
                             file_modification.close()
                     if update:
-
                         integrity = statistics.Statistics(filename)
-                        print('Found xml source:' + filename)
+                        LOGGER.warning('Found xml source'.format(filename))
                         capability = cap.Capability(filename, index, prepare_vendor, integrity, args.api, sdo,
                                                     args.json_dir)
                         capability.parse_and_dump()
                         index += 1
             prepare_vendor.dump(args.json_dir)
 
-    # for filename in find_files('../', '*restconf-capabstatisticilit*.xml'):
-    #    print('Found xml source:' + filename)
-    #    capability = cap.Capability(filename)
-    #    capability.parse_and_dump()
     if integrity is not None:
         create_integrity()
     if statistics_in_catalog is not None and args.run_statistics:
         do_stats()
     end = time.time()
-    print(end - start)
+    LOGGER.info('Time taken to parse all the files {} seconds'.format(end - start))
     if args.run_statistics:
         if args.stats_dir != './':
+            LOGGER.debug('moving stats and integrity files to {}'.format(args.stats_dir))
             shutil.move('stats.html', args.stats_dir)
             shutil.move('integrity.html', args.stats_dir)
         for item in os.listdir('./'):
             if item.endswith(".json") or ('log' in item and '.txt' in item):
+                LOGGER.debug('Removing file {}'.format(item))
                 os.remove(item)

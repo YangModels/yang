@@ -2,7 +2,6 @@
 """Utility belt for working with ``pyang`` and ``pyangext``."""
 import codecs
 import io
-import logging
 from os.path import isfile
 
 from pyang import Context, FileRepository
@@ -21,9 +20,9 @@ __all__ = [
     'walk',
 ]
 
-logging.basicConfig(level=logging.INFO)
-logging.captureWarnings(True)
-LOGGER = logging.getLogger(__name__)
+#logging.basicConfig(level=logging.INFO)
+#logging.captureWarnings(True)
+#LOGGER = logging.getLogger(__name__)
 
 DEFAULT_OPTIONS = {
     'path': [],
