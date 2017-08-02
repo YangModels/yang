@@ -1,4 +1,7 @@
 import json
+import logging
+
+LOGGER = logging.getLogger(__name__)
 
 
 class Prepare:
@@ -33,6 +36,7 @@ class Prepare:
                     contact, schema, feature, json_submodules, compilation_status, author_email, maturity_level,
                     compilation_result, module_or_submodule, document_name, generated_from, working_group, tree_type,
                     module_classification):
+        LOGGER.debug('Adding sdo information to prepare.json file with key {} for modules branch'.format(key))
         self.name_revision.add(key)
         self.namespace[key] = namespace
         self.conformance_type[key] = conformance_type
@@ -48,7 +52,6 @@ class Prepare:
         self.feature[key] = feature
         self.maturity_level[key] = maturity_level
         self.compilation_result[key] = compilation_result
-        # self.deviations[key] = deviations
         self.json_submodules[key] = json_submodules
         self.module_or_submodule[key] = module_or_submodule
         self.document_name[key] = document_name
@@ -62,6 +65,7 @@ class Prepare:
                 compilation_status, author_email, schema, feature, maturity_level, compilation_result, deviations,
                 json_submodules, module_or_submodule, document_name, generated_from, working_group, tree_type,
                 module_classification):
+        LOGGER.debug('Adding vendor information to prepare.json file with key {} for modules branch'.format(key))
         self.name_revision.add(key)
         self.namespace[key] = namespace
         self.conformance_type[key] = conformance_type
@@ -108,9 +112,9 @@ class Prepare:
              'deviation': devs
              }
 
-    # - deviations, implementations
     def dump_sdo(self, directory):
-        with open('./' + directory + '/' + self.file_name + '.json', "w") as prepare_model:
+        LOGGER.debug('Creating prepare.json file from sdo information')
+        with open('../parseAndPopulate/' + directory + '/' + self.file_name + '.json', "w") as prepare_model:
             json.dump({'module': [{
                 'name': key.split('@')[0],
                 'revision': key.split('@')[1].split('.')[0].split(',')[0],
@@ -126,7 +130,6 @@ class Prepare:
                 'ietf': {
                     'ietf-wg': self.working_group.get(key)
                 },
-                #'feature': self.feature[key],
                 'maturity-level': self.maturity_level[key],
                 'compilation-result': self.compilation_result[key],
                 'author-email': self.author_email[key],
@@ -136,25 +139,15 @@ class Prepare:
                 'generated-from': self.generated_from[key],
                 'tree-type': self.tree_type[key],
                 'module-classification': self.module_classification[key],
-                #'source-file': {
-                #    'online': {
-                #        'owner': self.owner[key],
-                #        'repository': self.repo[key],
-                #        'path': self.repo_file_path[key]
-                #    },
-                #    'local': {
-                #        'path': self.local_file_path[key]
-                #    }
-                #}
             } for key in self.name_revision]}, prepare_model)
 
     def dump(self, directory):
-        with open('./' + directory + '/' + self.file_name + '.json', "w") as prepare_model:
+        LOGGER.debug('Creating prepare.json file from sdo information')
+        with open('../parseAndPopulate/' + directory + '/' + self.file_name + '.json', "w") as prepare_model:
             json.dump({'module': [{
                 'name': key.split('@')[0],
                 'revision': key.split('@')[1].split('.')[0].split(',')[0],
                 'namespace': self.namespace[key],
-   #             'conformance-type': self.conformance_type[key],
                 'reference': self.reference[key],
                 'prefix': self.prefix[key],
                 'yang-version': self.yang_version[key],
@@ -167,7 +160,6 @@ class Prepare:
                 'ietf': {
                    'ietf-wg': self.working_group[key]
                 },
-                #'feature': self.feature[key],
                 'maturity-level': self.maturity_level[key],
                 'compilation-result': self.compilation_result[key],
                 'submodule': json.loads(self.json_submodules[key]),
@@ -175,16 +167,6 @@ class Prepare:
                 'generated-from': self.generated_from[key],
                 'tree-type': self.tree_type[key],
                 'module-classification': self.module_classification[key],
-                #'source-file': {
-                #    'online': {
-                #        'owner': self.owner[key],
-                #        'repository': self.repo[key],
-                #        'path': self.repo_file_path[key]
-                #    },
-                #    'local': {
-                #        'path': self.local_file_path[key]
-                #    }
-                #},
                 'implementations': {
                     'implementation': [{
                         'vendor': self.implementations[key][implementation]['vendor'],
@@ -198,10 +180,5 @@ class Prepare:
                         'deviation': self.implementations[key][implementation]['deviation'],
                         'feature': self.implementations[key][implementation]['feature']
                     } for implementation in self.implementations[key]],
-                }#,
-               # 'deviation': [
-               #     {'name': self.deviations[key]['name'][i],
-               #      'revision': self.deviations[key]['revision'][i]
-               #      } for
-               #     i, val in enumerate(self.deviations[key]['name'])],
+                }
             } for key in self.name_revision]}, prepare_model)

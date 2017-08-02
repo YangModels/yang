@@ -1,16 +1,20 @@
 import pika
 import uuid
+import logging
+
+LOGGER = logging.getLogger(__name__)
 
 
 class Sender:
 
     def __init__(self):
+        LOGGER.debug('Initializing sender')
         self.__response_type = ['Failed', 'In progress', 'Finished successfully', 'does not exist']
         self.connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
 
         self.channel = self.connection.channel()
 
-        result =  self.channel.queue_declare(exclusive=True)
+        result = self.channel.queue_declare(exclusive=True)
         self.callback_queue = result.method.queue
         self.channel.basic_consume(self.on_response, no_ack=True,
                                    queue=self.callback_queue)
@@ -20,6 +24,7 @@ class Sender:
         self.response[props.correlation_id] = body
 
     def get(self, correlation_id):
+        LOGGER.debug('Trying to get response')
         self.connection.process_data_events()
         if correlation_id not in self.response:
             return self.__response_type[3]
@@ -27,6 +32,7 @@ class Sender:
             return self.response[correlation_id]
 
     def send(self, n):
+        LOGGER.info('Sending data to queue')
         corr_id = str(uuid.uuid4())
         self.channel.basic_publish(exchange='',
                                    routing_key='module_queue',

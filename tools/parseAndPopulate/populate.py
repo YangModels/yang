@@ -1,36 +1,16 @@
 import argparse
 import base64
+import errno
 import fnmatch
 import json
 import os
+import shutil
 import subprocess
-import sys
 import unicodedata
 import urllib2
+import tools.utility.log as log
 
-import errno
-
-import shutil
-
-
-def progress_bar(done, total, time_diff, old_percentage, suffix=''):
-    bar_len = 60
-    filled_len = int(round(bar_len * done / float(total)))
-
-    percents = round(100.0 * done / float(total), 4)
-    bar = '=' * filled_len + '-' * (bar_len - filled_len)
-
-    time_percentage = percents - old_percentage
-    if time_percentage > 0:
-        seconds = int((time_diff / time_percentage) * (100 - percents))
-        m, s = divmod(seconds, 60)
-        h, m = divmod(m, 60)
-        time_s = "%dh:%02dm:%02ds" % (h, m, s)
-    else:
-        time_s = "inf"
-    sys.stdout.write('[%s] %s%s time remaining %s  ...%s\r' % (bar, percents, '%', time_s, suffix))
-    sys.stdout.flush()
-    return percents
+LOGGER = log.get_logger('populate')
 
 
 def find_files(directory, pattern):
@@ -58,15 +38,15 @@ def http_request(path, method, json_data, credentials):
         request.get_method = lambda: method
         opener.open(request)
     except:
-        print('Could not send request with body ' + json_data + ' and path ' + path)
+        LOGGER.error('Could not send request with body {} and path {}'.format(json_data, path))
         raise
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parse hello messages and yang files to json dictionary. These"
                                                  " dictionaries are used for populating a yangcatalog. This script runs"
-                                                 " first a runCapabilities.py script to create a Json files which are used"
-                                                 " to populate database.")
+                                                 " first a runCapabilities.py script to create a Json files which are "
+                                                 "used to populate database.")
     parser.add_argument('--port', default=8008, type=int,
                         help='Set port where the confd is started. Default -> 8008')
     parser.add_argument('--ip', default='127.0.0.1', type=str,
@@ -81,9 +61,9 @@ if __name__ == "__main__":
     parser.add_argument('--protocol', type=str, default='http', help='Whether confd-6.4 runs on http or https.'
                                                                      ' Default is set to http')
     args = parser.parse_args()
-
+    LOGGER.info('Starting the populate script')
     if args.api:
-        direc = args.dir.split('/')[0]
+        direc = '/'.join(args.dir.split('/')[0:3])
     else:
         direc = 0
         while True:
@@ -96,6 +76,7 @@ if __name__ == "__main__":
                     raise
         direc = repr(direc)
     prefix = args.protocol + '://{}:{}'.format(args.ip, args.port)
+    LOGGER.debug('Calling runcapabilities script')
     if args.api:
         if args.sdo:
             with open("log_api_sdo.txt", "wr") as f:
@@ -121,9 +102,8 @@ if __name__ == "__main__":
                 subprocess.check_call(arguments, stderr=f)
                 # os.system("python runCapabilities.py --dir " + args.dir)
 
-    print("Populating yang catalog with data")
-    print("adding modules")
-    for filename_prepare in find_files('./' + direc, 'prepare.json'):
+    LOGGER.debug('Populating yang catalog with data. Starting to add modules')
+    for filename_prepare in find_files('../parseAndPopulate/' + direc, 'prepare.json'):
         with open(filename_prepare) as data_file:
             read = data_file.read()
             json_modules_data = json.dumps({
@@ -136,12 +116,12 @@ if __name__ == "__main__":
 
     files = []
     # Find all parsed json files
-    for filename in find_files('./' + direc, 'normal*.json'):
+    for filename in find_files('../parseAndPopulate/' + direc, 'normal*.json'):
         with open(filename) as data_file:
             files.append(json.load(data_file))
 
     # In each json
-    print("adding vendors")
+    LOGGER.debug('Starting to add vendors')
     for data in files:
         # Prepare json_data for put request - this request will prepare list vendors
         # to populate it with protocols and modules
@@ -151,5 +131,5 @@ if __name__ == "__main__":
                      args.credentials)
 
     if not args.api:
-        print("Removing temporary json files")
+        LOGGER.debug('Removing temporary json data')
         shutil.rmtree('./' + direc)
