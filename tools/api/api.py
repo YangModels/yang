@@ -1,28 +1,26 @@
-from __future__ import print_function
-
+import ConfigParser
 import argparse
 import base64
 import errno
 import hashlib
 import json
+import logging
 import os
 import shutil
-import subprocess
 import unicodedata
-import ConfigParser
 import urllib2
 from urllib2 import URLError
 
 import MySQLdb
-import datetime
 import requests
 from flask import Flask, jsonify, abort, make_response, request, Response
 from flask_httpauth import HTTPBasicAuth
 
 import repoutil
-import yangParser
 from tools.api.sender import Sender
+from tools.parseAndPopulate import yangParser
 
+LOGGER = logging.getLogger('api')
 url = 'https://github.com/'
 
 github_api_url = 'https://api.github.com'
@@ -58,9 +56,10 @@ def http_request(path, method, json_data, http_credentials, header):
     except urllib2.HTTPError as e:
         if method == 'DELETE':
             return
-        print('Could not send request with body ' + repr(json_data) + ' and path ' + path)
+        LOGGER.error('Could not send request with body {} and path {}'.format(json_data, path))
         raise e
     except URLError as e:
+        LOGGER.error('Could not send request with body {} and path {} {}'.format(json_data, path, e))
         raise e
 
 
@@ -71,6 +70,7 @@ def not_found():
 
 def authorize_for_sdos(request, organizations_sent, organization_parsed):
     username = request.authorization['username']
+    LOGGER.info('Checking sdo authorization for user {}'.format(username))
     accessRigths = None
     try:
         db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
@@ -86,7 +86,7 @@ def authorize_for_sdos(request, organizations_sent, organization_parsed):
                 break
         db.close()
     except MySQLdb.MySQLError as err:
-        print("Cannot connect to database. MySQL error: " + str(err))
+        LOGGER.error('Cannot connect to database. MySQL error: {}'.format(err))
 
     passed = False
     if accessRigths == '/':
@@ -102,6 +102,7 @@ def authorize_for_sdos(request, organizations_sent, organization_parsed):
 
 def authorize_for_vendors(request, body):
     username = request.authorization['username']
+    LOGGER.info('Checking vendor authorization for user {}'.format(username))
     accessRigths = None
     try:
         db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
@@ -117,7 +118,7 @@ def authorize_for_vendors(request, body):
                 break
         db.close()
     except MySQLdb.MySQLError as err:
-        print("Cannot connect to database. MySQL error: " + str(err))
+        LOGGER.error('Cannot connect to database. MySQL error: {}'.format(err))
 
     rights = accessRigths.split('/')
     check_vendor = None
@@ -181,10 +182,12 @@ def check_local():
                                 headers={'Authorization': 'token ' + token})
 
 
-@app.route('/modules/module/<name>,<revision>', methods=['DELETE'])
+@app.route('/modules/module/<name>,<revision>,<organization>', methods=['DELETE'])
 @auth.login_required
-def delete_modules(name, revision):
+def delete_modules(name, revision, organization):
+    LOGGER.info('deleting module with name, revision and organization {} {} {}'.format(name, revision, organization))
     username = request.authorization['username']
+    LOGGER.debug('Checking authorization for user {}'.format(username))
     accessRigths = None
     try:
         db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
@@ -200,11 +203,11 @@ def delete_modules(name, revision):
                 break
         db.close()
     except MySQLdb.MySQLError as err:
-        print("Cannot connect to database. MySQL error: " + str(err))
+        LOGGER.error('Cannot connect to database. MySQL error: {}'.format(err))
     try:
         response = http_request(
-        protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name +
-        ',' + revision, 'GET', None, credentials, 'application/vnd.yang.data+json')
+            protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name +
+            ',' + revision + ',' + organization, 'GET', None, credentials, 'application/vnd.yang.data+json')
     except urllib2.HTTPError as e:
         return not_found()
     read = json.loads(response.read())
@@ -213,7 +216,7 @@ def delete_modules(name, revision):
     try:
         http_request(
             protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name +
-            ',' + revision, 'DELETE', None, credentials, 'application/vnd.yang.data+json')
+            ',' + revision + ',' + organization, 'DELETE', None, credentials, 'application/vnd.yang.data+json')
     except urllib2.HTTPError as e:
         make_response(jsonify({'error': e.msg}), 401)
     return jsonify({'info': 'success'})
@@ -225,6 +228,7 @@ def add_modules():
     if not request.json:
         abort(400)
     body = request.json
+    LOGGER.info('Adding modules with body {}'.format(body))
     tree_created = False
 
     with open('./prepare-sdo.json', "w") as plat:
@@ -254,6 +258,7 @@ def add_modules():
         directory = '/'.join(sdo['path'].split('/')[:-1])
 
         repo_url = url + sdo['owner'] + '/' + sdo['repository']
+        LOGGER.debug('Cloning repository')
         if repo_url not in repo:
             repo[repo_url] = repoutil.RepoUtil(repo_url)
             repo[repo_url].clone()
@@ -318,11 +323,12 @@ def add_modules():
 
     for key in repo:
         repo[key].remove()
+    LOGGER.debug('Sending a new job')
     arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port", repr(confdPort), "--dir",
                  direc + "/temp", "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1],
                  repr(tree_created)]
     job_id = sender.send('#'.join(arguments))
-
+    LOGGER.info('job_id {}'.format(job_id))
     if len(warning) > 0:
         return jsonify({'info': 'Verification successful', 'job-id': job_id, 'warnings': [{'warning': val}
                                                                                           for val in warning]})
@@ -336,6 +342,7 @@ def add_vendors():
     if not request.json:
         abort(400)
     body = request.json
+    LOGGER.info('Adding vendor with body {}'.format(body))
     tree_created = False
     resolved_authorization = authorize_for_vendors(request, body)
     if 'passed' != resolved_authorization:
@@ -401,13 +408,14 @@ def add_vendors():
                  "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1], repr(tree_created),
                  integrity_file_location]
     job_id = sender.send('#'.join(arguments))
-
+    LOGGER.info('job_id {}'.format(job_id))
     return jsonify({'info': 'Verification successful', 'job-id': job_id})
 
 
 # Generic read-only get request
 @app.route('/search/<path:value>', methods=['GET'])
 def search(value):
+    LOGGER.info('Searching for {}'.format(value))
     split = value.split('/')[:-1]
     key = '/'.join(value.split('/')[:-1])
     value = value.split('/')[-1]
@@ -436,10 +444,44 @@ def search(value):
                 return Response(mimetype='application/json', status=204)
 
 
-@app.route('/search/modules/<name>,<revision>', methods=['GET'])
-def search_module(name, revision):
-    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name + ','\
-           + revision + '?deep'
+@app.route('/search/modules/<name>,<revision>,<organization>', methods=['GET'])
+def search_module(name, revision, organization):
+    LOGGER.info('Searching for module {}, {}, {}'.format(name, revision, organization))
+    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name + ',' +\
+        revision + ',' + organization + '?deep'
+    try:
+        data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
+    except:
+        return not_found()
+    return Response(json.dumps(data), mimetype='application/json')
+
+
+@app.route('/search/modules', methods=['GET'])
+def get_modules():
+    LOGGER.info('Searching for modules')
+    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/vendors?deep'
+    try:
+        data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
+    except:
+        return not_found()
+    return Response(json.dumps(data), mimetype='application/json')
+
+
+@app.route('/search/vendors', methods=['GET'])
+def get_vendors():
+    LOGGER.info('Searching for vendors')
+    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/vendors/?deep'
+    try:
+        data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
+    except:
+        return not_found()
+    return Response(json.dumps(data), mimetype='application/json')
+
+
+@app.route('/search/catalog', methods=['GET'])
+def get_catalog():
+    LOGGER.info('Searching for catalog data')
+    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog?deep'
     try:
         data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
     except:
@@ -449,6 +491,7 @@ def search_module(name, revision):
 
 @app.route('/job/<job_id>', methods=['GET'])
 def get_job(job_id):
+    LOGGER.info('Searching for job_id {}'.format(job_id))
     result = sender.get(job_id)
     return jsonify({'info': {'job-id': job_id,
                              'result': result}
@@ -498,7 +541,7 @@ def get_password(username):
     # print row
 
     except MySQLdb.MySQLError as err:
-        print("Cannot connect to database. MySQL error: " + str(err))
+        LOGGER.error('Cannot connect to database. MySQL error: {}'.format(err))
 
 
 @auth.error_handler
