@@ -3,7 +3,6 @@ from __future__ import print_function
 import fileinput
 import fnmatch
 import json
-import logging
 import os
 import subprocess
 import unicodedata
@@ -13,9 +12,10 @@ from subprocess import PIPE
 
 from numpy.f2py.auxfuncs import throw_error
 
+import tools.utility.log as log
 import yangParser
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = log.get_logger(__name__)
 
 NS_MAP = {
     "http://cisco.com/ns/yang/": "cisco",
@@ -597,7 +597,7 @@ class Capability:
                 features = {}
                 LOGGER.debug('Parsing extractable metadata from file {}'.format(file_name))
                 module_submodule = module_or_submodule(root + '/' + file_name)
-                tree_type = get_tree_type(root + '/' + file_name)
+                tree_type = None#get_tree_type(root + '/' + file_name)
                 if '[1]' in file_name:
                     LOGGER.warning('File {} contains invalid character [1] in file name'.format(file_name))
                     module_submodule = 'wrong file'
@@ -687,7 +687,7 @@ class Capability:
                         features = {}
                         LOGGER.debug('Parsing extractable metadata from file {}'.format(file_name))
                         module_submodule = module_or_submodule(root + '/' + file_name)
-                        tree_type = get_tree_type(root + '/' + file_name)
+                        tree_type = None#get_tree_type(root + '/' + file_name)
                         if '[1]' in file_name:
                             LOGGER.warning('File {} contains [1] it its file name'.format(file_name))
                             module_submodule = 'wrong file'
@@ -911,7 +911,7 @@ class Capability:
                 self.find_yang_var(description, 'description', module_name, yang_file)
                 self.find_yang_var(includes, 'include', module_name, yang_file)
                 self.find_yang_var(imports, 'import', module_name, yang_file)
-                tree_type = get_tree_type(yang_file)
+                tree_type = None#get_tree_type(yang_file)
                 reference = 'missing element'
                 document_name = 'missing element'
                 compilations_status[module_name] = self.parse_status(module_name, revision[module_name])
@@ -1155,7 +1155,7 @@ class Capability:
                     self.find_yang_var(imports, 'import', imp, yang_file)
                     self.find_yang_var(revision, 'revision', imp, yang_file)
                     self.find_yang_var(features, 'feature', imp, yang_file)
-                    tree_type = get_tree_type(yang_file)
+                    tree_type = None#get_tree_type(yang_file)
                     comp_status[imp] = self.parse_status(imp, revision[imp])
                     if is_include:
                         conformance_type[imp] = None

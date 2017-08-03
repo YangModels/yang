@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import unicodedata
 import urllib2
+
 import tools.utility.log as log
 
 LOGGER = log.get_logger('populate')
