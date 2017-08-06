@@ -3,7 +3,6 @@ from __future__ import print_function
 import fileinput
 import fnmatch
 import json
-import logging
 import os
 import subprocess
 import unicodedata
@@ -13,9 +12,10 @@ from subprocess import PIPE
 
 from numpy.f2py.auxfuncs import throw_error
 
+import tools.utility.log as log
 import yangParser
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = log.get_logger(__name__)
 
 NS_MAP = {
     "http://cisco.com/ns/yang/": "cisco",

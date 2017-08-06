@@ -1,8 +1,10 @@
-import pika
 import uuid
-import logging
 
-LOGGER = logging.getLogger(__name__)
+import pika
+
+import tools.utility.log as log
+
+LOGGER = log.get_logger(__name__)
 
 
 class Sender:
@@ -10,7 +12,7 @@ class Sender:
     def __init__(self):
         LOGGER.debug('Initializing sender')
         self.__response_type = ['Failed', 'In progress', 'Finished successfully', 'does not exist']
-        self.connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+        self.connection = pika.BlockingConnection(pika.ConnectionParameters('127.0.0.1'))
 
         self.channel = self.connection.channel()
 

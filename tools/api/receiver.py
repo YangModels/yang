@@ -2,7 +2,6 @@ import base64
 import datetime
 import errno
 import json
-import tools.utility.log as log
 import os
 import shutil
 import subprocess
@@ -10,6 +9,8 @@ import urllib2
 from urllib2 import URLError
 
 import pika
+
+import tools.utility.log as log
 
 LOGGER = log.get_logger('receiver')
 
@@ -140,7 +141,7 @@ def on_request(ch, method, props, body):
 if __name__ == '__main__':
     LOGGER.debug('Starting receiver')
     __response_type = ['Failed', 'Finished successfully']
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='127.0.0.1'))
     channel = connection.channel()
     channel.queue_declare(queue='module_queue')
 

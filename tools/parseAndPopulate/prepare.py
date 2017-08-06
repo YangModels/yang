@@ -1,7 +1,7 @@
 import json
-import logging
+import tools.utility.log as log
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = log.get_logger(__name__)
 
 
 class Prepare:

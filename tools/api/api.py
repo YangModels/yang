@@ -4,7 +4,6 @@ import base64
 import errno
 import hashlib
 import json
-import logging
 import os
 import shutil
 import unicodedata
@@ -17,10 +16,11 @@ from flask import Flask, jsonify, abort, make_response, request, Response
 from flask_httpauth import HTTPBasicAuth
 
 import repoutil
+import tools.utility.log as lo
 from tools.api.sender import Sender
 from tools.parseAndPopulate import yangParser
 
-LOGGER = logging.getLogger('api')
+LOGGER = lo.get_logger('api')
 url = 'https://github.com/'
 
 github_api_url = 'https://api.github.com'
@@ -454,6 +454,17 @@ def search(value):
                 return Response(mimetype='application/json', status=204)
 
 
+@app.route('/search/vendors/<path:value>', methods=['GET'])
+def search_vendors(value):
+    LOGGER.info('Searching for specific vendors {}'.format(value))
+    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/vendors/' + value + '?deep'
+    try:
+        data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
+    except:
+        return not_found()
+    return Response(json.dumps(data), mimetype='application/json')
+
+
 @app.route('/search/modules/<name>,<revision>,<organization>', methods=['GET'])
 def search_module(name, revision, organization):
     LOGGER.info('Searching for module {}, {}, {}'.format(name, revision, organization))
@@ -469,7 +480,7 @@ def search_module(name, revision, organization):
 @app.route('/search/modules', methods=['GET'])
 def get_modules():
     LOGGER.info('Searching for modules')
-    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/vendors?deep'
+    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules?deep'
     try:
         data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
     except:
@@ -563,6 +574,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config-path', type=str, default='./config.ini',
                         help='Set path to config file')
+    LOGGER.info('Starting API')
     args = parser.parse_args()
     config = ConfigParser.ConfigParser()
     config.read(args.config_path)
