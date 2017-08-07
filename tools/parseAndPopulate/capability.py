@@ -26,6 +26,7 @@ NS_MAP = {
 
 github = 'https://github.com/'
 github_raw = 'https://raw.githubusercontent.com/'
+MISSING_ELEMENT = 'missing element'
 
 # searching for file based on pattern or pattern_with_revision
 def find_first_file(directory, pattern, pattern_with_revision):
@@ -489,16 +490,16 @@ class Capability:
             object[module_name] = '1.0'
         # In case of namespace exception create dummy exception -> 'urn:dummy'
         elif 'namespace' in field:
-            object[module_name] = 'missing element'
+            object[module_name] = MISSING_ELEMENT
         # For everything else insert null value
         elif 'import' in field:
             object[module_name] = None
         elif 'feature' in field:
-            object[module_name] = 'missing-element'
+            object[module_name] = MISSING_ELEMENT
         elif 'compilation-status' in field:
-            object[module_name] = 'MISSING'
+            object[module_name] = 'unknown'
         else:
-            object[module_name] = 'missing element'
+            object[module_name] = MISSING_ELEMENT
 
     # pyang parsing variables and saving field value
     def find_yang_var(self, object, field, module_name, yang_file):
@@ -613,14 +614,14 @@ class Capability:
                     self.find_yang_var(revision, 'revision', file_name, root + '/' + file_name)
                     compilations_status = self.parse_status(file_name, revision[file_name])
 
-                    if compilations_status != 'PASSED':
+                    if compilations_status != 'passed':
                         compilations_result = self.parse_result(file_name, revision[file_name])
                     else:
                         compilations_result = ''
                     LOGGER.debug('Getting non-extractable metadata from file {}'.format(file_name))
                     author_email = unicodedata.normalize('NFKD', self.get_json(sdo.get('author-email')))\
                         .encode('ascii', 'ignore')
-                    if author_email == 'missing element':
+                    if author_email == MISSING_ELEMENT:
                         author_email = None
                     working_group = unicodedata.normalize('NFKD', self.get_json(sdo.get('maturity-level')))\
                         .encode('ascii', 'ignore')
@@ -709,7 +710,7 @@ class Capability:
 
                             compilations_status = self.parse_status(file_name, revision[file_name])
                             self.statistics_in_catalog.set_passed(root, compilations_status)
-                            if compilations_status != 'PASSED':
+                            if compilations_status != 'passed':
                                 compilations_result = self.parse_result(file_name, revision[file_name])
                             else:
                                 compilations_result = ''
@@ -879,7 +880,7 @@ class Capability:
                 LOGGER.debug('Parsing organization for module {}'.format(module_name))
                 for ns, org in NS_MAP.items():
                     if self.os_version is '1651':
-                        if ns is 'urn:cisco':
+                        if 'urn:cisco' in namespace[module_name]:
                             if ns in namespace[module_name]:
                                 organization_module[module_name] = org
                                 namespace_exist = True
@@ -893,11 +894,12 @@ class Capability:
                         namespace_exist = True
 
                 if not namespace_exist:
-                    organization_module[module_name] = 'missing_data'
-                    if namespace[module_name] is None or namespace[module_name] == 'missing element':
+                    if organization_module.get(module_name) is None:
+                        organization_module[module_name] = MISSING_ELEMENT
+                    if namespace[module_name] is None or namespace[module_name] == MISSING_ELEMENT:
                         self.integrity_checker.add_namespace(self.split, module_name + ' : missing data')
-                        namespace[module_name] = 'missing data'
-                    self.integrity_checker.add_namespace(self.split, module_name + ' : ' + namespace[module_name])
+                        namespace[module_name] = MISSING_ELEMENT
+                        self.integrity_checker.add_namespace(self.split, module_name + ' : ' + namespace[module_name])
 
                 module_submodule = module_or_submodule(yang_file)
                 LOGGER.debug('Parsing extractable fields')
@@ -912,10 +914,10 @@ class Capability:
                 self.find_yang_var(includes, 'include', module_name, yang_file)
                 self.find_yang_var(imports, 'import', module_name, yang_file)
                 tree_type = get_tree_type(yang_file)
-                reference = 'missing element'
-                document_name = 'missing element'
+                reference = MISSING_ELEMENT
+                document_name = MISSING_ELEMENT
                 compilations_status[module_name] = self.parse_status(module_name, revision[module_name])
-                if compilations_status[module_name] not in 'PASSED':
+                if compilations_status[module_name] != 'passed':
                     compilations_result[module_name] = self.parse_result(module_name, revision[module_name])
                 else:
                     compilations_result[module_name] = ''
@@ -1140,10 +1142,11 @@ class Capability:
                                 organization_module[imp] = namespace[imp].split('urn:')[1].split(':')[0]
                                 namespace_exist = True
                         if not namespace_exist:
-                            organization_module[imp] = 'missing_element'
-                            if namespace[imp] is None or namespace[imp] == 'missing element':
-                                namespace[imp] = 'missing data'
-                            self.integrity_checker.add_namespace(self.split, imp + ' : ' + namespace[imp])
+                            if organization_module.get(imp) is None:
+                                organization_module[imp] = MISSING_ELEMENT
+                            if namespace[imp] is None or namespace[imp] == MISSING_ELEMENT:
+                                namespace[imp] = MISSING_ELEMENT
+                                self.integrity_checker.add_namespace(self.split, imp + ' : ' + namespace[imp])
                         self.find_yang_var(prefix, 'prefix', imp, yang_file)
 
                     module_submodule = module_or_submodule(yang_file)
@@ -1161,7 +1164,7 @@ class Capability:
                         conformance_type[imp] = None
                     else:
                         conformance_type[imp] = 'import'
-                    if comp_status[imp] is not 'passed':
+                    if comp_status[imp] != 'passed':
                         comp_result[imp] = self.parse_result(imp, revision[imp])
                     else:
                         comp_result[imp] = ''
@@ -1175,8 +1178,8 @@ class Capability:
 
                     module_names.append(imp)
                     name_revision.append(imp + '@' + revision[imp])
-                    reference = 'missing element'
-                    document_name = 'missing element'
+                    reference = MISSING_ELEMENT
+                    document_name = MISSING_ELEMENT
 
                     if self.api:
                         schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + \
@@ -1552,4 +1555,4 @@ class Capability:
                 return [doc_name, doc_source]
             except KeyError:
                 pass
-        return ['missing element', 'missing element']
+        return [MISSING_ELEMENT, MISSING_ELEMENT]

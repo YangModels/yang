@@ -12,6 +12,7 @@ from urllib2 import URLError
 
 import MySQLdb
 import requests
+import sys
 from flask import Flask, jsonify, abort, make_response, request, Response
 from flask_httpauth import HTTPBasicAuth
 
@@ -36,6 +37,26 @@ NS_MAP = {
     "http://openconfig.net/yang/": "openconfig",
     "http://tail-f.com/": "tail-f"
 }
+
+
+def make_cache(credentials, response):
+    try:
+        try:
+            os.makedirs('./cache')
+        except OSError as e:
+            # be happy if someone already created the path
+            if e.errno != errno.EEXIST:
+                return 'Server error - could not create directory'
+
+        path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog?deep'
+        with open('./cache/catalog.json', "w") as cache_file:
+            data = http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read()
+            cache_file.write(data)
+    except:
+        e = sys.exc_info()[0]
+        LOGGER.error('Could not load json to cache. Error: {}'.format(e))
+        return 'Server error - downloading cache'
+    return response
 
 
 def unicode_normalize(variable):
@@ -176,7 +197,7 @@ def check_local():
                 # If build was successful on pull request
                 pull_number = body['pull_request_number']
                 log.write('pull request was successful %s' % repr(pull_number))
-                #requests.put('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number +
+                # requests.put('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number +
                 #             '/merge', headers={'Authorization': 'token ' + token})
                 requests.delete(yang_models_url,
                                 headers={'Authorization': 'token ' + token})
@@ -210,16 +231,102 @@ def delete_modules(name, revision, organization):
             ',' + revision + ',' + organization, 'GET', None, credentials, 'application/vnd.yang.data+json')
     except urllib2.HTTPError as e:
         return not_found()
+
     read = json.loads(response.read())
-    if read['yang-catalog:module']['organization'] != accessRigths:
+    if read['yang-catalog:module']['organization'] != accessRigths and accessRigths != '/':
         return unauthorized()
+
+    if read['yang-catalog:module'].get('implementations') is not None:
+        return make_response(jsonify({'error': 'This module has reference in vendors branch'}), 400)
+
+    path_to_delete = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name\
+        + ',' + revision + ',' + organization
+
+    arguments = [protocol, confd_ip, repr(confdPort), credentials[0],
+                 credentials[1], path_to_delete, 'DELETE']
+    job_id = sender.send('#'.join(arguments))
+
+    LOGGER.info('job_id {}'.format(job_id))
+    return jsonify({'info': 'Verification successful', 'job-id': job_id})
+
+    #try:
+    #    http_request(
+    #        protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name +
+    #        ',' + revision + ',' + organization, 'DELETE', None, credentials, 'application/vnd.yang.data+json')
+    #except URLError as e:
+    #    LOGGER.error('Could not delete module on path {} {} {}'.format(name, revision, organization))
+    #    return make_response(jsonify({'error': e}), 401)
+    #return jsonify({'info': 'success'})
+
+
+@app.route('/vendors/<path:value>', methods=['DELETE'])
+@auth.login_required
+def delete_vendor(value):
+    LOGGER.info('Deleting vendor on path {}'.format(value))
+    username = request.authorization['username']
+    LOGGER.debug('Checking authorization for user {}'.format(username))
+    accessRigths = None
     try:
-        http_request(
-            protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name +
-            ',' + revision + ',' + organization, 'DELETE', None, credentials, 'application/vnd.yang.data+json')
-    except urllib2.HTTPError as e:
-        make_response(jsonify({'error': e.msg}), 401)
-    return jsonify({'info': 'success'})
+        db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
+        # prepare a cursor object using cursor() method
+        cursor = db.cursor()
+        # execute SQL query using execute() method.
+        cursor.execute("SELECT * FROM `users`")
+        data = cursor.fetchall()
+
+        for row in data:
+            if row[1] == username:
+                accessRigths = row[8]
+                break
+        db.close()
+    except MySQLdb.MySQLError as err:
+        LOGGER.error('Cannot connect to database. MySQL error: {}'.format(err))
+
+    rights = accessRigths.split('/')
+    check_vendor = None
+    check_platform = None
+    check_software_version = None
+    check_software_flavor = None
+    if not rights[1] is '':
+        check_vendor = rights[1]
+        if len(rights) > 2:
+            check_platform = rights[2]
+        if len(rights) > 3:
+            check_software_version = rights[3]
+        if len(rights) > 4:
+            check_software_flavor = rights[4]
+
+    path_to_delete = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/vendors/' \
+                     + value + '?deep'
+
+    vendor = None
+    platform = None
+    software_version = None
+    software_flavor = None
+    if '/vendor/' in path_to_delete:
+        vendor = path_to_delete.split('?deep')[0].split('/vendor/')[1].split('/')[0]
+    if '/platform/' in path_to_delete:
+        platform = path_to_delete.split('?deep')[0].split('/platform/')[1].split('/')[0]
+    if '/software-version/' in path_to_delete:
+        software_version = path_to_delete.split('?deep')[0].split('/software-version/')[1].split('/')[0]
+    if 'software-version/' in path_to_delete:
+        software_flavor = path_to_delete.split('?deep')[0].split('/software-version/')[1].split('/')[0]
+
+    if check_platform and platform != check_platform:
+        return unauthorized()
+    if check_software_version and software_version != check_software_version:
+        return unauthorized()
+    if check_software_flavor and software_flavor != check_software_flavor:
+        return unauthorized()
+    if check_vendor and vendor != check_vendor:
+        return unauthorized()
+
+    arguments = [vendor, platform, software_version, software_flavor, protocol, confd_ip, confdPort, credentials[0],
+                 credentials[1], path_to_delete, 'DELETE']
+    job_id = sender.send('#'.join(arguments))
+
+    LOGGER.info('job_id {}'.format(job_id))
+    return jsonify({'info': 'Verification successful', 'job-id': job_id})
 
 
 @app.route('/modules', methods=['PUT', 'POST'])
@@ -260,7 +367,7 @@ def add_modules():
         if request.method == 'POST':
             try:
                 path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + \
-                       mod['name'] + ',' + mod['revision']
+                       mod['name'] + ',' + mod['revision'] + ',' + mod['organization']
                 http_request(path, 'GET', None, credentials, 'application/vnd.yang.data+json')
                 continue
             except urllib2.HTTPError as e:
@@ -280,7 +387,7 @@ def add_modules():
             branch = sdo.get('branch')
         else:
             branch = 'master'
-        save_to = direc + '/temp/' + sdo['owner'] + '/' + sdo['repository'].split('.')[0]\
+        save_to = direc + '/temp/' + sdo['owner'] + '/' + sdo['repository'].split('.')[0] \
                   + '/' + branch + '/' + directory
         try:
             os.makedirs(save_to)
@@ -336,7 +443,7 @@ def add_modules():
     LOGGER.debug('Sending a new job')
     arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port", repr(confdPort), "--dir",
                  direc + "/temp", "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1],
-                 repr(tree_created)]
+                 repr(tree_created), protocol]
     job_id = sender.send('#'.join(arguments))
     LOGGER.info('job_id {}'.format(job_id))
     if len(warning) > 0:
@@ -399,8 +506,8 @@ def add_vendors():
         else:
             branch = 'master'
         directory = '/'.join(capability['path'].split('/')[:-1])
-        save_to = direc + '/temp/' + capability['owner'] + '/'\
-            + capability['repository'].split('.')[0] + '/' + branch + '/' + directory
+        save_to = direc + '/temp/' + capability['owner'] + '/' \
+                  + capability['repository'].split('.')[0] + '/' + branch + '/' + directory
 
         try:
             shutil.copytree(repo[repo_url].localdir + '/' + directory, save_to,
@@ -416,7 +523,7 @@ def add_vendors():
         repo[key].remove()
     arguments = ["python", "../parseAndPopulate/populate.py", "--port", repr(confdPort), "--dir", direc + "/temp",
                  "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1], repr(tree_created),
-                 integrity_file_location]
+                 integrity_file_location, protocol]
     job_id = sender.send('#'.join(arguments))
     LOGGER.info('job_id {}'.format(job_id))
     return jsonify({'info': 'Verification successful', 'job-id': job_id})
@@ -433,13 +540,15 @@ def search(value):
                    'conformance-type', 'module-type', 'organization', 'yang-version', 'name', 'revision']
     for module_key in module_keys:
         if key == module_key:
-            path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules?deep'
-            try:
-                data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
-            except:
-                return not_found()
+            data = get_modules()
+            #path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules?deep'
+            #try:
+            #    data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
+            #except:
+            #    return not_found()
+
             passed_data = []
-            data = data['yang-catalog:modules']['module']
+            data = json.loads(data.get_data())['module']
             for module in data:
                 count = -1
                 process(module, passed_data, value, module, split, count)
@@ -468,54 +577,108 @@ def search_vendors(value):
 @app.route('/search/modules/<name>,<revision>,<organization>', methods=['GET'])
 def search_module(name, revision, organization):
     LOGGER.info('Searching for module {}, {}, {}'.format(name, revision, organization))
-    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name + ',' +\
-        revision + ',' + organization + '?deep'
-    try:
-        data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
-    except:
-        return not_found()
+    data = json.loads(get_modules().get_data())['module']
+    for mod in data:
+        if mod['name'] == name and mod['revision'] == revision and mod['organization'] == organization:
+            return Response(json.dumps({
+                'module': [mod]
+            }), mimetype='application/json')
+    #path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name + ',' + \
+    #       revision + ',' + organization + '?deep'
+    #try:
+    #    data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
+    #except:
+    #    return not_found()
     return Response(json.dumps(data), mimetype='application/json')
 
 
 @app.route('/search/modules', methods=['GET'])
 def get_modules():
     LOGGER.info('Searching for modules')
-    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules?deep'
+    response = 'work'
     try:
-        data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
-    except:
-        return not_found()
-    return Response(json.dumps(data), mimetype='application/json')
+        with open('./cache/catalog.json', 'r') as catalog:
+            modules_data = json.load(catalog)['yang-catalog:catalog']['modules']
+    except IOError:
+        LOGGER.warning('Cache file does not exist')
+        # Try to create a cache if not created yet and load data again
+        response = make_cache(credentials, response)
+        if response != 'work':
+            LOGGER.error('Could not load or create cache')
+            return jsonify({'error': response}, 500)
+        else:
+            try:
+                with open('./cache/catalog.json', 'r') as catalog:
+                    modules_data = json.load(catalog)['yang-catalog:catalog']['modules']
+            except:
+                LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
+                return not_found()
+
+    return Response(json.dumps(modules_data), mimetype='application/json')
 
 
 @app.route('/search/vendors', methods=['GET'])
 def get_vendors():
     LOGGER.info('Searching for vendors')
-    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/vendors/?deep'
+    response = 'work'
     try:
-        data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
-    except:
-        return not_found()
-    return Response(json.dumps(data), mimetype='application/json')
+        with open('./cache/catalog.json', 'r') as catalog:
+            vendors_data = json.load(catalog)['yang-catalog:catalog']['vendors']
+    except IOError:
+        LOGGER.warning('Cache file does not exist')
+        # Try to create a cache if not created yet and load data again
+        response = make_cache(credentials, response)
+        if response != 'work':
+            LOGGER.error('Could not load or create cache')
+            return jsonify({'error': response}, 500)
+        else:
+            try:
+                with open('./cache/catalog.json', 'r') as catalog:
+                    vendors_data = json.load(catalog)['yang-catalog:catalog']['vendors']
+            except:
+                LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
+                return not_found()
+    return Response(json.dumps(vendors_data), mimetype='application/json')
 
 
 @app.route('/search/catalog', methods=['GET'])
 def get_catalog():
     LOGGER.info('Searching for catalog data')
-    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog?deep'
+    response = 'work'
     try:
-        data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
-    except:
-        return not_found()
-    return Response(json.dumps(data), mimetype='application/json')
+        with open('./cache/catalog.json', 'r') as catalog:
+            catalog_data = json.load(catalog)
+    except IOError:
+        LOGGER.warning('Cache file does not exist')
+        # Try to create a cache if not created yet and load data again
+        response = make_cache(credentials, response)
+        if response != 'work':
+            LOGGER.error('Could not load or create cache')
+            return jsonify({'error': response}, 500)
+        else:
+            try:
+                with open('./cache/catalog.json', 'r') as catalog:
+                    catalog_data = json.load(catalog)
+            except:
+                LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
+                return not_found()
+    return Response(json.dumps(catalog_data), mimetype='application/json')
 
 
 @app.route('/job/<job_id>', methods=['GET'])
 def get_job(job_id):
     LOGGER.info('Searching for job_id {}'.format(job_id))
     result = sender.get(job_id)
+    split = result.split('#split#')
+
+    reason = None
+    if split[0] == 'Failed':
+        result = split[0]
+        reason = split[1]
+
     return jsonify({'info': {'job-id': job_id,
-                             'result': result}
+                             'result': result,
+                             'reason': reason}
                     })
 
 
@@ -538,6 +701,7 @@ def process(data, passed_data, value, module, split, count):
 @auth.hash_password
 def hash_pw(password):
     return hashlib.sha256(password).hexdigest()
+
 
 @auth.get_password
 def get_password(username):
