@@ -1,6 +1,6 @@
 This directory contains OS/platform-specific YANG models for Cisco's NX-OS platforms.
 
-The directory is _currently_ organized by OS-version, with each sub-directory containing the models for that version. The OS version name follows the NX-OS version output of "show version" where '-' replaces parenthesis. Thus the YANG models for NX-OS 7.0(3)I5(1) will be in the subdirectory named "7.0-3-I5-1". Please note that this organization may change.
+The directory is _currently_ organized by OS-version, with each sub-directory containing the models for that version.
 
 A README file may exist in the version subdirectories with any specific notes relating to the models in the directory.
 
