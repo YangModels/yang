@@ -7,7 +7,7 @@
 # typically not available locally.
 #
 platform_dir="vendor/cisco/nx"
-to_check="7.0-3-F1-1 7.0-3-F2-1 7.0-3-F2-2 7.0-3-I5-1 7.0-3-I5-2 7.0-3-I6-1"
+to_check="7.0(3)F1(1) 7.0(3)F2(1) 7.0(3)F2(2) 7.0(3)I5(1) 7.0(3)I5(2) 7.0(3)I6(1)"
 inc_path=".:../../../../standard/ietf/RFC"
 pyang_flags=""
 debug="0"
@@ -31,7 +31,7 @@ checkDir () {
         fi
     done
     cd $cwd
-    
+
     if [ ! -z "$exit_status" ]; then
        exit 1
     fi

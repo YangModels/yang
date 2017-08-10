@@ -7,7 +7,7 @@
 # typically not available locally.
 #
 platform_dir="vendor/cisco/xe"
-to_check="1631 1631/MIBS 1632 1632/MIBS 1641 1641/MIBS 1651 1651/MIBS 1661 1661/MIBS"
+to_check="16.3.1 16.3.1/MIBS 16.3.2 16.3.2/MIBS 16.4.1 16.4.1/MIBS 16.5.1 16.5.1/MIBS 16.6.1 16.6.1/MIBS"
 inc_path="../../../../standard/ietf/RFC"
 debug=0
 
@@ -32,7 +32,7 @@ checkDir () {
         fi
     done
     cd $cwd
-    
+
     if [ ! -z "$exit_status" ]; then
 	   exit 1
     fi
