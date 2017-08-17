@@ -37,6 +37,7 @@ NS_MAP = {
     "http://openconfig.net/yang/": "openconfig",
     "http://tail-f.com/": "tail-f"
 }
+mod_lookup_table = {}
 
 
 def make_cache(credentials, response):
@@ -174,6 +175,12 @@ def authorize_for_vendors(request, body):
     return 'passed'
 
 
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>', methods=['PUT', 'POST', 'GET', 'DELETE', 'PATCH'])
+def catch_all(path):
+    return make_response(jsonify({'error': 'Path "/{}" does not exist'.format(path)}), 400)
+
+
 @app.route('/checkComplete', methods=['POST'])
 @auth.login_required
 def check_local():
@@ -242,21 +249,17 @@ def delete_modules(name, revision, organization):
     path_to_delete = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name\
         + ',' + revision + ',' + organization
 
+    api_protocol = 'http'
+    api_port = 5000
+    if ssl_key != '':
+        api_protocol = 'https'
+        api_port = 8443
     arguments = [protocol, confd_ip, repr(confdPort), credentials[0],
-                 credentials[1], path_to_delete, 'DELETE']
+                 credentials[1], path_to_delete, 'DELETE', api_protocol, repr(api_port)]
     job_id = sender.send('#'.join(arguments))
 
     LOGGER.info('job_id {}'.format(job_id))
     return jsonify({'info': 'Verification successful', 'job-id': job_id})
-
-    #try:
-    #    http_request(
-    #        protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name +
-    #        ',' + revision + ',' + organization, 'DELETE', None, credentials, 'application/vnd.yang.data+json')
-    #except URLError as e:
-    #    LOGGER.error('Could not delete module on path {} {} {}'.format(name, revision, organization))
-    #    return make_response(jsonify({'error': e}), 401)
-    #return jsonify({'info': 'success'})
 
 
 @app.route('/vendors/<path:value>', methods=['DELETE'])
@@ -321,8 +324,13 @@ def delete_vendor(value):
     if check_vendor and vendor != check_vendor:
         return unauthorized()
 
+    api_protocol = 'http'
+    api_port = 5000
+    if ssl_key != '':
+        api_protocol = 'https'
+        api_port = 8443
     arguments = [vendor, platform, software_version, software_flavor, protocol, confd_ip, confdPort, credentials[0],
-                 credentials[1], path_to_delete, 'DELETE']
+                 credentials[1], path_to_delete, 'DELETE', api_protocol, repr(api_port)]
     job_id = sender.send('#'.join(arguments))
 
     LOGGER.info('job_id {}'.format(job_id))
@@ -440,10 +448,15 @@ def add_modules():
 
     for key in repo:
         repo[key].remove()
+    api_protocol = 'http'
+    api_port = 5000
+    if ssl_key != '':
+        api_protocol = 'https'
+        api_port = 8443
     LOGGER.debug('Sending a new job')
     arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port", repr(confdPort), "--dir",
                  direc + "/temp", "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1],
-                 repr(tree_created), protocol]
+                 repr(tree_created), protocol, api_protocol, repr(api_port)]
     job_id = sender.send('#'.join(arguments))
     LOGGER.info('job_id {}'.format(job_id))
     if len(warning) > 0:
@@ -521,9 +534,14 @@ def add_vendors():
 
     for key in repo:
         repo[key].remove()
+    api_protocol = 'http'
+    api_port = 5000
+    if ssl_key != '':
+        api_protocol = 'https'
+        api_port = 8443
     arguments = ["python", "../parseAndPopulate/populate.py", "--port", repr(confdPort), "--dir", direc + "/temp",
                  "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1], repr(tree_created),
-                 integrity_file_location, protocol]
+                 integrity_file_location, protocol, api_protocol, repr(api_port)]
     job_id = sender.send('#'.join(arguments))
     LOGGER.info('job_id {}'.format(job_id))
     return jsonify({'info': 'Verification successful', 'job-id': job_id})
@@ -532,23 +550,17 @@ def add_vendors():
 # Generic read-only get request
 @app.route('/search/<path:value>', methods=['GET'])
 def search(value):
+    path = value
     LOGGER.info('Searching for {}'.format(value))
     split = value.split('/')[:-1]
     key = '/'.join(value.split('/')[:-1])
     value = value.split('/')[-1]
     module_keys = ['ietf/ietf-wg', 'maturity-level', 'document-name', 'author-email', 'compilation-status',
-                   'conformance-type', 'module-type', 'organization', 'yang-version', 'name', 'revision']
+                   'conformance-type', 'module-type', 'organization', 'yang-version', 'name', 'revision', 'tree-type']
     for module_key in module_keys:
         if key == module_key:
-            data = get_modules()
-            #path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules?deep'
-            #try:
-            #    data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
-            #except:
-            #    return not_found()
-
+            data = modules_data['module']
             passed_data = []
-            data = json.loads(data.get_data())['module']
             for module in data:
                 count = -1
                 process(module, passed_data, value, module, split, count)
@@ -560,7 +572,9 @@ def search(value):
                     }
                 }), mimetype='application/json')
             else:
-                return Response(mimetype='application/json', status=204)
+                return Response(mimetype='application/json', status=404)
+    return Response(json.dumps({'error': 'Search on path {} is not supported'.format(path)})
+                    , mimetype='application/json', status=400)
 
 
 @app.route('/search/vendors/<path:value>', methods=['GET'])
@@ -577,67 +591,28 @@ def search_vendors(value):
 @app.route('/search/modules/<name>,<revision>,<organization>', methods=['GET'])
 def search_module(name, revision, organization):
     LOGGER.info('Searching for module {}, {}, {}'.format(name, revision, organization))
-    data = json.loads(get_modules().get_data())['module']
-    for mod in data:
-        if mod['name'] == name and mod['revision'] == revision and mod['organization'] == organization:
-            return Response(json.dumps({
-                'module': [mod]
-            }), mimetype='application/json')
-    #path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name + ',' + \
-    #       revision + ',' + organization + '?deep'
-    #try:
-    #    data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
-    #except:
-    #    return not_found()
-    return Response(json.dumps(data), mimetype='application/json')
+    data = modules_data['module']
+    name = name.split('.yang')[0]
+
+    if name+'@'+revision+'/'+organization in mod_lookup_table:
+        LOGGER.info('Returning index {} for {}'.format(mod_lookup_table[name+'@'+revision+'/'+organization],
+                                                       name+'@'+revision+'/'+organization))
+        mod = data[mod_lookup_table[name+'@'+revision+'/'+organization]]
+        return Response(json.dumps({
+            'module': [mod]
+        }), mimetype='application/json')
+    return not_found()
 
 
 @app.route('/search/modules', methods=['GET'])
 def get_modules():
     LOGGER.info('Searching for modules')
-    response = 'work'
-    try:
-        with open('./cache/catalog.json', 'r') as catalog:
-            modules_data = json.load(catalog)['yang-catalog:catalog']['modules']
-    except IOError:
-        LOGGER.warning('Cache file does not exist')
-        # Try to create a cache if not created yet and load data again
-        response = make_cache(credentials, response)
-        if response != 'work':
-            LOGGER.error('Could not load or create cache')
-            return jsonify({'error': response}, 500)
-        else:
-            try:
-                with open('./cache/catalog.json', 'r') as catalog:
-                    modules_data = json.load(catalog)['yang-catalog:catalog']['modules']
-            except:
-                LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
-                return not_found()
-
     return Response(json.dumps(modules_data), mimetype='application/json')
 
 
 @app.route('/search/vendors', methods=['GET'])
 def get_vendors():
     LOGGER.info('Searching for vendors')
-    response = 'work'
-    try:
-        with open('./cache/catalog.json', 'r') as catalog:
-            vendors_data = json.load(catalog)['yang-catalog:catalog']['vendors']
-    except IOError:
-        LOGGER.warning('Cache file does not exist')
-        # Try to create a cache if not created yet and load data again
-        response = make_cache(credentials, response)
-        if response != 'work':
-            LOGGER.error('Could not load or create cache')
-            return jsonify({'error': response}, 500)
-        else:
-            try:
-                with open('./cache/catalog.json', 'r') as catalog:
-                    vendors_data = json.load(catalog)['yang-catalog:catalog']['vendors']
-            except:
-                LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
-                return not_found()
     return Response(json.dumps(vendors_data), mimetype='application/json')
 
 
@@ -680,6 +655,45 @@ def get_job(job_id):
                              'result': result,
                              'reason': reason}
                     })
+
+
+@app.route('/load-cache', methods=['POST'])
+def load_to_memory():
+    load(False)
+    return make_response(jsonify({'info': 'Success'}), 201)
+
+
+def load(on_start):
+    if on_start:
+        LOGGER.info('Removinch cache file and loading new one - this is done only when API is starting to get fresh'
+                    ' data')
+        shutil.rmtree('./cache')
+    global modules_data
+    global vendors_data
+    global mod_lookup_table
+    response = 'work'
+    try:
+        with open('./cache/catalog.json', 'r') as catalog:
+            cat = json.load(catalog)['yang-catalog:catalog']
+            modules_data = cat['modules']
+            vendors_data = cat['vendors']
+    except (IOError, ValueError):
+        LOGGER.warning('Cache file does not exist')
+        # Try to create a cache if not created yet and load data again
+        response = make_cache(credentials, response)
+        if response != 'work':
+            LOGGER.error('Could not load or create cache')
+        else:
+            try:
+                with open('./cache/catalog.json', 'r') as catalog:
+                    cat = json.load(catalog)['yang-catalog:catalog']
+                    modules_data = cat['modules']
+                    vendors_data = cat['vendors']
+            except:
+                LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
+    for i, mod in enumerate(modules_data['module']):
+        mod_lookup_table[mod['name'] + '@' + mod['revision'] + '/' + mod['organization']] = i
+    LOGGER.info('Data loaded into memory successfully')
 
 
 def process(data, passed_data, value, module, split, count):
@@ -769,9 +783,12 @@ if __name__ == '__main__':
     ip = config.get('SectionOne', 'ip')
     port = int(config.get('SectionOne', 'port'))
     debug = config.get('SectionOne', 'debug')
-    key = config.get('SectionOne', 'ssl-key')
+    global ssl_key
+    ssl_key = config.get('SectionOne', 'ssl-key')
     cert = config.get('SectionOne', 'ssl-cert')
     log = open('api_log_file.txt', 'w')
     if cert:
-        ssl_context = (cert, key)
-    app.run(host=ip, debug=debug, port=port, ssl_context=ssl_context)
+        ssl_context = (cert, ssl_key)
+    load(True)
+    app.run()
+

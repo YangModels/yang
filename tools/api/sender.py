@@ -1,3 +1,4 @@
+import threading
 import uuid
 
 import pika
@@ -16,11 +17,17 @@ class Sender:
 
         self.channel = self.connection.channel()
 
-        result = self.channel.queue_declare(exclusive=True)
+        result = self.channel.queue_declare(durable=True, exclusive=True)
         self.callback_queue = result.method.queue
         self.channel.basic_consume(self.on_response, no_ack=True,
                                    queue=self.callback_queue)
         self.response = {}
+        threading.Timer(120, self.keep_alive).start()
+
+    def keep_alive(self):
+        LOGGER.debug('Keeping alive the connection in between api and receiver')
+        self.connection.process_data_events()
+        threading.Timer(120, self.keep_alive).start()
 
     def on_response(self, ch, method, props, body):
         self.response[props.correlation_id] = body

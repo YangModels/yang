@@ -8,6 +8,7 @@ import subprocess
 import unicodedata
 import urllib2
 import xml.etree.ElementTree as ET
+from multiprocessing.pool import ThreadPool
 from subprocess import PIPE
 
 from numpy.f2py.auxfuncs import throw_error
@@ -110,7 +111,7 @@ def get_tree_type(yang_file):
         pyang = subprocess.Popen(arguments, stdout=PIPE, stderr=PIPE)
         stdout, stderr = pyang.communicate()
         if 'error' in stderr and 'is not found' in stderr:
-            LOGGER.warning('Could not use pyang to generate tree because of error {} on module {}'.
+            LOGGER.debug('Could not use pyang to generate tree because of error {} on module {}'.
                         format(stderr, yang_file))
             return 'unclassified'
         elif stdout == '':
@@ -398,7 +399,7 @@ class Capability:
                 self.software_flavor = 'ALL' #self.os + '|' + self.os_version
             integrity_checker.add_platform('/'.join(self.split[:-2]), self.platform)
 
-        LOGGER.debug('Loading Benoit\'s compilation statused and results')
+        LOGGER.debug('Loading Benoit\'s compilation statuses and results')
         self.ietf_rfc_json = {}
         self.ietf_draft_json = {}
         self.ietf_draft_example_json = {}
@@ -571,7 +572,7 @@ class Capability:
             for sdo in sdos_list:
                 file_name = unicodedata.normalize('NFKD', sdo['source-file']['path'].split('/')[-1])\
                     .encode('ascii', 'ignore')
-                LOGGER.debug('Parsing sdo file {}'.format(file_name))
+                LOGGER.info('Parsing sdo file sent via API{}'.format(file_name))
                 self.owner = sdo['source-file']['owner']
                 repo_file_path = sdo['source-file']['path']
                 self.branch = sdo['source-file'].get('branch')
@@ -588,7 +589,6 @@ class Capability:
                 self.parsed_yang = None
                 prefix = {}
                 yang_version = {}
-                organization = {}
                 contact = {}
                 includes = {}
                 imports = {}
@@ -649,19 +649,13 @@ class Capability:
 
                     if generated_from is None:
                         generated_from = create_generated_from(namespace.get(file_name), file_name)
-                    for ns, org in NS_MAP.items():
-                        if ns in namespace.get(file_name):
-                            organization[file_name] = org
-                    if organization.get(file_name) is None:
-                        if 'urn:' in namespace[file_name]:
-                            organization[file_name] = namespace[file_name].split('urn:')[1].split(':')[0]
-                    if organization.get(file_name) is None:
-                        self.find_yang_var(organization, 'organization', file_name, root + '/' + file_name)
+                    organization = unicodedata.normalize('NFKD', self.get_json(sdo.get('organization'))) \
+                        .encode('ascii', 'ignore')
                     name = file_name.split('.')[0]
-                    self.prepare.add_key_sdo(name + '@' + revision.get(file_name) + ',' + organization.get(file_name),
+                    self.prepare.add_key_sdo(name + '@' + revision.get(file_name) + ',' + organization,
                                              namespace.get(file_name),
                                              conformance_type, reference, prefix.get(file_name),
-                                             yang_version.get(file_name), organization.get(file_name),
+                                             yang_version.get(file_name), organization,
                                              description.get(file_name), contact.get(file_name), schema,
                                              features.get(file_name),
                                              self.get_submodule_info(includes.get(file_name)['name']),
@@ -674,7 +668,7 @@ class Capability:
             for root, subdirs, sdos in os.walk('/'.join(self.split)):
                 for file_name in sdos:
                     if '.yang' in file_name and ('vendor' not in root or 'odp' not in root):
-                        LOGGER.debug('Parsing sdo file {}'.format(file_name))
+                        LOGGER.info('Parsing sdo file from directory {}'.format(file_name))
                         self.parsed_yang = None
                         prefix = {}
                         yang_version = {}
@@ -800,6 +794,7 @@ class Capability:
         # netconf capability parsing
         modules = self.root.iter(tag.split('hello')[0] + 'capability')
         for module in modules:
+        #def nieco(module):
             LOGGER.debug('Getting capabilities out of hello message')
             # Parse netconf version
             if ':netconf:base:' in module.text:
@@ -816,7 +811,7 @@ class Capability:
                 module_and_more = module.text.split('module=')[1]
                 module_name = module_and_more.split('&')[0]
                 module_names.append(module_name)
-                LOGGER.debug('Starting to parse module {}'.format(module_name))
+                LOGGER.info('Starting to parse module {}'.format(module_name))
                 devs = {}
                 revs = []
                 # Parse deviations of the module
@@ -970,7 +965,7 @@ class Capability:
         #    module_names.append(module_name)
         #    namespace[module_name] = module.find('namespace').text
         #    revision[module_name] = module.find('revision').text
-        #    #schema[module_name] = module.find('schema').text
+        #    #schema[module_name] = module.find('schema').text`
         #    conformance_type[module_name] = module.find('conformance-type').text
         #    devs = {}
         #    names = []
@@ -1057,6 +1052,10 @@ class Capability:
                     }]
                 }
             }, ietf_model)
+        #pool = ThreadPool(1)
+        #pool.map(nieco, modules)
+        #pool.close()
+        #pool.join()
 
     def get_deviations(self, deviations, key):
         if deviations[key] is None:
