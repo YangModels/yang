@@ -77,7 +77,7 @@ if __name__ == "__main__":
                     raise
         direc = repr(direc)
     prefix = args.protocol + '://{}:{}'.format(args.ip, args.port)
-    LOGGER.debug('Calling runcapabilities script')
+    LOGGER.info('Calling runcapabilities script')
     if args.api:
         if args.sdo:
             with open("log_api_sdo.txt", "wr") as f:
@@ -103,7 +103,7 @@ if __name__ == "__main__":
                 subprocess.check_call(arguments, stderr=f)
                 # os.system("python runCapabilities.py --dir " + args.dir)
 
-    LOGGER.debug('Populating yang catalog with data. Starting to add modules')
+    LOGGER.info('Populating yang catalog with data. Starting to add modules')
     for filename_prepare in find_files('../parseAndPopulate/' + direc, 'prepare.json'):
         with open(filename_prepare) as data_file:
             read = data_file.read()
@@ -122,7 +122,7 @@ if __name__ == "__main__":
             files.append(json.load(data_file))
 
     # In each json
-    LOGGER.debug('Starting to add vendors')
+    LOGGER.info('Starting to add vendors')
     for data in files:
         # Prepare json_data for put request - this request will prepare list vendors
         # to populate it with protocols and modules
@@ -132,5 +132,5 @@ if __name__ == "__main__":
                      args.credentials)
 
     if not args.api:
-        LOGGER.debug('Removing temporary json data')
+        LOGGER.info('Removing temporary json data')
         shutil.rmtree('./' + direc)

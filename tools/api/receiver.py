@@ -36,8 +36,8 @@ def http_request(path, method, json_data, http_credentials, header):
 
 def process_sdo(arguments):
     LOGGER.debug('Processing sdo')
-    tree_created = True if arguments[-1] == 'True' else False
-    arguments = arguments[:-2]
+    tree_created = True if arguments[-3] == 'True' else False
+    arguments = arguments[:-4]
     direc = '/'.join(arguments[6].split('/')[0:3])
 
     with open("log.txt", "wr") as f:
@@ -92,10 +92,10 @@ def send_to_indexing(file_to_index, credentials, confd_ip, sdo_type=False, body=
 
 def process_vendor(arguments):
     LOGGER.debug('Processing vendor')
-    tree_created = True if arguments[-3] == 'True' else False
-    integrity_file_location = arguments[-2]
+    tree_created = True if arguments[-5] == 'True' else False
+    integrity_file_location = arguments[-4]
 
-    arguments = arguments[:-3]
+    arguments = arguments[:-5]
     direc = '/'.join(arguments[5].split('/')[0:3])
 
     with open("log.txt", "wr") as f:
@@ -126,7 +126,7 @@ def process_vendor(arguments):
     return __response_type[1]
 
 
-def process_vendor_deletion(arguments):
+def process_vendor_deletion(arguments, api_protocol, api_port):
     vendor, platform, software_version, software_flavor = arguments[0:4]
     protocol, confd_ip, confdPort = arguments[4:7]
     credentials = arguments[7:9]
@@ -139,7 +139,7 @@ def process_vendor_deletion(arguments):
     except IOError:
         LOGGER.warning('Cache file does not exist')
         # Try to create a cache if not created yet and load data again
-        response = make_cache(credentials, response, protocol, confd_ip, confdPort)
+        response = make_cache(credentials, response, protocol, confd_ip, confdPort, api_protocol, api_port)
         if response != 'work':
             return response
         else:
@@ -221,7 +221,7 @@ def iterate_in_depth(value, modules):
                 iterate_in_depth(val, modules)
 
 
-def make_cache(credentials, response, protocol, confd_ip, confd_port):
+def make_cache(credentials, response, protocol, confd_ip, confd_port, api_protocol, api_port):
     try:
         try:
             os.makedirs('./cache')
@@ -237,6 +237,13 @@ def make_cache(credentials, response, protocol, confd_ip, confd_port):
         e = sys.exc_info()[0]
         LOGGER.error('Could not load json to cache. Error: {}'.format(e))
         return __response_type[0] + '#split#Server error - downloading cache'
+    path = api_protocol + '://' + confd_ip + ':' + api_port + '/load-cache'
+    try:
+        http_request(path, 'POST', '', credentials, 'application/vnd.yang.data+json').read()
+    except:
+        e = sys.exc_info()[0]
+        LOGGER.error('Could not load json to memory-cache. Error: {}'.format(e))
+        return __response_type[0] + '#split#Server error - loading to memory'
     return response
 
 
@@ -256,30 +263,35 @@ def on_request(ch, method, props, body):
     LOGGER.info('Received request with body {}'.format(body))
     arguments = body.split('#')
 
-    if arguments[-1] == 'DELETE':
+    if arguments[-3] == 'DELETE':
         if 'http' in arguments[0]:
             response = process_module_deletion(arguments)
             credentials = arguments[3:5]
             protocol, confd_ip, confd_port = arguments[0:3]
+            api_protocol, api_port = arguments[-2:]
         else:
-            response = process_vendor_deletion(arguments)
+            api_protocol, api_port = arguments[-2:]
+            response = process_vendor_deletion(arguments, api_protocol, api_port)
             credentials = arguments[7:9]
             protocol, confd_ip, confd_port = arguments[4:7]
+
     elif '--sdo' in arguments[2]:
         response = process_sdo(arguments)
         credentials = arguments[11:13]
         confd_ip = arguments[9]
         confd_port = arguments[4]
-        protocol = arguments[-1]
+        protocol = arguments[-3]
+        api_protocol, api_port = arguments[-2:]
     else:
         response = process_vendor(arguments)
         credentials = arguments[10:12]
         confd_ip = arguments[8]
         confd_port = arguments[3]
-        protocol = arguments[-1]
+        protocol = arguments[-3]
+        api_protocol, api_port = arguments[-2:]
 
     if response.split('#split#')[0] == __response_type[1]:
-        response = make_cache(credentials, response, protocol, confd_ip, confd_port)
+        response = make_cache(credentials, response, protocol, confd_ip, confd_port, api_protocol, api_port)
 
     ch.basic_publish(exchange='',
                      routing_key=props.reply_to,
