@@ -667,7 +667,11 @@ def load(on_start):
     if on_start:
         LOGGER.info('Removinch cache file and loading new one - this is done only when API is starting to get fresh'
                     ' data')
-        shutil.rmtree('./cache')
+        try:
+            shutil.rmtree('./cache')
+        except:
+            # Be happy if it doesn't exist
+            pass
     global modules_data
     global vendors_data
     global mod_lookup_table
@@ -790,5 +794,5 @@ if __name__ == '__main__':
     if cert:
         ssl_context = (cert, ssl_key)
     load(True)
-    app.run()
+    app.run(host=ip, debug=debug, port=port, ssl_context=ssl_context)
 
