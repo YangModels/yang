@@ -1,6 +1,7 @@
 import ConfigParser
 import argparse
 import base64
+import collections
 import errno
 import hashlib
 import json
@@ -246,8 +247,8 @@ def delete_modules(name, revision, organization):
     if read['yang-catalog:module'].get('implementations') is not None:
         return make_response(jsonify({'error': 'This module has reference in vendors branch'}), 400)
 
-    path_to_delete = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name\
-        + ',' + revision + ',' + organization
+    path_to_delete = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' \
+                     + name + ',' + revision + ',' + organization
 
     api_protocol = 'http'
     api_port = 5000
@@ -594,10 +595,10 @@ def search_module(name, revision, organization):
     data = modules_data['module']
     name = name.split('.yang')[0]
 
-    if name+'@'+revision+'/'+organization in mod_lookup_table:
-        LOGGER.info('Returning index {} for {}'.format(mod_lookup_table[name+'@'+revision+'/'+organization],
-                                                       name+'@'+revision+'/'+organization))
-        mod = data[mod_lookup_table[name+'@'+revision+'/'+organization]]
+    if name + '@' + revision + '/' + organization in mod_lookup_table:
+        LOGGER.info('Returning index {} for {}'.format(mod_lookup_table[name + '@' + revision + '/' + organization],
+                                                       name + '@' + revision + '/' + organization))
+        mod = data[mod_lookup_table[name + '@' + revision + '/' + organization]]
         return Response(json.dumps({
             'module': [mod]
         }), mimetype='application/json')
@@ -690,7 +691,8 @@ def load(on_start):
         else:
             try:
                 with open('./cache/catalog.json', 'r') as catalog:
-                    cat = json.load(catalog)['yang-catalog:catalog']
+                    cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict)\
+                        .decode(catalog.read())['yang-catalog:catalog']
                     modules_data = cat['modules']
                     vendors_data = cat['vendors']
             except:
@@ -795,4 +797,3 @@ if __name__ == '__main__':
         ssl_context = (cert, ssl_key)
     load(True)
     app.run(host=ip, debug=debug, port=port, ssl_context=ssl_context)
-
