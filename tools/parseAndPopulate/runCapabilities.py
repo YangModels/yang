@@ -316,34 +316,39 @@ if __name__ == "__main__":
             sdo = False
             prepare_vendor = prepare.Prepare("prepare")
             for search_dir in search_dirs:
-                for filename in find_files(search_dir, '*capabilit*.xml'):
-                    update = True
-                    if not args.api and args.save_modification_date:
-                        try:
-                            file_modification = open('fileModificationDate/' + '-'.join(filename.split('/')[-4:]) +
-                                                     '.txt', 'rw')
-                            time_in_file = file_modification.readline()
-                            if time_in_file in str(time.ctime(os.path.getmtime(filename))):
-                                update = False
-                                LOGGER.warning('{} is not modified. Skipping this file'.format(filename))
+                patterns = ['*ietf-yang-library*.xml', '*capabilit*.xml']
+                for pattern in patterns:
+                    for filename in find_files(search_dir, pattern):
+                        update = True
+                        if not args.api and args.save_modification_date:
+                            try:
+                                file_modification = open('fileModificationDate/' + '-'.join(filename.split('/')[-4:]) +
+                                                         '.txt', 'rw')
+                                time_in_file = file_modification.readline()
+                                if time_in_file in str(time.ctime(os.path.getmtime(filename))):
+                                    update = False
+                                    LOGGER.warning('{} is not modified. Skipping this file'.format(filename))
+                                    file_modification.close()
+                                else:
+                                    file_modification.seek(0)
+                                    file_modification.write(time.ctime(os.path.getmtime(filename)))
+                                    file_modification.truncate()
+                                    file_modification.close()
+                            except IOError:
+                                file_modification = open('fileModificationDate/' + '-'.join(filename.split('/')[-4:]) +
+                                                         '.txt', 'w')
+                                file_modification.write(str(time.ctime(os.path.getmtime(filename))))
                                 file_modification.close()
+                        if update:
+                            integrity = statistics.Statistics(filename)
+                            LOGGER.warning('Found xml source {}'.format(filename))
+                            capability = cap.Capability(filename, index, prepare_vendor, integrity, args.api, sdo,
+                                                        args.json_dir)
+                            if 'ietf-yang-library' in pattern:
+                                capability.parse_and_dump_yang_lib()
                             else:
-                                file_modification.seek(0)
-                                file_modification.write(time.ctime(os.path.getmtime(filename)))
-                                file_modification.truncate()
-                                file_modification.close()
-                        except IOError:
-                            file_modification = open('fileModificationDate/' + '-'.join(filename.split('/')[-4:]) +
-                                                     '.txt', 'w')
-                            file_modification.write(str(time.ctime(os.path.getmtime(filename))))
-                            file_modification.close()
-                    if update:
-                        integrity = statistics.Statistics(filename)
-                        LOGGER.warning('Found xml source'.format(filename))
-                        capability = cap.Capability(filename, index, prepare_vendor, integrity, args.api, sdo,
-                                                    args.json_dir)
-                        capability.parse_and_dump()
-                        index += 1
+                                capability.parse_and_dump()
+                            index += 1
             prepare_vendor.dump(args.json_dir)
 
     if integrity is not None:
