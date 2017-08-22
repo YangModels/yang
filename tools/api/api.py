@@ -677,6 +677,8 @@ def load(on_start):
     global vendors_data
     global mod_lookup_table
     response = 'work'
+    modules_data = ''
+    vendors_data = ''
     try:
         with open('./cache/catalog.json', 'r') as catalog:
             cat = json.load(catalog)['yang-catalog:catalog']
@@ -697,8 +699,9 @@ def load(on_start):
                     vendors_data = cat['vendors']
             except:
                 LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
-    for i, mod in enumerate(modules_data['module']):
-        mod_lookup_table[mod['name'] + '@' + mod['revision'] + '/' + mod['organization']] = i
+    if modules_data != '':
+        for i, mod in enumerate(modules_data['module']):
+            mod_lookup_table[mod['name'] + '@' + mod['revision'] + '/' + mod['organization']] = i
     LOGGER.info('Data loaded into memory successfully')
 
 

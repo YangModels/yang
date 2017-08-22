@@ -136,7 +136,6 @@ def get_tree_type(yang_file):
 
 
 def is_openconfig(rows, output):
-    #if 'openconfig' in output.split('\n')[0]:
         count_config = output.count('+-- config')
         count_state = output.count('+-- state')
         if count_config != count_state:
@@ -193,8 +192,6 @@ def is_openconfig(rows, output):
                     skip.append(x)
             row_number += 1
         return True
- #   else:
-  #      return False
 
 
 def is_combined(rows, output):
@@ -355,7 +352,7 @@ class Capability:
                     print(line.replace('&', '&amp;'), end='')
                 hello_file.close()
                 LOGGER.warning('Hello message file has & instead of &amp, automatically changing to &amp')
-            self.root = ET.parse(hello_message_file).getroot()
+                self.root = ET.parse(hello_message_file).getroot()
         # Split it so we can get vendor, os-type, os-version
         self.split = hello_message_file.split('/')
         self.hello_message_file = hello_message_file
@@ -425,6 +422,9 @@ class Capability:
         self.xe1651 = ''
         if '1651' in self.split:
             self.xe1651 = load_json_from_url('http://www.claise.be/CiscoXE1651.json')
+        self.xe1661 = ''
+        if '1661' in self.split:
+            self.xe1661 = load_json_from_url('http://www.claise.be/CiscoXE1661.json')
 
         self.xr611 = ''
         if '611' in self.split:
@@ -596,6 +596,7 @@ class Capability:
                 revision = {}
                 namespace = {}
                 features = {}
+                belongs_to = {}
                 LOGGER.debug('Parsing extractable metadata from file {}'.format(file_name))
                 module_submodule = module_or_submodule(root + '/' + file_name)
                 tree_type = get_tree_type(root + '/' + file_name)
@@ -635,7 +636,7 @@ class Capability:
                         module_classification = 'unknown'
                     if module_submodule == 'submodule':
                         LOGGER.debug('Getting parent information because file {} is a submodule'.format(file_name))
-                        belongs_to = {}
+
                         self.find_yang_var(belongs_to, 'belongs-to', file_name, root + '/' + file_name)
                         yang_file = find_first_file('/'.join(self.split[0:-1]), belongs_to[file_name] + '.yang'
                                                     , belongs_to[file_name] + '@*.yang')
@@ -644,6 +645,7 @@ class Capability:
                         self.find_yang_var(prefix, 'prefix', file_name, yang_file)
                         self.parsed_yang = None
                     else:
+                        belongs_to[file_name] = None
                         self.find_yang_var(namespace, 'namespace', file_name, root + '/' + file_name)
                         self.find_yang_var(prefix, 'prefix', file_name, root + '/' + file_name)
 
@@ -661,7 +663,7 @@ class Capability:
                                              self.get_submodule_info(includes.get(file_name)['name']),
                                              compilations_status, author_email, working_group, compilations_result,
                                              module_submodule, document_name, generated_from, None, tree_type,
-                                             module_classification)
+                                             module_classification, belongs_to.get(file_name))
 
         else:
             LOGGER.debug('Parsing sdo files from directory')
@@ -680,6 +682,7 @@ class Capability:
                         revision = {}
                         namespace = {}
                         features = {}
+                        belongs_to = {}
                         LOGGER.debug('Parsing extractable metadata from file {}'.format(file_name))
                         module_submodule = module_or_submodule(root + '/' + file_name)
                         tree_type = get_tree_type(root + '/' + file_name)
@@ -720,7 +723,6 @@ class Capability:
                             if module_submodule == 'submodule':
                                 LOGGER.debug(
                                     'Getting parent information because file {} is a submodule'.format(file_name))
-                                belongs_to = {}
                                 self.find_yang_var(belongs_to, 'belongs-to', file_name, root + '/' + file_name)
                                 yang_file = find_first_file('/'.join(self.split[0:-1]), belongs_to[file_name] + '.yang'
                                                             , belongs_to[file_name] + '@*.yang')
@@ -729,6 +731,7 @@ class Capability:
                                 self.find_yang_var(prefix, 'prefix', file_name, yang_file)
                                 self.parsed_yang = None
                             else:
+                                belongs_to[file_name] = None
                                 self.find_yang_var(namespace, 'namespace', file_name, root + '/' + file_name)
                                 self.find_yang_var(prefix, 'prefix', file_name, root + '/' + file_name)
                             generated_from = create_generated_from(namespace.get(file_name), file_name)
@@ -754,7 +757,304 @@ class Capability:
                                                      self.get_submodule_info(includes.get(file_name)['name']),
                                                      compilations_status, author_email, working_group,
                                                      compilations_result, module_submodule, document_name,
-                                                     generated_from, wg, tree_type, 'unknown')
+                                                     generated_from, wg, tree_type, 'unknown',
+                                                     belongs_to.get(file_name))
+
+    # parse capability xml and save to file
+    def parse_and_dump_yang_lib(self):
+        LOGGER.debug('Starting to parse files from vendor')
+        capability = []
+        module_names = []
+        name_revision = []
+        deviations = {}
+        features = {}
+        revision = {}
+        yang_version = {}
+        namespace = {}
+        prefix = {}
+        organization = {}
+        contact = {}
+        description = {}
+        includes = {}
+        imports = {}
+        conformance_type = {}
+        compilations_status = {}
+        working_group = {}
+        author_email = {}
+        netconf_version = ''
+        compilations_result = {}
+        organization_module = {}
+        belongs_to = {}
+
+        # netconf capability parsing
+        modules = self.root[0]
+        for module in modules:
+            if 'module-set-id' in module.tag:
+                continue
+            LOGGER.debug('Getting capabilities out of yang-library xml message')
+            module_name = None
+            for mod in module:
+                if 'name' in mod.tag:
+                    module_name = mod.text
+                    module_names.append(module_name)
+                    break
+            feature_names = []
+            LOGGER.info('Starting to parse {}'.format(module_name))
+            names = []
+            revs = []
+            for mod in module:
+                if 'revision' in mod.tag:
+                    revision[module_name] = mod.text
+                elif 'conformance-type' in mod.tag:
+                    conformance_type[module_name] = mod.text
+                elif 'feature' in mod.tag:
+                    feature_names.append(mod.text)
+                elif 'deviation' in mod.tag:
+                    names.append(mod[0].text)
+                    revs.append(mod[1].text)
+            features[module_name] = feature_names
+
+            devs = {}
+
+            # Parse deviations of the module
+            devs['name'] = names
+            devs['revision'] = revs
+            if len(devs['name']) == 0:
+                deviations[module_name] = None
+            else:
+                deviations[module_name] = devs
+
+            # Parse revision of the module from capability.xml file
+            my_var = revision[module_name]
+            if my_var is None:
+                my_var = ''
+                yang_file = find_first_file('/'.join(self.split[0:-1]), module_name + '.yang',
+                                            module_name + '.yang')
+                self.find_yang_var(revision, 'revision', module_name, yang_file)
+            name_revision.append(module_name + '@' + revision[module_name])
+            # Find yang file in the same directory as capability.xml file is
+            # so we can parse all needed fields out of it
+
+            yang_file = find_first_file('/'.join(self.split[0:-1]), module_name + '.yang',
+                                        module_name + '@' + my_var + '.yang')
+
+            if yang_file is None:
+                # In case we didn`t find the module try to look for it in any other directory of this project
+                self.integrity_checker.add_module(self.split, module_name)
+                yang_file = find_first_file('/'.join(self.split[0:1]), module_name + '.yang',
+                                            module_name + '@' + my_var + '.yang')
+            if yang_file is not None:
+                self.integrity_checker.remove_one(self.split, yang_file)
+            self.parsed_yang = None
+            namespace_exist = False
+            # Parse rest of the fields out of the yang file
+            self.find_yang_var(namespace, 'namespace', module_name, yang_file)
+            LOGGER.debug('Parsing organization for module {}'.format(module_name))
+            for ns, org in NS_MAP.items():
+                if self.os_version is '1651':
+                    if 'urn:cisco' in namespace[module_name]:
+                        if ns in namespace[module_name]:
+                            organization_module[module_name] = org
+                            namespace_exist = True
+                else:
+                    if ns in namespace[module_name]:
+                        organization_module[module_name] = org
+                        namespace_exist = True
+            if organization_module.get(module_name) is None:
+                if 'urn:' in namespace[module_name]:
+                    organization_module[module_name] = \
+                    namespace[module_name].split('urn:')[1].split(':')[0]
+                    namespace_exist = True
+
+            if not namespace_exist:
+                if organization_module.get(module_name) is None:
+                    organization_module[module_name] = MISSING_ELEMENT
+                if namespace[module_name] is None or namespace[module_name] == MISSING_ELEMENT:
+                    self.integrity_checker.add_namespace(self.split,
+                                                         module_name + ' : missing data')
+                    namespace[module_name] = MISSING_ELEMENT
+                    self.integrity_checker.add_namespace(self.split,
+                                                         module_name + ' : ' + namespace[
+                                                             module_name])
+
+            module_submodule = module_or_submodule(yang_file)
+            LOGGER.debug('Parsing extractable fields')
+            self.find_yang_var(prefix, 'prefix', module_name, yang_file)
+            self.find_yang_var(yang_version, 'yang-version', module_name, yang_file)
+            if 'urn:ietf:' in namespace:
+                organization[module_name] = 'ietf'
+            else:
+                self.find_yang_var(organization, 'organization', module_name, yang_file)
+            self.find_yang_var(contact, 'contact', module_name, yang_file)
+            self.find_yang_var(description, 'description', module_name, yang_file)
+            self.find_yang_var(includes, 'include', module_name, yang_file)
+            self.find_yang_var(imports, 'import', module_name, yang_file)
+            belongs_to[module_name] = None
+            tree_type = get_tree_type(yang_file)
+            reference = MISSING_ELEMENT
+            document_name = MISSING_ELEMENT
+            compilations_status[module_name] = self.parse_status(module_name,
+                                                                 revision[module_name])
+            if compilations_status[module_name] != 'passed':
+                compilations_result[module_name] = self.parse_result(module_name,
+                                                                     revision[module_name])
+            else:
+                compilations_result[module_name] = ''
+            author_email[module_name] = self.parse_email(module_name, revision[module_name])
+            working_group[module_name] = self.parse_maturityLevel(module_name,
+                                                                  revision[module_name])
+            if organization_module[module_name] == 'ietf':
+                wg = self.parse_wg(module_name, revision[module_name])
+            else:
+                wg = None
+
+            if yang_file:
+                if self.api:
+                    schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + \
+                             '/'.join(yang_file.split('/')[4:])
+                else:
+                    schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' \
+                             + '/'.join(yang_file.split('/')[4:])
+            else:
+                schema = None
+            self.prepare.add_key(
+                module_name + '@' + revision[module_name] + ',' + organization_module[
+                    module_name],
+                namespace[module_name],
+                conformance_type[module_name], self.vendor, self.platform,
+                self.software_version,
+                self.software_flavor, self.os, self.os_version, self.feature_set,
+                reference, prefix[module_name], yang_version[module_name],
+                # changed organization[module_name] for organization_module
+                organization_module[module_name], description[module_name],
+                contact[module_name],
+                compilations_status[module_name], author_email[module_name], schema,
+                features[module_name], working_group[module_name],
+                compilations_result[module_name], deviations[module_name],
+                self.get_submodule_info(includes[module_name]['name']), module_submodule,
+                document_name,
+                create_generated_from(namespace[module_name], module_name), wg, tree_type,
+                'unknown', belongs_to[module_name])
+
+            self.parse_imports_includes(includes[module_name]['name'], features, revision,
+                                        name_revision,
+                                        yang_version, namespace, prefix, organization, contact,
+                                        description,
+                                        includes, imports, conformance_type, deviations,
+                                        module_names,
+                                        compilations_status, author_email, working_group,
+                                        organization_module, True, module_name,
+                                        compilations_result, belongs_to)
+            self.parse_imports_includes(imports[module_name], features, revision, name_revision,
+                                        yang_version, namespace, prefix, organization, contact,
+                                        description,
+                                        includes, imports, conformance_type, deviations,
+                                        module_names,
+                                        compilations_status, author_email, working_group,
+                                        organization_module, False, module_name,
+                                        compilations_result, belongs_to)
+
+        # restconf capability parsing
+        # for module in self.root.iter('module'):
+        #    module_name = module.find('name').text
+        #    module_names.append(module_name)
+        #    namespace[module_name] = module.find('namespace').text
+        #    revision[module_name] = module.find('revision').text
+        #    #schema[module_name] = module.find('schema').text`
+        #    conformance_type[module_name] = module.find('conformance-type').text
+        #    devs = {}
+        #    names = []
+        #    revs = []
+        #    for dev in self.root.iter('deviation'):
+        #        names.append(dev.find('name').text)
+        #        if dev.find('revision').text is None:
+        #            revs.append('1500-01-01')
+        #        else:
+        #            revs.append(dev.find('revision').text)
+        #    devs['name'] = names
+        #    devs['revision'] = revs
+        #    deviations[module_name] = devs
+        #    objs = []
+        #    for feat in self.root.iter('feature'):
+        #        objs.append(feat.text)
+        #    features[module_name] = objs
+
+        #    # Find yang file in the same directory as capability.xml file is
+        #    # so we can parse all needed fields out of it
+        #    yang_file = find_first_file('/'.join(self.split[0:-1]), module_name + '.yang',
+        #                                module_name + '@' + revision[module_name] + '.yang')
+
+        #    if yang_file is None:
+        #        # In case we didn`t find the module try to look for it in any other directory of this project
+        #        self.integrity_checker.add_module(self.split, module_name)
+        #        yang_file = find_first_file('/'.join(self.split[0:2]), module_name + '.yang',
+        #                                    module_name + '@' + revision[module_name] + '.yang')
+
+        #    # Parse rest of the fields out of the yang file
+        #    self.find_yang_var(prefix, 'prefix', module_name, yang_file)
+        #    self.find_yang_var(yang_version, 'yang-version', module_name, yang_file)
+        #    self.find_yang_var(organization, 'organization', module_name, yang_file)
+        #    self.find_yang_var(contact, 'contact', module_name, yang_file)
+        #    self.find_yang_var(description, 'description', module_name, yang_file)
+        #    self.find_yang_var(reference, 'reference', module_name, yang_file)
+        #    self.find_yang_var(includes, 'include', module_name, yang_file)
+        #    self.find_yang_var(imports, 'import', module_name, yang_file)
+
+        self.integrity_checker.add_unique(name_revision)
+        # Write dictionary to file
+        # Create json dictionary out of parsed information
+        LOGGER.debug('Creating normal.json file for vendors branch')
+        with open('./' + self.json_dir + '/normal' + repr(self.index) + '.json', "w") as ietf_model:
+            json.dump({
+                'vendors': {
+                    'vendor': [{
+                        'name': self.vendor,
+                        'platforms': {
+                            'platform': [{
+                                'name': self.platform,
+                                'software-versions': {
+                                    'software-version': [{
+                                        'name': self.software_version,
+                                        'software-flavors': {
+                                            'software-flavor': [{
+                                                'name': self.software_flavor,
+                                                'protocols': {
+                                                    'protocol': [{
+                                                        'name': 'netconf',
+                                                        'capabilities': capability,
+                                                        'protocol-version': netconf_version,
+                                                    }]
+                                                },
+                                                'modules': {
+                                                    'module': [{
+                                                        'name': module_names[k],
+                                                        'revision': revision.get(module_names[k]),
+                                                        'organization': organization_module.get(
+                                                            module_names[k]),
+                                                        'os-version': self.os_version,
+                                                        'feature-set': self.feature_set,
+                                                        'os-type': self.os,
+                                                        'feature': features.get(module_names[k]),
+                                                        'deviation': self.get_deviations(deviations,
+                                                                                         module_names[
+                                                                                             k]),
+                                                        'conformance-type': conformance_type.get(
+                                                            module_names[k])
+                                                    } for k, val in enumerate(module_names)],
+                                                }
+                                            }]
+                                        }
+                                    }]
+                                }
+                            }]
+                        }
+                    }]
+                }
+            }, ietf_model)
+            # pool = ThreadPool(1)
+            # pool.map(nieco, modules)
+            # pool.close()
+            # pool.join()
 
     # parse capability xml and save to file
     def parse_and_dump(self):
@@ -781,6 +1081,7 @@ class Capability:
         netconf_version = ''
         compilations_result = {}
         organization_module = {}
+        belongs_to = {}
 
         # Parse deviations and features from each module from netconf hello message
         def deviations_and_features(search_for):
@@ -858,6 +1159,7 @@ class Capability:
                 name_revision.append(module_name + '@' + revision[module_name])
                 # Find yang file in the same directory as capability.xml file is
                 # so we can parse all needed fields out of it
+
                 yang_file = find_first_file('/'.join(self.split[0:-1]), module_name + '.yang',
                                             module_name + '@' + my_var + '.yang')
 
@@ -908,6 +1210,7 @@ class Capability:
                 self.find_yang_var(description, 'description', module_name, yang_file)
                 self.find_yang_var(includes, 'include', module_name, yang_file)
                 self.find_yang_var(imports, 'import', module_name, yang_file)
+                belongs_to[module_name] = None
                 tree_type = get_tree_type(yang_file)
                 reference = MISSING_ELEMENT
                 document_name = MISSING_ELEMENT
@@ -944,20 +1247,18 @@ class Capability:
                                      self.get_submodule_info(includes[module_name]['name']), module_submodule,
                                      document_name,
                                      create_generated_from(namespace[module_name], module_name), wg, tree_type,
-                                     'unknown')
-
-                #self.prepare.add_vendor_key()
+                                     'unknown', belongs_to[module_name])
 
                 self.parse_imports_includes(includes[module_name]['name'], features, revision, name_revision,
                                             yang_version, namespace, prefix, organization, contact, description,
                                             includes, imports, conformance_type, deviations, module_names,
                                             compilations_status, author_email, working_group,
-                                            organization_module, True, module_name, compilations_result)
+                                            organization_module, True, module_name, compilations_result, belongs_to)
                 self.parse_imports_includes(imports[module_name], features, revision, name_revision,
                                             yang_version, namespace, prefix, organization, contact, description,
                                             includes, imports, conformance_type, deviations, module_names,
                                             compilations_status, author_email, working_group,
-                                            organization_module, False, module_name, compilations_result)
+                                            organization_module, False, module_name, compilations_result, belongs_to)
 
         # restconf capability parsing
         #for module in self.root.iter('module'):
@@ -1102,7 +1403,7 @@ class Capability:
     def parse_imports_includes(self, imports_or_includes, features, revision, name_revision,
                                yang_version, namespace, prefix, organization, contact, description, includes,
                                imports, conformance_type, deviations, module_names, comp_status,
-                               email, wg, organization_module, is_include, parent, comp_result):
+                               email, wg, organization_module, is_include, parent, comp_result, belongs_to):
         if imports_or_includes is not None:
             for imp in imports_or_includes:
                 if imp not in module_names:
@@ -1123,7 +1424,9 @@ class Capability:
                         namespace[imp] = namespace[parent]
                         organization_module[imp] = organization_module[parent]
                         prefix[imp] = prefix[parent]
+                        self.find_yang_var(belongs_to, 'belongs-to', imp, yang_file)
                     else:
+                        belongs_to[imp] = None
                         self.find_yang_var(namespace, 'namespace', imp, yang_file)
                         namespace_exist = False
                         for ns, org in NS_MAP.items():
@@ -1196,18 +1499,18 @@ class Capability:
                                          deviations[imp], self.get_submodule_info(includes[imp]['name']),
                                          module_submodule, document_name,
                                          create_generated_from(namespace[imp], imp), working_group, tree_type,
-                                         'unknown')
+                                         'unknown', belongs_to[imp])
 
                     self.parse_imports_includes(includes[imp]['name'], features, revision, name_revision,
                                                 yang_version, namespace, prefix, organization, contact, description,
                                                 includes, imports, conformance_type, deviations, module_names
                                                 , comp_status, email, wg, organization_module, True
-                                                , parent, comp_result)
+                                                , parent, comp_result, belongs_to)
                     self.parse_imports_includes(imports[imp], features, revision, name_revision,
                                                 yang_version, namespace, prefix, organization, contact, description,
                                                 includes, imports, conformance_type, deviations, module_names
                                                 , comp_status, email, wg, organization_module, False
-                                                , parent, comp_result)
+                                                , parent, comp_result, belongs_to)
 
     def parse_status(self, module_name, revision):
         LOGGER.debug('Parsing status of module {}'.format(module_name))
@@ -1249,6 +1552,8 @@ class Capability:
             status = self.get_module_status(self.xe1641, module_name, revision, 0)
         if status == 'unknown':
             status = self.get_module_status(self.xe1651, module_name, revision, 0)
+        if status == 'unknown':
+            status = self.get_module_status(self.xe1661, module_name, revision, 0)
         if status == 'unknown':
             status = self.get_module_status(self.nx703f11, module_name, revision, 0)
         if status == 'unknown':
@@ -1428,6 +1733,9 @@ class Capability:
         if result != '':
             return result
         result = self.parse_res(module_name, revision, self.xe1651)
+        if result != '':
+            return result
+        result = self.parse_res(module_name, revision, self.xe1661)
         if result != '':
             return result
         result = self.parse_res(module_name, revision, self.xe1641)

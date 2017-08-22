@@ -31,11 +31,12 @@ class Prepare:
         self.working_group = {}
         self.tree_type = {}
         self.module_classification = {}
+        self.belongs_to = {}
 
     def add_key_sdo(self, key, namespace, conformance_type, reference, prefix, yang_version, organization, description,
                     contact, schema, feature, json_submodules, compilation_status, author_email, maturity_level,
                     compilation_result, module_or_submodule, document_name, generated_from, working_group, tree_type,
-                    module_classification):
+                    module_classification, belongs_to):
         LOGGER.debug('Adding sdo information to prepare.json file with key {} for modules branch'.format(key))
         self.name_revision.add(key)
         self.namespace[key] = namespace
@@ -59,12 +60,13 @@ class Prepare:
         self.working_group[key] = working_group
         self.tree_type[key] = tree_type
         self.module_classification[key] = module_classification
+        self.belongs_to[key] = belongs_to
 
     def add_key(self, key, namespace, conformance_type, vendor, platform, software_version, software_flavor, os_type,
                 os_version, feature_set, reference, prefix, yang_version, organization, description, contact,
                 compilation_status, author_email, schema, feature, maturity_level, compilation_result, deviations,
                 json_submodules, module_or_submodule, document_name, generated_from, working_group, tree_type,
-                module_classification):
+                module_classification, belongs_to):
         LOGGER.debug('Adding vendor information to prepare.json file with key {} for modules branch'.format(key))
         self.name_revision.add(key)
         self.namespace[key] = namespace
@@ -89,6 +91,7 @@ class Prepare:
         self.working_group[key] = working_group
         self.tree_type[key] = tree_type
         self.module_classification[key] = module_classification
+        self.belongs_to[key] = belongs_to
 
         if key not in self.implementations:
             self.implementations[key] = {}
