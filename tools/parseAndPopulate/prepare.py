@@ -136,6 +136,7 @@ class Prepare:
                 'description': self.description[key],
                 'contact': self.contact[key],
                 'module-type': self.module_or_submodule[key],
+                'belongs-to': self.belongs_to[key],
                 'tree-type': self.tree_type[key],
                 'ietf': {
                     'ietf-wg': self.working_group.get(key)
@@ -165,6 +166,7 @@ class Prepare:
                 'description': self.description[key],
                 'contact': self.contact[key],
                 'module-type': self.module_or_submodule[key],
+                'belongs-to':self.belongs_to[key],
                 'tree-type': self.tree_type[key],
                 'ietf': {
                    'ietf-wg': self.working_group[key]
