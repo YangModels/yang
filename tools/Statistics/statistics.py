@@ -83,21 +83,37 @@ def get_specifics(path_dir):
     passed = 0
     num_in_catalog = 0
     for mod_git in list_of_yang_modules_in_subdir(path_dir):
+        try:
+            revision = yangParser.parse(os.path.abspath(mod_git)).search('revision')[0].arg
+        except:
+            continue
         organization = resolve_organization(mod_git)
         name = mod_git.split('/')[-1].split('.')[0].split('@')[0]
-        revision = yangParser.parse(os.path.abspath(mod_git)).search('revision')[0].arg
         if revision is None:
             revision = '1500-01-01'
         if name is None or organization is None:
             continue
-        path = protocol + '://' + api_ip + ':' + api_port + '/search/modules/' + name + ',' + revision + ',' + \
-               organization
-        module_exist = http_request(path, 'GET', '', credentials.split(' '), 'application/vnd.yang.data+json')
-        if module_exist:
-            data = module_exist.read()
-            if 'passed' == json.loads(data)['module'][0]['compilation-status']:
-                passed += 1
-            num_in_catalog += 1
+        if ',' in organization:
+            path = protocol + '://' + api_ip + ':' + api_port + '/search/name/' + name
+            module_exist = http_request(path, 'GET', '', credentials.split(' '), 'application/vnd.yang.data+json')
+            if module_exist:
+                data = module_exist.read()
+                org = json.loads(data)['yang-catalog:modules']['module'][0]['organization']
+                rev = json.loads(data)['yang-catalog:modules']['module'][0]['revision']
+                status = json.loads(data)['yang-catalog:modules']['module'][0]['compilation-status']
+                if org == organization and rev == revision:
+                    if 'passed' == status:
+                        passed += 1
+                    num_in_catalog += 1
+        else:
+            path = protocol + '://' + api_ip + ':' + api_port + '/search/modules/' + name + ',' + revision + ',' + \
+                   organization
+            module_exist = http_request(path, 'GET', '', credentials.split(' '), 'application/vnd.yang.data+json')
+            if module_exist:
+                data = module_exist.read()
+                if 'passed' == json.loads(data)['module'][0]['compilation-status']:
+                    passed += 1
+                num_in_catalog += 1
     return [num_in_catalog, passed]
 
 
@@ -113,6 +129,8 @@ def resolve_organization(path):
         if organization == '':
             if 'urn:' in namespace:
                 organization = namespace.split('urn:')[1].split(':')[0]
+        if organization == '':
+            organization = yangParser.parse(os.path.abspath(path)).search('organization')[0].arg
     except:
         while True:
             try:
@@ -130,6 +148,8 @@ def resolve_organization(path):
                 if organization == '':
                     if 'urn:' in namespace:
                         organization = namespace.split('urn:')[1].split(':')[0]
+                if organization == '':
+                    organization = yangParser.parse(os.path.abspath(path)).search('organization')[0].arg
                 break
             except:
                 pass
@@ -239,10 +259,10 @@ if __name__ == '__main__':
     # Vendors sparately
     vendor_list = []
 
-    #process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', '../../vendor/cisco',
-    #                            '--removedup', 'True'], stdout=subprocess.PIPE)
-    #out, err = process.communicate()
-    #process_data(out, vendor_list, '../../vendor/cisco', 'cisco')
+    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', '../../vendor/cisco',
+                                '--removedup', 'True'], stdout=subprocess.PIPE)
+    out, err = process.communicate()
+    process_data(out, vendor_list, '../../vendor/cisco', 'cisco')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', '../../vendor/ciena',
                                 '--removedup', 'True'], stdout=subprocess.PIPE)
