@@ -4,6 +4,7 @@ import base64
 import fnmatch
 import json
 import os
+import shutil
 import subprocess
 import urllib2
 from urllib2 import URLError
@@ -11,7 +12,7 @@ from urllib2 import URLError
 import jinja2
 
 import tools.utility.log as log
-from tools.parseAndPopulate import yangParser
+from tools.utility import yangParser
 
 LOGGER = log.get_logger('statistics')
 
@@ -175,16 +176,18 @@ def process_data(out, save_list, path, name):
 if __name__ == '__main__':
     LOGGER.info('Starting statistics')
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config-path', type=str, default='./config.ini',
+    parser.add_argument('--config-path', type=str, default='../utility/config.ini',
                         help='Set path to config file')
     LOGGER.info('Loading all configuration')
     args = parser.parse_args()
+    config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
-    config.read(args.config_path)
-    protocol = config.get('SectionOne', 'protocol')
-    api_ip = config.get('SectionOne', 'api-ip')
-    api_port = config.get('SectionOne', 'api-port')
-    credentials = config.get('SectionOne', 'credentials')
+    config.read(config_path)
+    protocol = config.get('Statistics-Section', 'protocol')
+    api_ip = config.get('Statistics-Section', 'api-ip')
+    api_port = config.get('Statistics-Section', 'api-port')
+    credentials = config.get('Statistics-Section', 'credentials')
+    move_to = config.get('Statistics-Section', 'file-location')
 
     path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco'
     vendors_data = json.loads(http_request(path, 'GET', '', credentials.split(' '), 'application/json').read())
@@ -369,6 +372,8 @@ if __name__ == '__main__':
                'xe_values': xe_values,
                'xr_values': xr_values}
     LOGGER.info('Rendering data')
-    result = render('stats.html', context)
-    with open('./my.html', 'w+') as f:
+    result = render('./template/stats.html', context)
+    with open('./statistics.html', 'w+') as f:
         f.write(result)
+
+    shutil.move('./statistics.html', move_to)

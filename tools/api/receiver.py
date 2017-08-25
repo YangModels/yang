@@ -329,14 +329,15 @@ def on_request(ch, method, props, body):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config-path', type=str, default='./config_receiver.ini',
+    parser.add_argument('--config-path', type=str, default='../utility/config.ini',
                         help='Set path to config file')
     LOGGER.debug('Starting receiver')
     args = parser.parse_args()
+    config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
-    config.read(args.config_path)
+    config.read(config_path)
     global key
-    key = config.get('SectionOne', 'key')
+    key = config.get('Receiver-Section', 'key')
     __response_type = ['Failed', 'Finished successfully']
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='127.0.0.1'))
     channel = connection.channel()

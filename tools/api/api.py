@@ -20,10 +20,9 @@ from OpenSSL.crypto import load_publickey, FILETYPE_PEM, X509, verify
 from flask import Flask, jsonify, abort, make_response, request, Response
 from flask_httpauth import HTTPBasicAuth
 
-import repoutil
 import tools.utility.log as lo
 from tools.api.sender import Sender
-from tools.parseAndPopulate import yangParser
+from tools.utility import repoutil, yangParser
 
 LOGGER = lo.get_logger('api')
 url = 'https://github.com/'
@@ -808,42 +807,43 @@ def unauthorized():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config-path', type=str, default='./config.ini',
+    parser.add_argument('--config-path', type=str, default='../utility/config.ini',
                         help='Set path to config file')
     LOGGER.info('Loading all configuration')
     args = parser.parse_args()
+    config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
-    config.read(args.config_path)
+    config.read(config_path)
     global sender
     sender = Sender()
     global dbHost
-    dbHost = config.get('SectionOne', 'dbIp')
+    dbHost = config.get('API-Section', 'dbIp')
     global dbName
-    dbName = config.get('SectionOne', 'dbName')
+    dbName = config.get('API-Section', 'dbName')
     global dbUser
-    dbUser = config.get('SectionOne', 'dbUser')
+    dbUser = config.get('API-Section', 'dbUser')
     global dbPass
-    dbPass = config.get('SectionOne', 'dbPassword')
+    dbPass = config.get('API-Section', 'dbPassword')
     global credentials
-    credentials = config.get('SectionOne', 'credentials').split(' ')
+    credentials = config.get('API-Section', 'credentials').split(' ')
     global confd_ip
-    confd_ip = config.get('SectionOne', 'confd-ip')
+    confd_ip = config.get('API-Section', 'confd-ip')
     global confdPort
-    confdPort = int(config.get('SectionOne', 'confd-port'))
+    confdPort = int(config.get('API-Section', 'confd-port'))
     global protocol
-    protocol = config.get('SectionOne', 'protocol')
+    protocol = config.get('API-Section', 'protocol')
     global token
-    token = config.get('SectionOne', 'yang-catalog-token')
+    token = config.get('API-Section', 'yang-catalog-token')
     ssl_context = None
     global integrity_file_location
-    integrity_file_location = config.get('SectionOne', 'integrity-file-location')
+    integrity_file_location = config.get('API-Section', 'integrity-file-location')
     global log
-    ip = config.get('SectionOne', 'ip')
-    port = int(config.get('SectionOne', 'port'))
-    debug = config.get('SectionOne', 'debug')
+    ip = config.get('API-Section', 'ip')
+    port = int(config.get('API-Section', 'port'))
+    debug = config.get('API-Section', 'debug')
     global ssl_key
-    ssl_key = config.get('SectionOne', 'ssl-key')
-    cert = config.get('SectionOne', 'ssl-cert')
+    ssl_key = config.get('API-Section', 'ssl-key')
+    cert = config.get('API-Section', 'ssl-cert')
     log = open('api_log_file.txt', 'w')
     if cert:
         ssl_context = (cert, ssl_key)
