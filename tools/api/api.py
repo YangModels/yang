@@ -7,13 +7,16 @@ import hashlib
 import json
 import os
 import shutil
+import smtplib
+import sys
 import unicodedata
 import urllib2
+from email.mime.text import MIMEText
 from urllib2 import URLError
 
 import MySQLdb
 import requests
-import sys
+from OpenSSL.crypto import load_publickey, FILETYPE_PEM, X509, verify
 from flask import Flask, jsonify, abort, make_response, request, Response
 from flask_httpauth import HTTPBasicAuth
 
@@ -182,33 +185,74 @@ def catch_all(path):
     return make_response(jsonify({'error': 'Path "/{}" does not exist'.format(path)}), 400)
 
 
+def check_authorized(signature, payload):
+    """
+    Convert the PEM encoded public key to a format palatable for pyOpenSSL,
+    then verify the signature
+    """
+    response = requests.get('https://api.travis-ci.org/config', timeout=10.0)
+    response.raise_for_status()
+    public_key = response.json()['config']['notifications']['webhook']['public_key']
+    pkey_public_key = load_publickey(FILETYPE_PEM, public_key)
+    certificate = X509()
+    certificate.set_pubkey(pkey_public_key)
+    verify(certificate, base64.b64decode(signature), payload, str('SHA1'))
+
+
+def send_email():
+    msg = MIMEText('Travis pull job failed')
+    msg['Subject'] = 'Travis pull job failed'
+    msg['From'] = 'info@yangcatalog.org'
+    msg['To'] = 'info@yangcatalog.org'
+
+    s = smtplib.SMTP('localhost')
+    s.sendmail('info@yangcatalog.org', 'info@yangcatalog.org', msg.as_string())
+    s.quit()
+
+
 @app.route('/checkComplete', methods=['POST'])
-@auth.login_required
 def check_local():
+    LOGGER.info('Starting pull request job')
+    body = json.loads(request.form['payload'])
+    try:
+        check_authorized(request.headers.environ['HTTP_SIGNATURE'], request.form['payload'])
+        LOGGER.info('Authorization successfull')
+    except:
+        LOGGER.critical('Authorization failed. Maybe someone trying to hack!!!')
+        send_email()
+        return unauthorized()
+
     global yang_models_url
 
-    body = request.json
     if body['repository']['owner_name'] == 'yang-catalog':
         if body['result_message'] == 'Passed':
             if body['type'] == 'push':
                 # After build was successful only locally
-                json_body = jsonify({
-                    "title": "Cron job - every day pull of ietf draft yang files.",
+                json_body = json.loads(json.dumps({
+                    "title": "Cron job - every day pull and update of ietf draft yang files.",
                     "body": "ietf extracted yang modules",
                     "head": "yang-catalog:master",
                     "base": "master"
-                })
-                requests.post(yang_models_url + '/pulls', json=json_body,
-                              headers={'Authorization': 'token ' + token})
+                }))
+
+                r = requests.post(yang_models_url + '/pulls',
+                                  json=json_body, headers={'Authorization': 'token ' + token})
+                if r.status_code != requests.codes.created:
+                    LOGGER.info('Pull request created successfully')
+                    return make_response(jsonify({'info': 'Success'}), 201)
+                else:
+                    LOGGER.error('Could not create a pull request {}'.format(r.status_code))
+                    return make_response(jsonify({'Error': 'Failes'}), 500)
 
             if body['type'] == 'pull_request':
                 # If build was successful on pull request
                 pull_number = body['pull_request_number']
-                log.write('pull request was successful %s' % repr(pull_number))
+                LOGGER.info('Pull request was successful {}'.format(repr(pull_number)))
                 # requests.put('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number +
                 #             '/merge', headers={'Authorization': 'token ' + token})
-                requests.delete(yang_models_url,
+                requests.delete('https://api.github.com/repos/yang-catalog/yang',
                                 headers={'Authorization': 'token ' + token})
+                return make_response(jsonify({'info': 'Success'}), 201)
 
 
 @app.route('/modules/module/<name>,<revision>,<organization>', methods=['DELETE'])
@@ -567,9 +611,11 @@ def search(value):
                 process(module, passed_data, value, module, split, count)
 
             if len(passed_data) > 0:
+                modules = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+                    .decode(json.dumps(passed_data))
                 return Response(json.dumps({
                     'yang-catalog:modules': {
-                        'module': json.loads(json.dumps(passed_data))
+                        'module': modules
                     }
                 }), mimetype='application/json')
             else:
@@ -583,10 +629,12 @@ def search_vendors(value):
     LOGGER.info('Searching for specific vendors {}'.format(value))
     path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/vendors/' + value + '?deep'
     try:
-        data = json.loads(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
+        data = http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read()
+        data = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+            .decode(data)
+        return Response(json.dumps(data), mimetype='application/json')
     except:
         return not_found()
-    return Response(json.dumps(data), mimetype='application/json')
 
 
 @app.route('/search/modules/<name>,<revision>,<organization>', methods=['GET'])
@@ -681,7 +729,8 @@ def load(on_start):
     vendors_data = ''
     try:
         with open('./cache/catalog.json', 'r') as catalog:
-            cat = json.load(catalog)['yang-catalog:catalog']
+            cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict)\
+                        .decode(catalog.read())['yang-catalog:catalog']
             modules_data = cat['modules']
             vendors_data = cat['vendors']
     except (IOError, ValueError):
@@ -761,7 +810,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config-path', type=str, default='./config.ini',
                         help='Set path to config file')
-    LOGGER.info('Starting API')
+    LOGGER.info('Loading all configuration')
     args = parser.parse_args()
     config = ConfigParser.ConfigParser()
     config.read(args.config_path)
@@ -799,4 +848,5 @@ if __name__ == '__main__':
     if cert:
         ssl_context = (cert, ssl_key)
     load(True)
+    LOGGER.info('Starting api')
     app.run(host=ip, debug=debug, port=port, ssl_context=ssl_context)

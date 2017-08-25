@@ -1,3 +1,5 @@
+import ConfigParser
+import argparse
 import base64
 import datetime
 import errno
@@ -5,11 +7,12 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import urllib2
+from Crypto.Hash import SHA, HMAC
 from urllib2 import URLError
 
 import pika
-import sys
 
 import tools.utility.log as log
 
@@ -17,12 +20,14 @@ LOGGER = log.get_logger('receiver')
 
 
 # Make a http request on path with json_data
-def http_request(path, method, json_data, http_credentials, header):
+def http_request(path, method, json_data, http_credentials, header, indexing=None):
     try:
         opener = urllib2.build_opener(urllib2.HTTPHandler)
         request = urllib2.Request(path, data=json_data)
         request.add_header('Content-Type', header)
         request.add_header('Accept', header)
+        if indexing:
+            request.add_header('X-YC-Signature', 'sha1={}'.format(indexing))
         base64string = base64.b64encode('%s:%s' % (http_credentials[0], http_credentials[1]))
         request.add_header("Authorization", "Basic %s" % base64string)
         request.get_method = lambda: method
@@ -36,7 +41,7 @@ def http_request(path, method, json_data, http_credentials, header):
 
 def process_sdo(arguments):
     LOGGER.debug('Processing sdo')
-    tree_created = True if arguments[-3] == 'True' else False
+    tree_created = True if arguments[-4] == 'True' else False
     arguments = arguments[:-4]
     direc = '/'.join(arguments[6].split('/')[0:3])
 
@@ -63,27 +68,38 @@ def process_sdo(arguments):
     return __response_type[1]
 
 
-def send_to_indexing(file_to_index, credentials, confd_ip, sdo_type=False, body='modules-to-index'):
-    LOGGER.debug('Sending data for indexing')
-    with open(file_to_index, 'r') as f:
-        sdos_json = json.load(f)
-    post_body = {}
-    if sdo_type:
-        prefix = 'api/sdo'
-    else:
-        prefix = 'api/vendor'
+def create_signature(secret_key, string):
+    """ Create the signed message from api_key and string_to_sign """
+    string_to_sign = string.encode('utf-8')
+    hmac = HMAC.new(secret_key, string_to_sign, SHA)
+    return hmac.hexdigest()
 
-    for sdo in sdos_json['module']:
-        if sdo.get('schema'):
-            path = prefix + sdo['schema'].split('githubusercontent.com/')[1]
+
+def send_to_indexing(modules_to_index, credentials, confd_ip, sdo_type=False, delete=False):
+    LOGGER.debug('Sending data for indexing')
+    if delete:
+        body_to_send = json.dumps({'modules-to-delete': modules_to_index})
+    else:
+        with open(modules_to_index, 'r') as f:
+            sdos_json = json.load(f)
+        post_body = {}
+        if sdo_type:
+            prefix = 'api/sdo'
         else:
-            path = 'module does not exist'
-        post_body[sdo['name'] + '@' + sdo['revision']] = path
-    body_to_send = json.dumps({'modules-to-index': post_body})
+            prefix = 'api/vendor'
+
+        for module in sdos_json['module']:
+            if module.get('schema'):
+                path = prefix + module['schema'].split('githubusercontent.com/')[1]
+            else:
+                path = 'module does not exist'
+            post_body[module['name'] + '@' + module['revision'] + '/' + module['organization']] = path
+        body_to_send = json.dumps({'modules-to-index': post_body})
+
     LOGGER.info('Sending data for indexing with body {}'.format(body_to_send))
     try:
         http_request('https://' + confd_ip + '/yang-search/metadata-update.php', 'POST', body_to_send,
-                     credentials, 'application/json')
+                     credentials, 'application/json', indexing=create_signature(key, body_to_send))
     except urllib2.HTTPError as e:
         LOGGER.error('could not send data for indexing. Reason: {}'.format(e.msg))
     except URLError as e:
@@ -151,6 +167,7 @@ def process_vendor_deletion(arguments, api_protocol, api_port):
                 return __response_type[0] + '#split#' + sys.exc_info()[0]
 
     modules = set()
+    modules_that_succeeded = []
     iterate_in_depth(vendors_data, modules)
 
     try:
@@ -184,22 +201,29 @@ def process_vendor_deletion(arguments, api_protocol, api_port):
                     http_request(path + '/implementations/implementation/' + imp_key,
                                  'DELETE', None, credentials, 'application/vnd.yang.data+json')
                 except:
+                    # In case that only some modules were deleted, send only those for indexing
+                    if len(modules_that_succeeded) > 0:
+                        send_to_indexing(modules_that_succeeded, credentials, confd_ip, delete=True)
                     e = sys.exc_info()[0]
                     LOGGER.error('Couldn\'t delete implementation of module on path {} because of error: {}'
                                  .format(path + '/implementations/implementation/' + imp_key, e))
                     # return make_response(jsonify({'error': e.msg}), 500)
                 count_deleted += 1
-
+            modules_that_succeeded.append(mod)
             if count_deleted == count_of_implementations:
                 try:
                     http_request(path, 'DELETE', None, credentials, 'application/vnd.yang.data+json')
                 except:
+                    # In case that only some modules were deleted, send only those for indexing
+                    if len(modules_that_succeeded) > 0:
+                        send_to_indexing(modules_that_succeeded, credentials, confd_ip, delete=True)
                     e = sys.exc_info()[0]
                     LOGGER.error('Could not delete module on path {} because of error: {}'.format(path, e))
                     # return make_response(jsonify({'error': e.msg}), 500)
         except:
             LOGGER.error('Yang file {} doesn\'t exist although it should exist'.format(mod))
             # return make_response(jsonify({'error': 'Server error'}), 500)
+        send_to_indexing(modules, credentials, confd_ip, delete=True)
         return __response_type[1]
 
 
@@ -250,12 +274,15 @@ def make_cache(credentials, response, protocol, confd_ip, confd_port, api_protoc
 def process_module_deletion(arguments):
     credentials = arguments[3:5]
     path_to_delete = arguments[5]
+    confd_ip = arguments[1]
     try:
         http_request(path_to_delete, 'DELETE', None, credentials, 'application/vnd.yang.data+json')
     except:
         e = sys.exc_info()[0]
         LOGGER.error('Couldn\'t delete module on path {}. Error : {}'.format(path_to_delete, e))
         return __response_type[0] + '#split#' + repr(e)
+    name, revision, organization = path_to_delete.split('/')[-1].split(',')
+    send_to_indexing(['{}@{}/{}'.format(name, revision, organization)], credentials, confd_ip, delete=True)
     return __response_type[1]
 
 
@@ -301,7 +328,15 @@ def on_request(ch, method, props, body):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config-path', type=str, default='./config_receiver.ini',
+                        help='Set path to config file')
     LOGGER.debug('Starting receiver')
+    args = parser.parse_args()
+    config = ConfigParser.ConfigParser()
+    config.read(args.config_path)
+    global key
+    key = config.get('SectionOne', 'key')
     __response_type = ['Failed', 'Finished successfully']
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='127.0.0.1'))
     channel = connection.channel()
