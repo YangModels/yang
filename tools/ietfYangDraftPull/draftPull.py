@@ -3,16 +3,15 @@ import argparse
 import errno
 import json
 import os
+import sys
 import urllib2
 
 import requests
-import sys
 from numpy.f2py.auxfuncs import throw_error
 from travispy import TravisPy
 
-# from ..api import repoutil
-import repoutil
 import tools.utility.log as log
+from tools.utility import repoutil
 
 LOGGER = log.get_logger('draftPull')
 
@@ -38,15 +37,16 @@ def load_json_from_url(url):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config-path', type=str, default='./config.ini',
+    parser.add_argument('--config-path', type=str, default='../utility/config.ini',
                         help='Set path to config file')
     args = parser.parse_args()
     LOGGER.debug('Starting receiver')
     args = parser.parse_args()
+    config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
-    config.read(args.config_path)
-    token = config.get('SectionOne', 'yang-catalog-token')
-    username = config.get('SectionOne', 'username')
+    config.read(config_path)
+    token = config.get('DraftPull-Section', 'yang-catalog-token')
+    username = config.get('DraftPull-Section', 'username')
     github_credentials = ''
     if len(username) > 0:
         github_credentials = username + ':' + token + '@'

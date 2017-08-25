@@ -8,13 +8,12 @@ import subprocess
 import unicodedata
 import urllib2
 import xml.etree.ElementTree as ET
-from multiprocessing.pool import ThreadPool
 from subprocess import PIPE
 
 from numpy.f2py.auxfuncs import throw_error
 
 import tools.utility.log as log
-import yangParser
+from tools.utility import yangParser
 
 LOGGER = log.get_logger(__name__)
 
@@ -330,10 +329,9 @@ def is_split(rows, output):
 
 class Capability:
     def __init__(self, hello_message_file, index, prepare, integrity_checker, api, sdo,
-                 json_dir, statistics_in_catalog=None):
+                 json_dir):
         LOGGER.debug('Running constructor')
         self.json_dir = json_dir
-        self.statistics_in_catalog = statistics_in_catalog
         self.index = index
         self.prepare = prepare
         self.integrity_checker = integrity_checker
@@ -706,7 +704,6 @@ class Capability:
                             self.find_yang_var(features, 'feature', file_name, root + '/' + file_name)
 
                             compilations_status = self.parse_status(file_name, revision[file_name])
-                            self.statistics_in_catalog.set_passed(root, compilations_status)
                             if compilations_status != 'passed':
                                 compilations_result = self.parse_result(file_name, revision[file_name])
                             else:
@@ -714,7 +711,6 @@ class Capability:
                             LOGGER.debug('Getting non-extractable metadata from file {}'.format(file_name))
                             author_email = self.parse_email(file_name, revision[file_name])
                             working_group = self.parse_maturityLevel(file_name, revision[file_name])
-                            self.statistics_in_catalog.add_in_catalog(root)
 
                             doc_name_reference = self.parse_document_reference(file_name, revision[file_name])
                             reference = doc_name_reference[1]
