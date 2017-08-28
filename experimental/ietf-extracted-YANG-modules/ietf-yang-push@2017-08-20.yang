@@ -1,0 +1,701 @@
+module ietf-yang-push {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-yang-push";
+  prefix yp;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ietf-subscribed-notifications {
+    prefix sn;
+  }
+
+  organization "IETF";
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/netconf/>
+     WG List:  <mailto:netconf@ietf.org>
+
+     WG Chair: Mahesh Jethanandani
+               <mailto:mjethanandani@gmail.com>
+
+     WG Chair: Kent Watsen
+               <mailto:kwatsen@juniper.net>
+
+     Editor:   Alexander Clemm
+               <mailto:ludwig@clemm.org>
+
+     Editor:   Eric Voit
+               <mailto:evoit@cisco.com>
+
+     Editor:   Alberto Gonzalez Prieto
+               <mailto:agonzalezpri@vmware.com>
+
+     Editor:   Ambika Prasad Tripathy
+               <mailto:ambtripa@cisco.com>
+
+     Editor:   Einar Nilsen-Nygaard
+               <mailto:einarnn@cisco.com>
+
+     Editor:   Andy Bierman
+               <mailto:andy@yumaworks.com>
+
+     Editor:   Balazs Lengyel
+               <mailto:balazs.lengyel@ericsson.com>";
+
+  description
+    "This module contains conceptual YANG specifications
+     for YANG push.";
+
+  revision 2017-08-20 {
+    description
+      "Initial revision.";
+    reference
+      "YANG Datastore Push, draft-ietf-netconf-yang-push-08";
+  }
+
+ /*
+  * EXTENSIONS
+  */
+
+  extension notifiable-on-change {
+    argument "value";
+    description
+      "Indicates whether changes to the data node are reportable in
+      on-change subscriptions.
+
+      The statement MUST only be a substatement of the leaf, leaf-list,
+      container, list, anyxml, anydata  statements. Zero or One
+      notifiable-on-change statement is allowed per parent statement.
+      NO substatements are allowed.
+
+      The argument is a boolean value indicating whether on-change
+      notifications are supported. If notifiable-on-change is not
+      specified, the default is the same as the parent data node's
+      value. For top level data nodes the default value is false.";
+  }
+
+ /*
+  * FEATURES
+  */
+
+  feature on-change {
+    description
+      "This feature indicates that on-change updates are
+       supported.";
+  }
+
+ /*
+  * IDENTITIES
+  */
+
+  /* Error type identities for datastore subscription  */
+  identity period-unsupported {
+    base sn:error;
+    description
+      "Requested time period is too short. This can be for both
+       periodic and on-change dampening.";
+  }
+
+  identity qos-unsupported {
+    base sn:error;
+    description
+      "Subscription QoS parameters not supported on this platform.";
+  }
+
+  identity dscp-unavailable {
+    base sn:error;
+    description
+      "Requested DSCP marking not allocatable.";
+  }
+
+  identity on-change-unsupported {
+    base sn:error;
+    description
+      "On-change not supported.";
+  }
+
+  identity synch-on-start-unsupported {
+    base sn:error;
+    description
+      "On-change synch-on-start not supported.";
+  }
+
+  identity synch-on-start-datatree-size {
+    base sn:error;
+    description
+      "Synch-on-start would push a datatree which exceeds size limit.";
+  }
+
+  identity reference-mismatch {
+    base sn:error;
+    description
+      "Mismatch in filter key and referenced yang subtree.";
+  }
+
+  identity data-unavailable {
+    base sn:error;
+    description
+      "Referenced yang node or subtree doesn't exist, or read
+       access is not permitted.";
+  }
+
+  identity datatree-size {
+    base sn:error;
+    description
+      "Resulting push updates would exceed size limit.";
+  }
+
+  /* Datastore identities */
+  identity datastore {
+    description
+      "Abstract base identity for datastore identities.  More are in the
+          process of being defined within
+          draft-ietf-netmod-revised-datastores. ";
+  }
+  identity candidate {
+    base datastore;
+    description
+      "The candidate datastore per RFC-6241.";
+    reference "RFC-6241, #5.1";
+  }
+  identity running {
+    base datastore;
+    description
+      "The running datastore per RFC-6241.";
+    reference "RFC-6241, #5.1";
+  }
+  identity startup {
+    base datastore;
+    description
+      "The startup datastore per RFC-6241.";
+    reference "RFC-6241, #5.1";
+  }
+  identity operational {
+    base datastore;
+    description
+      "The operational datastore contains all configuration data
+      actually used by the system, including all applied configuration,
+      system-provided configuration and values defined by any supported
+      data models.  In addition, the operational datastore also
+      contains state data.";
+    reference
+      "the original text came from draft-ietf-netmod-revised-datastores
+      -01, section #4.3. This definition is expected to remain stable
+      meaning later reconciliation between the drafts unnecessary.";
+  }
+  identity intended {
+    base datastore;
+    description
+      "The intended datastore per draft-ietf-netmod-revised-datastores.";
+    reference
+      "draft-ietf-netmod-revised-datastores";
+  }
+  identity custom-datastore {
+    base datastore;
+    description
+      "Another datastore not defined via an identity in this model";
+  }
+
+  /*  Selection filter identities */
+  identity selection-filter {
+    description
+      "Evaluation criteria encoded in a syntax which allows the
+          selection of nodes from a target.  If the filter is applied
+          against a datastore for periodic extracts, the resulting node-set
+          result is passed along. If the filter is applied against a
+          datastore looking for changes, deltas from the last update in the
+          form of a patch result are passed along.  An empty node set is a
+          valid result of this filter type.";
+  }
+  identity subtree-selection-filter {
+    base selection-filter;
+    description
+      "An RFC-6241 based selection-filter which may be used to select
+          nodes within a datastore.";
+    reference "RFC-6241, #5.1";
+  }
+  identity xpath-selection-filter {
+    base selection-filter;
+    description
+      "A selection-filter which may be applied to a datastore which
+          follows the syntax specified in yang:xpath1.0.  Nodes that evaluate
+      to true are included in the selection.";
+    reference "XPATH: http://www.w3.org/TR/1999/REC-xpath-19991116";
+  }
+
+  /*
+   * TYPE DEFINITIONS
+   */
+
+  typedef change-type {
+    type enumeration {
+      enum "create" {
+        description
+          "Create a new data resource if it does not already exist.  If
+          it already exists, replace.";
+      }
+      enum "delete" {
+        description
+          "Delete a data resource if it already exists. If it does not
+          exists, take no action.";
+      }
+      enum "insert" {
+        description
+          "Insert a new user-ordered data resource";
+      }
+      enum "merge" {
+        description
+          "merge the edit value with the target data resource; create
+          if it does not already exist";
+      }
+      enum "move" {
+        description
+          "Reorder the target data resource";
+      }
+      enum "replace" {
+        description
+          "Replace the target data resource with the edit value";
+      }
+      enum "remove" {
+        description
+          "Remove a data resource if it already exists ";
+      }
+    }
+    description
+      "Specifies different types of datastore changes.";
+    reference
+      "RFC 8072 section 2.5, with a delta that it is ok to receive
+      ability create on an existing node, or recieve a delete on a
+      missing node.";
+  }
+
+  typedef datastore {
+    type identityref {
+      base datastore;
+    }
+    description
+      "Specifies a system-provided datastore.  May also specify ability
+      portion of a datastore, so as to reduce the filtering effort.";
+  }
+
+  typedef selection-filter-type {
+    type identityref {
+      base selection-filter;
+    }
+    description
+      "Specifies a known type of selection filter.";
+  }
+
+  /*
+   * GROUP DEFINITIONS
+   */
+
+  grouping datastore-criteria {
+    description
+      "A grouping to define criteria for which objects from which
+       datastore to include in push updates.";
+    leaf datastore {
+      type datastore;
+      mandatory true;
+      description
+          "Datastore against which the subscription has been
+           applied.";
+    }
+    uses selection-filter-objects;
+  }
+
+  grouping selection-filter-objects {
+    description
+      "This grouping defines a selector for objects from a
+       datastore.";
+    leaf selection-filter-type {
+      type selection-filter-type;
+      mandatory true;
+      description
+        "A filter needs to be a known and understood syntax if it is
+        to be interpretable by a device.";
+        }
+    anyxml selection-filter {
+      mandatory true;
+      description
+        "Datastore evaluation criteria encoded in a syntax of a
+                supported type of selection filter.";
+    }
+  }
+
+  grouping update-policy-modifiable {
+    description
+      "This grouping describes the datastore specific subscription
+       conditions that can be changed during the lifetime of the
+       subscription.";
+    choice update-trigger {
+      description
+        "Defines necessary conditions for sending an event to
+         the subscriber.";
+      case periodic {
+        description
+          "The agent is requested to notify periodically the current
+           values of the datastore as defined by the selection filter.";
+        leaf period {
+          type yang:timeticks;
+          mandatory true;
+          description
+            "Duration of time which should occur between periodic
+             push updates.  Where the anchor of a start-time is
+             available, the push will include the objects and their
+             values which exist at an exact multiple of timeticks
+             aligning to this start-time anchor.";
+        }
+        leaf anchor-time {
+          type yang:date-and-time;
+          description
+            "Designates a timestamp from which the series of periodic
+             push updates are computed. The next update will take place
+             at the next period interval from the anchor time.  For
+             example, for an anchor time at the top of a minute and a
+             period interval of a minute, the next update will be sent
+             at the top of the next minute.";
+        }
+      }
+      case on-change {
+        if-feature "on-change";
+        description
+          "The agent is requested to notify changes in values in the
+           datastore subset as defined by a selection filter.";
+        leaf dampening-period {
+          type yang:timeticks;
+          mandatory true;
+          description
+            "The shortest time duration which is allowed between the
+                        creation of independent yang object update messages.
+                        Effectively this is the amount of time that needs to have
+                        passed since the last update.";
+        }
+      }
+    }
+  }
+
+  grouping update-policy {
+    description
+      "This grouping describes the datastore specific subscription
+       conditions of a subscription.";
+    uses update-policy-modifiable {
+      augment "update-trigger/on-change" {
+        description
+          "Includes objects not modifiable once subscription is
+           established.";
+        leaf no-synch-on-start {
+          type empty;
+          description
+            "This leaf acts as a flag that determines behavior at the
+             start of the subscription.  When present, synchronization
+             of state at the beginning of the subscription is outside
+             the scope of the subscription. Only updates about changes
+             that are observed from the start time, i.e. only push-
+             change-update notifications are sent. When absent (default
+             behavior), in order to facilitate a receiver's
+             synchronization, a full update is sent when the
+             subscription starts using a push-update notification, just
+             like in the case of a periodic subscription.  After that,
+             push-change-update notifications only are sent unless the
+             Publisher chooses to resynch the subscription again.";
+        }
+        leaf-list excluded-change {
+          type change-type;
+          description
+            "Use to restrict which changes trigger an update.
+             For example, if modify is excluded, only creation and
+             deletion of objects is reported.";
+        }
+      }
+    }
+  }
+
+  grouping update-qos {
+    description
+      "This grouping describes Quality of Service information
+       concerning a subscription.  This information is passed to lower
+       layers for transport prioritization and treatment";
+    leaf dscp {
+      type inet:dscp;
+      default "0";
+      description
+        "The push update's IP packet transport priority. This is made
+         visible across network hops to receiver. The transport
+         priority is shared for all receivers of a given subscription.";
+    }
+    leaf weighting {
+      type uint8 {
+         range "0 .. 255";
+      }
+      description
+        "Relative weighting for a subscription. Allows an underlying
+         transport layer perform informed load balance allocations
+         between various subscriptions";
+      reference
+        "RFC-7540, section 5.3.2";
+    }
+    leaf dependency {
+      type sn:subscription-id;
+      description
+        "Provides the Subscription ID of a parent subscription which
+         has absolute priority should that parent have push updates
+         ready to egress the publisher. In other words, there should be
+         no streaming of objects from the current subscription if of
+         the parent has something ready to push.";
+      reference
+        "RFC-7540, section 5.3.1";
+    }
+  }
+
+  grouping update-error-hints {
+    description
+      "Allow return additional negotiation hints that apply
+       specifically to push updates.";
+    leaf period-hint {
+      type yang:timeticks;
+      description
+        "Returned when the requested time period is too short. This
+         hint can assert an viable period for both periodic push
+         cadence and on-change dampening.";
+    }
+    leaf error-path {
+      type string;
+      description
+        "Reference to a YANG path which is associated with the error
+         being returned.";
+    }
+    leaf object-count-estimate {
+      type uint32;
+      description
+        "If there are too many objects which could potentially be
+         returned by the selection filter, this identifies the estimate
+                 of the number of objects which the filter would potentially
+                 pass.";
+    }
+    leaf object-count-limit {
+      type uint32;
+      description
+        "If there are too many objects which could be returned by the
+         selection filter, this identifies the upper limit of the
+                 publisher's ability to service for this subscription.";
+    }
+    leaf kilobytes-estimate {
+      type uint32;
+      description
+        "If the returned information could be beyond the capacity of
+         the publisher, this would identify the data size which could
+         result from this selection filter.";
+    }
+    leaf kilobytes-limit {
+      type uint32;
+      description
+        "If the returned information would be beyond the capacity of
+         the publisher, this identifies the upper limit of the
+         publisher's ability to service for this subscription.";
+    }
+  }
+
+  /*
+   * DATA NODES
+   */
+
+  augment "/sn:streams" {
+    description
+      "This augmentation adds datastores to the list of items that
+       can be subscribed.";
+      container datastores {
+        config false;
+        description
+          "This container contains a leaf list of built-in
+           streams that are provided by the system.";
+      leaf-list datastore {
+        type datastore;
+        description
+          "Identifies the built-in datastores that are supported by
+           the system.  Built-in datastores are associated with their
+           own identities. In case configurable custom datastores are
+           supported, as indicated by the custom-datastore identity.
+           The configuration and delivery of those custom datastores is
+           provided separately.";
+      }
+    }
+  }
+  augment "/sn:establish-subscription/sn:input" {
+    description
+      "This augmentation adds additional subscription parameters that
+      apply specifically to datastore updates to RPC input.";
+    uses update-policy;
+    uses update-qos;
+  }
+  augment "/sn:establish-subscription/sn:input/sn:target" {
+    description
+      "This augmentation adds the datastore as a valid parameter object
+      for the subscription to RPC input.  This provides a target for
+      the filter.";
+    case datastore {
+       uses datastore-criteria;
+    }
+  }
+  augment "/sn:establish-subscription/sn:output/"+
+    "sn:result/sn:no-success" {
+    description
+      "This augmentation adds datastore specific error info
+      and hints to RPC output.";
+    uses update-error-hints;
+  }
+  augment "/sn:modify-subscription/sn:input" {
+    description
+      "This augmentation adds additional subscription parameters
+       specific to datastore updates.";
+    uses update-policy-modifiable;
+  }
+  augment "/sn:modify-subscription/sn:output/"+
+    "sn:result/sn:no-success" {
+    description
+      "This augmentation adds push datastore error info and hints to
+      RPC output.";
+    uses update-error-hints;
+  }
+  notification push-update {
+    description
+      "This notification contains a push update, containing data
+       subscribed to via a subscription. This notification is sent for
+       periodic updates, for a periodic subscription.  It can also be
+       used for synchronization updates of an on-change subscription.
+       This notification shall only be sent to receivers of a
+       subscription; it does not constitute a general-purpose
+       notification.";
+    leaf subscription-id {
+      type sn:subscription-id;
+      mandatory true;
+      description
+        "This references the subscription because of which the
+         notification is sent.";
+    }
+    leaf time-of-update {
+      type yang:date-and-time;
+      description
+        "This leaf contains the time of the update.";
+    }
+    leaf updates-not-sent {
+      type empty;
+      description
+        "This is a flag which indicates that not all data nodes
+         subscribed to are included with this update. In other words,
+         the publisher has failed to fulfill its full subscription
+         obligations. This may lead to intermittent loss of
+         synchronization of data at the client.  Synchronization at the
+         client can occur when the next push-update is received.";
+    }
+    anydata datastore-contents {
+      description
+        "This contains the updated data.  It constitutes a snapshot
+         at the time-of-update of the set of data that has been
+         subscribed to.  The format and syntax of the data
+         corresponds to the format and syntax of data that would be
+         returned in a corresponding get operation with the same
+         selection filter parameters applied.";
+    }
+  }
+  notification push-change-update {
+    if-feature "on-change";
+    description
+      "This notification contains an on-change push update. This
+       notification shall only be sent to the receivers of a
+       subscription; it does not constitute a general-purpose
+       notification.";
+    leaf subscription-id {
+      type sn:subscription-id;
+      mandatory true;
+      description
+        "This references the subscription because of which the
+         notification is sent.";
+    }
+    leaf time-of-update {
+      type yang:date-and-time;
+      description
+        "This leaf contains the time of the update, i.e. the time at
+         which the change was observed.";
+    }
+    leaf updates-not-sent {
+      type empty;
+      description
+        "This is a flag which indicates that not all changes which
+         have occurred since the last update are included with this
+         update.  In other words, the publisher has failed to
+         fulfill its full subscription obligations, for example in
+         cases where it was not able to keep up with a change burst.
+         To facilitate synchronization, a publisher may subsequently
+         send a push-update containing a full snapshot of subscribed
+         data. Such a push-update might also be triggered by a
+         subscriber requesting an on-demand synchronization.";
+    }
+    anydata datastore-changes {
+      description
+        "This contains datastore contents that has changed since the
+         previous update, per the terms of the subscription.  Changes
+         are encoded analogous to the syntax of a corresponding yang-
+         patch operation, i.e. a yang-patch operation applied to the
+         YANG datastore implied by the previous update to result in the
+         current state (and assuming yang-patch could also be applied
+         to operational data).";
+    }
+  }
+  augment "/sn:subscription-started" {
+    description
+      "This augmentation adds many yang datastore specific objects to
+       the notification that a subscription has started.";
+    uses update-policy;
+    uses update-qos;
+  }
+  augment "/sn:subscription-started/sn:target" {
+    description
+      "This augmentation allows the datastore to be included as part
+      of the notification that a subscription has started.";
+    case datastore {
+       uses datastore-criteria;
+    }
+  }
+  augment "/sn:subscription-modified" {
+    description
+      "This augmentation adds many yang datastore specific objects to
+       the notification that a subscription has been modified.";
+    uses update-policy;
+    uses update-qos;
+  }
+  augment "/sn:subscription-config/sn:subscription" {
+    description
+      "This augmentation adds many yang datastore specific objects
+      which can be configured as opposed to established via RPC.";
+    uses update-policy;
+    uses update-qos;
+  }
+  augment "/sn:subscription-config/sn:subscription/sn:target" {
+    description
+      "This augmentation adds the datastore to the selection filtering
+      criteria for a subscription.";
+    case datastore {
+       uses datastore-criteria;
+    }
+  }
+  augment "/sn:subscriptions/sn:subscription" {
+    yp:notifiable-on-change true;
+    description
+      "This augmentation adds many datastore specific objects to a
+       subscription.";
+    uses update-policy;
+    uses update-qos;
+  }
+  augment "/sn:subscriptions/sn:subscription/sn:target" {
+    description
+      "This augmentation allows the datastore to be included as part
+      of the selection filtering criteria for a subscription.";
+    case datastore {
+       uses datastore-criteria;
+    }
+  }
+}
