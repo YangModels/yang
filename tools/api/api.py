@@ -620,8 +620,9 @@ def search(value):
     split = value.split('/')[:-1]
     key = '/'.join(value.split('/')[:-1])
     value = value.split('/')[-1]
-    module_keys = ['ietf/ietf-wg', 'maturity-level', 'document-name', 'author-email', 'compilation-status',
-                   'conformance-type', 'module-type', 'organization', 'yang-version', 'name', 'revision', 'tree-type']
+    module_keys = ['ietf/ietf-wg', 'maturity-level', 'document-name', 'author-email', 'compilation-status', 'namespace',
+                   'conformance-type', 'module-type', 'organization', 'yang-version', 'name', 'revision', 'tree-type',
+                   'belongs-to', 'generated-from']
     for module_key in module_keys:
         if key == module_key:
             data = modules_data['module']

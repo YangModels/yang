@@ -10,6 +10,7 @@ import unicodedata
 import urllib2
 
 import tools.utility.log as log
+from tools.api.receiver import send_to_indexing
 
 LOGGER = log.get_logger('populate')
 
@@ -59,6 +60,8 @@ if __name__ == "__main__":
                         help='Set dir where to look for hello message xml files.Default -> ../../vendor')
     parser.add_argument('--api', action='store_true', default=False, help='If we are doing apis')
     parser.add_argument('--sdo', action='store_true', default=False, help='If we are sneding SDOs only')
+    parser.add_argument('--notify-indexing', action='store_true', default=False, help='Weather to send files for'
+                                                                                      ' indexing')
     parser.add_argument('--protocol', type=str, default='http', help='Whether confd-6.4 runs on http or https.'
                                                                      ' Default is set to http')
     args = parser.parse_args()
@@ -132,5 +135,9 @@ if __name__ == "__main__":
                      args.credentials)
 
     if not args.api:
+        LOGGER.info('Sending files for indexing')
+        if args.notify_indexing:
+            send_to_indexing(direc + '/prepare.json', args.credentials, args.ip, from_api=False)
         LOGGER.info('Removing temporary json data')
         shutil.rmtree('./' + direc)
+
