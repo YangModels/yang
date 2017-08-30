@@ -213,6 +213,7 @@ def send_email():
 def check_local():
     LOGGER.info('Starting pull request job')
     body = json.loads(request.form['payload'])
+    LOGGER.info('type of job {}'.format(body['type']))
     try:
         check_authorized(request.headers.environ['HTTP_SIGNATURE'], request.form['payload'])
         LOGGER.info('Authorization successfull')
@@ -236,13 +237,19 @@ def check_local():
 
                 r = requests.post(yang_models_url + '/pulls',
                                   json=json_body, headers={'Authorization': 'token ' + token})
-                if r.status_code != requests.codes.created:
+                if r.status_code == requests.codes.created:
                     LOGGER.info('Pull request created successfully')
                     return make_response(jsonify({'info': 'Success'}), 201)
                 else:
                     LOGGER.error('Could not create a pull request {}'.format(r.status_code))
-                    return make_response(jsonify({'Error': 'Failes'}), 500)
-
+                    return make_response(jsonify({'Error': 'Fails'}), 500)
+        else:
+            LOGGER.warning('Travis job did not pass. Removing forked repository.')
+            requests.delete('https://api.github.com/repos/yang-catalog/yang',
+                            headers={'Authorization': 'token ' + token})
+            return make_response(jsonify({'info': 'Success'}), 201)
+    elif body['repository']['owner_name'] == 'YangModels':
+        if body['result_message'] == 'Passed':
             if body['type'] == 'pull_request':
                 # If build was successful on pull request
                 pull_number = body['pull_request_number']
@@ -252,6 +259,20 @@ def check_local():
                 requests.delete('https://api.github.com/repos/yang-catalog/yang',
                                 headers={'Authorization': 'token ' + token})
                 return make_response(jsonify({'info': 'Success'}), 201)
+        else:
+            LOGGER.warning('Travis job did not pass. Removing pull request')
+            pull_number = body['pull_request_number']
+            json_body = json.loads(json.dumps({
+                "title": "Cron job - every day pull and update of ietf draft yang files.",
+                "body": "ietf extracted yang modules",
+                "state": "closed",
+                "base": "master"
+            }))
+            requests.patch('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number,
+                            headers={'Authorization': 'token ' + token})
+            return make_response(jsonify({'info': 'Success'}), 201)
+    else:
+        return make_response(jsonify({'Error': 'Fails'}), 500)
 
 
 @app.route('/modules/module/<name>,<revision>,<organization>', methods=['DELETE'])

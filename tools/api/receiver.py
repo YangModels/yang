@@ -331,7 +331,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config-path', type=str, default='../utility/config.ini',
                         help='Set path to config file')
-    LOGGER.debug('Starting receiver')
+    LOGGER.info('Starting receiver')
     args = parser.parse_args()
     config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
@@ -346,5 +346,5 @@ if __name__ == '__main__':
     channel.basic_qos(prefetch_count=1)
     channel.basic_consume(on_request, queue='module_queue')
 
-    LOGGER.debug('Awaiting RPC request')
+    LOGGER.info('Awaiting RPC request')
     channel.start_consuming()

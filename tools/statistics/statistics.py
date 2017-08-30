@@ -10,6 +10,7 @@ import urllib2
 from urllib2 import URLError
 
 import jinja2
+import requests
 
 import tools.utility.log as log
 from tools.utility import yangParser
@@ -22,6 +23,7 @@ NS_MAP = {
     "http://openconfig.net/yang/": "openconfig",
     "http://tail-f.com/": "tail-f"
 }
+MISSING_ELEMENT = 'missing%20element'
 
 
 def find_first_file(directory, pattern, pattern_with_revision):
@@ -95,6 +97,7 @@ def get_specifics(path_dir):
         if name is None or organization is None:
             continue
         if ',' in organization:
+            organization = organization.replace(' ', '%20')
             path = protocol + '://' + api_ip + ':' + api_port + '/search/name/' + name
             module_exist = http_request(path, 'GET', '', credentials.split(' '), 'application/vnd.yang.data+json')
             if module_exist:
@@ -107,6 +110,7 @@ def get_specifics(path_dir):
                         passed += 1
                     num_in_catalog += 1
         else:
+            organization = organization.replace(' ', '%20')
             path = protocol + '://' + api_ip + ':' + api_port + '/search/modules/' + name + ',' + revision + ',' + \
                    organization
             module_exist = http_request(path, 'GET', '', credentials.split(' '), 'application/vnd.yang.data+json')
@@ -131,7 +135,7 @@ def resolve_organization(path):
             if 'urn:' in namespace:
                 organization = namespace.split('urn:')[1].split(':')[0]
         if organization == '':
-            organization = yangParser.parse(os.path.abspath(path)).search('organization')[0].arg
+            organization = MISSING_ELEMENT
     except:
         while True:
             try:
@@ -150,10 +154,24 @@ def resolve_organization(path):
                     if 'urn:' in namespace:
                         organization = namespace.split('urn:')[1].split(':')[0]
                 if organization == '':
-                    organization = yangParser.parse(os.path.abspath(path)).search('organization')[0].arg
+                    organization = MISSING_ELEMENT
                 break
             except:
-                pass
+                try:
+                    yang_file = find_first_file('/'.join(path.split('/')[:-2]), belongs_to + '.yang'
+                                            , belongs_to + '@*.yang')
+                    namespace = yangParser.parse(os.path.abspath(yang_file)).search('namespace')[0].arg
+                    for ns, org in NS_MAP.items():
+                        if ns in namespace:
+                            organization = org
+                    if organization == '':
+                        if 'urn:' in namespace:
+                            organization = namespace.split('urn:')[1].split(':')[0]
+                    if organization == '':
+                        organization = MISSING_ELEMENT
+                    break
+                except:
+                    organization = MISSING_ELEMENT
     return organization
 
 
@@ -221,15 +239,15 @@ if __name__ == '__main__':
                    + value + '/software-versions/software-version/' + ver
             xr_data = http_request(path, 'GET', '', credentials.split(' '), 'application/json')
             if xr_data:
-                values.append('&#x2713')
+                values.append('<i class="fa fa-check"></i>')
             else:
                 path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco/platforms/platform/' \
                        + value + '/software-versions/software-version/' + version
                 xr_data = http_request(path, 'GET', '', credentials.split(' '), 'application/json')
                 if xr_data:
-                    values.append('&#x2713')
+                    values.append('<i class="fa fa-check"></i>')
                 else:
-                    values.append('O')
+                    values.append('<i class="fa fa-times"></i>')
         xr_values.append(values)
 
     for version in xe_versions:
@@ -239,9 +257,9 @@ if __name__ == '__main__':
                    + value + '/software-versions/software-version/' + version
             xe_data = http_request(path, 'GET', '', credentials.split(' '), 'application/json')
             if xe_data:
-                values.append('&#x2713')
+                values.append('<i class="fa fa-check"></i>')
             else:
-                values.append('O')
+                values.append('<i class="fa fa-times"></i>')
         xe_values.append(values)
 
     for version in nx_versions:
@@ -251,14 +269,20 @@ if __name__ == '__main__':
                    + value + '/software-versions/software-version/' + version
             nx_data = http_request(path, 'GET', '', credentials.split(' '), 'application/json')
             if nx_data:
-                values.append('&#x2713')
+                values.append('<i class="fa fa-check"></i>')
             else:
-                values.append('O')
+                values.append('<i class="fa fa-times"></i>')
         nx_values.append(values)
 
     path = protocol + '://' + api_ip + ':' + api_port + '/search/modules'
-    data = json.loads(http_request(path, 'GET', '', credentials.split(' '), 'application/json').read())
-    data = len(data['module'])
+    all_modules_data = json.loads(http_request(path, 'GET', '', credentials.split(' '), 'application/json').read())
+    all_modules_data_unique = set()
+    for mod in all_modules_data['module']:
+        name = mod['name']
+        revision = mod['revision']
+        all_modules_data_unique.add('{}@{}'.format(name, revision))
+    all_modules_data = len(all_modules_data['module'])
+
     # Vendors sparately
     vendor_list = []
 
@@ -364,7 +388,8 @@ if __name__ == '__main__':
                'num_yang_files_vendor_ndp': vendor_modules_ndp,
                'num_yang_files_standard': standard_modules,
                'num_yang_files_standard_ndp': standard_modules_ndp,
-               'num_parsed_files': data,
+               'num_parsed_files': all_modules_data,
+               'num_unique_parsed_files': len(all_modules_data_unique),
                'nx': nx,
                'xr': xr,
                'xe': xe,
@@ -376,4 +401,9 @@ if __name__ == '__main__':
     with open('./statistics.html', 'w+') as f:
         f.write(result)
 
-    shutil.move('./statistics.html', move_to)
+    file_from = os.path.abspath('./statistics.html')
+    file_to = os.path.abspath(move_to)
+    if move_to != './':
+        if os.path.exists(file_to):
+            os.remove(file_to)
+        shutil.move(file_from, file_to)
