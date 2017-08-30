@@ -1481,10 +1481,10 @@ class Capability:
 
                     if self.api:
                         schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + \
-                                 re.search('vendor/(.*).yang', yang_file).group()
+                                 '/'.join(yang_file.split('/')[2:])
                     else:
                         schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' \
-                                 + re.search('vendor\/(.*).yang', yang_file).group()
+                                 + '/'.join(yang_file.split('/')[2:])
 
                     self.prepare.add_key(imp + '@' + revision[imp] + ',' + organization_module[imp], namespace[imp],
                                          conformance_type[imp], self.vendor,
