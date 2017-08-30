@@ -62,7 +62,8 @@ def process_sdo(arguments):
 
     if tree_created:
         subprocess.call(["cp", "-r", direc + "/temp/.", "../../api/sdo/"])
-        send_to_indexing(direc + '/prepare.json',
+        if notify_indexing:
+            send_to_indexing(direc + '/prepare.json',
                          [arguments[11], arguments[12]], arguments[9], True)
         shutil.rmtree(direc)
     return __response_type[1]
@@ -75,7 +76,7 @@ def create_signature(secret_key, string):
     return hmac.hexdigest()
 
 
-def send_to_indexing(modules_to_index, credentials, confd_ip, sdo_type=False, delete=False):
+def send_to_indexing(modules_to_index, credentials, confd_ip, sdo_type=False, delete=False, from_api=True):
     LOGGER.debug('Sending data for indexing')
     if delete:
         body_to_send = json.dumps({'modules-to-delete': modules_to_index})
@@ -83,17 +84,25 @@ def send_to_indexing(modules_to_index, credentials, confd_ip, sdo_type=False, de
         with open(modules_to_index, 'r') as f:
             sdos_json = json.load(f)
         post_body = {}
-        if sdo_type:
-            prefix = 'api/sdo'
-        else:
-            prefix = 'api/vendor'
-
-        for module in sdos_json['module']:
-            if module.get('schema'):
-                path = prefix + module['schema'].split('githubusercontent.com/')[1]
+        if from_api:
+            if sdo_type:
+                prefix = 'api/sdo'
             else:
-                path = 'module does not exist'
-            post_body[module['name'] + '@' + module['revision'] + '/' + module['organization']] = path
+                prefix = 'api/vendor'
+
+            for module in sdos_json['module']:
+                if module.get('schema'):
+                    path = prefix + module['schema'].split('githubusercontent.com/')[1]
+                else:
+                    path = 'module does not exist'
+                post_body[module['name'] + '@' + module['revision'] + '/' + module['organization']] = path
+        else:
+            for module in sdos_json['module']:
+                if module.get('schema'):
+                    path = module['schema'].split('master')[1]
+                else:
+                    path = 'module does not exist'
+                post_body[module['name'] + '@' + module['revision'] + '/' + module['organization']] = path
         body_to_send = json.dumps({'modules-to-index': post_body})
 
     LOGGER.info('Sending data for indexing with body {}'.format(body_to_send))
@@ -132,7 +141,8 @@ def process_vendor(arguments):
     subprocess.call(["cp", "-r", direc + "/temp/.", "../../api/vendor/"])
 
     if tree_created:
-        send_to_indexing(direc + '/prepare.json', [arguments[9], arguments[10]], arguments[8])
+        if notify_indexing:
+            send_to_indexing(direc + '/prepare.json', [arguments[9], arguments[10]], arguments[8])
         shutil.rmtree(direc)
 
     integrity_file_name = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%m:%S.%f")[:-3] + 'Z'
@@ -203,7 +213,8 @@ def process_vendor_deletion(arguments, api_protocol, api_port):
                 except:
                     # In case that only some modules were deleted, send only those for indexing
                     if len(modules_that_succeeded) > 0:
-                        send_to_indexing(modules_that_succeeded, credentials, confd_ip, delete=True)
+                        if notify_indexing:
+                            send_to_indexing(modules_that_succeeded, credentials, confd_ip, delete=True)
                     e = sys.exc_info()[0]
                     LOGGER.error('Couldn\'t delete implementation of module on path {} because of error: {}'
                                  .format(path + '/implementations/implementation/' + imp_key, e))
@@ -216,14 +227,16 @@ def process_vendor_deletion(arguments, api_protocol, api_port):
                 except:
                     # In case that only some modules were deleted, send only those for indexing
                     if len(modules_that_succeeded) > 0:
-                        send_to_indexing(modules_that_succeeded, credentials, confd_ip, delete=True)
+                        if notify_indexing:
+                            send_to_indexing(modules_that_succeeded, credentials, confd_ip, delete=True)
                     e = sys.exc_info()[0]
                     LOGGER.error('Could not delete module on path {} because of error: {}'.format(path, e))
                     # return make_response(jsonify({'error': e.msg}), 500)
         except:
             LOGGER.error('Yang file {} doesn\'t exist although it should exist'.format(mod))
             # return make_response(jsonify({'error': 'Server error'}), 500)
-        send_to_indexing(modules, credentials, confd_ip, delete=True)
+        if notify_indexing:
+            send_to_indexing(modules, credentials, confd_ip, delete=True)
         return __response_type[1]
 
 
@@ -282,7 +295,8 @@ def process_module_deletion(arguments):
         LOGGER.error('Couldn\'t delete module on path {}. Error : {}'.format(path_to_delete, e))
         return __response_type[0] + '#split#' + repr(e)
     name, revision, organization = path_to_delete.split('/')[-1].split(',')
-    send_to_indexing(['{}@{}/{}'.format(name, revision, organization)], credentials, confd_ip, delete=True)
+    if notify_indexing:
+        send_to_indexing(['{}@{}/{}'.format(name, revision, organization)], credentials, confd_ip, delete=True)
     return __response_type[1]
 
 
@@ -338,6 +352,8 @@ if __name__ == '__main__':
     config.read(config_path)
     global key
     key = config.get('Receiver-Section', 'key')
+    global notify_indexing
+    notify_indexing = config.get('Receiver-Section', 'notify-index')
     __response_type = ['Failed', 'Finished successfully']
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='127.0.0.1'))
     channel = connection.channel()

@@ -7,7 +7,7 @@ setup(
               'tools.parseAndPopulate', 'tools.ietfYangDraftPull', 'tools.utility'],
     url='',
     license='',
-    author='miroslav',
+    author='Miroslav Kovac',
     author_email='',
-    description=''
+    description='', install_requires=['jinja2', 'numpy', 'pyang', 'requests', 'travispy', 'flask', 'Crypto', 'pika']
 )

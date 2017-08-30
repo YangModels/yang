@@ -4,6 +4,7 @@ import fileinput
 import fnmatch
 import json
 import os
+import re
 import subprocess
 import unicodedata
 import urllib2
@@ -479,9 +480,9 @@ class Capability:
             revs = []
             incl = {'name': names, 'revision': revs}
             object[module_name] = incl
-        # In case of revision exception create dummy revision -> '1500-01-01'
+        # In case of revision exception create dummy revision -> '1970-01-01'
         elif 'revision' in field:
-            object[module_name] = '1500-01-01'
+            object[module_name] = '1970-01-01'
             self.integrity_checker.add_revision(self.split, module_name)
         # In case of yang-version exception create version 1.0 because
         # if yang doesn`t contain any version value it is 1.0 by default
@@ -737,8 +738,10 @@ class Capability:
                             if organization.get(file_name) is None:
                                 if 'urn:' in namespace[file_name]:
                                     organization[file_name] = namespace[file_name].split('urn:')[1].split(':')[0]
+                                elif 'cisco' in namespace[file_name]:
+                                    organization[file_name] = 'cisco'
                             if organization.get(file_name) is None:
-                                self.find_yang_var(organization, 'organization', file_name, root + '/' + file_name)
+                                organization[file_name] = MISSING_ELEMENT
                             if organization.get(file_name) == 'ietf':
                                 wg = self.parse_wg(file_name, revision[file_name])
                             else:
@@ -858,9 +861,10 @@ class Capability:
                         namespace_exist = True
             if organization_module.get(module_name) is None:
                 if 'urn:' in namespace[module_name]:
-                    organization_module[module_name] = \
-                    namespace[module_name].split('urn:')[1].split(':')[0]
+                    organization_module[module_name] = namespace[module_name].split('urn:')[1].split(':')[0]
                     namespace_exist = True
+                elif 'cisco' in namespace[module_name]:
+                    organization_module[module_name] = 'cisco'
 
             if not namespace_exist:
                 if organization_module.get(module_name) is None:
@@ -868,10 +872,6 @@ class Capability:
                 if namespace[module_name] is None or namespace[module_name] == MISSING_ELEMENT:
                     self.integrity_checker.add_namespace(self.split,
                                                          module_name + ' : missing data')
-                    namespace[module_name] = MISSING_ELEMENT
-                    self.integrity_checker.add_namespace(self.split,
-                                                         module_name + ' : ' + namespace[
-                                                             module_name])
 
             module_submodule = module_or_submodule(yang_file)
             LOGGER.debug('Parsing extractable fields')
@@ -907,10 +907,10 @@ class Capability:
             if yang_file:
                 if self.api:
                     schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + \
-                             '/'.join(yang_file.split('/')[4:])
+                             '/'.join(yang_file.split('/')[2:])
                 else:
                     schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' \
-                             + '/'.join(yang_file.split('/')[4:])
+                             + '/'.join(yang_file.split('/')[2:])
             else:
                 schema = None
             self.prepare.add_key(
@@ -964,7 +964,7 @@ class Capability:
         #    for dev in self.root.iter('deviation'):
         #        names.append(dev.find('name').text)
         #        if dev.find('revision').text is None:
-        #            revs.append('1500-01-01')
+        #            revs.append('1970-01-01')
         #        else:
         #            revs.append(dev.find('revision').text)
         #    devs['name'] = names
@@ -1119,7 +1119,7 @@ class Capability:
                                                 i + '.yang')
                     if yang_file is None:
                         self.integrity_checker.add_module(self.split, i)
-                        revs.append('1500-01-01')
+                        revs.append('1970-01-01')
                     else:
                         self.parsed_yang = yangParser.parse(os.path.abspath(yang_file))
                         yang_variable = self.parsed_yang.search('revision')[0].arg
@@ -1175,7 +1175,7 @@ class Capability:
                     if self.os_version is '1651':
                         if 'urn:cisco' in namespace[module_name]:
                             if ns in namespace[module_name]:
-                                organization_module[module_name] = org
+                                organization_module[module_name] = 'cisco'
                                 namespace_exist = True
                     else:
                         if ns in namespace[module_name]:
@@ -1185,13 +1185,12 @@ class Capability:
                     if 'urn:' in namespace[module_name]:
                         organization_module[module_name] = namespace[module_name].split('urn:')[1].split(':')[0]
                         namespace_exist = True
-
+                    elif 'cisco' in namespace[module_name]:
+                        organization_module[module_name] = 'cisco'
                 if not namespace_exist:
                     if organization_module.get(module_name) is None:
                         organization_module[module_name] = MISSING_ELEMENT
                     if namespace[module_name] is None or namespace[module_name] == MISSING_ELEMENT:
-                        self.integrity_checker.add_namespace(self.split, module_name + ' : missing data')
-                        namespace[module_name] = MISSING_ELEMENT
                         self.integrity_checker.add_namespace(self.split, module_name + ' : ' + namespace[module_name])
 
                 module_submodule = module_or_submodule(yang_file)
@@ -1225,10 +1224,10 @@ class Capability:
                 if yang_file:
                     if self.api:
                         schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' +\
-                                 '/'.join(yang_file.split('/')[4:])
+                                 '/'.join(yang_file.split('/')[2:])
                     else:
                         schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' \
-                                 + '/'.join(yang_file.split('/')[4:])
+                                 + '/'.join(yang_file.split('/')[2:])
                 else:
                     schema = None
                 self.prepare.add_key(module_name + '@' + revision[module_name] + ',' + organization_module[module_name],
@@ -1270,7 +1269,7 @@ class Capability:
         #    for dev in self.root.iter('deviation'):
         #        names.append(dev.find('name').text)
         #        if dev.find('revision').text is None:
-        #            revs.append('1500-01-01')
+        #            revs.append('1970-01-01')
         #        else:
         #            revs.append(dev.find('revision').text)
         #    devs['name'] = names
@@ -1380,10 +1379,10 @@ class Capability:
                 if yang_file:
                     if self.api:
                         schema[imp] = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + \
-                                 '/'.join(yang_file.split('/')[4:])
+                                 '/'.join(yang_file.split('/')[2:])
                     else:
                         schema[imp] = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' \
-                                 + '/'.join(yang_file.split('/')[4:])
+                                 + '/'.join(yang_file.split('/')[2:])
                 else:
                     schema[imp] = None
             my_json = json.dumps([{'name': imports_or_includes[k],
@@ -1427,9 +1426,9 @@ class Capability:
                         namespace_exist = False
                         for ns, org in NS_MAP.items():
                             if self.os_version is '1651':
-                                if ns is 'urn:cisco':
+                                if 'urn:cisco' in namespace[imp]:
                                     if ns in namespace[imp]:
-                                        organization_module[imp] = org
+                                        organization_module[imp] = 'cisco'
                                         namespace_exist = True
                             else:
                                 if ns in namespace[imp]:
@@ -1439,12 +1438,13 @@ class Capability:
                             if 'urn:' in namespace[imp]:
                                 organization_module[imp] = namespace[imp].split('urn:')[1].split(':')[0]
                                 namespace_exist = True
+                            elif 'cisco' in namespace[imp]:
+                                organization_module[imp] = 'cisco'
                         if not namespace_exist:
                             if organization_module.get(imp) is None:
                                 organization_module[imp] = MISSING_ELEMENT
                             if namespace[imp] is None or namespace[imp] == MISSING_ELEMENT:
-                                namespace[imp] = MISSING_ELEMENT
-                                self.integrity_checker.add_namespace(self.split, imp + ' : ' + namespace[imp])
+                                self.integrity_checker.add_namespace(self.split, imp + ' : missing data')
                         self.find_yang_var(prefix, 'prefix', imp, yang_file)
 
                     module_submodule = module_or_submodule(yang_file)
@@ -1481,10 +1481,10 @@ class Capability:
 
                     if self.api:
                         schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + \
-                                 '/'.join(yang_file.split('/')[4:])
+                                 '/'.join(yang_file.split('/')[2:])
                     else:
                         schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' \
-                                 + '/'.join(yang_file.split('/')[4:])
+                                 + '/'.join(yang_file.split('/')[2:])
 
                     self.prepare.add_key(imp + '@' + revision[imp] + ',' + organization_module[imp], namespace[imp],
                                          conformance_type[imp], self.vendor,

@@ -10,7 +10,6 @@ import urllib2
 from urllib2 import URLError
 
 import jinja2
-import requests
 
 import tools.utility.log as log
 from tools.utility import yangParser
@@ -27,6 +26,16 @@ MISSING_ELEMENT = 'missing%20element'
 
 
 def find_first_file(directory, pattern, pattern_with_revision):
+    """Search for yang file on path
+        Arguments:
+            :param directory: (str) directory which should be search recursively
+                for specified file.
+            :param pattern: (str) name of the yang file without revision
+            :param pattern_with_revision: (str) name of the yang file with
+                revision
+            :return path to a searched yang file
+    """
+
     for root, dirs, files in os.walk(directory):
         for basename in files:
             if fnmatch.fnmatch(basename, pattern_with_revision):
@@ -61,6 +70,14 @@ def http_request(path, method, json_data, http_credentials, header):
 
 
 def render(tpl_path, context):
+    """Render jinja html template
+        Arguments:
+            :param tpl_path: (str) path to a file
+            :param context: (dict) dictionary containing data to render jinja
+                template file
+            :return: string containing rendered html file
+    """
+
     path, filename = os.path.split(tpl_path)
     return jinja2.Environment(
         loader=jinja2.FileSystemLoader(path or './')
@@ -70,9 +87,9 @@ def render(tpl_path, context):
 def list_of_yang_modules_in_subdir(srcdir):
     """
     Returns the list of YANG Modules (.yang) in all sub-directories
-    :param srcdir: root directory to search for yang files
-    :param debug_level: If > 0 print some debug statements to the console
-    :return: list of YANG files
+        Arguments
+            :param srcdir: (str) root directory to search for yang files
+            :return: list of YANG files
     """
     ll = []
     for root, dirs, files in os.walk(srcdir):
@@ -83,6 +100,14 @@ def list_of_yang_modules_in_subdir(srcdir):
 
 
 def get_specifics(path_dir):
+    """Get amount of yang files in specified directory and the amount that
+    passed compilation
+        Arguments:
+            :param path_dir: (str) path to directory where we are searching for
+                yang files
+            :return: list containing amount of yang files and amount that pass
+                compilation respectively
+    """
     passed = 0
     num_in_catalog = 0
     for mod_git in list_of_yang_modules_in_subdir(path_dir):
@@ -123,6 +148,13 @@ def get_specifics(path_dir):
 
 
 def resolve_organization(path):
+    """Parse yang file and resolve organization out of the module. If the module
+    is a submodule find it's parent and resolve its organization
+            Arguments: 
+                :param path: (str) path to a file to parse and resolve a organization
+                :return: list containing amount of yang files and amount that pass
+                    compilation respectively
+    """
     organization = ''
     try:
         namespace = yangParser.parse(os.path.abspath(path)) \
@@ -176,6 +208,14 @@ def resolve_organization(path):
 
 
 def process_data(out, save_list, path, name):
+    """Process all the data out of output from runYANGallstats and Yang files themself
+        Arguments: 
+            :param out: (str) output from runYANGallstats
+            :param save_list: (list) list to which we are saving all the informations 
+            :param path: (str) path to a directory to which we are creating statistics
+            :param name: (str) name of the vendor or organization that we are creating
+                statistics for
+    """
     LOGGER.info('Getting info from {}'.format(name))
     table_sdo = {}
     modules = out.split(path + ' : ')[1].split('\n')[0]
