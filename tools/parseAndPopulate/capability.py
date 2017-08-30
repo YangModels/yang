@@ -872,10 +872,6 @@ class Capability:
                 if namespace[module_name] is None or namespace[module_name] == MISSING_ELEMENT:
                     self.integrity_checker.add_namespace(self.split,
                                                          module_name + ' : missing data')
-                    namespace[module_name] = MISSING_ELEMENT
-                    self.integrity_checker.add_namespace(self.split,
-                                                         module_name + ' : ' + namespace[
-                                                             module_name])
 
             module_submodule = module_or_submodule(yang_file)
             LOGGER.debug('Parsing extractable fields')
@@ -1189,12 +1185,12 @@ class Capability:
                     if 'urn:' in namespace[module_name]:
                         organization_module[module_name] = namespace[module_name].split('urn:')[1].split(':')[0]
                         namespace_exist = True
-
+                    elif 'cisco' in namespace[module_name]:
+                        organization_module[module_name] = 'cisco'
                 if not namespace_exist:
                     if organization_module.get(module_name) is None:
                         organization_module[module_name] = MISSING_ELEMENT
                     if namespace[module_name] is None or namespace[module_name] == MISSING_ELEMENT:
-                        self.integrity_checker.add_namespace(self.split, module_name + ' : missing data')
                         self.integrity_checker.add_namespace(self.split, module_name + ' : ' + namespace[module_name])
 
                 module_submodule = module_or_submodule(yang_file)
@@ -1430,9 +1426,9 @@ class Capability:
                         namespace_exist = False
                         for ns, org in NS_MAP.items():
                             if self.os_version is '1651':
-                                if ns is 'urn:cisco':
+                                if 'urn:cisco' in namespace[imp]:
                                     if ns in namespace[imp]:
-                                        organization_module[imp] = org
+                                        organization_module[imp] = 'cisco'
                                         namespace_exist = True
                             else:
                                 if ns in namespace[imp]:
@@ -1442,12 +1438,13 @@ class Capability:
                             if 'urn:' in namespace[imp]:
                                 organization_module[imp] = namespace[imp].split('urn:')[1].split(':')[0]
                                 namespace_exist = True
+                            elif 'cisco' in namespace[imp]:
+                                organization_module[imp] = 'cisco'
                         if not namespace_exist:
                             if organization_module.get(imp) is None:
                                 organization_module[imp] = MISSING_ELEMENT
                             if namespace[imp] is None or namespace[imp] == MISSING_ELEMENT:
-                                namespace[imp] = MISSING_ELEMENT
-                                self.integrity_checker.add_namespace(self.split, imp + ' : ' + namespace[imp])
+                                self.integrity_checker.add_namespace(self.split, imp + ' : missing data')
                         self.find_yang_var(prefix, 'prefix', imp, yang_file)
 
                     module_submodule = module_or_submodule(yang_file)
