@@ -907,10 +907,10 @@ class Capability:
             if yang_file:
                 if self.api:
                     schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + \
-                             '/'.join(yang_file.split('/')[4:])
+                             '/'.join(yang_file.split('/')[2:])
                 else:
                     schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' \
-                             + '/'.join(yang_file.split('/')[4:])
+                             + '/'.join(yang_file.split('/')[2:])
             else:
                 schema = None
             self.prepare.add_key(
@@ -1224,10 +1224,10 @@ class Capability:
                 if yang_file:
                     if self.api:
                         schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' +\
-                                 '/'.join(yang_file.split('/')[4:])
+                                 '/'.join(yang_file.split('/')[2:])
                     else:
                         schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' \
-                                 + '/'.join(yang_file.split('/')[4:])
+                                 + '/'.join(yang_file.split('/')[2:])
                 else:
                     schema = None
                 self.prepare.add_key(module_name + '@' + revision[module_name] + ',' + organization_module[module_name],
@@ -1379,10 +1379,10 @@ class Capability:
                 if yang_file:
                     if self.api:
                         schema[imp] = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + \
-                                 '/'.join(yang_file.split('/')[4:])
+                                 '/'.join(yang_file.split('/')[2:])
                     else:
                         schema[imp] = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' \
-                                 + '/'.join(yang_file.split('/')[4:])
+                                 + '/'.join(yang_file.split('/')[2:])
                 else:
                     schema[imp] = None
             my_json = json.dumps([{'name': imports_or_includes[k],
