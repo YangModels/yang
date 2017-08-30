@@ -38,3 +38,4 @@ This html file is divided to four categories:
     - Number of yang files in standard directory with duplicates
     - Number of yang files in standard directory without duplicates
     - Number of files parsed into yangcatalog
+    - Number of unique files parsed into yangcatalog

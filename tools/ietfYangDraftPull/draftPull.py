@@ -40,7 +40,7 @@ if __name__ == "__main__":
     parser.add_argument('--config-path', type=str, default='../utility/config.ini',
                         help='Set path to config file')
     args = parser.parse_args()
-    LOGGER.debug('Starting receiver')
+    LOGGER.info('Starting Cron job IETF pull request')
     args = parser.parse_args()
     config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
@@ -52,18 +52,23 @@ if __name__ == "__main__":
         github_credentials = username + ':' + token + '@'
 
     # Fork and clone the repository YangModles/yang
+    LOGGER.info('Forking repository')
     reponse = requests.post('https://' + github_credentials + 'api.github.com/repos/YangModels/yang/forks')
     repo = repoutil.RepoUtil('https://' + token + '@github.com/' + username + '/yang.git')
 
+    LOGGER.info('Cloning repo to local directory {}'.format(repo.localdir))
     repo.clone()
     yang_models_url = 'https://api.github.com/repos/yang-catalog/yang'
     try:
+        LOGGER.info('Activating Travis')
         travis = TravisPy.github_auth(token)
     except:
+        LOGGER.error('Activating Travis - Failed. Removing local directory and deleting forked repository')
         requests.delete(yang_models_url, headers={'Authorization': 'token ' + token})
         repo.remove()
         sys.exit(500)
     # Download all the latest yang modules out of http://www.claise.be/IETFYANGDraft.json and store them in tmp folder
+    LOGGER.info('Loading all files from http://www.claise.be/IETFYANGDraft.json')
     ietf_draft_json = load_json_from_url('http://www.claise.be/IETFYANGDraft.json')
     try:
         os.makedirs(repo.localdir + '/experimental/ietf-extracted-YANG-modules/')
@@ -83,14 +88,18 @@ if __name__ == "__main__":
         yang_file.close()
     try:
         travis_repo = travis.repo(username + '/yang')
+        LOGGER.info('Enabling repo for Travis')
         travis_repo.enable()  # Switch is now on
         # Add commit and push to the forked repository
+        LOGGER.info('Adding all untracked files locally')
         repo.add_all_untracked()
-
+        LOGGER.info('Committing all files locally')
         repo.commit_all('Crone job - every day pull of ietf draft yang files.')
-        #repo.push()
-        raise
+        LOGGER.info('Pushing files to forked repository')
+        repo.push()
     except:
+        LOGGER.error('Error while pushing procedure {}'.format(sys.exc_info()[0]))
         requests.delete(yang_models_url, headers={'Authorization': 'token ' + token})
     # Remove tmp folder
+    LOGGER.info('Removing tmp directory')
     repo.remove()
