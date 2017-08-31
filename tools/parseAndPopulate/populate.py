@@ -53,6 +53,10 @@ if __name__ == "__main__":
                         help='Set port where the confd is started. Default -> 8008')
     parser.add_argument('--ip', default='127.0.0.1', type=str,
                         help='Set ip address where the confd is started. Default -> 127.0.0.1')
+    parser.add_argument('--api-port', default=8443, type=int,
+                        help='Set port where the api is started. Default -> 8443')
+    parser.add_argument('--api-ip', default='127.0.0.1', type=str,
+                        help='Set ip address where the api is started. Default -> 127.0.0.1')
     parser.add_argument('--credentials', help='Set authorization parameters username password respectively.'
                                               ' Default parameters are admin admin', nargs=2, default=['admin', 'admin']
                         , type=str)
@@ -64,6 +68,8 @@ if __name__ == "__main__":
                                                                                       ' indexing')
     parser.add_argument('--protocol', type=str, default='http', help='Whether confd-6.4 runs on http or https.'
                                                                      ' Default is set to http')
+    parser.add_argument('--api-protocol', type=str, default='https', help='Whether api runs on http or https.'
+                                                                          ' Default is set to http')
     args = parser.parse_args()
     LOGGER.info('Starting the populate script')
     if args.api:
@@ -85,13 +91,13 @@ if __name__ == "__main__":
         if args.sdo:
             with open("log_api_sdo.txt", "wr") as f:
                 arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--sdo", "--dir",
-                              args.dir, "--json-dir", direc]
+                             args.dir, "--json-dir", direc]
                 subprocess.check_call(arguments, stderr=f)
                 # os.system("python runCapabilities.py --api --sdo --dir " + args.dir)
         else:
             with open("log_api.txt", "wr") as f:
-                arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--dir", args.dir
-                             , "--json-dir", direc]
+                arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--dir", args.dir,
+                             "--json-dir", direc]
                 subprocess.check_call(arguments, stderr=f)
                 # os.system("python runCapabilities.py --api --dir " + args.dir)
     else:
@@ -135,9 +141,19 @@ if __name__ == "__main__":
                      args.credentials)
 
     if not args.api:
-        LOGGER.info('Sending files for indexing')
         if args.notify_indexing:
+            LOGGER.info('Sending files for indexing')
             send_to_indexing(direc + '/prepare.json', args.credentials, args.ip, from_api=False)
-        LOGGER.info('Removing temporary json data')
+        LOGGER.info('Removing temporary json data and cache data')
         shutil.rmtree('./' + direc)
-
+        try:
+            shutil.rmtree('../api/cache')
+        except OSError:
+            # Be happy if deleted
+            pass
+        try:
+            LOGGER.info('Sending request to reload cache')
+            http_request(args.api_protocol + '://' + args.api_ip + ':' + args.api_port + '/load-cache', 'POST', None,
+                         args.credentials)
+        except:
+            LOGGER.warning('Could not send a load-cache request')

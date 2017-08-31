@@ -44,6 +44,16 @@ mod_lookup_table = {}
 
 
 def make_cache(credentials, response):
+    """After we delete or add modules we need to reload all the modules to the file
+    for quicker search. This module is then loaded to the memory.
+            Arguments:
+                :param response: (str) Contains string 'work' which will be sent back if 
+                    everything went through fine
+                :param credentials: (list) Basic authorization credentials - username, password
+                    respectively
+                :return 'work' if everything went through fine otherwise send back the reason
+                    why it failed.
+    """
     try:
         try:
             os.makedirs('./cache')
@@ -63,12 +73,18 @@ def make_cache(credentials, response):
     return response
 
 
-def unicode_normalize(variable):
-    return unicodedata.normalize('NFKD', variable).encode('ascii', 'ignore')
-
-
 # Make a http request on path with json_data
 def http_request(path, method, json_data, http_credentials, header):
+    """Create HTTP request
+            Arguments:
+                :param header: (str) to set Content-type and Accept headers to this variable
+                :param http_credentials: (list) Basic authorization credentials - username, password
+                    respectively
+                :param json_data: (dict) Body of the payload send via request 
+                :param method: (str) Request method.
+                :param path : (str) Path of the request.
+                :return a response from the request.
+    """
     try:
         opener = urllib2.build_opener(urllib2.HTTPHandler)
         request = urllib2.Request(path, data=json_data)
@@ -90,10 +106,18 @@ def http_request(path, method, json_data, http_credentials, header):
 
 @app.errorhandler(404)
 def not_found():
+    """Error handler for 404"""
     return make_response(jsonify({'error': 'Not found'}), 404)
 
 
 def authorize_for_sdos(request, organizations_sent, organization_parsed):
+    """Authorize sender whether he has rights to send data via API to confd.
+            Arguments:
+                :param organization_parsed: (str) organization of a module sent by sender.
+                :param organizations_sent: (str) organization of a module parsed from module.
+                :param request: (request) Request sent to api.
+                :return whether authorization passed.
+    """
     username = request.authorization['username']
     LOGGER.info('Checking sdo authorization for user {}'.format(username))
     accessRigths = None
@@ -126,6 +150,13 @@ def authorize_for_sdos(request, organizations_sent, organization_parsed):
 
 
 def authorize_for_vendors(request, body):
+    """Authorize sender whether he has rights to send data via API to confd. Checks if
+    sender has access on a given branch
+                Arguments:
+                    :param body: (str) json body of the request.
+                    :param request: (request) Request sent to api.
+                    :return whether authorization passed.
+    """
     username = request.authorization['username']
     LOGGER.info('Checking vendor authorization for user {}'.format(username))
     accessRigths = None
@@ -181,13 +212,16 @@ def authorize_for_vendors(request, body):
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>', methods=['PUT', 'POST', 'GET', 'DELETE', 'PATCH'])
 def catch_all(path):
+    """Catch all the rest api requests that are not supported"""
     return make_response(jsonify({'error': 'Path "/{}" does not exist'.format(path)}), 400)
 
 
 def check_authorized(signature, payload):
-    """
-    Convert the PEM encoded public key to a format palatable for pyOpenSSL,
+    """Convert the PEM encoded public key to a format palatable for pyOpenSSL,
     then verify the signature
+            Arguments:
+                :param signature: (str) Signature returned by sign function
+                :param payload: (str) String that is encoded
     """
     response = requests.get('https://api.travis-ci.org/config', timeout=10.0)
     response.raise_for_status()
@@ -199,6 +233,7 @@ def check_authorized(signature, payload):
 
 
 def send_email():
+    """Notify via e-mail message about failed travis job"""
     msg = MIMEText('Travis pull job failed')
     msg['Subject'] = 'Travis pull job failed'
     msg['From'] = 'info@yangcatalog.org'
@@ -211,12 +246,18 @@ def send_email():
 
 @app.route('/checkComplete', methods=['POST'])
 def check_local():
+    """Authorize sender if it is Travis, if travis job was sent from yang-catalog
+    repository and job passed fine and Travis run a job on pushed patch, create
+    a pull request to YangModules repository. If the job passed on this pull request,
+    merge the pull request and remove the repository at yang-catalog repository
+            :return response to the request
+    """
     LOGGER.info('Starting pull request job')
     body = json.loads(request.form['payload'])
     LOGGER.info('type of job {}'.format(body['type']))
     try:
         check_authorized(request.headers.environ['HTTP_SIGNATURE'], request.form['payload'])
-        LOGGER.info('Authorization successfull')
+        LOGGER.info('Authorization successful')
     except:
         LOGGER.critical('Authorization failed. Maybe someone trying to hack!!!')
         send_email()
@@ -268,16 +309,28 @@ def check_local():
                 "state": "closed",
                 "base": "master"
             }))
-            requests.patch('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number,
+            requests.patch('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number, json=json_body,
                             headers={'Authorization': 'token ' + token})
             return make_response(jsonify({'info': 'Success'}), 201)
     else:
         return make_response(jsonify({'Error': 'Fails'}), 500)
+    return make_response(jsonify({'Error': 'Fails'}), 500)
 
 
 @app.route('/modules/module/<name>,<revision>,<organization>', methods=['DELETE'])
 @auth.login_required
 def delete_modules(name, revision, organization):
+    """Delete a specific module defined with name, revision and organization. This is
+    not done right away but it will send a request to receiver which will work on deleting
+    while this request will send a job_id of the request which user can use to see the job
+    process.
+            Arguments:
+                :param name: (str) name of the module
+                :param revision: (str) revision of the module
+                :param organization: (str) organization of the module
+                :return response to the request with job_id that user can use to
+                    see if the job is still on or Failed or Finished successfully
+    """
     LOGGER.info('deleting module with name, revision and organization {} {} {}'.format(name, revision, organization))
     username = request.authorization['username']
     LOGGER.debug('Checking authorization for user {}'.format(username))
@@ -330,6 +383,15 @@ def delete_modules(name, revision, organization):
 @app.route('/vendors/<path:value>', methods=['DELETE'])
 @auth.login_required
 def delete_vendor(value):
+    """Delete a specific vendor defined with path. This is not done right away but it
+    will send a request to receiver which will work on deleting while this request
+    will send a job_id of the request which user can use to see the job
+        process.
+            Arguments:
+                :param value: (str) path to the branch that needs to be deleted
+                :return response to the request with job_id that user can use to
+                    see if the job is still on or Failed or Finished successfully
+    """
     LOGGER.info('Deleting vendor on path {}'.format(value))
     username = request.authorization['username']
     LOGGER.debug('Checking authorization for user {}'.format(username))
@@ -405,6 +467,16 @@ def delete_vendor(value):
 @app.route('/modules', methods=['PUT', 'POST'])
 @auth.login_required
 def add_modules():
+    """Add a new module. Use PUT request when we want to update every module there is
+    in the request, use POST request if you want to create just modules that are not 
+    in confd yet. This is not done right away. First it checks if the request sent is
+    ok and if it is, it will send a request to receiver which will work on deleting 
+    while this request will send a job_id of the request which user can use to see
+    the job process.
+            Arguments:
+                :return response to the request with job_id that user can use to
+                    see if the job is still on or Failed or Finished successfully
+    """
     if not request.json:
         abort(400)
     body = request.json
@@ -534,6 +606,16 @@ def add_modules():
 @app.route('/platforms', methods=['PUT', 'POST'])
 @auth.login_required
 def add_vendors():
+    """Add a new vendors. Use PUT request when we want to update every module there is
+    in the request, use POST request if you want to create just modules that are not 
+    in confd yet. This is not done right away. First it checks if the request sent is
+    ok and if it is, it will send a request to receiver which will work on deleting 
+    while this request will send a job_id of the request which user can use to see
+    the job process.
+            Arguments:
+                :return response to the request with job_id that user can use to
+                    see if the job is still on or Failed or Finished successfully
+    """
     if not request.json:
         abort(400)
     body = request.json
@@ -612,9 +694,15 @@ def add_vendors():
     return jsonify({'info': 'Verification successful', 'job-id': job_id})
 
 
-# Generic read-only get request
 @app.route('/search/<path:value>', methods=['GET'])
 def search(value):
+    """Search for a specific leaf from yang-catalog.yang module in modules
+    branch. The key searched is defined in @module_keys variable.
+            Arguments:
+                :param value: (str) path that contains one of the @module_keys and
+                    ends with /value searched for
+                :return response to the request.
+    """
     path = value
     LOGGER.info('Searching for {}'.format(value))
     split = value.split('/')[:-1]
@@ -647,6 +735,13 @@ def search(value):
 
 @app.route('/search/vendors/<path:value>', methods=['GET'])
 def search_vendors(value):
+    """Search for a specific vendor, platform, os-type, os-version depending on
+    the value sent via API.
+            Arguments:
+                :param value: (str) path that contains one of the @module_keys and
+                    ends with /value searched for
+                :return response to the request.
+    """
     LOGGER.info('Searching for specific vendors {}'.format(value))
     path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/vendors/' + value + '?deep'
     try:
@@ -660,6 +755,14 @@ def search_vendors(value):
 
 @app.route('/search/modules/<name>,<revision>,<organization>', methods=['GET'])
 def search_module(name, revision, organization):
+    """Search for a specific module defined with name, revision and organization
+            Arguments:
+                :param name: (str) name of the module
+                :param revision: (str) revision of the module
+                :param organization: (str) organization of the module
+                :return response to the request with job_id that user can use to
+                    see if the job is still on or Failed or Finished successfully
+    """
     LOGGER.info('Searching for module {}, {}, {}'.format(name, revision, organization))
     data = modules_data['module']
     name = name.split('.yang')[0]
@@ -676,18 +779,27 @@ def search_module(name, revision, organization):
 
 @app.route('/search/modules', methods=['GET'])
 def get_modules():
+    """Search for a all the modules populated in confd
+            :return response to the request with all the modules
+    """
     LOGGER.info('Searching for modules')
     return Response(json.dumps(modules_data), mimetype='application/json')
 
 
 @app.route('/search/vendors', methods=['GET'])
 def get_vendors():
+    """Search for a all the vendors populated in confd
+            :return response to the request with all the vendors
+    """
     LOGGER.info('Searching for vendors')
     return Response(json.dumps(vendors_data), mimetype='application/json')
 
 
 @app.route('/search/catalog', methods=['GET'])
 def get_catalog():
+    """Search for a all the data populated in confd
+                :return response to the request with all the data
+    """
     LOGGER.info('Searching for catalog data')
     response = 'work'
     try:
@@ -712,6 +824,9 @@ def get_catalog():
 
 @app.route('/job/<job_id>', methods=['GET'])
 def get_job(job_id):
+    """Search for a job_id to see the process of the job
+                :return response to the request with the job
+    """
     LOGGER.info('Searching for job_id {}'.format(job_id))
     result = sender.get(job_id)
     split = result.split('#split#')
@@ -728,12 +843,22 @@ def get_job(job_id):
 
 
 @app.route('/load-cache', methods=['POST'])
+@auth.login_required
 def load_to_memory():
+    """Load all the data populated to yang-catalog to memory.
+            :return response to the request.
+    """
+    username = request.authorization['username']
+    if username != 'admin':
+        return unauthorized
+    if get_password(username) != hash_pw(request.authorization['password']):
+        return unauthorized()
     load(False)
     return make_response(jsonify({'info': 'Success'}), 201)
 
 
 def load(on_start):
+    """Load all the data populated to yang-catalog to memory saved in file in ./cache."""
     if on_start:
         LOGGER.info('Removinch cache file and loading new one - this is done only when API is starting to get fresh'
                     ' data')
@@ -753,7 +878,10 @@ def load(on_start):
             cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict)\
                         .decode(catalog.read())['yang-catalog:catalog']
             modules_data = cat['modules']
-            vendors_data = cat['vendors']
+            if cat.get('vendors'):
+                vendors_data = cat['vendors']
+            else:
+                vendors_data = {}
     except (IOError, ValueError):
         LOGGER.warning('Cache file does not exist')
         # Try to create a cache if not created yet and load data again
@@ -766,7 +894,10 @@ def load(on_start):
                     cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict)\
                         .decode(catalog.read())['yang-catalog:catalog']
                     modules_data = cat['modules']
-                    vendors_data = cat['vendors']
+                    if cat.get('vendors'):
+                        vendors_data = cat['vendors']
+                    else:
+                        vendors_data = {}
             except:
                 LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
     if modules_data != '':
@@ -776,6 +907,18 @@ def load(on_start):
 
 
 def process(data, passed_data, value, module, split, count):
+    """Iterates recursively through the data to find only modules
+    that are searched for
+            Arguments:
+                :param data: (dict) module that is searched
+                :param passed_data: (list) data that contain value searched
+                    for are saved in this variable
+                :param value: (str) value searched for
+                :param module: (dict) module that is searched
+                :param split: (str) key value that conatins value searched for
+                :param count: (int) if split contains '/' then we need to know 
+                    which part of the path are we searching.
+    """
     if isinstance(data, unicode):
         if data == value:
             passed_data.append(module)
@@ -793,14 +936,21 @@ def process(data, passed_data, value, module, split, count):
 
 @auth.hash_password
 def hash_pw(password):
+    """Hash the password
+            Arguments:
+                :param password: (str) password provided via API
+                :return hashed password
+    """
     return hashlib.sha256(password).hexdigest()
 
 
 @auth.get_password
 def get_password(username):
-    #    if username in users:
-    #        return users.get(username)
-    #    return None
+    """Get password out of database
+            Arguments:
+                :param username: (str) username privided via API
+                :return hashed password
+    """
     try:
         db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
         # prepare a cursor object using cursor() method
@@ -824,6 +974,7 @@ def get_password(username):
 
 @auth.error_handler
 def unauthorized():
+    """Return unathorized error message"""
     return make_response(jsonify({'error': 'Unauthorized access'}), 401)
 
 
