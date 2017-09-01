@@ -21,6 +21,18 @@ LOGGER = log.get_logger('receiver')
 
 # Make a http request on path with json_data
 def http_request(path, method, json_data, http_credentials, header, indexing=None):
+    """Create HTTP request
+        Arguments:
+            :param indexing: (str) Whether there need to be added a X-YC-Signature.
+                This is because of the verification with indexing script
+            :param header: (str) to set Content-type and Accept headers to this variable
+            :param http_credentials: (list) Basic authorization credentials - username, password
+                respectively
+            :param json_data: (dict) Body of the payload send via request 
+            :param method: (str) Request method.
+            :param path : (str) Path of the request.
+            :return a response from the request.
+    """
     try:
         opener = urllib2.build_opener(urllib2.HTTPHandler)
         request = urllib2.Request(path, data=json_data)
@@ -40,6 +52,16 @@ def http_request(path, method, json_data, http_credentials, header, indexing=Non
 
 
 def process_sdo(arguments):
+    """Processes SDOs. Calls populate script which calls script to parse all the modules
+    on the given path which is one of the params. Populate script will also send the
+    request to populate confd on given ip and port. It will also copy all the modules to 
+    parent directory of this project /api/sdo. It will also call indexing script to
+    update searching.
+            Arguments:
+                :param arguments: (list) list of arguments sent from api sender
+                :return (__response_type) one of the response types which is either
+                    'Failed' or 'Finished successfully' 
+    """
     LOGGER.debug('Processing sdo')
     tree_created = True if arguments[-4] == 'True' else False
     arguments = arguments[:-4]
@@ -70,13 +92,33 @@ def process_sdo(arguments):
 
 
 def create_signature(secret_key, string):
-    """ Create the signed message from api_key and string_to_sign """
+    """ Create the signed message from api_key and string_to_sign
+            Arguments:
+                :param string: (str) String that needs to be signed
+                :param secret_key: Secret key that the string will be signed with
+                :return A string of 2* `digest_size` bytes. It contains only
+                    hexadecimal ASCII digits.
+    """
     string_to_sign = string.encode('utf-8')
     hmac = HMAC.new(secret_key, string_to_sign, SHA)
     return hmac.hexdigest()
 
 
 def send_to_indexing(modules_to_index, credentials, confd_ip, sdo_type=False, delete=False, from_api=True):
+    """ Sends the POST request which will activate indexing script for modules which will
+    help to speed up process of searching. It will create a json body of all the modules
+    containing module name and path where the module can be found if we are adding new
+    modules. Other situation can be if we need to delete module. In this case we are sending
+    list of modules that need to be deleted.
+            Arguments:
+                :param from_api: 
+                :param delete: 
+                :param sdo_type: 
+                :param confd_ip: 
+                :param credentials: 
+                :param modules_to_index: (json file) prepare.json file generated while parsing
+                    all the modules. This file is used to iterate through all the modules.
+    """
     LOGGER.debug('Sending data for indexing')
     if delete:
         body_to_send = json.dumps({'modules-to-delete': modules_to_index})
@@ -116,6 +158,16 @@ def send_to_indexing(modules_to_index, credentials, confd_ip, sdo_type=False, de
 
 
 def process_vendor(arguments):
+    """Processes vendors. Calls populate script which calls script to parse all the modules
+    that are contained in the given hello message xml file or in ietf-yang-module xml file
+    which is one of the params. Populate script will also send the request to populate confd
+    on given ip and port. It will also copy all the modules to parent directory of this
+    project /api/sdo. It will also call indexing script to update searching.
+            Arguments:
+                :param arguments: (list) list of arguments sent from api sender
+                :return (__response_type) one of the response types which is either
+                    'Failed' or 'Finished successfully' 
+    """
     LOGGER.debug('Processing vendor')
     tree_created = True if arguments[-5] == 'True' else False
     integrity_file_location = arguments[-4]
@@ -153,6 +205,18 @@ def process_vendor(arguments):
 
 
 def process_vendor_deletion(arguments, api_protocol, api_port):
+    """Deletes vendors. It calls the delete request to confd to delete all the module
+    in vendor branch of the yang-catalog.yang module on given path. If the module was
+    added by vendor and it doesn't contain any other implementations it will delete the 
+    whole module in modules branch of the yang-catalog.yang module. It will also call
+    indexing script to update searching.
+            Arguments:
+                :param api_port: (int) Port where the API runs
+                :param api_protocol: (str) Whether API runs on http or https
+                :param arguments: (list) list of arguments sent from api sender
+                :return (__response_type) one of the response types which is either
+                    'Failed' or 'Finished successfully' 
+    """
     vendor, platform, software_version, software_flavor = arguments[0:4]
     protocol, confd_ip, confdPort = arguments[4:7]
     credentials = arguments[7:9]
@@ -241,6 +305,12 @@ def process_vendor_deletion(arguments, api_protocol, api_port):
 
 
 def iterate_in_depth(value, modules):
+    """Iterates through the branch to get to the level with modules
+            Arguments:
+                :param value: (dict) data through which we will need to iterate
+                :param modules: (set) set that will contain all the modules that
+                 need to be deleted
+    """
     for key, val in value.iteritems():
         if key == 'protocols':
             continue
@@ -259,6 +329,21 @@ def iterate_in_depth(value, modules):
 
 
 def make_cache(credentials, response, protocol, confd_ip, confd_port, api_protocol, api_port):
+    """After we delete or add modules we need to reload all the modules to the file
+    for qucker search. This module is then loaded to the memory.
+            Arguments:
+                :param api_port: (int) Port where the API runs
+                :param api_protocol: (str) Whether API runs on http or https
+                :param confd_port: (int) Port where the confd runs
+                :param confd_ip: (str) Ip address where the confd runs
+                :param protocol: (str) Whether confd runs on http or https
+                :param response: (str) Contains string 'work' which will be sent back if 
+                    everything went through fine
+                :param credentials: (list) Basic authorization credentials - username, password
+                    respectively
+                :return 'work' if everything went through fine otherwise send back the reason why
+                    it failed.
+    """
     try:
         try:
             os.makedirs('./cache')
@@ -285,6 +370,14 @@ def make_cache(credentials, response, protocol, confd_ip, confd_port, api_protoc
 
 
 def process_module_deletion(arguments):
+    """Deletes module. It calls the delete request to confd to delete module on given path.
+    This will delete whole module in modules branch of the yang-catalog.yang module.
+    It will also call indexing script to update searching.
+                Arguments:
+                    :param arguments: (list) list of arguments sent from api sender
+                    :return (__response_type) one of the response types which is either
+                        'Failed' or 'Finished successfully' 
+    """
     credentials = arguments[3:5]
     path_to_delete = arguments[5]
     confd_ip = arguments[1]
@@ -301,6 +394,15 @@ def process_module_deletion(arguments):
 
 
 def on_request(ch, method, props, body):
+    """Function called when something was sent from API sender. This function will process
+    all the requests that would take too long to process for API. When the processing is 
+    done we will sent back the result of the request which can be either 'Failed' or
+    'Finished successfully' with corespondent correlation id. If the request 'Failed'
+    it will sent back also a reason why it failed.
+            Arguments:
+                :param body: (str) String of arguments that need to be processed separated
+                by '#'.
+        """
     LOGGER.info('Received request with body {}'.format(body))
     arguments = body.split('#')
 
@@ -354,6 +456,10 @@ if __name__ == '__main__':
     key = config.get('Receiver-Section', 'key')
     global notify_indexing
     notify_indexing = config.get('Receiver-Section', 'notify-index')
+    if notify_indexing == 'True':
+        notify_indexing = True
+    else:
+        notify_indexing = False
     __response_type = ['Failed', 'Finished successfully']
     connection = pika.BlockingConnection(pika.ConnectionParameters(host='127.0.0.1'))
     channel = connection.channel()
