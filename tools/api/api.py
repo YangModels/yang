@@ -9,7 +9,6 @@ import os
 import shutil
 import smtplib
 import sys
-import unicodedata
 import urllib2
 from email.mime.text import MIMEText
 from urllib2 import URLError
@@ -71,6 +70,26 @@ def make_cache(credentials, response):
         LOGGER.error('Could not load json to cache. Error: {}'.format(e))
         return 'Server error - downloading cache'
     return response
+
+
+def create_response(body, status, headers=None):
+    """Creates flask response that can be sent to sender.
+            Arguments:
+                :param body: (Str) Message body of the response
+                :param status: (int) Status code of the response 
+                :param headers: (list) List of tuples containing headers information
+                :return: Response that can be returned.
+    """
+    if headers is None:
+        headers = []
+    resp = Response(body, status=status)
+    if headers:
+        for item in headers:
+            if item[0] == 'Content-Length' or 'Content-Encoding' in item[0]:
+                continue
+            resp.headers[item[0]] = item[1]
+
+    return resp
 
 
 # Make a http request on path with json_data
@@ -310,7 +329,7 @@ def check_local():
                 "base": "master"
             }))
             requests.patch('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number, json=json_body,
-                            headers={'Authorization': 'token ' + token})
+                           headers={'Authorization': 'token ' + token})
             return make_response(jsonify({'info': 'Success'}), 201)
     else:
         return make_response(jsonify({'Error': 'Fails'}), 500)
@@ -492,10 +511,14 @@ def add_modules():
     except:
         pass
     path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/modules'
-    try:
-        http_request(path, 'PUT', json.dumps(body), credentials, 'application/vnd.yang.data+json')
-    except urllib2.HTTPError as e:
-        abort(e.code)
+
+    base64string = base64.b64encode('%s:%s' % (credentials[0], credentials[1]))
+    response = requests.put(path, json.dumps(body), headers={'Authorization': 'Basic ' + base64string,
+                                                             'Content-type': 'application/vnd.yang.data+json',
+                                                             'Accept': 'application/vnd.yang.data+json'})
+
+    if response.status_code != 200 and response.status_code != 201 and response.status_code != 204:
+        return create_response(response.content, response.status_code, response.headers.items())
     repo = {}
     warning = []
 
@@ -630,10 +653,15 @@ def add_vendors():
     except:
         pass
     path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/'
-    try:
-        http_request(path, 'POST', json.dumps(body), credentials, 'application/vnd.yang.data+json')
-    except urllib2.HTTPError as e:
-        abort(e.code)
+
+    base64string = base64.b64encode('%s:%s' % (credentials[0], credentials[1]))
+    response = requests.put(path, json.dumps(body), headers={'Authorization': 'Basic ' + base64string,
+                                                             'Content-type': 'application/vnd.yang.data+json',
+                                                             'Accept': 'application/vnd.yang.data+json'})
+
+    if response.status_code != 200 and response.status_code != 201 and response.status_code != 204:
+        return create_response(response.content, response.status_code, response.headers.items())
+
     repo = {}
 
     direc = 0
@@ -875,8 +903,8 @@ def load(on_start):
     vendors_data = ''
     try:
         with open('./cache/catalog.json', 'r') as catalog:
-            cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict)\
-                        .decode(catalog.read())['yang-catalog:catalog']
+            cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+                .decode(catalog.read())['yang-catalog:catalog']
             modules_data = cat['modules']
             if cat.get('vendors'):
                 vendors_data = cat['vendors']
@@ -891,7 +919,7 @@ def load(on_start):
         else:
             try:
                 with open('./cache/catalog.json', 'r') as catalog:
-                    cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict)\
+                    cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
                         .decode(catalog.read())['yang-catalog:catalog']
                     modules_data = cat['modules']
                     if cat.get('vendors'):

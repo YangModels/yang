@@ -4,7 +4,6 @@ import fileinput
 import fnmatch
 import json
 import os
-import re
 import subprocess
 import unicodedata
 import urllib2
@@ -18,6 +17,56 @@ from tools.utility import yangParser
 
 LOGGER = log.get_logger(__name__)
 
+IETF_RFC_MAP = {
+"iana-crypt-hash@2014-08-06.yang": "NETMOD",
+"iana-if-type@2014-05-08.yang": "NETMOD",
+"ietf-complex-types@2011-03-15.yang": "N/A",
+"ietf-inet-types@2010-09-24.yang": "NETMOD",
+"ietf-inet-types@2013-07-15.yang": "NETMOD",
+"ietf-interfaces@2014-05-08.yang": "NETMOD",
+"ietf-ip@2014-06-16.yang": "NETMOD",
+"ietf-ipfix-psamp@2012-09-05.yang": "IPFIX",
+"ietf-ipv4-unicast-routing@2016-11-04.yang": "NETMOD",
+"ietf-ipv6-router-advertisements@2016-11-04.yang": "NETMOD",
+"ietf-ipv6-unicast-routing@2016-11-04.yang": "NETMOD",
+"ietf-key-chain@2017-06-15.yang": "RTGWG",
+"ietf-l3vpn-svc@2017-01-27.yang": "L3SM",
+"ietf-lmap-common@2017-08-08.yang": "LMAP",
+"ietf-lmap-control@2017-08-08.yang": "LMAP",
+"ietf-lmap-report@2017-08-08.yang": "LMAP",
+"ietf-netconf-acm@2012-02-22.yang": "NETCONF",
+"ietf-netconf-monitoring@2010-10-04.yang": "NETCONF",
+"ietf-netconf-notifications@2012-02-06.yang": "NETCONF",
+"ietf-netconf-partial-lock@2009-10-19.yang": "NETCONF",
+"ietf-netconf-time@2016-01-26.yang": "N/A",
+"ietf-netconf-with-defaults@2011-06-01.yang": "NETCONF",
+"ietf-netconf@2011-06-01.yang": "NETCONF",
+"ietf-restconf-monitoring@2017-01-26.yang": "NETCONF",
+"ietf-restconf@2017-01-26.yang": "NETCONF",
+"ietf-routing@2016-11-04.yang": "NETMOD",
+"ietf-snmp-common@2014-12-10.yang": "NETMOD",
+"ietf-snmp-community@2014-12-10.yang": "NETMOD",
+"ietf-snmp-engine@2014-12-10.yang": "NETMOD",
+"ietf-snmp-notification@2014-12-10.yang": "NETMOD",
+"ietf-snmp-proxy@2014-12-10.yang": "NETMOD",
+"ietf-snmp-ssh@2014-12-10.yang": "NETMOD",
+"ietf-snmp-target@2014-12-10.yang": "NETMOD",
+"ietf-snmp-tls@2014-12-10.yang": "NETMOD",
+"ietf-snmp-tsm@2014-12-10.yang": "NETMOD",
+"ietf-snmp-usm@2014-12-10.yang": "NETMOD",
+"ietf-snmp-vacm@2014-12-10.yang": "NETMOD",
+"ietf-snmp@2014-12-10.yang": "NETMOD",
+"ietf-system@2014-08-06.yang": "NETMOD",
+"ietf-template@2010-05-18.yang": "NETMOD",
+"ietf-x509-cert-to-name@2014-12-10.yang": "NETMOD",
+"ietf-yang-library@2016-06-21.yang": "NETCONF",
+"ietf-yang-metadata@2016-08-05.yang": "NETMOD",
+"ietf-yang-patch@2017-02-22.yang": "NETCONF",
+"ietf-yang-smiv2@2012-06-22.yang": "NETMOD",
+"ietf-yang-types@2010-09-24.yang": "NETMOD",
+"ietf-yang-types@2013-07-15.yang": "NETMOD"
+}
+
 NS_MAP = {
     "http://cisco.com/ns/yang/": "cisco",
     "http://www.huawei.com/netconf": "huawei",
@@ -28,6 +77,7 @@ NS_MAP = {
 github = 'https://github.com/'
 github_raw = 'https://raw.githubusercontent.com/'
 MISSING_ELEMENT = 'missing element'
+
 
 # searching for file based on pattern or pattern_with_revision
 def find_first_file(directory, pattern, pattern_with_revision):
@@ -143,6 +193,8 @@ def is_openconfig(rows, output):
         row_number = 0
         skip = []
         for row in rows:
+            if 'x--' in row or 'o--' in row:
+                continue
             if '' == row.strip(' '):
                 break
             if '+--rw' in row and row_number != 0 and row_number not in skip and '[' not in row and \
@@ -159,6 +211,8 @@ def is_openconfig(rows, output):
                 length_before = set([len(row.split('+--')[0])])
                 skip = []
                 for x in range(row_number, len(rows)):
+                    if 'x--' in rows[x] or 'o--' in rows[x]:
+                        continue
                     if len(rows[x].split('+--')[0]) not in length_before:
                         if (len(rows[x].replace('|', '').strip(' ').split(' ')) != 2 and '[' not in rows[x]) \
                                 or '+--:' in rows[x] or '(' in rows[x]:
@@ -185,6 +239,8 @@ def is_openconfig(rows, output):
                 length_before = len(row.split('+--')[0])
                 skip = []
                 for x in range(row_number, len(rows)):
+                    if 'x--' in rows[x] or 'o--' in rows[x]:
+                        continue
                     if len(rows[x].split('+--')[0]) < length_before:
                         break
                     if '+--rw' in rows[x]:
@@ -197,19 +253,27 @@ def is_openconfig(rows, output):
 def is_combined(rows, output):
     if output.split('\n')[0].endswith('-state'):
         return False
+    next_obsolete_or_deprecated = False
     for row in rows:
+        if next_obsolete_or_deprecated:
+            if 'x--' in row or 'o--' in row:
+                next_obsolete_or_deprecated = False
+            else:
+                return False
+        if 'x--' in row or 'o--' in row:
+            continue
         if '+--rw config' == row.replace('|', '').strip(' ') or '+--ro state' == row.replace('|', '').strip(' '):
             return False
         if len(row.split('+--')[0]) == 4:
             if '-state' in row and '+--ro' in row:
                 return False
         if len(row.split('augment')[0]) == 2:
-                part = row.strip(' ').split('/')[1]
-                if '-state' in part:
-                    return False
-                part = row.strip(' ').split('/')[-1]
-                if ':state:' in part or '/state:' in part or ':config:' in part or '/config:' in part:
-                    return False
+            part = row.strip(' ').split('/')[1]
+            if '-state' in part:
+                next_obsolete_or_deprecated = True
+            part = row.strip(' ').split('/')[-1]
+            if ':state:' in part or '/state:' in part or ':config:' in part or '/config:' in part:
+                next_obsolete_or_deprecated = True
     return True
 
 
@@ -230,6 +294,8 @@ def is_transational(rows, output):
             elif stdout == '':
                 return False
             for x in range(0, len(rows)):
+                if 'x--' in rows[x] or 'o--' in rows[x]:
+                    continue
                 if rows[x].strip(' ') == '':
                     break
                 if len(rows[x].split('+--')[0]) == 4:
@@ -258,6 +324,8 @@ def is_split(rows, output):
     if output.split('\n')[0].endswith('-state'):
         return False
     for row in rows:
+        if 'x--' in row or 'o--' in row:
+            continue
         if '+--rw config' == row.replace('|', '').strip(' ') or '+--ro state' == row.replace('|', '').strip(' '):
             return False
         if 'augment' in row:
@@ -265,6 +333,8 @@ def is_split(rows, output):
             if ':state:' in part or '/state:' in part or ':config:' in part or '/config:' in part:
                 return False
     for row in rows:
+        if 'x--' in row or 'o--' in row:
+            continue
         if row == '':
             break
         if (len(row.split('+--')[0]) == 4 and 'augment' not in rows[row_num - 1]) or len(row.split('augment')[0]) == 2:
@@ -281,6 +351,8 @@ def is_split(rows, output):
                 else:
                     state = row.strip(' ').split('-state')[0].split(' ')[1]
                 for x in range(row_num + 1, len(rows)):
+                    if 'x--' in rows[x] or 'o--' in rows[x]:
+                        continue
                     if rows[x].strip(' ') == '' \
                             or (len(row.split('+--')[0]) == 4 and 'augment' not in rows[row_num - 1])\
                             or len(row.split('augment')[0]) == 2:
@@ -300,6 +372,8 @@ def is_split(rows, output):
         row_num = 0
         failed = True
         for row in rows:
+            if 'x--' in row or 'o--' in row:
+                continue
             if '+--:' in row:
                 continue
             if row.strip(' ') == '':
@@ -314,6 +388,8 @@ def is_split(rows, output):
                         or (state == row.strip(' ').split(' ')[1]):
                     failed = False
                     for x in range(row_num + 1, len(rows)):
+                        if 'x--' in row[x] or 'o--' in row[x]:
+                            continue
                         if rows[x].strip(' ') == '' or len(rows[x].split('+--')[0]) == 4\
                                 or len(row.split('augment')[0]) == 2:
                             break
@@ -402,6 +478,8 @@ class Capability:
         self.bbf_json = {}
         self.ieee_standard_json = {}
         self.ieee_experimental_json = {}
+        self.ietf_rfc_standard_json = {}
+        self.ietf_rfc_standard_json = load_json_from_url('http://www.claise.be/RFCStandard.json')
         self.ietf_rfc_json = load_json_from_url('http://www.claise.be/IETFYANGRFC.json')
         self.bbf_json = load_json_from_url('http://www.claise.be/BBF.json')
         self.ieee_standard_json = load_json_from_url('http://www.claise.be/IEEEStandard.json')
@@ -1513,19 +1591,10 @@ class Capability:
         # if module name contains .yang get only name
         module_name = module_name.split('.')[0]
         # try to find in rfc without revision
-        try:
-            if module_name + '.yang' in self.ietf_rfc_json.keys():
-                return 'passed'
-        except KeyError:
-            pass
-        # try to find in rfc with revision
-        try:
-            if module_name + '@' + revision + '.yang' in self.ietf_rfc_json.keys():
-                return 'passed'
-        except KeyError:
-            pass
 
         status = self.get_module_status(self.ietf_draft_json, module_name, revision, 3)
+        if status == 'unknown':
+            status = self.get_module_status(self.ietf_rfc_standard_json, module_name, revision, 0)
         if status == 'unknown':
             status = self.get_module_status(self.bbf_json, module_name, revision, 0)
         if status == 'unknown':
@@ -1746,6 +1815,9 @@ class Capability:
         result = self.parse_res(module_name, revision, self.huawei8910)
         if result != '':
             return result
+        result = self.parse_res(module_name, revision, self.ietf_rfc_standard_json)
+        if result != '':
+            return result
         return ''
 
     def parse_res(self, module_name, revision, json_file):
@@ -1809,7 +1881,7 @@ class Capability:
         return None
 
     def parse_wg(self, module_name, revision):
-        LOGGER.debug('Parsing working groupg of module {}'.format(module_name))
+        LOGGER.debug('Parsing working group of module {}'.format(module_name))
         # if module name contains .yang get only name
         module_name = module_name.split('.')[0]
         # try to find in draft without revision
@@ -1821,6 +1893,16 @@ class Capability:
         try:
             return self.ietf_draft_json[module_name + '@' + revision + '.yang'][0].split('</a>')[0].split('\">')[1]\
             .split('-')[2]
+        except KeyError:
+            pass
+        # try to find in ietf RFC map with revision
+        try:
+            return IETF_RFC_MAP[module_name + '.yang']
+        except KeyError:
+            pass
+        # try to find in ietf RFC map with revision
+        try:
+            return IETF_RFC_MAP[module_name + '@' + revision + '.yang']
         except KeyError:
             pass
         return None

@@ -78,7 +78,7 @@ if __name__ == "__main__":
         direc = 0
         while True:
             try:
-                os.makedirs('./' + repr(direc))
+                os.makedirs('../parseAndPopulate/' + repr(direc))
                 break
             except OSError as e:
                 direc += 1
@@ -103,12 +103,13 @@ if __name__ == "__main__":
     else:
         if args.sdo:
             with open("log_sdo.txt", "wr") as f:
-                arguments = ["python", "runCapabilities.py", "--sdo", "--dir", args.dir, "--json-dir", direc]
+                arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--sdo", "--dir", args.dir,
+                             "--json-dir", direc]
                 subprocess.check_call(arguments, stderr=f)
                 # os.system("python runCapabilities.py --sdo --dir" + args.dir)
         else:
             with open("log_no_sdo_api.txt", "wr") as f:
-                arguments = ["python", "runCapabilities.py", "--dir", args.dir, "--json-dir", direc]
+                arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--dir", args.dir, "--json-dir", direc]
                 subprocess.check_call(arguments, stderr=f)
                 # os.system("python runCapabilities.py --dir " + args.dir)
 
@@ -141,11 +142,28 @@ if __name__ == "__main__":
                      args.credentials)
 
     if not args.api:
-        if args.notify_indexing:
+        do_indexing = True
+        if 'ietf-extracted-YANG-modules' in args.dir:
+            try:
+                os.makedirs('./old')
+            except OSError:
+                # Be happy if deleted
+                pass
+            try:
+                with open('./old/prepare.json', 'r') as f:
+                    old = f.read()
+            except:
+                old = ''
+            with open('../parseAndPopulate/' + direc + '/prepare.json', 'r') as f:
+                new = f.read()
+            if old != new:
+                do_indexing = False
+            shutil.copy('../parseAndPopulate/' + direc + '/prepare.json', './old/.')
+        if args.notify_indexing and do_indexing:
             LOGGER.info('Sending files for indexing')
             send_to_indexing(direc + '/prepare.json', args.credentials, args.ip, from_api=False)
         LOGGER.info('Removing temporary json data and cache data')
-        shutil.rmtree('./' + direc)
+        shutil.rmtree('../parseAndPopulate/' + direc)
         try:
             shutil.rmtree('../api/cache')
         except OSError:
@@ -153,7 +171,7 @@ if __name__ == "__main__":
             pass
         try:
             LOGGER.info('Sending request to reload cache')
-            http_request(args.api_protocol + '://' + args.api_ip + ':' + args.api_port + '/load-cache', 'POST', None,
+            http_request(args.api_protocol + '://' + args.api_ip + ':' + repr(args.api_port) + '/load-cache', 'POST', None,
                          args.credentials)
         except:
             LOGGER.warning('Could not send a load-cache request')
