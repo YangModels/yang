@@ -1,3 +1,4 @@
+import ConfigParser
 import argparse
 import base64
 import errno
@@ -70,7 +71,15 @@ if __name__ == "__main__":
                                                                      ' Default is set to http')
     parser.add_argument('--api-protocol', type=str, default='https', help='Whether api runs on http or https.'
                                                                           ' Default is set to http')
+    parser.add_argument('--result-html-dir', default='/home/miroslav/results/', type=str,
+                        help='Set dir where to write html result files. Default -> /home/miroslav/results/')
+    parser.add_argument('--config-path', type=str, default='../utility/config.ini',
+                        help='Set path to config file')
     args = parser.parse_args()
+    config_path = os.path.abspath('.') + '/' + args.config_path
+    config = ConfigParser.ConfigParser()
+    config.read(config_path)
+    key = config.get('Receiver-Section', 'key')
     LOGGER.info('Starting the populate script')
     if args.api:
         direc = '/'.join(args.dir.split('/')[0:3])
@@ -91,27 +100,24 @@ if __name__ == "__main__":
         if args.sdo:
             with open("log_api_sdo.txt", "wr") as f:
                 arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--sdo", "--dir",
-                             args.dir, "--json-dir", direc]
+                             args.dir, "--json-dir", direc, "--result-html-dir", args.result_html_dir]
                 subprocess.check_call(arguments, stderr=f)
-                # os.system("python runCapabilities.py --api --sdo --dir " + args.dir)
         else:
             with open("log_api.txt", "wr") as f:
                 arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--dir", args.dir,
-                             "--json-dir", direc]
+                             "--json-dir", direc, "--result-html-dir", args.result_html_dir]
                 subprocess.check_call(arguments, stderr=f)
-                # os.system("python runCapabilities.py --api --dir " + args.dir)
     else:
         if args.sdo:
             with open("log_sdo.txt", "wr") as f:
                 arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--sdo", "--dir", args.dir,
-                             "--json-dir", direc]
+                             "--json-dir", direc, "--result-html-dir", args.result_html_dir]
                 subprocess.check_call(arguments, stderr=f)
-                # os.system("python runCapabilities.py --sdo --dir" + args.dir)
         else:
             with open("log_no_sdo_api.txt", "wr") as f:
-                arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--dir", args.dir, "--json-dir", direc]
+                arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--dir", args.dir, "--json-dir", direc,
+                             "--result-html-dir", args.result_html_dir]
                 subprocess.check_call(arguments, stderr=f)
-                # os.system("python runCapabilities.py --dir " + args.dir)
 
     LOGGER.info('Populating yang catalog with data. Starting to add modules')
     for filename_prepare in find_files('../parseAndPopulate/' + direc, 'prepare.json'):
@@ -157,11 +163,12 @@ if __name__ == "__main__":
             with open('../parseAndPopulate/' + direc + '/prepare.json', 'r') as f:
                 new = f.read()
             if old != new:
-                do_indexing = False
+                do_indexing = True
             shutil.copy('../parseAndPopulate/' + direc + '/prepare.json', './old/.')
         if args.notify_indexing and do_indexing:
             LOGGER.info('Sending files for indexing')
-            send_to_indexing(direc + '/prepare.json', args.credentials, args.ip, from_api=False)
+            send_to_indexing('../parseAndPopulate/' + direc + '/prepare.json', args.credentials, args.ip, args.api_port,
+                             from_api=False, set_key=key)
         LOGGER.info('Removing temporary json data and cache data')
         shutil.rmtree('../parseAndPopulate/' + direc)
         try:

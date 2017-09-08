@@ -1,6 +1,10 @@
+import ConfigParser
+import argparse
 import json
 import os
 import subprocess
+import tarfile
+import urllib
 import urllib2
 
 from numpy.f2py.auxfuncs import throw_error
@@ -31,10 +35,42 @@ def load_json_from_url(url):
 
 if __name__ == "__main__":
     LOGGER.info('Starting Cron job IETF pull request local')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config-path', type=str, default='../utility/config.ini',
+                        help='Set path to config file')
+    args = parser.parse_args()
+    config_path = os.path.abspath('.') + '/' + args.config_path
+    config = ConfigParser.ConfigParser()
+    config.read(config_path)
+    api_ip = config.get('DraftPullLocal-Section', 'api-ip')
+    api_port = config.get('DraftPullLocal-Section', 'api-port')
+    confd_ip = config.get('DraftPullLocal-Section', 'confd-ip')
+    confd_port = config.get('DraftPullLocal-Section', 'confd-port')
+    credentials = config.get('DraftPullLocal-Section', 'credentials').split(' ')
+    result_html_dir = config.get('DraftPullLocal-Section', 'result-html-dir')
+    protocol = config.get('DraftPullLocal-Section', 'protocol')
+    notify = config.get('DraftPullLocal-Section', 'notify-index')
 
     LOGGER.info('Loading all files from http://www.claise.be/IETFYANGDraft.json')
     ietf_draft_json = load_json_from_url('http://www.claise.be/IETFYANGDraft.json')
 
+    response = urllib.urlretrieve('http://www.claise.be/YANG-RFC.tar', './rfc.tar')
+
+    tar = tarfile.open('./rfc.tar')
+    tar.extractall('../../standard/ietf/RFC')
+    tar.close()
+    with open("log.txt", "wr") as f:
+        try:
+            LOGGER.info('Calling populate script')
+            arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port", confd_port, "--ip",
+                         confd_ip, "--api-protocol", protocol, "--api-port", api_port, "--api-ip", api_ip,
+                         "--dir", "../../standard/ietf/RFC", "--result-html-dir", result_html_dir,
+                         "--credentials", credentials[0], credentials[1]]
+            if notify == 'True':
+                arguments.append("--notify-indexing")
+            subprocess.check_call(arguments, stderr=f)
+        except subprocess.CalledProcessError as e:
+            LOGGER.error('Error calling process populate.py {}'.format(e.message))
     for key in ietf_draft_json:
         yang_file = open('../../experimental/ietf-extracted-YANG-modules/' + key, 'w+')
         yang_download_link = ietf_draft_json[key][2].split('href="')[1].split('">Download')[0]
@@ -62,7 +98,7 @@ if __name__ == "__main__":
         latest = max(year)
         files_to_delete = []
         remove = []
-        for x in range(len(files)-1, -1, -1):
+        for x in range(len(files) - 1, -1, -1):
             if year[x] != latest:
                 files_to_delete.append(files[x])
                 files.remove(files[x])
@@ -71,7 +107,7 @@ if __name__ == "__main__":
                 day.remove(day[x])
 
         latest = max(month)
-        for x in range(len(files)-1, -1, -1):
+        for x in range(len(files) - 1, -1, -1):
             if month[x] != latest:
                 files_to_delete.append(files[x])
                 files.remove(files[x])
@@ -79,7 +115,7 @@ if __name__ == "__main__":
                 month.remove(month[x])
                 day.remove(day[x])
         latest = max(day)
-        for x in range(len(files)-1, -1, -1):
+        for x in range(len(files) - 1, -1, -1):
             if day[x] != latest:
                 files_to_delete.append(files[x])
                 files.remove(files[x])
@@ -92,9 +128,12 @@ if __name__ == "__main__":
     with open("log.txt", "wr") as f:
         try:
             LOGGER.info('Calling populate script')
-            subprocess.check_call(["python", "../parseAndPopulate/populate.py", "--sdo", "--port", "8008", "--ip", "yangcatalog.org",
-                                   "--api-protocol", "https", "--api-port", "8443", "--api-ip", "yangcatalog.org",
-                                   "--dir", "../../experimental/ietf-extracted-YANG-modules"], stderr=f)
+            arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port", confd_port, "--ip",
+                         confd_ip, "--api-protocol", protocol, "--api-port", api_port, "--api-ip", api_ip,
+                         "--dir", "../../experimental/ietf-extracted-YANG-modules", "--result-html-dir",
+                         result_html_dir, "--credentials", credentials[0], credentials[1]]
+            if notify == 'True':
+                arguments.append("--notify-indexing")
+            subprocess.check_call(arguments, stderr=f)
         except subprocess.CalledProcessError as e:
             LOGGER.error('Error calling process populate.py {}'.format(e.message))
-

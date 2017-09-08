@@ -1,11 +1,14 @@
 import json
+
+import tools.statistics.statistics as stats
 import tools.utility.log as log
 
 LOGGER = log.get_logger(__name__)
 
 
 class Prepare:
-    def __init__(self, file_name):
+    def __init__(self, file_name, html_result_dir):
+        self.html_result_dir = html_result_dir
         self.file_name = file_name
         self.name_revision = set()
         self.conformance_type = {}
@@ -52,7 +55,6 @@ class Prepare:
         self.schema[key] = schema
         self.feature[key] = feature
         self.maturity_level[key] = maturity_level
-        self.compilation_result[key] = compilation_result
         self.json_submodules[key] = json_submodules
         self.module_or_submodule[key] = module_or_submodule
         self.document_name[key] = document_name
@@ -61,6 +63,9 @@ class Prepare:
         self.tree_type[key] = tree_type
         self.module_classification[key] = module_classification
         self.belongs_to[key] = belongs_to
+        self.compilation_result[key] = self.create_compilation_result_file(compilation_result, key.split('@')[0],
+                                                                           key.split('@')[1].split('.')[0].split(',')[
+                                                                               0], organization)
 
     def add_key(self, key, namespace, conformance_type, vendor, platform, software_version, software_flavor, os_type,
                 os_version, feature_set, reference, prefix, yang_version, organization, description, contact,
@@ -82,7 +87,6 @@ class Prepare:
         self.schema[key] = schema
         self.feature[key] = feature
         self.maturity_level[key] = maturity_level
-        self.compilation_result[key] = compilation_result
         self.deviations[key] = deviations
         self.json_submodules[key] = json_submodules
         self.module_or_submodule[key] = module_or_submodule
@@ -92,6 +96,9 @@ class Prepare:
         self.tree_type[key] = tree_type
         self.module_classification[key] = module_classification
         self.belongs_to[key] = belongs_to
+        self.compilation_result[key] = self.create_compilation_result_file(compilation_result, key.split('@')[0],
+                                                                           key.split('@')[1].split('.')[0].split(',')[
+                                                                               0], organization)
 
         if key not in self.implementations:
             self.implementations[key] = {}
@@ -114,6 +121,20 @@ class Prepare:
              'feature': feature,
              'deviation': devs
              }
+
+    def create_compilation_result_file(self, compilation_result, name, revision, organization):
+        if compilation_result == '':
+            return ''
+        else:
+            result = compilation_result
+        result['name'] = name
+        result['revision'] = revision
+        context = {'result': result}
+        rendered_html = stats.render('../parseAndPopulate/template/compilationStatusTemplate.html', context)
+        file_url = '{}@{}_{}.html'.format(name, revision, organization)
+        with open(self.html_result_dir + file_url, 'w+') as f:
+            f.write(rendered_html)
+        return 'https://yangcatalog.org/results/{}'.format(file_url)
 
     def dump_sdo(self, directory):
         LOGGER.debug('Creating prepare.json file from sdo information')
@@ -166,10 +187,10 @@ class Prepare:
                 'description': self.description[key],
                 'contact': self.contact[key],
                 'module-type': self.module_or_submodule[key],
-                'belongs-to':self.belongs_to[key],
+                'belongs-to': self.belongs_to[key],
                 'tree-type': self.tree_type[key],
                 'ietf': {
-                   'ietf-wg': self.working_group[key]
+                    'ietf-wg': self.working_group[key]
                 },
                 'namespace': self.namespace[key],
                 'submodule': json.loads(self.json_submodules[key]),

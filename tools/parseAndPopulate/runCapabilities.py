@@ -39,7 +39,7 @@ def create_integrity():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--dir', default='../../vendor', type=str,
-                        help='Set dir where to look for hello message xml files.Default -> ../../vendor')
+                        help='Set dir where to look for hello message xml files. Default -> ../../vendor')
     parser.add_argument('--save-modification-date', action='store_true', default=False,
                         help='if True than it will create a file with modification date and also it will check if '
                              'file was modified from last time if not it will skip it.')
@@ -50,6 +50,8 @@ if __name__ == "__main__":
                                                                                      ' all -SDOs and Vendors brought '
                                                                                      'via api or not')
     parser.add_argument('--json-dir', type=str, help='Directory where json files to populate confd will be stored')
+    parser.add_argument('--result-html-dir', default='/home/miroslav/results/', type=str,
+                        help='Set dir where to write html result files. Default -> /home/miroslav/results/')
 
     args = parser.parse_args()
     start = time.time()
@@ -70,7 +72,7 @@ if __name__ == "__main__":
         search_dirs = stats_list[key]
         if key == 'sdo':
             sdo = True
-            prepare_sdo = prepare.Prepare("prepare")
+            prepare_sdo = prepare.Prepare("prepare", args.result_html_dir)
             for search_dir in search_dirs:
 
                 LOGGER.info('Found directory for sdo {}'.format(search_dir))
@@ -82,7 +84,7 @@ if __name__ == "__main__":
             prepare_sdo.dump_sdo(args.json_dir)
         else:
             sdo = False
-            prepare_vendor = prepare.Prepare("prepare")
+            prepare_vendor = prepare.Prepare("prepare", args.result_html_dir)
             for search_dir in search_dirs:
                 patterns = ['*ietf-yang-library*.xml', '*capabilit*.xml']
                 for pattern in patterns:

@@ -20,7 +20,7 @@ LOGGER = log.get_logger('receiver')
 
 
 # Make a http request on path with json_data
-def http_request(path, method, json_data, http_credentials, header, indexing=None):
+def http_request(path, method, json_data, http_credentials, header, indexing=None, return_code=False):
     """Create HTTP request
         Arguments:
             :param indexing: (str) Whether there need to be added a X-YC-Signature.
@@ -46,7 +46,10 @@ def http_request(path, method, json_data, http_credentials, header, indexing=Non
         return opener.open(request)
     except urllib2.HTTPError as e:
         LOGGER.debug('Could not send request with body ' + repr(json_data) + ' and path ' + path)
-        raise e
+        if return_code:
+            return e
+        else:
+            raise e
     except URLError as e:
         raise e
 
@@ -64,8 +67,11 @@ def process_sdo(arguments):
     """
     LOGGER.debug('Processing sdo')
     tree_created = True if arguments[-4] == 'True' else False
+    api_port = arguments[-1]
     arguments = arguments[:-4]
     direc = '/'.join(arguments[6].split('/')[0:3])
+    arguments.append("--result-html-dir")
+    arguments.append(result_dir)
 
     with open("log.txt", "wr") as f:
         try:
@@ -85,8 +91,7 @@ def process_sdo(arguments):
     if tree_created:
         subprocess.call(["cp", "-r", direc + "/temp/.", "../../api/sdo/"])
         if notify_indexing:
-            send_to_indexing(direc + '/prepare.json',
-                         [arguments[11], arguments[12]], arguments[9], True)
+            send_to_indexing(direc + '/prepare.json', [arguments[11], arguments[12]], arguments[9], api_port, True)
         shutil.rmtree(direc)
     return __response_type[1]
 
@@ -104,13 +109,17 @@ def create_signature(secret_key, string):
     return hmac.hexdigest()
 
 
-def send_to_indexing(modules_to_index, credentials, confd_ip, sdo_type=False, delete=False, from_api=True):
+def send_to_indexing(modules_to_index, credentials, confd_ip, confd_port, sdo_type=False, delete=False, from_api=True,
+                     set_key=None, force_indexing=True):
     """ Sends the POST request which will activate indexing script for modules which will
     help to speed up process of searching. It will create a json body of all the modules
     containing module name and path where the module can be found if we are adding new
     modules. Other situation can be if we need to delete module. In this case we are sending
     list of modules that need to be deleted.
             Arguments:
+                :param force_indexing: 
+                :param confd_port: 
+                :param set_key: 
                 :param from_api: 
                 :param delete: 
                 :param sdo_type: 
@@ -133,24 +142,44 @@ def send_to_indexing(modules_to_index, credentials, confd_ip, sdo_type=False, de
                 prefix = 'api/vendor'
 
             for module in sdos_json['module']:
-                if module.get('schema'):
-                    path = prefix + module['schema'].split('githubusercontent.com/')[1]
-                else:
-                    path = 'module does not exist'
-                post_body[module['name'] + '@' + module['revision'] + '/' + module['organization']] = path
+                response = http_request('http://{}:{}/search/modules/{},{},{}'.format(confd_ip, confd_port,
+                                                                                      module['name'],
+                                                                                      module['revision'],
+                                                                                      module['organization']), 'GET',
+                                        '',
+                                        credentials, 'application/vnd.yang.data+json', return_code=True)
+                code = response.code
+                if force_indexing or (code != 200 and code != 201 and code != 204):
+                    if module.get('schema'):
+                        path = prefix + module['schema'].split('githubusercontent.com/')[1]
+                        path = os.path.abspath('../../' + path)
+                    else:
+                        path = 'module does not exist'
+                    post_body[module['name'] + '@' + module['revision'] + '/' + module['organization']] = path
         else:
             for module in sdos_json['module']:
-                if module.get('schema'):
-                    path = module['schema'].split('master')[1]
-                else:
-                    path = 'module does not exist'
-                post_body[module['name'] + '@' + module['revision'] + '/' + module['organization']] = path
+                response = http_request('http://{}:{}/search/modules/{},{},{}'.format(confd_ip, confd_port,
+                                                                            module['name'], module['revision'],
+                                                                            module['organization']), 'GET', '',
+                             credentials, 'application/vnd.yang.data+json', return_code=True)
+                code = response.code
+                if force_indexing or (code != 200 and code != 201 and code != 204):
+                    if module.get('schema'):
+                        path = module['schema'].split('master')[1]
+                        path = os.path.abspath('../../' + path)
+                    else:
+                        path = 'module does not exist'
+                    post_body[module['name'] + '@' + module['revision'] + '/' + module['organization']] = path
         body_to_send = json.dumps({'modules-to-index': post_body})
 
+    try:
+        set_key = key
+    except NameError:
+        pass
     LOGGER.info('Sending data for indexing with body {}'.format(body_to_send))
     try:
         http_request('https://' + confd_ip + '/yang-search/metadata-update.php', 'POST', body_to_send,
-                     credentials, 'application/json', indexing=create_signature(key, body_to_send))
+                     credentials, 'application/json', indexing=create_signature(set_key, body_to_send))
     except urllib2.HTTPError as e:
         LOGGER.error('could not send data for indexing. Reason: {}'.format(e.msg))
     except URLError as e:
@@ -171,9 +200,12 @@ def process_vendor(arguments):
     LOGGER.debug('Processing vendor')
     tree_created = True if arguments[-5] == 'True' else False
     integrity_file_location = arguments[-4]
+    api_port = arguments[-1]
 
     arguments = arguments[:-5]
     direc = '/'.join(arguments[5].split('/')[0:3])
+    arguments.append("--result-html-dir")
+    arguments.append(result_dir)
 
     with open("log.txt", "wr") as f:
         try:
@@ -194,7 +226,7 @@ def process_vendor(arguments):
 
     if tree_created:
         if notify_indexing:
-            send_to_indexing(direc + '/prepare.json', [arguments[9], arguments[10]], arguments[8])
+            send_to_indexing(direc + '/prepare.json', [arguments[9], arguments[10]], arguments[8], api_port)
         shutil.rmtree(direc)
 
     integrity_file_name = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%m:%S.%f")[:-3] + 'Z'
@@ -278,7 +310,7 @@ def process_vendor_deletion(arguments, api_protocol, api_port):
                     # In case that only some modules were deleted, send only those for indexing
                     if len(modules_that_succeeded) > 0:
                         if notify_indexing:
-                            send_to_indexing(modules_that_succeeded, credentials, confd_ip, delete=True)
+                            send_to_indexing(modules_that_succeeded, credentials, confd_ip, arguments[-1], delete=True)
                     e = sys.exc_info()[0]
                     LOGGER.error('Couldn\'t delete implementation of module on path {} because of error: {}'
                                  .format(path + '/implementations/implementation/' + imp_key, e))
@@ -292,7 +324,7 @@ def process_vendor_deletion(arguments, api_protocol, api_port):
                     # In case that only some modules were deleted, send only those for indexing
                     if len(modules_that_succeeded) > 0:
                         if notify_indexing:
-                            send_to_indexing(modules_that_succeeded, credentials, confd_ip, delete=True)
+                            send_to_indexing(modules_that_succeeded, credentials, confd_ip, arguments[-1], delete=True)
                     e = sys.exc_info()[0]
                     LOGGER.error('Could not delete module on path {} because of error: {}'.format(path, e))
                     # return make_response(jsonify({'error': e.msg}), 500)
@@ -300,7 +332,7 @@ def process_vendor_deletion(arguments, api_protocol, api_port):
             LOGGER.error('Yang file {} doesn\'t exist although it should exist'.format(mod))
             # return make_response(jsonify({'error': 'Server error'}), 500)
         if notify_indexing:
-            send_to_indexing(modules, credentials, confd_ip, delete=True)
+            send_to_indexing(modules, credentials, confd_ip, arguments[-1], delete=True)
         return __response_type[1]
 
 
@@ -389,7 +421,8 @@ def process_module_deletion(arguments):
         return __response_type[0] + '#split#' + repr(e)
     name, revision, organization = path_to_delete.split('/')[-1].split(',')
     if notify_indexing:
-        send_to_indexing(['{}@{}/{}'.format(name, revision, organization)], credentials, confd_ip, delete=True)
+        send_to_indexing(['{}@{}/{}'.format(name, revision, organization)], credentials, confd_ip, arguments[-1],
+                         delete=True)
     return __response_type[1]
 
 
@@ -456,6 +489,8 @@ if __name__ == '__main__':
     key = config.get('Receiver-Section', 'key')
     global notify_indexing
     notify_indexing = config.get('Receiver-Section', 'notify-index')
+    global result_dir
+    result_dir = config.get('Receiver-Section', 'result-html-dir')
     if notify_indexing == 'True':
         notify_indexing = True
     else:
