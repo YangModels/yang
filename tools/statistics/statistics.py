@@ -442,7 +442,7 @@ if __name__ == '__main__':
         f.write(result)
 
     file_from = os.path.abspath('./statistics.html')
-    file_to = os.path.abspath(move_to)
+    file_to = os.path.abspath(move_to) + '/statistics.html'
     if move_to != './':
         if os.path.exists(file_to):
             os.remove(file_to)

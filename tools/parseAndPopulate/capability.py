@@ -388,7 +388,7 @@ def is_split(rows, output):
                         or (state == row.strip(' ').split(' ')[1]):
                     failed = False
                     for x in range(row_num + 1, len(rows)):
-                        if 'x--' in row[x] or 'o--' in row[x]:
+                        if 'x--' in rows[x] or 'o--' in rows[x]:
                             continue
                         if rows[x].strip(' ') == '' or len(rows[x].split('+--')[0]) == 4\
                                 or len(row.split('augment')[0]) == 2:
@@ -1693,80 +1693,80 @@ class Capability:
         # if module name contains .yang get only name
         module_name = module_name.split('.')[0]
         # try to find in draft without revision
-        result = ''
+        result = {}
         try:
-            result += self.ietf_draft_json[module_name + '.yang'][4]
-            result += self.ietf_draft_json[module_name + '.yang'][5]
-            result += self.ietf_draft_json[module_name + '.yang'][6]
-            result += self.ietf_draft_json[module_name + '.yang'][7]
-            result += self.ietf_draft_json[module_name + '.yang'][8]
+            result['pyang'] = self.ietf_draft_json[module_name + '.yang'][4]
+            result['pyang_lint'] = self.ietf_draft_json[module_name + '.yang'][5]
+            result['confdrc'] = self.ietf_draft_json[module_name + '.yang'][6]
+            result['yumadump'] = self.ietf_draft_json[module_name + '.yang'][7]
+            result['yanglint'] = self.ietf_draft_json[module_name + '.yang'][8]
             return result
         except KeyError:
             pass
         # try to find in draft with revision
         try:
-            result += self.ietf_draft_json[module_name + '@' + revision + '.yang'][4]
-            result += self.ietf_draft_json[module_name + '@' + revision + '.yang'][5]
-            result += self.ietf_draft_json[module_name + '@' + revision + '.yang'][6]
-            result += self.ietf_draft_json[module_name + '@' + revision + '.yang'][7]
-            result += self.ietf_draft_json[module_name + '@' + revision + '.yang'][8]
+            result['pyang'] = self.ietf_draft_json[module_name + '@' + revision + '.yang'][4]
+            result['pyang_lint'] = self.ietf_draft_json[module_name + '@' + revision + '.yang'][5]
+            result['confdrc'] = self.ietf_draft_json[module_name + '@' + revision + '.yang'][6]
+            result['yumadump'] = self.ietf_draft_json[module_name + '@' + revision + '.yang'][7]
+            result['yanglint'] = self.ietf_draft_json[module_name + '@' + revision + '.yang'][8]
             return result
         except KeyError:
             pass
         try:
-            result += self.bbf_json[module_name + '.yang'][1]
-            result += self.bbf_json[module_name + '.yang'][2]
-            result += self.bbf_json[module_name + '.yang'][3]
-            result += self.bbf_json[module_name + '.yang'][4]
-            result += self.bbf_json[module_name + '.yang'][5]
-            return result
-        except KeyError:
-            pass
-        # try to find in draft with revision
-        try:
-            result += self.bbf_json[module_name + '@' + revision + '.yang'][1]
-            result += self.bbf_json[module_name + '@' + revision + '.yang'][2]
-            result += self.bbf_json[module_name + '@' + revision + '.yang'][3]
-            result += self.bbf_json[module_name + '@' + revision + '.yang'][4]
-            result += self.bbf_json[module_name + '@' + revision + '.yang'][5]
-            return result
-        except KeyError:
-            pass
-        try:
-            result += self.ieee_standard_json[module_name + '.yang'][1]
-            result += self.ieee_standard_json[module_name + '.yang'][2]
-            result += self.ieee_standard_json[module_name + '.yang'][3]
-            result += self.ieee_standard_json[module_name + '.yang'][4]
-            result += self.ieee_standard_json[module_name + '.yang'][5]
+            result['pyang'] = self.bbf_json[module_name + '.yang'][1]
+            result['pyang_lint'] = self.bbf_json[module_name + '.yang'][2]
+            result['confdrc'] = self.bbf_json[module_name + '.yang'][3]
+            result['yumadump'] = self.bbf_json[module_name + '.yang'][4]
+            result['yanglint'] = self.bbf_json[module_name + '.yang'][5]
             return result
         except KeyError:
             pass
         # try to find in draft with revision
         try:
-            result += self.ieee_standard_json[module_name + '@' + revision + '.yang'][1]
-            result += self.ieee_standard_json[module_name + '@' + revision + '.yang'][2]
-            result += self.ieee_standard_json[module_name + '@' + revision + '.yang'][3]
-            result += self.ieee_standard_json[module_name + '@' + revision + '.yang'][4]
-            result += self.ieee_standard_json[module_name + '@' + revision + '.yang'][5]
+            result['pyang'] = self.bbf_json[module_name + '@' + revision + '.yang'][1]
+            result['pyang_lint'] = self.bbf_json[module_name + '@' + revision + '.yang'][2]
+            result['confdrc'] = self.bbf_json[module_name + '@' + revision + '.yang'][3]
+            result['yumadump'] = self.bbf_json[module_name + '@' + revision + '.yang'][4]
+            result['yanglint'] = self.bbf_json[module_name + '@' + revision + '.yang'][5]
             return result
         except KeyError:
             pass
         try:
-            result += self.ieee_experimental_json[module_name + '.yang'][1]
-            result += self.ieee_experimental_json[module_name + '.yang'][2]
-            result += self.ieee_experimental_json[module_name + '.yang'][3]
-            result += self.ieee_experimental_json[module_name + '.yang'][4]
-            result += self.ieee_experimental_json[module_name + '.yang'][5]
+            result['pyang'] = self.ieee_standard_json[module_name + '.yang'][1]
+            result['pyang_lint'] = self.ieee_standard_json[module_name + '.yang'][2]
+            result['confdrc'] = self.ieee_standard_json[module_name + '.yang'][3]
+            result['yumadump'] = self.ieee_standard_json[module_name + '.yang'][4]
+            result['yanglint'] = self.ieee_standard_json[module_name + '.yang'][5]
             return result
         except KeyError:
             pass
         # try to find in draft with revision
         try:
-            result += self.ieee_experimental_json[module_name + '@' + revision + '.yang'][1]
-            result += self.ieee_experimental_json[module_name + '@' + revision + '.yang'][2]
-            result += self.ieee_experimental_json[module_name + '@' + revision + '.yang'][3]
-            result += self.ieee_experimental_json[module_name + '@' + revision + '.yang'][4]
-            result += self.ieee_experimental_json[module_name + '@' + revision + '.yang'][5]
+            result['pyang'] = self.ieee_standard_json[module_name + '@' + revision + '.yang'][1]
+            result['pyang_lint'] = self.ieee_standard_json[module_name + '@' + revision + '.yang'][2]
+            result['confdrc'] = self.ieee_standard_json[module_name + '@' + revision + '.yang'][3]
+            result['yumadump'] = self.ieee_standard_json[module_name + '@' + revision + '.yang'][4]
+            result['yanglint'] = self.ieee_standard_json[module_name + '@' + revision + '.yang'][5]
+            return result
+        except KeyError:
+            pass
+        try:
+            result['pyang'] = self.ieee_experimental_json[module_name + '.yang'][1]
+            result['pyang_lint'] = self.ieee_experimental_json[module_name + '.yang'][2]
+            result['confdrc'] = self.ieee_experimental_json[module_name + '.yang'][3]
+            result['yumadump'] = self.ieee_experimental_json[module_name + '.yang'][4]
+            result['yanglint'] = self.ieee_experimental_json[module_name + '.yang'][5]
+            return result
+        except KeyError:
+            pass
+        # try to find in draft with revision
+        try:
+            result['pyang'] = self.ieee_experimental_json[module_name + '@' + revision + '.yang'][1]
+            result['pyang_lint'] = self.ieee_experimental_json[module_name + '@' + revision + '.yang'][2]
+            result['confdrc'] = self.ieee_experimental_json[module_name + '@' + revision + '.yang'][3]
+            result['yumadump'] = self.ieee_experimental_json[module_name + '@' + revision + '.yang'][4]
+            result['yanglint'] = self.ieee_experimental_json[module_name + '@' + revision + '.yang'][5]
             return result
         except KeyError:
             pass
@@ -1821,23 +1821,23 @@ class Capability:
         return ''
 
     def parse_res(self, module_name, revision, json_file):
-        result = ''
+        result = {}
         try:
-            result += json_file[module_name + '.yang'][1]
-            result += json_file[module_name + '.yang'][2]
-            result += json_file[module_name + '.yang'][3]
-            result += json_file[module_name + '.yang'][4]
-            result += json_file[module_name + '.yang'][5]
+            result['pyang'] = json_file[module_name + '.yang'][1]
+            result['pyang_lint'] = json_file[module_name + '.yang'][2]
+            result['confdrc'] = json_file[module_name + '.yang'][3]
+            result['yumadump'] = json_file[module_name + '.yang'][4]
+            result['yanglint'] = json_file[module_name + '.yang'][5]
             return result
         except :
             pass
         # try to find in draft with revision
         try:
-            result += json_file[module_name + '@' + revision + '.yang'][1]
-            result += json_file[module_name + '@' + revision + '.yang'][2]
-            result += json_file[module_name + '@' + revision + '.yang'][3]
-            result += json_file[module_name + '@' + revision + '.yang'][4]
-            result += json_file[module_name + '@' + revision + '.yang'][5]
+            result['pyang'] = json_file[module_name + '@' + revision + '.yang'][1]
+            result['pyang_lint'] = json_file[module_name + '@' + revision + '.yang'][2]
+            result['confdrc'] = json_file[module_name + '@' + revision + '.yang'][3]
+            result['yumadump'] = json_file[module_name + '@' + revision + '.yang'][4]
+            result['yanglint'] = json_file[module_name + '@' + revision + '.yang'][5]
             return result
         except :
             pass

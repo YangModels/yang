@@ -41,7 +41,6 @@ if __name__ == "__main__":
                         help='Set path to config file')
     args = parser.parse_args()
     LOGGER.info('Starting Cron job IETF pull request')
-    args = parser.parse_args()
     config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
     config.read(config_path)

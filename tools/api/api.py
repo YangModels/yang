@@ -14,6 +14,7 @@ from email.mime.text import MIMEText
 from urllib2 import URLError
 
 import MySQLdb
+import datetime
 import requests
 from OpenSSL.crypto import load_publickey, FILETYPE_PEM, X509, verify
 from flask import Flask, jsonify, abort, make_response, request, Response
@@ -504,7 +505,8 @@ def add_modules():
 
     with open('./prepare-sdo.json', "w") as plat:
         json.dump(body, plat)
-
+    shutil.copy('./prepare-sdo.json', save_requests + '/sdo-'
+                + str(datetime.datetime.utcnow()).split('.')[0].replace(' ', '_') + '-UTC.json')
     try:
         http_request(protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/modules/',
                      'DELETE', None, credentials, 'application/vnd.yang.collection+json')
@@ -647,6 +649,10 @@ def add_vendors():
     resolved_authorization = authorize_for_vendors(request, body)
     if 'passed' != resolved_authorization:
         return resolved_authorization
+    with open(save_requests + '/vendor-' + str(datetime.datetime.utcnow()).split('.')[0].replace(' ', '_') +
+              '-UTC.json', "w") as plat:
+        json.dump(body, plat)
+
     try:
         http_request(protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/platforms/',
                      'DELETE', None, credentials, 'application/vnd.yang.collection+json')
@@ -1033,6 +1039,8 @@ if __name__ == '__main__':
     confdPort = int(config.get('API-Section', 'confd-port'))
     global protocol
     protocol = config.get('API-Section', 'protocol')
+    global save_requests
+    save_requests = config.get('API-Section', 'save-requests')
     global token
     token = config.get('API-Section', 'yang-catalog-token')
     ssl_context = None
