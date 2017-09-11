@@ -75,6 +75,7 @@ if __name__ == "__main__":
                         help='Set dir where to write html result files. Default -> /home/miroslav/results/')
     parser.add_argument('--config-path', type=str, default='../utility/config.ini',
                         help='Set path to config file')
+    parser.add_argument('--force-indexing', action='store_true', default=False, help='Force to index files')
     args = parser.parse_args()
     config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
@@ -168,7 +169,7 @@ if __name__ == "__main__":
         if args.notify_indexing and do_indexing:
             LOGGER.info('Sending files for indexing')
             send_to_indexing('../parseAndPopulate/' + direc + '/prepare.json', args.credentials, args.ip, args.api_port,
-                             from_api=False, set_key=key)
+                             args.api_protocol, from_api=False, set_key=key, force_indexing=args.force_indexing)
         LOGGER.info('Removing temporary json data and cache data')
         shutil.rmtree('../parseAndPopulate/' + direc)
         try:
