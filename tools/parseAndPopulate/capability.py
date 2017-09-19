@@ -154,7 +154,7 @@ def create_generated_from(namespace, module_name):
         return 'not-applicable'
 
 
-def get_tree_type(yang_file):
+def get_tree_type(yang_file, is_submodule):
     if yang_file:
         LOGGER.debug('Get tree type from tag from module {}'.format(yang_file))
         arguments = ["pyang", "-p", "../../.", "-f", "tree", yang_file]
@@ -168,7 +168,7 @@ def get_tree_type(yang_file):
             return 'unclassified'
         else:
             pyang_list_of_rows = stdout.split('\n')[1:]
-            if 'submodule' in stdout:
+            if 'submodule' == is_submodule:
                 LOGGER.debug('Module {} is a submodule'.format(yang_file))
                 return 'not-applicable'
             elif is_combined(pyang_list_of_rows, stdout):
@@ -676,7 +676,7 @@ class Capability:
                 belongs_to = {}
                 LOGGER.debug('Parsing extractable metadata from file {}'.format(file_name))
                 module_submodule = module_or_submodule(root + '/' + file_name)
-                tree_type = get_tree_type(root + '/' + file_name)
+                tree_type = get_tree_type(root + '/' + file_name, module_submodule)
                 if '[1]' in file_name:
                     LOGGER.warning('File {} contains invalid character [1] in file name'.format(file_name))
                     module_submodule = 'wrong file'
@@ -762,7 +762,7 @@ class Capability:
                         belongs_to = {}
                         LOGGER.debug('Parsing extractable metadata from file {}'.format(file_name))
                         module_submodule = module_or_submodule(root + '/' + file_name)
-                        tree_type = get_tree_type(root + '/' + file_name)
+                        tree_type = get_tree_type(root + '/' + file_name, module_submodule)
                         if '[1]' in file_name:
                             LOGGER.warning('File {} contains [1] it its file name'.format(file_name))
                             module_submodule = 'wrong file'
@@ -964,7 +964,7 @@ class Capability:
             self.find_yang_var(includes, 'include', module_name, yang_file)
             self.find_yang_var(imports, 'import', module_name, yang_file)
             belongs_to[module_name] = None
-            tree_type = get_tree_type(yang_file)
+            tree_type = get_tree_type(yang_file, module_submodule)
             reference = MISSING_ELEMENT
             document_name = MISSING_ELEMENT
             compilations_status[module_name] = self.parse_status(module_name,
@@ -1284,7 +1284,7 @@ class Capability:
                 self.find_yang_var(includes, 'include', module_name, yang_file)
                 self.find_yang_var(imports, 'import', module_name, yang_file)
                 belongs_to[module_name] = None
-                tree_type = get_tree_type(yang_file)
+                tree_type = get_tree_type(yang_file, module_submodule)
                 reference = MISSING_ELEMENT
                 document_name = MISSING_ELEMENT
                 compilations_status[module_name] = self.parse_status(module_name, revision[module_name])
@@ -1534,7 +1534,7 @@ class Capability:
                     self.find_yang_var(imports, 'import', imp, yang_file)
                     self.find_yang_var(revision, 'revision', imp, yang_file)
                     self.find_yang_var(features, 'feature', imp, yang_file)
-                    tree_type = get_tree_type(yang_file)
+                    tree_type = get_tree_type(yang_file, module_submodule)
                     comp_status[imp] = self.parse_status(imp, revision[imp])
                     if is_include:
                         conformance_type[imp] = None

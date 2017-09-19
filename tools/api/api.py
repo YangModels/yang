@@ -658,10 +658,10 @@ def add_vendors():
                      'DELETE', None, credentials, 'application/vnd.yang.collection+json')
     except:
         pass
-    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/'
+    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config'
 
     base64string = base64.b64encode('%s:%s' % (credentials[0], credentials[1]))
-    response = requests.put(path, json.dumps(body), headers={'Authorization': 'Basic ' + base64string,
+    response = requests.post(path, json.dumps(body), headers={'Authorization': 'Basic ' + base64string,
                                                              'Content-type': 'application/vnd.yang.data+json',
                                                              'Accept': 'application/vnd.yang.data+json'})
 
