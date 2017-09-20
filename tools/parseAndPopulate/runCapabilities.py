@@ -77,11 +77,11 @@ if __name__ == "__main__":
 
                 LOGGER.info('Found directory for sdo {}'.format(search_dir))
                 integrity = statistics.Statistics(search_dir)
-                capability = cap.Capability(search_dir, index, prepare_sdo, integrity, args.api, sdo, args.json_dir)
+                capability = cap.Capability(search_dir, index, prepare_sdo, integrity, args.api, sdo, args.json_dir, args.result_html_dir)
                 LOGGER.info('Starting to parse files in sdo directory')
                 capability.parse_and_dump_sdo()
                 index += 1
-            prepare_sdo.dump_sdo(args.json_dir)
+            prepare_sdo.dump_modules(args.json_dir)
         else:
             sdo = False
             prepare_vendor = prepare.Prepare("prepare", args.result_html_dir)
@@ -113,13 +113,14 @@ if __name__ == "__main__":
                             integrity = statistics.Statistics(filename)
                             LOGGER.warning('Found xml source {}'.format(filename))
                             capability = cap.Capability(filename, index, prepare_vendor, integrity, args.api, sdo,
-                                                        args.json_dir)
+                                                        args.json_dir, args.result_html_dir)
                             if 'ietf-yang-library' in pattern:
                                 capability.parse_and_dump_yang_lib()
                             else:
                                 capability.parse_and_dump()
                             index += 1
-            prepare_vendor.dump(args.json_dir)
+            prepare_vendor.dump_modules(args.json_dir)
+            prepare_vendor.dump_vendors(args.json_dir)
 
     if integrity is not None:
         create_integrity()
