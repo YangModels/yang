@@ -315,8 +315,9 @@ def check_local():
                 # If build was successful on pull request
                 pull_number = body['pull_request_number']
                 LOGGER.info('Pull request was successful {}'.format(repr(pull_number)))
-                # requests.put('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number +
-                #             '/merge', headers={'Authorization': 'token ' + token})
+                response = requests.put('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number +
+                             '/merge', headers={'Authorization': 'token ' + token})
+                LOGGER.info('Merge response code {}. Merge response {}.'.format(response.content, response.status_code))
                 requests.delete('https://api.github.com/repos/yang-catalog/yang',
                                 headers={'Authorization': 'token ' + token})
                 return make_response(jsonify({'info': 'Success'}), 201)
@@ -767,6 +768,239 @@ def search(value):
                     , mimetype='application/json', status=400)
 
 
+@app.route('/search-filter', methods=['POST'])
+def rpc_search():
+    body = request.json
+    LOGGER.info('Searching and filtering modules based on RPC {}'
+                .format(json.dumps(body)))
+    data = modules_data['module']
+    body = body['input']
+    partial = body.get('partial')
+    if partial is None:
+        partial = False
+    passed_modules = []
+    if partial:
+        for module in data:
+            passed = True
+            if 'submodule' in body:
+                submodules = module.get('submodule')
+                if submodules is None:
+                    continue
+                for sub in body['submodule']:
+                    found = True
+                    name = sub.get('name')
+                    revision = sub.get('revision')
+                    schema = sub.get('schema')
+                    for submodule in submodules:
+                        found = True
+                        if name:
+                            if name not in submodule['name']:
+                                found = False
+                        if not found:
+                            continue
+                        if revision:
+                            if revision not in submodule['revision']:
+                                found = False
+                        if not found:
+                            continue
+                        if schema:
+                            if schema not in submodule['schema']:
+                                found = False
+                        if found:
+                            break
+
+                    if not found:
+                        passed = False
+                        break
+            if not passed:
+                continue
+            if 'implementations' in body:
+                implementations = module.get('implementations')
+                if implementations is None:
+                    continue
+                for imp in body['implementations']['implementation']:
+                    for leaf in imp:
+                        found = False
+                        if leaf == 'deviation':
+                            for implementation in implementations[
+                                'implementation']:
+                                deviations = implementation.get('deviation')
+                                if deviations is None:
+                                    found = False
+                                    break
+                                for dev in imp[leaf]:
+                                    found = True
+                                    name = dev.get('name')
+                                    revision = dev.get('revision')
+                                    for deviation in deviations:
+                                        found = True
+                                        if name:
+                                            if name not in deviation['name']:
+                                                found = False
+                                        if not found:
+                                            continue
+                                        if revision:
+                                            if revision not in deviation['revision']:
+                                                found = False
+                                        if found:
+                                            break
+                                    if not found:
+                                        break
+                                if not found:
+                                    continue
+                            if not found:
+                                passed = False
+                                break
+                        elif leaf == 'feature':
+                            feature = implementations['implementation']\
+                            .get('feature')
+                            if feature is None:
+                                passed = False
+                                break
+                            for implementation in implementations['implementation']:
+                                if imp[leaf] in implementation[leaf]:
+                                    found = True
+                                    break
+                            if found:
+                                passed = True
+                        else:
+                            for implementation in implementations['implementation']:
+                                if imp[leaf] in implementation[leaf]:
+                                    found = True
+                                    break
+                            if not found:
+                                passed = False
+                            break
+                        if not passed:
+                            break
+                    if not passed:
+                        break
+            if not passed:
+                continue
+            for leaf in body:
+                if leaf != 'implementations' and leaf != 'submodule':
+                    if body[leaf] not in module.get(leaf):
+                        passed = False
+                        break
+            if passed:
+                passed_modules.append(module)
+    else:
+        for module in data:
+            passed = True
+            if 'submodule' in body:
+                submodules = module.get('submodule')
+                if submodules is None:
+                    continue
+                for sub in body['submodule']:
+                    found = True
+                    name = sub.get('name')
+                    revision = sub.get('revision')
+                    schema = sub.get('schema')
+                    for submodule in submodules:
+                        found = True
+                        if name:
+                            if name != submodule['name']:
+                                found = False
+                        if not found:
+                            continue
+                        if revision:
+                            if revision != submodule['revision']:
+                                found = False
+                        if not found:
+                            continue
+                        if schema:
+                            if schema != submodule['schema']:
+                                found = False
+                        if found:
+                            break
+
+                    if not found:
+                        passed = False
+                        break
+            if not passed:
+                continue
+            if 'implementations' in body:
+                implementations = module.get('implementations')
+                if implementations is None:
+                    continue
+                for imp in body['implementations']['implementation']:
+                    for leaf in imp:
+                        found = False
+                        if leaf == 'deviation':
+                            for implementation in implementations[
+                                'implementation']:
+                                deviations = implementation.get('deviation')
+                                if deviations is None:
+                                    found = False
+                                    break
+                                for dev in imp[leaf]:
+                                    found = True
+                                    name = dev.get('name')
+                                    revision = dev.get('revision')
+                                    for deviation in deviations:
+                                        found = True
+                                        if name:
+                                            if name != deviation['name']:
+                                                found = False
+                                        if not found:
+                                            continue
+                                        if revision:
+                                            if revision != deviation['revision']:
+                                                found = False
+                                        if found:
+                                            break
+                                    if not found:
+                                        break
+                                if not found:
+                                    continue
+                            if not found:
+                                passed = False
+                                break
+                        elif leaf == 'feature':
+                            feature = implementations['implementation']\
+                            .get('feature')
+                            if feature is None:
+                                passed = False
+                                break
+                            for implementation in implementations['implementation']:
+                                if imp[leaf] in implementation[leaf]:
+                                    found = True
+                                    break
+                            if found:
+                                passed = True
+                        else:
+                            for implementation in implementations['implementation']:
+                                if imp[leaf] == implementation[leaf]:
+                                    found = True
+                                    break
+                            if not found:
+                                passed = False
+                            break
+                        if not passed:
+                            break
+                    if not passed:
+                        break
+            if not passed:
+                continue
+            for leaf in body:
+                if leaf != 'implementations' and leaf != 'submodule':
+                    if body[leaf] != module.get(leaf):
+                        passed = False
+                        break
+            if passed:
+                passed_modules.append(module)
+    if len(passed_modules) > 0:
+        modules = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+            .decode(json.dumps(passed_modules))
+        return Response(json.dumps({
+            'yang-catalog:modules': {
+                'module': modules
+            }
+        }), mimetype='application/json')
+    else:
+        return Response(mimetype='application/json', status=404)
+
+
 @app.route('/search/vendors/<path:value>', methods=['GET'])
 def search_vendors(value):
     """Search for a specific vendor, platform, os-type, os-version depending on
@@ -905,8 +1139,8 @@ def load(on_start):
     global vendors_data
     global mod_lookup_table
     response = 'work'
-    modules_data = ''
-    vendors_data = ''
+    modules_data = {}
+    vendors_data = {}
     try:
         with open('./cache/catalog.json', 'r') as catalog:
             cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
