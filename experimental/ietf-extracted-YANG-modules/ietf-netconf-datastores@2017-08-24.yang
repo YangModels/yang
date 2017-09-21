@@ -3,11 +3,17 @@ module ietf-netconf-datastores {
   namespace "urn:ietf:params:xml:ns:yang:ietf-netconf-datastores";
   prefix ncds;
 
+  import ietf-yang-types {
+    prefix yang;
+  }
   import ietf-inet-types {
     prefix inet;
   }
   import ietf-datastores {
     prefix ds;
+  }
+  import ietf-origin {
+    prefix or;
   }
   import ietf-netconf {
     prefix nc;
@@ -55,10 +61,16 @@ module ietf-netconf-datastores {
      (http://www.rfc-editor.org/info/rfcxxxx); see the RFC itself
      for full legal notices.";
 
-  revision 2017-06-30 {
+  revision 2017-08-24 {
     description
       "Initial revision.";
     reference "RFC XXXX: NETCONF Support for NMDA";
+  }
+
+  feature origin {
+    description
+      "Indicates that the server supports the 'origin' annotation.";
+    reference "RFC XXXX: Network Management Datastore Architecture";
   }
 
   typedef datastore {
@@ -72,19 +84,71 @@ module ietf-netconf-datastores {
 
   rpc get-data {
     description
-      "Get data from an NMDA datastore";
+      "Retrieve data from an NMDA datastore.";
     input {
       leaf source {
         type ncds:datastore;
+        mandatory true;
         description
           "Datastore from which to retrieve data.";
       }
-      anydata filter {
+
+      choice filter-spec {
         description
-          "Subtree or XPath filter to use.";
-        nc:get-filter-element-attributes;
+          "The content filter specification for this request.";
+
+        anydata subtree-filter {
+          description
+            "This parameter identifies the portions of the
+             target datastore to retrieve.";
+          reference "RFC 6241, Section 6.";
+        }
+        leaf xpath-filter {
+          if-feature nc:xpath;
+          type yang:xpath1.0;
+          description
+            "This parameter contains an XPath expression
+             identifying the portions of the target
+             datastore to retrieve.";
+        }
       }
+
+      container where {
+        description
+          "Filter content with the specified criteria.  All given
+           criteria are logically AND:ed.";
+
+        leaf config {
+          type boolean;
+          description
+            "Filter for nodes with the given value for their
+             'config' property.";
+        }
+        leaf origin {
+          if-feature origin;
+          type identityref {
+            base or:origin;
+          }
+          description
+            "Filter based on 'origin' annotation.  A node matches the
+             filter if its 'origin' annotation is derived from or
+             equal to the given filter value.";
+        }
+      }
+
+      leaf with-origin {
+        when 'derived-from-or-self(../source, "or:operational")';
+        if-feature origin;
+        type boolean;
+        default false;
+        description
+          "If this parameter is 'true', the server will return
+           the 'origin' annotation for the nodes that has one.";
+      }
+
+      uses ncwd:with-defaults-parameters;
     }
+
     output {
       anydata data {
         description
@@ -95,6 +159,7 @@ module ietf-netconf-datastores {
       }
     }
   }
+
   rpc edit-data {
     description
       "Edit data in an NMDA datastore.";
@@ -123,7 +188,6 @@ module ietf-netconf-datastores {
         description
           "The default operation to use.";
       }
-      uses ncwd:with-defaults-parameters;
       choice edit-content {
         mandatory true;
         description
