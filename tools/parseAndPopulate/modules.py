@@ -134,6 +134,7 @@ class Modules:
             self.contact = None
             self.belongs_to = None
             self.submodule = []
+            self.dependencies = []
             self.module_type = None
             self.tree_type = None
             self.implementation = []
@@ -202,8 +203,7 @@ class Modules:
         self.__resolve_generated_from(generated_from)
         self.__resolve_schema(schema)
         self.__resolve_submodule()
-        if self.__is_vendor:
-            self.__resolve_imports()
+        self.__resolve_imports()
         self.__resolve_document_name_and_reference(document_name, reference)
         self.__resolve_module_classification(module_classification)
         self.__resolve_working_group()
@@ -214,6 +214,26 @@ class Modules:
     def __resolve_imports(self):
         try:
             self.imports = self.__parsed_yang.search('import')
+            if len(self.imports) == 0:
+                return
+
+            for chunk in self.imports:
+                dependency = self.Dependencies()
+                dependency.name = chunk.arg
+                if len(chunk.search('revision-date')) > 0:
+                    dependency.revision = chunk.search('revision-date')[0].arg
+                if dependency.revision:
+                    yang_file = self.__find_file(dependency.name,
+                                                 dependency.revision)
+                else:
+                    yang_file = self.__find_file(dependency.name)
+                if yang_file is None:
+                    dependency.schema = MISSING_ELEMENT
+                else:
+                    suffix = os.path.abspath(yang_file).split('/yang/')[1]
+                    prefix = self.schema.split('/yang/')[0]
+                    dependency.schema = '{}/yang/master/{}'.format(prefix, suffix)
+                self.dependencies.append(dependency)
         except:
             return
 
@@ -703,13 +723,16 @@ class Modules:
             return
 
         for chunk in submodules:
+            dep = self.Dependencies()
             sub = self.Submodules()
             sub.name = chunk.arg
+
             if len(chunk.search('revision-date')) > 0:
                 sub.revision = chunk.search('revision-date')[0].arg
 
             if sub.revision:
                 yang_file = self.__find_file(sub.name, sub.revision, True)
+                dep.revision = sub.revision
             else:
                 yang_file = self.__find_file(sub.name, submodule=True)
                 try:
@@ -722,7 +745,9 @@ class Modules:
             path += '/{}'.format(yang_file.split('/')[-1])
             if yang_file:
                 sub.schema = path
-
+            dep.name = sub.name
+            dep.schema = sub.schema
+            self.dependencies.append(dep)
             self.submodule.append(sub)
         self.json_submodules = json.dumps([{'name': self.submodule[x].name,
                                             'schema': self.submodule[x].schema,
@@ -743,9 +768,9 @@ class Modules:
         if generated_from:
             self.generated_from = generated_from
         else:
-            if ':yang:smiv2:' in self.namespace:
+            if self.organization == 'cisco' and 'smi:' in self.namespace:
                 self.generated_from = 'mib'
-            elif 'Cisco-IOS-XR' in self.name:
+            elif 'cisco' in self.name.lower():
                 self.generated_from = 'native'
             else:
                 self.generated_from = 'not-applicable'
@@ -758,7 +783,9 @@ class Modules:
                 and self.compilation_result['yanglint'] == ''
                 and self.compilation_result['confdrc'] == ''
                 and self.compilation_result['yumadump'] == ''
-                and self.organization == 'cisco'):
+                and self.organization == 'cisco'
+                and (self.generated_from == 'native'
+                     or self.generated_from == 'mib')):
                 self.compilation_status = 'passed'
         else:
             self.compilation_result = {'pyang': '', 'pyang_lint': '',
@@ -1191,6 +1218,11 @@ class Modules:
             self.revision = None
             self.schema = None
 
+    class Dependencies:
+        def __init__(self):
+            self.name = None
+            self.revision = None
+
     class Implementations:
         def __init__(self):
             self.vendor = None
@@ -1210,6 +1242,7 @@ class Modules:
             def __init__(self):
                 self.name = None
                 self.revision = None
+                self.schema = None
 
     def resolve_integrity(self, integrity_checker, split, os_version):
         key = '/'.join(split[0:-1])

@@ -274,6 +274,7 @@ def check_local():
     """
     LOGGER.info('Starting pull request job')
     body = json.loads(request.form['payload'])
+    LOGGER.info('Body of travis {}'.format(json.dumps(body)))
     LOGGER.info('type of job {}'.format(body['type']))
     try:
         check_authorized(request.headers.environ['HTTP_SIGNATURE'], request.form['payload'])
@@ -315,9 +316,9 @@ def check_local():
                 # If build was successful on pull request
                 pull_number = body['pull_request_number']
                 LOGGER.info('Pull request was successful {}'.format(repr(pull_number)))
-                response = requests.put('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number +
-                             '/merge', headers={'Authorization': 'token ' + token})
-                LOGGER.info('Merge response code {}. Merge response {}.'.format(response.content, response.status_code))
+                #response = requests.put('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number +
+                #             '/merge', headers={'Authorization': 'token ' + token})
+                #LOGGER.info('Merge response code {}. Merge response {}.'.format(response.content, response.status_code))
                 requests.delete('https://api.github.com/repos/yang-catalog/yang',
                                 headers={'Authorization': 'token ' + token})
                 return make_response(jsonify({'info': 'Success'}), 201)
@@ -782,6 +783,70 @@ def rpc_search():
     if partial:
         for module in data:
             passed = True
+            if 'dependencies' in body:
+                submodules = module.get('dependencies')
+                if submodules is None:
+                    continue
+                for sub in body['dependencies']:
+                    found = True
+                    name = sub.get('name')
+                    revision = sub.get('revision')
+                    schema = sub.get('schema')
+                    for submodule in submodules:
+                        found = True
+                        if name:
+                            if name not in submodule['name']:
+                                found = False
+                        if not found:
+                            continue
+                        if revision:
+                            if revision not in submodule['revision']:
+                                found = False
+                        if not found:
+                            continue
+                        if schema:
+                            if schema not in submodule['schema']:
+                                found = False
+                        if found:
+                            break
+
+                    if not found:
+                        passed = False
+                        break
+            if not passed:
+                continue
+            if 'dependents' in body:
+                submodules = module.get('dependents')
+                if submodules is None:
+                    continue
+                for sub in body['dependents']:
+                    found = True
+                    name = sub.get('name')
+                    revision = sub.get('revision')
+                    schema = sub.get('schema')
+                    for submodule in submodules:
+                        found = True
+                        if name:
+                            if name not in submodule['name']:
+                                found = False
+                        if not found:
+                            continue
+                        if revision:
+                            if revision not in submodule['revision']:
+                                found = False
+                        if not found:
+                            continue
+                        if schema:
+                            if schema not in submodule['schema']:
+                                found = False
+                        if found:
+                            break
+
+                    if not found:
+                        passed = False
+                        break
+            if not passed:
+                continue
             if 'submodule' in body:
                 submodules = module.get('submodule')
                 if submodules is None:
@@ -879,14 +944,80 @@ def rpc_search():
                 continue
             for leaf in body:
                 if leaf != 'implementations' and leaf != 'submodule':
-                    if body[leaf] not in module.get(leaf):
-                        passed = False
-                        break
+                    module_leaf = module.get(leaf)
+                    if module_leaf:
+                        if body[leaf] not in module_leaf:
+                            passed = False
+                            break
             if passed:
                 passed_modules.append(module)
     else:
         for module in data:
             passed = True
+            if 'dependencies' in body:
+                submodules = module.get('dependencies')
+                if submodules is None:
+                    continue
+                for sub in body['dependencies']:
+                    found = True
+                    name = sub.get('name')
+                    revision = sub.get('revision')
+                    schema = sub.get('schema')
+                    for submodule in submodules:
+                        found = True
+                        if name:
+                            if name != submodule['name']:
+                                found = False
+                        if not found:
+                            continue
+                        if revision:
+                            if revision != submodule['revision']:
+                                found = False
+                        if not found:
+                            continue
+                        if schema:
+                            if schema != submodule['schema']:
+                                found = False
+                        if found:
+                            break
+
+                    if not found:
+                        passed = False
+                        break
+            if not passed:
+                continue
+            if 'dependents' in body:
+                submodules = module.get('dependents')
+                if submodules is None:
+                    continue
+                for sub in body['dependents']:
+                    found = True
+                    name = sub.get('name')
+                    revision = sub.get('revision')
+                    schema = sub.get('schema')
+                    for submodule in submodules:
+                        found = True
+                        if name:
+                            if name != submodule['name']:
+                                found = False
+                        if not found:
+                            continue
+                        if revision:
+                            if revision!= submodule['revision']:
+                                found = False
+                        if not found:
+                            continue
+                        if schema:
+                            if schema != submodule['schema']:
+                                found = False
+                        if found:
+                            break
+
+                    if not found:
+                        passed = False
+                        break
+            if not passed:
+                continue
             if 'submodule' in body:
                 submodules = module.get('submodule')
                 if submodules is None:
@@ -983,7 +1114,8 @@ def rpc_search():
             if not passed:
                 continue
             for leaf in body:
-                if leaf != 'implementations' and leaf != 'submodule':
+                if (leaf != 'implementations' and leaf != 'submodule'
+                    and leaf != 'dependencies' and leaf != 'dependents'):
                     if body[leaf] != module.get(leaf):
                         passed = False
                         break
@@ -1168,7 +1300,7 @@ def load(on_start):
                         vendors_data = {}
             except:
                 LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
-    if modules_data != '':
+    if len(modules_data) != 0:
         for i, mod in enumerate(modules_data['module']):
             mod_lookup_table[mod['name'] + '@' + mod['revision'] + '/' + mod['organization']] = i
     LOGGER.info('Data loaded into memory successfully')
