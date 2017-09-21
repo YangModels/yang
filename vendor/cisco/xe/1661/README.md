@@ -32,9 +32,12 @@ Model content may differ based on platform capability. As a convenience, copies 
 
 Please note that the following models, while advertised by several devices, are not actually supported:
 
+* `cisco-qos-common.yang`
 * `openconfig-lacp`
 * `openconfig-lldp`
 * `openconfig-optical-amplifier`
+* `openconfig-platform-transceiver.yang`
+* `openconfig-terminal-device.yang`
 * `openconfig-wavelength-router`
 
 The XML capability files exhibiting errors are:
