@@ -52,6 +52,8 @@ class Prepare:
                 },
                 'namespace': self.yang_modules[key].namespace,
                 'submodule': json.loads(self.yang_modules[key].json_submodules),
+                'dependencies': self.__get_dependencies(self.yang_modules[key]
+                                                        .dependencies),
                 'implementations': {
                     'implementation': [{
                         'vendor': implementation.vendor,
@@ -133,3 +135,14 @@ class Prepare:
                 {'name': dev.name,
                  'revision': dev.revision
                  } for dev in deviations]
+
+    @staticmethod
+    def __get_dependencies(dependencies):
+        if dependencies is None:
+            return None
+        else:
+            return [
+                {'name': dep.name,
+                 'revision': dep.revision,
+                 'schema': dep.schema
+                 } for dep in dependencies]

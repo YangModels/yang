@@ -10,6 +10,8 @@ import subprocess
 import unicodedata
 import urllib2
 
+import requests
+
 import tools.utility.log as log
 from tools.api.receiver import send_to_indexing
 
@@ -171,7 +173,7 @@ if __name__ == "__main__":
             send_to_indexing('../parseAndPopulate/' + direc + '/prepare.json', args.credentials, args.ip, args.api_port,
                              args.api_protocol, from_api=False, set_key=key, force_indexing=args.force_indexing)
         LOGGER.info('Removing temporary json data and cache data')
-        shutil.rmtree('../parseAndPopulate/' + direc)
+
         try:
             shutil.rmtree('../api/cache')
         except OSError:
@@ -183,3 +185,76 @@ if __name__ == "__main__":
                          args.credentials)
         except:
             LOGGER.warning('Could not send a load-cache request')
+        with open('../parseAndPopulate/' + direc + '/prepare.json', 'r') as f:
+            all_modules = json.load(f)
+        new_modules = []
+        for mod in all_modules['module']:
+            name = mod['name']
+            revision = mod['revision']
+            new_dependencies = mod['dependencies']
+            for new_dep in new_dependencies:
+                if new_dep.get('revision'):
+                    search = {'name': new_dep['name'], 'revision': new_dep['revision']}
+                else:
+                    search = {'name': new_dep['name']}
+                response = requests.post(
+                    args.api_protocol + '://' + args.api_ip + ':' + repr(
+                        args.api_port) + '/search-filter', auth=(args.credentials[0], args.credentials[1]),
+                    json={'input': search})
+                if response.status_code == 200:
+                    mods = json.loads(response.content)['yang-catalog:modules'][
+                        'module']
+                    for m in mods:
+                        if m.get('dependents') is None:
+                            m['dependents'] = []
+                        new = {'name': name,
+                               'revision': revision,
+                               'schema': mod['schema']}
+                        if new not in m['dependents']:
+                            m['dependents'].append(new)
+                            new_modules.append(m)
+
+            response = requests.post(args.api_protocol + '://' + args.api_ip + ':' + repr(args.api_port) + '/search-filter',
+                                     auth=(
+                                     args.credentials[0], args.credentials[1]),
+                          json={'input': {'dependencies': [{'name': name}]}})
+            if response.status_code == 200:
+                mods = json.loads(response.content)['yang-catalog:modules']['module']
+
+                if mod.get('dependents')is None:
+                    mod['dependents'] = []
+                for m in mods:
+                    passed = False
+                    for dependency in m['dependencies']:
+                        if dependency['name'] == name:
+                            passed = True
+                            rev = dependency.get('revision')
+                            if rev:
+                                passed = False
+                                if rev == revision:
+                                    passed = True
+                    if passed:
+                        new = {'name': m['name'],
+                               'revision': m['revision'],
+                               'schema': m['schema']}
+                        if new not in mod['dependents']:
+                            mod['dependents'].append(new)
+                if len(mod['dependents']) > 0:
+                    new_modules.append(mod)
+        json_modules_data = json.dumps({'modules': {'module': new_modules}})
+        if '{"module": []}' not in json_modules_data:
+            http_request(prefix + '/api/config/catalog/modules/', 'PATCH',
+                         json_modules_data, args.credentials)
+        try:
+            shutil.rmtree('../api/cache')
+        except OSError:
+            # Be happy if deleted
+            pass
+        try:
+            LOGGER.info('Sending request to reload cache')
+            http_request(args.api_protocol + '://' + args.api_ip + ':' + repr(args.api_port) + '/load-cache', 'POST', None,
+                         args.credentials)
+        except:
+            LOGGER.warning('Could not send a load-cache request')
+        shutil.rmtree('../parseAndPopulate/' + direc)
+
