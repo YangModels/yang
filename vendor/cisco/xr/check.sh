@@ -11,7 +11,7 @@
 # should be removed.
 #
 platform_dir="vendor/cisco/xr"
-to_check="534 602 613 622"
+to_check="602 613 622 631"
 pyang_flags="--lax-quote-checks"
 debug=0
 
