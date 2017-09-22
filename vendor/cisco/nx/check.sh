@@ -6,10 +6,14 @@
 # Deviation modules are NOT checked as they require specific imports
 # typically not available locally.
 #
+# This script will only be run for the last three releases. When a new
+# release is added, the current first release (left to right) should
+# be removed.
+#
 platform_dir="vendor/cisco/nx"
-to_check="7.0-3-F1-1 7.0-3-F2-1 7.0-3-F2-2 7.0-3-F3-1 7.0-3-I5-1 7.0-3-I5-2 7.0-3-I6-1 7.0-3-I7-1"
-inc_path=".:../../../../standard/ietf/RFC"
-pyang_flags=""
+to_check="7.0-3-I5-2 7.0-3-I6-1 7.0-3-I7-1"
+inc_path="."
+pyang_flags="--lax-quote-checks"
 debug="0"
 
 checkDir () {
@@ -23,7 +27,7 @@ checkDir () {
         if test "${f#*"openconfig-"}" != "$f"; then
             continue
         fi
-    	errors=`pyang $pyang_flags $f 2>&1 | grep -v "syntax error in pattern" | grep "error:"`
+    	errors=`YANG_INSTALL="." pyang $pyang_flags $f 2>&1 | grep -v "syntax error in pattern" | grep "error:"`
         if [ ! -z "$errors" ]; then
             echo Errors in $f
             echo "$errors"
