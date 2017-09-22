@@ -50,6 +50,7 @@ A summary of the suggested process is:
     - `git submodule add https://github.com/<owner>/<repository>.git <name>`
 1. Add appropriate entry to the `.travis.yml` file to check your models.
 1. Commit changes to your fork
+1. Test the Travis CI run of your fork as well as test it by running the testall.sh script from the top level directory.
  
 After you've verified that the submodule addition and module checking is working ok, submit a PR to the main repository. This will take the latest commit from your repository and make it available as a submodule.
 
