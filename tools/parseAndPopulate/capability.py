@@ -1,24 +1,21 @@
 from __future__ import print_function
 
+import fileinput
 import fnmatch
 import json
 import os
 import unicodedata
-import urllib2
 import xml.etree.ElementTree as ET
 
-from numpy.f2py.auxfuncs import throw_error
+from click.exceptions import FileError
 
-import yangParser
+import tools.utility.log as log
+from tools.parseAndPopulate.loadJsonFiles import LoadFiles
+from tools.parseAndPopulate.modules import Modules
 
-NS_MAP = {
-    "http://cisco.com/ns/yang/": "cisco",
-    "http://www.huawei.com/netconf": "huawei",
-    "http://openconfig.net/yang/": "openconfig",
-    "http://tail-f.com/": "tail-f",
-    "urn:ietf": "ietf",
-    "urn:cisco": "cisco"
-}
+LOGGER = log.get_logger(__name__)
+
+github_raw = 'https://raw.githubusercontent.com/'
 
 
 # searching for file based on pattern or pattern_with_revision
@@ -35,637 +32,318 @@ def find_first_file(directory, pattern, pattern_with_revision):
                 return filename
 
 
-def load_json_from_url(url):
-    failed = True
-    loaded_json = None
-    tries = 10
-    while failed:
-        try:
-            response = urllib2.urlopen(url).read()
-            loaded_json = json.loads(response)
-            failed = False
-        except:
-            tries -= 1
-            if tries == 0:
-                failed = False
-            pass
-    if tries == 0:
-        raise throw_error('Couldn`t open a json file from url: ' + url)
-    return loaded_json
-
-
 class Capability:
-    def __init__(self, hello_message_file, index, prepare, integrity_checker):
+    def __init__(self, hello_message_file, index, prepare, integrity_checker, api, sdo,
+                 json_dir, html_result_dir):
+        LOGGER.debug('Running constructor')
+        self.html_result_dir = html_result_dir
+        self.json_dir = json_dir
         self.index = index
-        self.feature_set = 'ALL'
-        self.software_version = repr(165) + self.feature_set
         self.prepare = prepare
         self.integrity_checker = integrity_checker
         self.parsed_yang = None
+        self.api = api
+        self.sdo = sdo
         # Get hello message root
-        self.root = ET.parse(hello_message_file).getroot()
+        if 'xml' in hello_message_file:
+            try:
+                LOGGER.debug('Checking for xml hello message file')
+                self.root = ET.parse(hello_message_file).getroot()
+            except:
+                #try to change & to &amp
+                hello_file = fileinput.FileInput(hello_message_file, inplace=True)
+                for line in hello_file:
+                    print(line.replace('&', '&amp;'), end='')
+                hello_file.close()
+                LOGGER.warning('Hello message file has & instead of &amp, automatically changing to &amp')
+                self.root = ET.parse(hello_message_file).getroot()
         # Split it so we can get vendor, os-type, os-version
         self.split = hello_message_file.split('/')
         self.hello_message_file = hello_message_file
 
-        self.vendor = self.split[3]
-        # Solve for os-type
-        if 'nx' in self.split[4]:
-            self.os = 'NX-OS'
-            self.platform = self.split[6].split('-')[0]
-        elif 'xe' in self.split[4]:
-            self.os = 'IOS-XE'
-            self.platform = self.split[6].split('-')[0]
-        elif 'xr' in self.split[4]:
-            self.os = 'IOS-XR'
-            self.platform = self.split[6].split('-')[1]
-        else:
-            self.os = 'Unknown'
-        self.os_version = self.split[5]
-        self.software_flavor = self.os + '|' + self.os_version
-        integrity_checker.add_platform('/'.join(self.split[:-2]), self.platform)
-        self.ietf_rfc_json = {}
-        self.ietf_draft_json = {}
-        self.ietf_rfc_json = load_json_from_url('http://www.claise.be/IETFYANGRFC.json')
-        self.ietf_draft_json = load_json_from_url('http://www.claise.be/IETFYANGDraft.json')
+        if self.api and not self.sdo:
+            json_file = open(hello_message_file.split('.xml')[0] + '.json')
+            impl = json.load(json_file)
+            self.initialize(impl)
+            json_file.close()
 
-    def handle_exception(self, field, object, module_name):
-        # In case of include exception create empty
-        if 'include' in field:
+        if not self.api and not self.sdo:
+            if os.path.isfile('/'.join(self.split[:-1]) + '/platform-metadata.json'):
+                json_file = open('/'.join(self.split[:-1]) + '/platform-metadata.json')
+                platforms = json.load(json_file)['platforms']
+                for impl in platforms:
+                    self.initialize(impl)
+                json_file.close()
+            else:
+                LOGGER.debug('Setting metadata concerning whole directory')
+                self.owner = 'YangModels'
+                self.repo = 'yang'
+                self.path = None
+                self.branch = 'master'
+                self.feature_set = 'ALL'
+                self.software_version = self.split[5]
+                self.vendor = self.split[3]
+                # Solve for os-type
+                if 'nx' in self.split[4]:
+                    self.os = 'NX-OS'
+                    self.platform = self.split[6].split('-')[0]
+                elif 'xe' in self.split[4]:
+                    self.os = 'IOS-XE'
+                    self.platform = self.split[6].split('-')[0]
+                elif 'xr' in self.split[4]:
+                    self.os = 'IOS-XR'
+                    self.platform = self.split[6].split('-')[1]
+                else:
+                    self.os = 'Unknown'
+                    self.platform = 'Unknown'
+                self.os_version = self.split[5]
+                self.software_flavor = 'ALL'
+            integrity_checker.add_platform('/'.join(self.split[:-2]), self.platform)
+
+        self.parsed_jsons = LoadFiles(self.split)
+
+    def initialize(self, impl):
+        if impl['module-list-file']['path'] in self.hello_message_file:
+            LOGGER.info('Parsing a received json file')
+            self.feature_set = 'ALL'
+            self.os_version = impl['software-version']
+            self.software_flavor = impl['software-flavor']
+            self.vendor = impl['vendor']
+            self.platform = impl['name']
+            self.os = impl['os-type']
+            self.software_version = impl['software-version']
+            self.owner = impl['module-list-file']['owner']
+            self.repo = impl['module-list-file']['repository'].split('.')[0]
+            self.path = impl['module-list-file']['path']
+            self.branch = impl['module-list-file'].get('branch')
+            if not self.branch:
+                self.branch = 'master'
+
+    def parse_and_dump_sdo(self):
+        if self.api:
+            LOGGER.debug('Parsing sdo files sent via API')
+            with open('../parseAndPopulate/' + self.json_dir + '/prepare-sdo.json', 'r') as f:
+                sdos_json = json.load(f)
+            sdos_list = sdos_json['modules']['module']
+            for sdo in sdos_list:
+                file_name = unicodedata.normalize('NFKD', sdo['source-file']['path'].split('/')[-1])\
+                    .encode('ascii', 'ignore')
+                LOGGER.info('Parsing sdo file sent via API{}'.format(file_name))
+                self.owner = sdo['source-file']['owner']
+                repo_file_path = sdo['source-file']['path']
+                self.branch = sdo['source-file'].get('branch')
+                if not self.branch:
+                    self.branch = 'master'
+                self.repo = sdo['source-file']['repository'].split('.')[0]
+                root = self.owner + '/' + sdo['source-file']['repository'].split('.')[0] + '/' + self.branch + '/'\
+                    + '/'.join(repo_file_path.split('/')[:-1])
+                root = self.json_dir + '/temp/'\
+                    + unicodedata.normalize('NFKD', root).encode('ascii', 'ignore')
+                if not os.path.isfile(root + '/' + file_name):
+                    LOGGER.error('File {} sent via API was not downloaded'.format(file_name))
+                    continue
+                if '[1]' not in file_name:
+                    yang = Modules(root + '/' + file_name, self.html_result_dir, self.parsed_jsons)
+                    name = file_name.split('.')[0].split('@')[0]
+                    schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + repo_file_path
+                    yang.parse_all(name, schema, sdo)
+                    self.prepare.add_key_sdo_module(yang)
+
+        else:
+            LOGGER.debug('Parsing sdo files from directory')
+            for root, subdirs, sdos in os.walk('/'.join(self.split)):
+                for file_name in sdos:
+                    if '.yang' in file_name and ('vendor' not in root or 'odp' not in root):
+                        LOGGER.info('Parsing sdo file from directory {}'.format(file_name))
+
+                        if '[1]' in file_name:
+                            LOGGER.warning('File {} contains [1] it its file name'.format(file_name))
+                        else:
+                            yang = Modules(root + '/' + file_name,
+                                           self.html_result_dir, self.parsed_jsons)
+                            name = file_name.split('.')[0].split('@')[0]
+                            self.owner = 'YangModels'
+                            self.repo = 'yang'
+                            self.branch = 'master'
+                            path = root + '/' + file_name
+                            schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + path.replace(
+                                '../', '')
+                            yang.parse_all(name, schema)
+                            self.prepare.add_key_sdo_module(yang)
+
+
+    # parse capability xml and save to file
+    def parse_and_dump_yang_lib(self):
+        LOGGER.debug('Starting to parse files from vendor')
+        capability = []
+        netconf_version = 'netconf'
+
+        # netconf capability parsing
+        modules = self.root[0]
+        for module in modules:
+            if 'module-set-id' in module.tag:
+                continue
+            LOGGER.debug('Getting capabilities out of yang-library xml message')
+            module_name = None
+            set_of_names = set()
+            for mod in module:
+                if 'name' in mod.tag:
+                    module_name = mod.text
+                    break
+
+            yang_lib_info = {}
+            yang_lib_info['path'] = '/'.join(self.split[0:-1])
+            yang_lib_info['name'] = module_name
+            yang_lib_info['features'] = []
+            yang_lib_info['deviations'] = {}
             names = []
             revs = []
-            incl = {'name': names, 'revision': revs}
-            object[module_name] = incl
-        # In case of revision exception create dummy revision -> '1500-01-01'
-        elif 'revision' in field:
-            object[module_name] = '1500-01-01'
-            self.integrity_checker.add_revision(self.split, module_name)
-        # In case of yang-version exception create version 1.0 because
-        # if yang doesn`t contain any version value it is 1.0 by default
-        elif 'yang-version' in field:
-            object[module_name] = '1.0'
-        # In case of namespace exception create dummy exception -> 'urn:dummy'
-        elif 'namespace' in field:
-            object[module_name] = 'missing element'
-        # For everything else insert null value
-        elif 'import' in field:
-            object[module_name] = None
-        elif 'feature' in field:
-            object[module_name] = 'missing-element'
-        elif 'compilation-status' in field:
-            object[module_name] = 'MISSING'
-        else:
-            object[module_name] = 'missing element'
+            conformance_type = None
+            for mod in module:
+                if 'revision' in mod.tag:
+                    yang_lib_info['revision'] = mod.text
+                elif 'conformance-type' in mod.tag:
+                    conformance_type = mod.text
+                elif 'feature' in mod.tag:
+                    yang_lib_info['features'].append(mod.text)
+                elif 'deviation' in mod.tag:
+                    names.append(mod[0].text)
+                    revs.append(mod[1].text)
+            yang_lib_info['deviations']['name'] = names
+            yang_lib_info['deviations']['revision'] = revs
 
-    # pyang parsing variables and saving field value
-    def find_yang_var(self, object, field, module_name, yang_file):
-        try:
-            # In case it is import, include or feature there might be more than one object
-            if 'import' in field or 'include' in field or 'feature' in field:
-                # If this yang is not yet found and parsed
-                if self.parsed_yang is None:
-                    # Find and Parse yang file
-                    self.parsed_yang = yangParser.parse(os.path.abspath(yang_file))
-                object[module_name] = []
-                names = []
-                revs = []
-                incl = {}
+            try:
+                yang = Modules('/'.join(self.split), self.html_result_dir,
+                               self.parsed_jsons, True, True, yang_lib_info)
+                schema_part = github_raw + self.owner + \
+                              '/' + self.repo + '/' + self.branch + '/'
+                yang.parse_all(module_name, schema_part)
+                yang.add_vendor_information(self.vendor, self.platform,
+                                            self.software_version,
+                                            self.software_flavor,
+                                            self.os_version, self.feature_set,
+                                            self.os, conformance_type,
+                                            capability, netconf_version)
+                yang.resolve_integrity(self.integrity_checker, self.split,
+                                       self.os_version)
+                self.prepare.add_key_sdo_module(yang)
+                set_of_names.add(yang.name)
+            except FileError:
+                self.integrity_checker.add_module('/'.join(self.split),
+                                                  [module_name])
+                LOGGER.warning('File {} not found in the repository'
+                               .format(module_name))
 
-                # Search for the field in yang file
-                for chunk in self.parsed_yang.search(field):
-                    # If it is included parse it to name and revision
-                    if 'include' in field:
-                        names.append(chunk.arg)
-                        if len(chunk.search('revision-date')) > 0:
-                            revs.append(chunk.search('revision-date')[0].arg)
-                    # Otherwise add object
-                    else:
-                        object[module_name].append(chunk.arg)
-                if 'include' in field:
-                    incl['name'] = names
-                    incl['revision'] = revs
-                    object[module_name] = incl
-            else:
-                # If this yang is not yet found and parsed
-                if self.parsed_yang is None:
-                    # Find and Parse yang file
-                    self.parsed_yang = yangParser.parse(os.path.abspath(yang_file))
-
-                # Search for the field and parse first one you find (in case of revision
-                # we want just first one which is the newest one)
-                yang_variable = self.parsed_yang.search(field)[0].arg
-
-                if isinstance(yang_variable, unicode):
-                    object[module_name] = unicodedata.normalize('NFKD', yang_variable).encode('ascii', 'ignore')
-                else:
-                    object[module_name] = yang_variable
-
-        # In case of exception hande them
-        except AttributeError:
-            self.handle_exception(field, object, module_name)
-        except IndexError:
-            self.handle_exception(field, object, module_name)
+            LOGGER.info('Starting to parse {}'.format(module_name))
+        keys = []
+        keys.extend(self.prepare.name_revision_organization)
+        for key in keys:
+            self.parse_imp_inc(self.prepare.yang_modules[key].submodule,
+                               set_of_names, True, schema_part, capability,
+                               netconf_version)
+            self.parse_imp_inc(self.prepare.yang_modules[key].imports,
+                               set_of_names, False, schema_part, capability,
+                               netconf_version)
 
     # parse capability xml and save to file
     def parse_and_dump(self):
+        LOGGER.debug('Starting to parse files from vendor')
         capability = []
         tag = self.root.tag
-        module_names = []
-        name_revision = []
-        deviations = {}
-        features = {}
-        revision = {}
-        yang_version = {}
-        namespace = {}
-        prefix = {}
-        organization = {}
-        contact = {}
-        description = {}
-        includes = {}
-        schema = {}
-        imports = {}
-        reference = {}
-        conformance_type = {}
-        compilations_status = {}
-        working_group = {}
-        author_email = {}
         netconf_version = ''
-        compilations_result = {}
-        organization_module = {}
-
-        # Parse deviations and features from each module from netconf hello message
-        def deviations_and_features(search_for):
-            my_list = []
-            if search_for in module_and_more:
-                devs_or_features = module_and_more.split(search_for)[1]
-                devs_or_features = devs_or_features.split('&')[0]
-                my_list = devs_or_features.split(',')
-            return my_list
 
         # netconf capability parsing
-        for cap in self.root.iter(tag.split('hello')[0] + 'capability'):
+        modules = self.root.iter(tag.split('hello')[0] + 'capability')
+        set_of_names = set()
+        for module in modules:
+            LOGGER.debug('Getting capabilities out of hello message')
             # Parse netconf version
-            if ':netconf:base:' in cap.text:
-                netconf_version = cap.text
+            if ':netconf:base:' in module.text:
+                netconf_version = module.text
+                LOGGER.debug('Getting netconf version')
             # Parse capability together with version
-            if ':capability:' in cap.text:
-                cap_with_version = cap.text.split(':capability:')[1]
+            if ':capability:' in module.text:
+                cap_with_version = module.text.split(':capability:')[1]
                 capability.append(cap_with_version.split('?')[0])
+                LOGGER.debug('Getting capabilities out of hello message')
             # Parse modules
-            if 'module=' in cap.text:
+            if 'module=' in module.text:
                 # Parse name of the module
-                module_and_more = cap.text.split('module=')[1]
+                module_and_more = module.text.split('module=')[1]
                 module_name = module_and_more.split('&')[0]
-                module_names.append(module_name)
-                devs = {}
-                revs = []
-                # Parse deviations of the module
-                names = deviations_and_features('deviations=')
-                # Find and parse deviated yang file so we can get a revision out of it
-                for i in names:
-                    yang_file = find_first_file('/'.join(self.split[0:-1]), i + '.yang',
-                                                i + '.yang')
-                    if yang_file is None:
-                        self.integrity_checker.add_module(self.split, i)
-                        revs.append('1500-01-01')
-                    else:
-                        self.parsed_yang = yangParser.parse(os.path.abspath(yang_file))
-                        yang_variable = self.parsed_yang.search('revision')[0].arg
+                LOGGER.info('Parsing module {}'.format(module_name))
+                try:
+                    yang = Modules('/'.join(self.split), self.html_result_dir,
+                                   self.parsed_jsons, True, data=module_and_more)
+                    schema_part = github_raw + self.owner +\
+                                  '/' + self.repo + '/' + self.branch + '/'
+                    yang.parse_all(module_name, schema_part)
+                    yang.add_vendor_information(self.vendor, self.platform,
+                                                self.software_version,
+                                                self.software_flavor,
+                                                self.os_version, self.feature_set,
+                                                self.os, 'implement', capability,
+                                                netconf_version)
+                    yang.resolve_integrity(self.integrity_checker, self.split,
+                                           self.os_version)
+                    self.prepare.add_key_sdo_module(yang)
+                    set_of_names.add(yang.name)
+                except FileError:
+                    self.integrity_checker.add_module('/'.join(self.split),
+                                                      [module_and_more.split('&')[0]])
+                    LOGGER.warning('File {} not found in the repository'
+                                   .format(module_name))
 
-                        if isinstance(yang_variable, unicode):
-                            revs.append(unicodedata.normalize('NFKD', yang_variable).encode('ascii', 'ignore'))
-                        else:
-                            revs.append(yang_variable)
-                    if yang_file is not None:
-                        self.integrity_checker.remove_one(self.split, yang_file)
-                devs['name'] = names
-                devs['revision'] = revs
-                deviations[module_name] = devs
+        keys = []
+        keys.extend(self.prepare.name_revision_organization)
+        for key in keys:
+            self.parse_imp_inc(self.prepare.yang_modules[key].submodule,
+                               set_of_names, True, schema_part, capability,
+                               netconf_version)
+            self.parse_imp_inc(self.prepare.yang_modules[key].imports,
+                               set_of_names, False, schema_part, capability,
+                               netconf_version)
 
-                # Parse features of the module
-                features[module_name] = deviations_and_features('features=')
-                # Parse conformance type of the module
-                conformance_type[module_name] = 'implement'
-
-                # Parse revision of the module from capability.xml file
-                my_var = ''
-                if 'revision' in cap.text:
-                    revision_and_more = cap.text.split('revision=')[1]
-                    my_var = revision_and_more.split('&')[0]
-                    revision[module_name] = my_var
-                else:
-                    yang_file = find_first_file('/'.join(self.split[0:-1]), module_name + '.yang',
-                                                module_name + '.yang')
-                    self.find_yang_var(revision, 'revision', module_name, yang_file)
-                name_revision.append(module_name + '@' + revision[module_name])
-                # Find yang file in the same directory as capability.xml file is
-                # so we can parse all needed fields out of it
-                yang_file = find_first_file('/'.join(self.split[0:-1]), module_name + '.yang',
-                                            module_name + '@' + my_var + '.yang')
-
-                if yang_file is None:
-                    # In case we didn`t find the module try to look for it in any other directory of this project
-                    self.integrity_checker.add_module(self.split, module_name)
-                    yang_file = find_first_file('/'.join(self.split[0:1]), module_name + '.yang',
-                                                module_name + '@' + my_var + '.yang')
-                if yang_file is not None:
-                    self.integrity_checker.remove_one(self.split, yang_file)
-                self.parsed_yang = None
-                namespace_exist = False
-                # Parse rest of the fields out of the yang file
-                self.find_yang_var(namespace, 'namespace', module_name, yang_file)
-                for ns, org in NS_MAP.items():
-                    if self.os_version is '1651':
-                        if ns is 'urn:cisco':
-                            if ns in namespace[module_name]:
-                                organization_module[module_name] = org
-                                namespace_exist = True
-                    else:
-                        if ns in namespace[module_name]:
-                            organization_module[module_name] = org
-                            namespace_exist = True
-                if not namespace_exist:
-                    organization_module[module_name] = 'missing_data'
-                    if namespace[module_name] is None:
-                        self.integrity_checker.add_namespace(self.split, module_name + ' : missing data')
-                        namespace[module_name] = 'missing data'
-                    self.integrity_checker.add_namespace(self.split, module_name + ' : ' + namespace[module_name])
-
-                self.find_yang_var(prefix, 'prefix', module_name, yang_file)
-                self.find_yang_var(yang_version, 'yang-version', module_name, yang_file)
-                self.find_yang_var(organization, 'organization', module_name, yang_file)
-                self.find_yang_var(contact, 'contact', module_name, yang_file)
-                self.find_yang_var(description, 'description', module_name, yang_file)
-                self.find_yang_var(includes, 'include', module_name, yang_file)
-                self.find_yang_var(imports, 'import', module_name, yang_file)
-                self.find_yang_var(reference, 'reference', module_name, yang_file)
-                self.find_yang_var(schema, 'schema', module_name, yang_file)
-
-                compilations_status[module_name] = self.parse_status(module_name, revision[module_name])
-                if compilations_status[module_name] not in 'PASSED':
-                    compilations_result[module_name] = self.parse_result(module_name, revision[module_name])
-                else:
-                    compilations_result[module_name] = ''
-                author_email[module_name] = self.parse_email(module_name, revision[module_name])
-                working_group[module_name] = self.parse_wg(module_name, revision[module_name])
-
-                self.prepare.add_key(module_name + '@' + revision[module_name], namespace[module_name],
-                                     conformance_type[module_name], self.vendor, self.platform, self.software_version,
-                                     self.software_flavor, self.os, self.os_version, self.feature_set,
-                                     reference[module_name], prefix[module_name], yang_version[module_name],
-                                     organization[module_name], description[module_name], contact[module_name],
-                                     compilations_status[module_name], author_email[module_name], schema[module_name],
-                                     features[module_name], working_group[module_name],
-                                     compilations_result[module_name], deviations[module_name],
-                                       self.get_submodule_info(includes[module_name]['name']))
-
-                self.parse_imports_includes(includes[module_name]['name'], features, revision, name_revision,
-                                            yang_version, namespace, prefix, organization, contact, description,
-                                            includes, imports, reference, conformance_type, deviations, module_names,
-                                            compilations_status, schema, author_email, working_group,
-                                            organization_module, True, namespace[module_name], compilations_result)
-                self.parse_imports_includes(imports[module_name], features, revision, name_revision,
-                                            yang_version, namespace, prefix, organization, contact, description,
-                                            includes, imports, reference, conformance_type, deviations, module_names,
-                                            compilations_status, schema, author_email, working_group,
-                                            organization_module, False, namespace[module_name], compilations_result)
-
-        # restconf capability parsing
-        for cap in self.root.iter('module'):
-            module_name = cap.find('name').text
-            module_names.append(module_name)
-            namespace[module_name] = cap.find('namespace').text
-            revision[module_name] = cap.find('revision').text
-            schema[module_name] = cap.find('schema').text
-            conformance_type[module_name] = cap.find('conformance-type').text
-            devs = {}
-            names = []
-            revs = []
-            for dev in self.root.iter('deviation'):
-                names.append(dev.find('name').text)
-                if dev.find('revision').text is None:
-                    revs.append('1500-01-01')
-                else:
-                    revs.append(dev.find('revision').text)
-            devs['name'] = names
-            devs['revision'] = revs
-            deviations[module_name] = devs
-            objs = []
-            for feat in self.root.iter('feature'):
-                objs.append(feat.text)
-            features[module_name] = objs
-
-            # Find yang file in the same directory as capability.xml file is
-            # so we can parse all needed fields out of it
-            yang_file = find_first_file('/'.join(self.split[0:-1]), module_name + '.yang',
-                                        module_name + '@' + revision[module_name] + '.yang')
-
-            if yang_file is None:
-                # In case we didn`t find the module try to look for it in any other directory of this project
-                self.integrity_checker.add_module(self.split, module_name)
-                yang_file = find_first_file('/'.join(self.split[0:2]), module_name + '.yang',
-                                            module_name + '@' + revision[module_name] + '.yang')
-
-            # Parse rest of the fields out of the yang file
-            self.find_yang_var(prefix, 'prefix', module_name, yang_file)
-            self.find_yang_var(yang_version, 'yang-version', module_name, yang_file)
-            self.find_yang_var(organization, 'organization', module_name, yang_file)
-            self.find_yang_var(contact, 'contact', module_name, yang_file)
-            self.find_yang_var(description, 'description', module_name, yang_file)
-            self.find_yang_var(reference, 'reference', module_name, yang_file)
-            self.find_yang_var(includes, 'include', module_name, yang_file)
-            self.find_yang_var(imports, 'import', module_name, yang_file)
-
-        self.integrity_checker.add_unique(name_revision)
-        # Write dictionary to file
-        # Create json dictionary out of parsed information
-        with open('normal' + repr(self.index) + '.json', "w") as ietf_model:
-            json.dump({
-                'vendors': {
-                    'vendor': [{
-                        'name': self.vendor,
-                        'platforms': {
-                            'platform': [{
-                                'name': self.platform,
-                                'software-versions': {
-                                    'software-version': [{
-                                        'name': self.software_version,
-                                        'software-flavors': {
-                                            'software-flavor': [{
-                                                'name': self.software_flavor,
-                                                'protocols': {
-                                                    'protocol': [{
-                                                        'name': 'netconf',
-                                                        'capabilities': capability,
-                                                        'protocol-version': netconf_version,
-                                                    }]
-                                                },
-                                                'modules': {
-                                                    'module': [{
-                                                        'name': module_names[k],
-                                                        'revision': revision.get(module_names[k])
-                                                    } for k, val in enumerate(module_names)],
-                                                }
-                                            }]
-                                        }
-                                    }]
-                                }
-                            }]
-                        }
-                    }]
-                }
-            }, ietf_model)
-            #json.dump({'vendor': self.vendor, 'os-type': self.os, 'os-version': self.os_version,
-            #           'platform': self.platform,
-            #           'feature-set': 'ALL',
-            #           'protocols': {
-            #               'protocol': [{
-            #                   'name': 'netconf',
-            #                   'capabilities': capability,
-            #                   'protocol-version': netconf_version,
-            #               }]
-            #           },
-            #           'modules': {
-            #               'module': [
-            #                   {
-            #                       'reference': reference.get(module_names[k]),
-            #                       'prefix': prefix.get(module_names[k]),
-            #                       'yang-version': yang_version.get(module_names[k]),
-            #                       'organization': organization_module.get(module_names[k]),
-            #                       'description': description.get(module_names[k]),
-            #                       'contact': contact.get(module_names[k]),
-            #                       'submodule': json.loads(
-            #                           self.get_submodule_info(includes[module_names[k]]['name'])),
-            #                       # 'imports': json.loads(
-            #                       #    self.get_submodule_info(imports[module_names[k]]['name'], missing_module,
-            #                       #                            missing_includes)),
-            #                       'conformance-type': conformance_type.get(module_names[k]),
-            #                       'compilation-status': compilations_status.get(module_names[k]),
-            #                       'author-email': author_email.get(module_names[k]),
-            #                       'revision': revision.get(module_names[k]),
-            #                       'namespace': namespace.get(module_names[k]),
-            #                       'name': module_names[k],
-            #                       'schema': schema.get(module_names[k]),
-            #                       'feature': features.get(module_names[k]),
-            #                       'maturity-level': working_group.get(module_names[k]),
-            #                       'compilation-result': compilations_result.get(module_names[k]),
-            #                       'deviation': [
-            #                           {'name': deviations[module_names[k]]['name'][i],
-            #                            'revision': deviations[module_names[k]]['revision'][i]
-            #                            } for
-            #                           i, val in enumerate(deviations.get(module_names[k])['name'])],
-            #                   }
-            #                   for k, val in
-            #                   enumerate(module_names)]
-            #           }
-            #           }, ietf_model)
-
-    def get_submodule_info(self, imports_or_includes):
-        if imports_or_includes is not None and bool(imports_or_includes):
-            revision = {}
-            schema = {}
-
-            for imp in imports_or_includes:
-                yang_file = find_first_file('/'.join(self.split[0:-1]), imp + '.yang', imp + '@*.yang')
-                if yang_file is None:
-                    self.integrity_checker.add_submodule(self.split, imp)
-                    yang_file = find_first_file('/'.join(self.split[0:2]), imp + '.yang', imp + '@*.yang')
-                self.parsed_yang = None
-                self.find_yang_var(revision, 'revision', imp, yang_file)
-                self.find_yang_var(schema, 'schema', imp, yang_file)
-            my_json = json.dumps([{'name': imports_or_includes[k],
-                                   'schema': schema[imports_or_includes[k]],
-                                   'revision': revision[imports_or_includes[k]]
-                                   } for k, val
-                                  in
-                                  enumerate(imports_or_includes)])
-            return my_json
-        else:
-            return '[]'
-
-    def parse_imports_includes(self, imports_or_includes, features, revision, name_revision,
-                               yang_version, namespace, prefix, organization, contact, description, includes,
-                               imports, reference, conformance_type, deviations, module_names, comp_status, schema,
-                               email, wg, organization_module, is_include, parent_ns, comp_result):
-        if imports_or_includes is not None:
-            for imp in imports_or_includes:
-                if imp not in module_names:
-                    if imp in 'openconfig-mpls':
-                        pass
-                    yang_file = find_first_file('/'.join(self.split[0:-1]), imp + '.yang', imp + '@*.yang')
-                    if yang_file is None:
-                        if is_include:
-                            self.integrity_checker.add_submodule(self.split, imp)
-                        else:
-                            self.integrity_checker.add_module(self.split, imp)
-                        yang_file = find_first_file('/'.join(self.split[0:2]), imp + '.yang', imp + '@*.yang')
-                    if yang_file is not None:
-                        self.integrity_checker.remove_one(self.split, yang_file)
-                    self.parsed_yang = None
-                    devs = {'name': [], 'revision': []}
-                    deviations[imp] = devs
-                    if is_include:
-                        namespace[imp] = parent_ns
-                    else:
-                        self.find_yang_var(namespace, 'namespace', imp, yang_file)
-                    namespace_exist = False
-                    for ns, org in NS_MAP.items():
-                        if self.os_version is '1651':
-                            if ns is 'urn:cisco':
-                                if ns in namespace[imp]:
-                                    organization_module[imp] = org
-                                    namespace_exist = True
-                        else:
-                            if ns in namespace[imp]:
-                                organization_module[imp] = org
-                                namespace_exist = True
-                    if not namespace_exist:
-                        organization_module[imp] = 'missing_element'
-                        if namespace[imp] is None:
-                            namespace[imp] = 'missing data'
-                        self.integrity_checker.add_namespace(self.split, imp + ' : ' + namespace[imp])
-                    self.find_yang_var(prefix, 'prefix', imp, yang_file)
-                    self.find_yang_var(yang_version, 'yang-version', imp, yang_file)
-                    self.find_yang_var(organization, 'organization', imp, yang_file)
-                    self.find_yang_var(contact, 'contact', imp, yang_file)
-                    self.find_yang_var(description, 'description', imp, yang_file)
-                    self.find_yang_var(includes, 'include', imp, yang_file)
-                    self.find_yang_var(imports, 'import', imp, yang_file)
-                    self.find_yang_var(reference, 'reference', imp, yang_file)
-                    self.find_yang_var(revision, 'revision', imp, yang_file)
-                    self.find_yang_var(features, 'feature', imp, yang_file)
-                    self.find_yang_var(schema, 'schema', imp, yang_file)
-
-                    comp_status[imp] = self.parse_status(imp, revision[imp])
-                    if comp_status[imp] is not 'PASSED':
-                        comp_result[imp] = self.parse_result(imp, revision[imp])
-                    else:
-                        comp_result[imp] = ''
-                    email[imp] = self.parse_email(imp, revision[imp])
-                    wg[imp] = self.parse_wg(imp, revision[imp])
-                    conformance_type[imp] = 'implement'
-                    module_names.append(imp)
-                    name_revision.append(imp + '@' + revision[imp])
-
-                    self.prepare.add_key(imp + '@' + revision[imp], namespace[imp], conformance_type[imp], self.vendor,
-                                         self.platform, self.software_version, self.software_flavor, self.os,
-                                         self.os_version, self.feature_set, reference[imp], prefix[imp], yang_version[imp],
-                                         organization[imp], description[imp], contact[imp], comp_status[imp],
-                                         email[imp], schema[imp], features[imp], wg[imp], comp_result[imp],
-                                         deviations[imp], self.get_submodule_info(includes[imp]['name']))
-
-                    self.parse_imports_includes(includes[imp]['name'], features, revision, name_revision,
-                                                yang_version, namespace, prefix, organization, contact, description,
-                                                includes, imports, reference, conformance_type, deviations, module_names
-                                                , comp_status, schema, email, wg, organization_module, True
-                                                , namespace[imp], comp_result)
-                    self.parse_imports_includes(imports[imp], features, revision, name_revision,
-                                                yang_version, namespace, prefix, organization, contact, description,
-                                                includes, imports, reference, conformance_type, deviations, module_names
-                                                , comp_status, schema, email, wg, organization_module, False
-                                                , namespace[imp], comp_result)
-
-    def parse_status(self, module_name, revision):
-        # try to find in rfc without revision
-        try:
-            if module_name + '.yang' in self.ietf_rfc_json.keys():
-                return 'PASSED'
-        except KeyError:
-            pass
-        # try to find in rfc with revision
-        try:
-            if module_name + '@' + revision + '.yang' in self.ietf_rfc_json.keys():
-                return 'PASSED'
-        except KeyError:
-            pass
-        # try to find in draft without revision
-        try:
-            status = self.ietf_draft_json[module_name + '.yang'][3]
-            if status in 'PASSED WITH WARNINGS':
-                status = 'PASSED-WITH-WARNINGS'
-            return status
-        except KeyError:
-            pass
-        # try to find in draft with revision
-        try:
-            status = self.ietf_draft_json[module_name + '@' + revision + '.yang'][3]
-            if status in 'PASSED WITH WARNINGS':
-                status = 'PASSED-WITH-WARNINGS'
-            return status
-        except KeyError:
-            pass
-        return 'MISSING'
-
-    def parse_email(self, module_name, revision):
-        # try to find in draft without revision
-        try:
-            email = self.ietf_draft_json[module_name + '.yang'][1].split('\">Email')[0].split('mailto:')[1]
-            return email
-        except KeyError:
-            pass
-        # try to find in draft with revision
-        try:
-            email = \
-                self.ietf_draft_json[module_name + '@' + revision + '.yang'][1].split('\">Email')[0].split('mailto:')[1]
-            return email
-        except KeyError:
-            pass
-        return 'missing element'
-
-    def parse_result(self, module_name, revision):
-        # try to find in draft without revision
-        result = ''
-        try:
-            result += self.ietf_draft_json[module_name + '.yang'][4]
-            result += self.ietf_draft_json[module_name + '.yang'][5]
-            result += self.ietf_draft_json[module_name + '.yang'][6]
-            result += self.ietf_draft_json[module_name + '.yang'][7]
-            result += self.ietf_draft_json[module_name + '.yang'][8]
-            return result
-        except KeyError:
-            pass
-        # try to find in draft with revision
-        try:
-            result += self.ietf_draft_json[module_name + '@' + revision + '.yang'][4]
-            result += self.ietf_draft_json[module_name + '@' + revision + '.yang'][5]
-            result += self.ietf_draft_json[module_name + '@' + revision + '.yang'][6]
-            result += self.ietf_draft_json[module_name + '@' + revision + '.yang'][7]
-            result += self.ietf_draft_json[module_name + '@' + revision + '.yang'][8]
-            return result
-        except KeyError:
-            pass
-        return 'missing element'
-
-    def parse_wg(self, module_name, revision):
-        # try to find in draft without revision
-        try:
-            wg = self.ietf_draft_json[module_name + '.yang'][0].split('</a>')[0].split('\">')[1].split('-')[1]
-            if 'ietf' in wg:
-                return 'working-group'
+    def parse_imp_inc(self, modules, set_of_names, is_include, schema_part,
+                      capability, netconf_version):
+        for mod in modules:
+            if is_include:
+                name = mod.name
+                conformance_type = 'import'
             else:
-                return 'individual'
-        except KeyError:
-            pass
-        # try to find in draft with revision
-        try:
-            wg = \
-                self.ietf_draft_json[module_name + '@' + revision + '.yang'][0].split('</a>')[0].split('\">')[1].split(
-                    '-')[1]
-            if 'ietf' in wg:
-                return 'working-group'
-            else:
-                return 'individual'
-        except KeyError:
-            pass
-        # try to find in rfc with revision
-        try:
-            wg = self.ietf_rfc_json[module_name + '@' + revision + '.yang']
-            return 'ratified'
-        except KeyError:
-            pass
-        try:
-            wg = self.ietf_rfc_json[module_name + '.yang']
-            return 'ratified'
-        except KeyError:
-            pass
-        return None
+                conformance_type = None
+                name = mod.arg
+            if name not in set_of_names:
+                LOGGER.info('Parsing module {}'.format(name))
+                set_of_names.add(name)
+                yang_file = find_first_file('/'.join(self.split[0: -1]),
+                                            name + '.yang', name + '@*.yang')
+                if yang_file is None:
+                    yang_file = find_first_file('../../.', name + '.yang',
+                                                name + '@*.yang')
+                if yang_file is None:
+                    # TODO add integrity that this file is missing
+                    return
+                try:
+                    yang = Modules(yang_file, self.html_result_dir,
+                                   self.parsed_jsons)
+                    yang.parse_all(name, schema_part)
+                    yang.add_vendor_information(self.vendor, self.platform,
+                                                self.software_version,
+                                                self.software_flavor,
+                                                self.os_version,
+                                                self.feature_set, self.os,
+                                                conformance_type, capability,
+                                                netconf_version)
+                    yang.resolve_integrity(self.integrity_checker, self.split,
+                                           self.os_version)
+                    self.prepare.add_key_sdo_module(yang)
+                    self.parse_imp_inc(yang.submodule, set_of_names, True,
+                                       schema_part, capability, netconf_version)
+                    self.parse_imp_inc(yang.imports, set_of_names, False,
+                                       schema_part, capability, netconf_version)
+                except FileError:
+                    self.integrity_checker.add_module('/'.join(self.split),
+                                                      [name])
+                    LOGGER.warning('File {} not found in the repository'
+                                   .format(name))

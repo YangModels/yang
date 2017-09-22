@@ -7,7 +7,7 @@
 # typically not available locally.
 #
 platform_dir="vendor/cisco/xr"
-to_check="530 531 532 533 534 600 601 602 611 612 613 621"
+to_check="530 531 532 533 534 600 601 602 611 612 613 621 622"
 pyang_flags=""
 debug=0
 

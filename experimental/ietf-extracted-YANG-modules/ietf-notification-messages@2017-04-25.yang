@@ -1,0 +1,254 @@
+module ietf-notification-messages {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-notification-messages";
+  prefix nm;
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  organization "IETF";
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/netconf/>
+     WG List:  <mailto:netconf@ietf.org>
+
+     WG Chair: Mahesh Jethanandani
+               <mailto:mjethanandani@gmail.com>
+
+     WG Chair: Mehmet Ersue
+               <mailto:mehmet.ersue@nokia.com>
+
+     Editor:   Eric Voit
+               <mailto:evoit@cisco.com>
+
+     Editor:   Alexander Clemm
+               <mailto:ludwig@clemm.org>
+
+     Editor:   Tim Jenkins
+               <mailto:timjenki@cisco.com>
+
+     Editor:   Andy Bierman
+               <mailto:andy@yumaworks.com>";
+
+  description
+    "This module contains conceptual YANG specifications for
+    notification messages with well known header objects.";
+
+  revision 2017-04-25 {
+    description
+      "This module includes definitions for two new yang
+      notification message objects:
+      (a) a message format including the definitions for common header
+          information prior to notification payload.
+      (b) a message format allowing the bundling of multiple
+          notifications within it";
+
+    reference
+      "draft-voit-netconf-notification-messages-01";
+  }
+
+  /*
+   * IDENTITIES
+   */
+
+   /* Identities for notification record types */
+
+   identity notification-record-format {
+    description
+      "Base identity to represent a different formats for notification
+      records.";
+  }
+
+  identity system-event {
+    base notification-record-format;
+    description
+      "System XML event";
+  }
+
+  identity yang-datastore {
+    base notification-record-format;
+    description
+      "yang data node / tree extract";
+  }
+
+  identity yang-patch {
+    base notification-record-format;
+    description
+      "yang patch record";
+  }
+
+  identity syslog-entry {
+    base notification-record-format;
+    description
+      "Unstructured syslog entry.";
+  }
+
+  identity alarm {
+    base notification-record-format;
+    description
+      "Alarm (perhaps link draft-sharma-netmod-fault-model-01 for more
+      info)";
+  }
+
+  /*
+   * TYPEDEFs
+   */
+
+  typedef notification-record-format {
+    type identityref {
+      base notification-record-format;
+    }
+    description
+      "Type of notification record";
+  }
+
+  /*
+   * GROUPINGS
+   */
+
+  grouping notification-message-header {
+    description
+      "Header information included with a notification.";
+    leaf notification-id {
+      type uint32;
+      description
+        "unique id for a notification which may go to one or many
+        receivers.";
+    }
+    leaf notification-time {
+      type yang:date-and-time;
+      description
+        "time the notification was generated prior to being sent to
+        transport.";
+    }
+    leaf previous-notification-id {
+      type uint32;
+      description
+        "Notification id previously sent by publisher to a specific
+        receiver (allows detection of loss/duplication).";
+    }
+    leaf dscp {
+      type inet:dscp;
+      default "0";
+      description
+        "The push update's IP packet transport priority. This is made
+        visible across network hops to receiver. The transport
+        priority is shared for all receivers of a given
+        subscription.";
+    }
+    leaf message-generator-id {
+      type string;
+      description
+        "Software entity which created the notification message (e.g.,
+        linecard 1).";
+    }
+    leaf signature {
+      type string;
+      description
+        "Any originator signing of the contents of a notification
+        message.  This can be useful for originating applications to
+        verify record contents even when shipping over unsecure
+        transport.";
+    }
+  }
+
+  grouping notification-record-header {
+    description
+      "Common informational objects which might help a receiver
+      interpret the meaning, details, and importance of an event
+      notification.";
+    leaf record-time {
+      type yang:date-and-time;
+      mandatory true;
+      description
+        "Time the system recognized the occurrence of an event.";
+    }
+    leaf record-type {
+      type notification-record-format;
+      description
+        "Describes the type of payload included.  This is turn allow
+        the interpretation of the record contents.";
+    }
+    leaf-list subscription-id {
+      type uint32;
+      description
+        "Id of the subscription which led to the notification being
+        generated.";
+    }
+    leaf record-id {
+      type uint32;
+      description
+        "Identifier for the notification record.";
+    }
+    leaf observation-domain-id {
+      type string;
+      description
+        "Software entity which created the notification record (e.g.,
+        process id).";
+    }
+  }
+  /*
+   * NOTIFICATIONS
+   */
+
+  notification notification-message {
+    description
+      "Notification message to a receiver containing only one event.";
+    container notification-message-header {
+      description
+        "delineates header info from notification messages for easy
+        parsing.";
+      uses notification-record-header;
+      uses notification-message-header;
+    }
+    anydata receiver-record-contents {
+      description
+        "Non-header info of what actually got sent to receiver after
+        security filter.  (Note: Possible to have extra process
+        encryption.)";
+    }
+  }
+
+  notification bundled-notification-message {
+    description
+      "Notification message to a receiver containing many events,
+      possibly relating to independent subscriptions.";
+    container bundled-notification-message-header {
+        description
+            "Delineates header info from notification messages for easy
+            parsing.";
+        uses notification-message-header {
+          refine notification-time {
+            mandatory true;
+          }
+        }
+        leaf record-count {
+            type uint16;
+            description
+                "Quantity of events in a bundled-notification-message
+                for a specific receiver.  This value is per receiver in
+                case an entire notification record is filtered out.";
+        }
+    }
+    list notification-records {
+      description
+        "Set of messages within a notification to a receiver.";
+      container notification-record-header {
+        description
+          "delineates header info from notification messages for easy
+          parsing.";
+        uses notification-record-header;
+      }
+      anydata receiver-record-contents {
+        description
+          "Non-header info of what actually got sent to receiver after
+          security filter.  (Note: Possible to have extra process
+          encryption.)";
+
+      }
+    }
+  }
+}

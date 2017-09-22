@@ -16,7 +16,8 @@ The schemas here may also be retrieved from devices running IOS-XE 16.5.1 by usi
 * ASR1000
 * CSR1000V/ISRv
 * ISR4000
-
+* Catalyst 9300
+* Catalyst 9500
 
 Model content may differ based on platform capability. As a convenience, copies of the platform "hello" messages are also provided:
 
@@ -24,6 +25,8 @@ Model content may differ based on platform capability. As a convenience, copies 
 * [asr1k-netconf-capability.xml](asr1k-netconf-capability.xml)
 * [csr1k-netconf-capability.xml](csr1k-netconf-capability.xml)
 * [isr4k-netconf-capability.xml](isr4k-netconf-capability.xml)
+* [cat9300-netconf-capability.xml](cat9300-netconf-capability.xml)
+* [cat9500-netconf-capability.xml](cat9500-netconf-capability.xml)
 
 ### Major namespace and model changes in 16.5.1
 
@@ -139,9 +142,14 @@ Exceptions to capability statement:
   - [nvo.yang](nvo.yang)
   - [nvo-devs.yang](nvo-devs.yang)
 
+#### Catalyst 9300, 9500
+NETCONF capability statement: [cat9300-netconf-capability.xml](cat9300-netconf-capability.xml)
+NETCONF capability statement: [cat9500-netconf-capability.xml](cat9500-netconf-capability.xml)
+
 #### ASR1000
 NETCONF capability statement: [asr1k-netconf-capability.xml](asr1k-netconf-capability.xml)
 #### CSR1000V
 NETCONF capability statement: [csr1k-netconf-capability.xml](csr1k-netconf-capability.xml)
 #### ISR4000
 NETCONF capability statement: [isr4k-netconf-capability.xml](isr4k-netconf-capability.xml)
+
