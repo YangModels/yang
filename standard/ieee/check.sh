@@ -8,7 +8,7 @@ to_check="802.1 802.3"
 
 # relax constraint for now
 # add --ietf if you want to do strict IETF checking
-pyang_flags="--verbose -p ../../../standard/ietf/RFC/ -p ../../../standard/ieee/draft/ -p ../../../standard/ieee/802.1/ -p ../../../standard/ieee/802.3/ "
+pyang_flags="--verbose -p ../../../standard/ietf/RFC/ -p ../../../standard/ieee/draft/ -p ../../../standard/ieee/802.1/draft/ -p ../../../standard/ieee/802.3/draft/ "
 
 checkDir () {
     echo Checking yang files in $1
