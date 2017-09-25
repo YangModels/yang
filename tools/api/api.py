@@ -663,7 +663,7 @@ def add_vendors():
     path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config'
 
     base64string = base64.b64encode('%s:%s' % (credentials[0], credentials[1]))
-    response = requests.post(path, json.dumps(body), headers={'Authorization': 'Basic ' + base64string,
+    response = requests.put(path, json.dumps(body), headers={'Authorization': 'Basic ' + base64string,
                                                              'Content-type': 'application/vnd.yang.data+json',
                                                              'Accept': 'application/vnd.yang.data+json'})
 
@@ -1144,12 +1144,13 @@ def search_vendors(value):
     """
     LOGGER.info('Searching for specific vendors {}'.format(value))
     path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/vendors/' + value + '?deep'
-    try:
-        data = http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read()
+    data = requests.get(path, auth=(credentials[0], credentials[1]),
+                        headers={'Accept': 'application/vnd.yang.data+json'})
+    if data.status_code == 200 or data.status_code == 204:
         data = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
-            .decode(data)
+            .decode(data.content)
         return Response(json.dumps(data), mimetype='application/json')
-    except:
+    else:
         return not_found()
 
 

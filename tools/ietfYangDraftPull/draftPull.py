@@ -94,7 +94,7 @@ if __name__ == "__main__":
     tar.extractall(repo.localdir + '/standard/ietf/RFC')
     tar.close()
     os.remove(repo.localdir + '/tools/ietfYangDraftPull/rfc.tar')
-    check_name_no_revision_exist('/standard/ietf/RFC/')
+    check_name_no_revision_exist(repo.localdir + '/standard/ietf/RFC/')
     check_early_revisions(repo.localdir + '/standard/ietf/RFC/')
 
     for key in ietf_draft_json:
