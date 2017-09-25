@@ -63,7 +63,8 @@ if __name__ == "__main__":
         file_save.close()
     else:
         if args.name_load:
-            file_load = args.name_load
+            with open(args.name_load) as f:
+                file_load = f
         else:
             list_of_files = glob.glob('./cache/*')
             latest_file = max(list_of_files, key=os.path.getctime)

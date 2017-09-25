@@ -62,6 +62,7 @@ class Capability:
         self.hello_message_file = hello_message_file
 
         if self.api and not self.sdo:
+            self.platform_data = []
             json_file = open(hello_message_file.split('.xml')[0] + '.json')
             impl = json.load(json_file)
             self.initialize(impl)
@@ -69,6 +70,7 @@ class Capability:
 
         if not self.api and not self.sdo:
             if os.path.isfile('/'.join(self.split[:-1]) + '/platform-metadata.json'):
+                self.platform_data = []
                 json_file = open('/'.join(self.split[:-1]) + '/platform-metadata.json')
                 platforms = json.load(json_file)['platforms']
                 for impl in platforms:
@@ -118,6 +120,8 @@ class Capability:
             self.branch = impl['module-list-file'].get('branch')
             if not self.branch:
                 self.branch = 'master'
+            self.platform_data.append({'software-flavor': self.software_flavor,
+                                       'platform': self.platform})
 
     def parse_and_dump_sdo(self):
         if self.api:
@@ -180,12 +184,14 @@ class Capability:
 
         # netconf capability parsing
         modules = self.root[0]
+        set_of_names = set()
+        keys = set()
         for module in modules:
             if 'module-set-id' in module.tag:
                 continue
             LOGGER.debug('Getting capabilities out of yang-library xml message')
             module_name = None
-            set_of_names = set()
+
             for mod in module:
                 if 'name' in mod.tag:
                     module_name = mod.text
@@ -215,18 +221,18 @@ class Capability:
             try:
                 yang = Modules('/'.join(self.split), self.html_result_dir,
                                self.parsed_jsons, True, True, yang_lib_info)
-                schema_part = github_raw + self.owner + \
-                              '/' + self.repo + '/' + self.branch + '/'
+                schema_part = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/'
                 yang.parse_all(module_name, schema_part)
-                yang.add_vendor_information(self.vendor, self.platform,
+                yang.add_vendor_information(self.vendor, self.platform_data,
                                             self.software_version,
-                                            self.software_flavor,
                                             self.os_version, self.feature_set,
                                             self.os, conformance_type,
                                             capability, netconf_version)
                 yang.resolve_integrity(self.integrity_checker, self.split,
                                        self.os_version)
                 self.prepare.add_key_sdo_module(yang)
+                keys.add('{}@{}/{}'.format(yang.name, yang.revision,
+                                           yang.organization))
                 set_of_names.add(yang.name)
             except FileError:
                 self.integrity_checker.add_module('/'.join(self.split),
@@ -235,8 +241,7 @@ class Capability:
                                .format(module_name))
 
             LOGGER.info('Starting to parse {}'.format(module_name))
-        keys = []
-        keys.extend(self.prepare.name_revision_organization)
+
         for key in keys:
             self.parse_imp_inc(self.prepare.yang_modules[key].submodule,
                                set_of_names, True, schema_part, capability,
@@ -255,6 +260,7 @@ class Capability:
         # netconf capability parsing
         modules = self.root.iter(tag.split('hello')[0] + 'capability')
         set_of_names = set()
+        keys = set()
         for module in modules:
             LOGGER.debug('Getting capabilities out of hello message')
             # Parse netconf version
@@ -278,15 +284,15 @@ class Capability:
                     schema_part = github_raw + self.owner +\
                                   '/' + self.repo + '/' + self.branch + '/'
                     yang.parse_all(module_name, schema_part)
-                    yang.add_vendor_information(self.vendor, self.platform,
+                    yang.add_vendor_information(self.vendor, self.platform_data,
                                                 self.software_version,
-                                                self.software_flavor,
                                                 self.os_version, self.feature_set,
                                                 self.os, 'implement', capability,
                                                 netconf_version)
                     yang.resolve_integrity(self.integrity_checker, self.split,
                                            self.os_version)
                     self.prepare.add_key_sdo_module(yang)
+                    keys.add('{}@{}/{}'.format(yang.name, yang.revision, yang.organization))
                     set_of_names.add(yang.name)
                 except FileError:
                     self.integrity_checker.add_module('/'.join(self.split),
@@ -294,8 +300,6 @@ class Capability:
                     LOGGER.warning('File {} not found in the repository'
                                    .format(module_name))
 
-        keys = []
-        keys.extend(self.prepare.name_revision_organization)
         for key in keys:
             self.parse_imp_inc(self.prepare.yang_modules[key].submodule,
                                set_of_names, True, schema_part, capability,
@@ -328,9 +332,8 @@ class Capability:
                     yang = Modules(yang_file, self.html_result_dir,
                                    self.parsed_jsons)
                     yang.parse_all(name, schema_part)
-                    yang.add_vendor_information(self.vendor, self.platform,
+                    yang.add_vendor_information(self.vendor, self.platform_data,
                                                 self.software_version,
-                                                self.software_flavor,
                                                 self.os_version,
                                                 self.feature_set, self.os,
                                                 conformance_type, capability,

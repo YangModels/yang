@@ -199,8 +199,8 @@ class Modules:
         self.__resolve_contact()
         self.__resolve_description()
         self.__resolve_yang_version()
-        self.__resolve_compilation_status_and_result()
         self.__resolve_generated_from(generated_from)
+        self.__resolve_compilation_status_and_result()
         self.__resolve_schema(schema)
         self.__resolve_submodule()
         self.__resolve_imports()
@@ -237,45 +237,45 @@ class Modules:
         except:
             return
 
-    def add_vendor_information(self, vendor, platform, software_version,
-                               software_flavor, os_version, feature_set,
-                               os_type, confarmance_type, capability,
-                               netconf_version):
-        implementation = self.Implementations()
-        implementation.vendor = vendor
-        implementation.platform = platform
-        implementation.software_version = software_version
-        implementation.software_flavor = software_flavor
-        implementation.os_version = os_version
-        implementation.feature_set = feature_set
-        implementation.os_type = os_type
-        implementation.feature = self.features
-        implementation.capability = capability
-        implementation.netconf_version = netconf_version
+    def add_vendor_information(self, vendor, platform_data, software_version,
+                               os_version, feature_set, os_type,
+                               confarmance_type, capability, netconf_version):
+        for data in platform_data:
+            implementation = self.Implementations()
+            implementation.vendor = vendor
+            implementation.platform = data['platform']
+            implementation.software_version = software_version
+            implementation.software_flavor = data['software-flavor']
+            implementation.os_version = os_version
+            implementation.feature_set = feature_set
+            implementation.os_type = os_type
+            implementation.feature = self.features
+            implementation.capability = capability
+            implementation.netconf_version = netconf_version
 
-        if self.is_yang_lib:
-            for x in range(0, len(self.deviations['name'])):
-                devs = implementation.Deviations()
-                devs.name = self.deviations['name'][x]
-                devs.revision = self.deviations['revision'][x]
-                implementation.deviations.append(devs)
-        else:
-            for name in self.deviations:
-                devs = implementation.Deviations()
-                devs.name = name
-                yang_file = self.__find_file(name)
-                if yang_file is None:
-                    devs.revision = '1970-01-01'
-                else:
-                    try:
-                        devs.revision = yangParser.parse(os.path.abspath(yang_file)) \
-                            .search('revision')[0].arg
-                    except:
+            if self.is_yang_lib:
+                for x in range(0, len(self.deviations['name'])):
+                    devs = implementation.Deviations()
+                    devs.name = self.deviations['name'][x]
+                    devs.revision = self.deviations['revision'][x]
+                    implementation.deviations.append(devs)
+            else:
+                for name in self.deviations:
+                    devs = implementation.Deviations()
+                    devs.name = name
+                    yang_file = self.__find_file(name)
+                    if yang_file is None:
                         devs.revision = '1970-01-01'
-                implementation.deviations.append(devs)
+                    else:
+                        try:
+                            devs.revision = yangParser.parse(os.path.abspath(yang_file)) \
+                                .search('revision')[0].arg
+                        except:
+                            devs.revision = '1970-01-01'
+                    implementation.deviations.append(devs)
 
-        implementation.conformance_type = confarmance_type
-        self.implementation.append(implementation)
+            implementation.conformance_type = confarmance_type
+            self.implementation.append(implementation)
 
     def __resolve_name(self, name):
         self.name = name
@@ -768,7 +768,7 @@ class Modules:
         if generated_from:
             self.generated_from = generated_from
         else:
-            if self.organization == 'cisco' and 'smi:' in self.namespace:
+            if ':smi' in self.namespace:
                 self.generated_from = 'mib'
             elif 'cisco' in self.name.lower():
                 self.generated_from = 'native'
@@ -776,6 +776,8 @@ class Modules:
                 self.generated_from = 'not-applicable'
 
     def __resolve_compilation_status_and_result(self):
+        if self.name == 'Cisco-IOS-XE-native':
+            pass
         self.compilation_status = self.__parse_status()
         if self.compilation_status != 'passed':
             self.compilation_result = self.__parse_result()
@@ -795,7 +797,7 @@ class Modules:
 
     def __create_compilation_result_file(self):
         if self.compilation_status == 'passed' \
-                and self.compilation_result['yanglint'] == '':
+                and self.compilation_result['pyang_lint'] == '':
             return ''
         else:
             result = self.compilation_result
@@ -991,8 +993,8 @@ class Modules:
         # try to find in draft without revision
         result = {}
         try:
-            result['pyang'] = self.jsons.ietf_draft_json[self.name + '.yang'][4]
-            result['pyang_lint'] = \
+            result['pyang_lint'] = self.jsons.ietf_draft_json[self.name + '.yang'][4]
+            result['pyang'] = \
                 self.jsons.ietf_draft_json[self.name + '.yang'][
                     5]
             result['confdrc'] = self.jsons.ietf_draft_json[self.name + '.yang'][
@@ -1006,11 +1008,11 @@ class Modules:
             pass
         # try to find in draft with revision
         try:
-            result['pyang'] = \
+            result['pyang_lint'] = \
                 self.jsons.ietf_draft_json[
                     self.name + '@' + self.revision + '.yang'][
                     4]
-            result['pyang_lint'] = \
+            result['pyang'] = \
                 self.jsons.ietf_draft_json[
                     self.name + '@' + self.revision + '.yang'][
                     5]
@@ -1031,92 +1033,72 @@ class Modules:
             pass
         res = self.__parse_res(self.jsons.bbf_json)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.ieee_standard_json)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.ieee_experimental_json)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.nx703i52)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.nx703i61)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.nx703i51)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.nx703f21)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.nx703f11)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.nx703i71)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.xr621)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.xr613)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.xr612)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.xr611)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.xe1651)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.xe1661)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.xe1641)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.xe1632)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.xe1631)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.huawei8910)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         res = self.__parse_res(self.jsons.ietf_rfc_standard_json)
         if res != '':
-            return {'pyang': '', 'pyang_lint': '', 'confdrc': '',
-                    'yumadump': '', 'yanglint': ''}
+            return res
         return {'pyang': '', 'pyang_lint': '', 'confdrc': '', 'yumadump': '',
                 'yanglint': ''}
 
     def __parse_res(self, json_file):
         result = {}
         try:
-            result['pyang'] = json_file[self.name + '.yang'][1]
-            result['pyang_lint'] = json_file[self.name + '.yang'][2]
+            result['pyang_lint'] = json_file[self.name + '.yang'][1]
+            result['pyang'] = json_file[self.name + '.yang'][2]
             result['confdrc'] = json_file[self.name + '.yang'][3]
             result['yumadump'] = json_file[self.name + '.yang'][4]
             result['yanglint'] = json_file[self.name + '.yang'][5]
@@ -1125,9 +1107,9 @@ class Modules:
             pass
         # try to find in draft with revision
         try:
-            result['pyang'] = \
-                json_file[self.name + '@' + self.revision + '.yang'][1]
             result['pyang_lint'] = \
+                json_file[self.name + '@' + self.revision + '.yang'][1]
+            result['pyang'] = \
                 json_file[self.name + '@' + self.revision + '.yang'][2]
             result['confdrc'] = \
                 json_file[self.name + '@' + self.revision + '.yang'][3]
