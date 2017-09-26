@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import urllib2
+import requests
 from urllib2 import URLError
 
 import jinja2
@@ -246,9 +247,12 @@ if __name__ == '__main__':
     api_port = config.get('Statistics-Section', 'api-port')
     credentials = config.get('Statistics-Section', 'credentials')
     move_to = config.get('Statistics-Section', 'file-location')
+    auth = credentials.split(' ')
 
     path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco'
-    vendors_data = json.loads(http_request(path, 'GET', '', credentials.split(' '), 'application/json').read())
+    res = requests.get(path, auth=(auth[0], auth[1]),
+                 headers={'Accept': 'application/json'})
+    vendors_data = json.loads(res.content)
     xr = []
     nx = []
     xe = []
@@ -277,14 +281,14 @@ if __name__ == '__main__':
                 ver = '.'.join(version)
             path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco/platforms/platform/'\
                    + value + '/software-versions/software-version/' + ver
-            xr_data = http_request(path, 'GET', '', credentials.split(' '), 'application/json')
+            xr_data = requests.get(path, auth=(auth[0], auth[1]))
             if xr_data:
                 values.append('<i class="fa fa-check"></i>')
             else:
                 path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco/platforms/platform/' \
                        + value + '/software-versions/software-version/' + version
-                xr_data = http_request(path, 'GET', '', credentials.split(' '), 'application/json')
-                if xr_data:
+                xr_data = requests.get(path, auth=(auth[0], auth[1]))
+                if xr_data.status_code == 200:
                     values.append('<i class="fa fa-check"></i>')
                 else:
                     values.append('<i class="fa fa-times"></i>')
@@ -295,8 +299,8 @@ if __name__ == '__main__':
         for value in xe:
             path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco/platforms/platform/'\
                    + value + '/software-versions/software-version/' + version
-            xe_data = http_request(path, 'GET', '', credentials.split(' '), 'application/json')
-            if xe_data:
+            xe_data = requests.get(path, auth=(auth[0], auth[1]))
+            if xe_data.status_code == 200:
                 values.append('<i class="fa fa-check"></i>')
             else:
                 values.append('<i class="fa fa-times"></i>')
@@ -307,15 +311,26 @@ if __name__ == '__main__':
         for value in nx:
             path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco/platforms/platform/'\
                    + value + '/software-versions/software-version/' + version
-            nx_data = http_request(path, 'GET', '', credentials.split(' '), 'application/json')
-            if nx_data:
+            nx_data = requests.get(path, auth=(auth[0], auth[1]))
+            if nx_data.status_code == 200:
                 values.append('<i class="fa fa-check"></i>')
             else:
-                values.append('<i class="fa fa-times"></i>')
+                ver = version.split('-')
+                ver = '{}({}){}({})'.format(ver[0], ver[1], ver[2], ver[3])
+                path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco/platforms/platform/' \
+                       + value + '/software-versions/software-version/' + ver
+                nx_data = requests.get(path, auth=(auth[0], auth[1]))
+                if nx_data.status_code == 200:
+                    values.append('<i class="fa fa-check"></i>')
+                else:
+                    values.append('<i class="fa fa-times"></i>')
         nx_values.append(values)
 
     path = protocol + '://' + api_ip + ':' + api_port + '/search/modules'
-    all_modules_data = json.loads(http_request(path, 'GET', '', credentials.split(' '), 'application/json').read())
+    all_modules_data = (requests.get(path, auth=(auth[0], auth[1]),
+                                     headers={'Accept': 'application/json'})
+                        .content)
+    all_modules_data = json.loads(all_modules_data)
     all_modules_data_unique = set()
     for mod in all_modules_data['module']:
         name = mod['name']

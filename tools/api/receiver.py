@@ -13,6 +13,7 @@ from Crypto.Hash import SHA, HMAC
 from urllib2 import URLError
 
 import pika
+import requests
 
 import tools.utility.log as log
 
@@ -91,6 +92,10 @@ def process_sdo(arguments):
 
     if tree_created:
         subprocess.call(["cp", "-r", direc + "/temp/.", "../../api/sdo/"])
+        with open('../parseAndPopulate/' + direc + '/prepare.json',
+                  'r') as f:
+            global all_modules
+            all_modules = json.load(f)
         if notify_indexing:
             send_to_indexing(direc + '/prepare.json', [arguments[11], arguments[12]], arguments[9], api_port,
                              api_protocol, True)
@@ -232,6 +237,10 @@ def process_vendor(arguments):
     subprocess.call(["cp", "-r", direc + "/temp/.", "../../api/vendor/"])
 
     if tree_created:
+        with open('../parseAndPopulate/' + direc + '/prepare.json',
+                  'r') as f:
+            global all_modules
+            all_modules = json.load(f)
         if notify_indexing:
             send_to_indexing(direc + '/prepare.json', [arguments[9], arguments[10]], arguments[8], api_port,
                              api_protocol)
@@ -448,7 +457,8 @@ def on_request(ch, method, props, body):
         """
     LOGGER.info('Received request with body {}'.format(body))
     arguments = body.split('#')
-
+    global all_modules
+    all_modules = None
     if arguments[-3] == 'DELETE':
         if 'http' in arguments[0]:
             response = process_module_deletion(arguments)
@@ -478,6 +488,68 @@ def on_request(ch, method, props, body):
 
     if response.split('#split#')[0] == __response_type[1]:
         response = make_cache(credentials, response, protocol, confd_ip, confd_port, api_protocol, api_port)
+        if all_modules:
+            new_modules = []
+            for mod in all_modules['module']:
+                name = mod['name']
+                revision = mod['revision']
+                new_dependencies = mod['dependencies']
+                for new_dep in new_dependencies:
+                    if new_dep.get('revision'):
+                        search = {'name': new_dep['name'],
+                                  'revision': new_dep['revision']}
+                    else:
+                        search = {'name': new_dep['name']}
+                    dep_response = requests.post(protocol + '://' + confd_ip + ':' +
+                            api_port + '/search-filter', auth=(credentials[0], credentials[1]),
+                        json={'input': search})
+                    if dep_response.status_code == 200:
+                        mods = \
+                        json.loads(dep_response.content)['yang-catalog:modules'][
+                            'module']
+                        for m in mods:
+                            if m.get('dependents') is None:
+                                m['dependents'] = []
+                            new = {'name': name,
+                             'revision': revision,
+                             'schema': mod['schema']}
+                            if new not in m['dependents']:
+                                m['dependents'].append(new)
+                                new_modules.append(m)
+                dep_response = requests.post(
+                    api_protocol + '://' + confd_ip + ':' + api_port + '/search-filter',
+                    auth=(credentials[0], credentials[1]),
+                    json={'input': {'dependencies': [{'name': name}]}})
+                if dep_response.status_code == 200:
+                    mods = json.loads(dep_response.content)['yang-catalog:modules'][
+                        'module']
+
+                    if mod.get('dependents') is None:
+                        mod['dependents'] = []
+                    for m in mods:
+                        passed = False
+                        for dependency in m['dependencies']:
+                            if dependency['name'] == name:
+                                passed = True
+                                rev = dependency.get('revision')
+                                if rev:
+                                    passed = False
+                                    if rev == revision:
+                                        passed = True
+                        if passed:
+                            new = {'name': m['name'],
+                             'revision': m['revision'],
+                             'schema': m['schema']}
+                            if new not in mod['dependents']:
+                                mod['dependents'].append(new)
+                    if len(mod['dependents']) > 0:
+                        new_modules.append(mod)
+            json_modules_data = json.dumps({'modules': {'module': new_modules}})
+            if '{"module": []}' not in json_modules_data:
+                prefix = '{}://{}:{}'.format(protocol, confd_ip, confd_port)
+                http_request(prefix + '/api/config/catalog/modules/', 'PATCH',
+                             json_modules_data, credentials,
+                             'application/vnd.yang.data+json')
 
     ch.basic_publish(exchange='',
                      routing_key=props.reply_to,

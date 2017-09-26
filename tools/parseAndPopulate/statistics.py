@@ -39,14 +39,6 @@ class Statistics:
         Statistics.os[os_type].add(platform)
 
     @staticmethod
-    def remove_one(key, value):
-        new_key = key[:]
-        new_key.remove(new_key[-1])
-        new_key = '/'.join(new_key)
-        if value in Statistics.useless_modules[new_key]:
-            Statistics.useless_modules[new_key].remove(value)
-
-    @staticmethod
     def dump():
         for key in Statistics.useless_modules:
             if len(Statistics.useless_modules[key]) > 0:
@@ -77,11 +69,8 @@ class Statistics:
 
     @staticmethod
     def remove_one(key, value):
-        new_key = key[:]
-        new_key.remove(new_key[-1])
-        new_key = '/'.join(new_key)
-        if value in Statistics.useless_modules[new_key]:
-            Statistics.useless_modules[new_key].remove(value)
+        if key + '/' + value in Statistics.useless_modules[key]:
+            Statistics.useless_modules[key].remove(key + '/' + value)
 
     @staticmethod
     def dumps(file):
@@ -126,16 +115,20 @@ class Statistics:
 
     @staticmethod
     def add_submodule(path, value):
-        Statistics.missing_submodules['/'.join(path)].add(value)
+        if len(value) > 0:
+            Statistics.missing_submodules[path].update(value)
 
     @staticmethod
     def add_module(path, value):
-        Statistics.missing_modules['/'.join(path)].add(value)
+        if len(value) > 0:
+            Statistics.missing_modules[path].update(value)
 
     @staticmethod
     def add_namespace(path, value):
-        Statistics.missing_wrong_namespaces['/'.join(path)].add(value)
+        if value:
+            Statistics.missing_wrong_namespaces[path].add(value)
 
     @staticmethod
     def add_revision(path, value):
-        Statistics.missing_revision['/'.join(path)].add(value)
+        if value:
+            Statistics.missing_revision[path].add(value)
