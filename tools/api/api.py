@@ -780,7 +780,8 @@ def index_search():
                             if reste.get_response_code() == 404:
                                 not_founds[mod_sig] = True
                             else:
-                                res_row['module'] = {'error': 'Search failed at {}: {}'.format(mod_sig, reste)}
+                                res_row['module'] = {
+                                    'error': 'Search failed at {}: {}'.format(mod_sig, reste)}
 
                     if mod_meta is not None and ('include-mibs' not in payload or payload['include-mibs'] is False):
                         if re.search('yang:smiv2:', mod_obj.get('namespace')):
@@ -794,7 +795,8 @@ def index_search():
 
                     if mod_meta is not None:
                         if 'filter' not in payload:
-                            # If the filter is not specified, return all fields.
+                            # If the filter is not specified, return all
+                            # fields.
                             res_row['module'] = mod_meta
                         elif 'module' in payload['filter']:
                             res_row['module'] = {}
@@ -802,14 +804,14 @@ def index_search():
                                 if field in mod_meta:
                                     res_row['module'][field] = mod_meta[field]
                 except Exception as e:
-                    res_row['module'] = {'error': 'Search failed at {}: {}'.format(mod_sig, e)}
+                    res_row['module'] = {
+                        'error': 'Search failed at {}: {}'.format(mod_sig, e)}
 
             res.append(res_row)
 
         return jsonify({'results': res})
     except Exception as e:
         return make_response(jsonify({'error': str(e)}), 500)
-
 
 @app.route('/search/<path:value>', methods=['GET'])
 def search(value):
