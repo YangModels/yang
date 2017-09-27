@@ -67,7 +67,7 @@ class Rester:
 
         resp = requests.get(url, auth=auth, headers=headers,
                             timeout=self.__timeout)
-        Module.__assert_response(resp, "get {} from {}".format(path, self.__base))
+        Rester.__assert_response(resp, "get {} from {}".format(path, self.__base))
 
         if want_json:
             return resp.json()

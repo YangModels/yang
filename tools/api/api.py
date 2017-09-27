@@ -13,9 +13,9 @@ import urllib2
 from email.mime.text import MIMEText
 from urllib2 import URLError
 import re
-from yang-search.module import Module
-from yang-search.rester import Rester
-import yang-search.index as index
+from yangSearch.module import Module
+from yangSearch.rester import Rester, RestException
+import yangSearch.index as index
 
 import MySQLdb
 import datetime
@@ -776,14 +776,14 @@ def index_search():
                     if mod_sig not in not_founds:
                         try:
                             mod_meta = mod_obj.to_dict()
-                        except RestError as reste:
+                        except RestException as reste:
                             if reste.get_response_code() == 404:
                                 not_founds[mod_sig] = True
                             else:
-                                return make_response(jsonify({'error': 'Search failed at {}: {}'.format(mod_sig, reste)}))
+                                res_row['module'] = {'error': 'Search failed at {}: {}'.format(mod_sig, reste)}
 
-                    if mod_meta is not None and (not 'include-mibs' in payload or payload['include-mibs'] is False):
-                        if re.search('yang:smiv2:', row['module']['namespace']):
+                    if mod_meta is not None and ('include-mibs' not in payload or payload['include-mibs'] is False):
+                        if re.search('yang:smiv2:', mod_obj.get('namespace')):
                             rejects[mod_sig] = True
                             continue
 
@@ -796,20 +796,19 @@ def index_search():
                         if 'filter' not in payload:
                             # If the filter is not specified, return all fields.
                             res_row['module'] = mod_meta
-                        else:
+                        elif 'module' in payload['filter']:
                             res_row['module'] = {}
                             for field in payload['filter']['module']:
                                 if field in mod_meta:
                                     res_row['module'][field] = mod_meta[field]
                 except Exception as e:
-                    make_response(
-                        jsonify({'error': 'Search failed at {}: {}'.format(mod_sig, e)}))
+                    res_row['module'] = {'error': 'Search failed at {}: {}'.format(mod_sig, e)}
 
             res.append(res_row)
 
         return jsonify({'results': res})
     except Exception as e:
-        return make_response(jsonify({'error': e}), 500)
+        return make_response(jsonify({'error': str(e)}), 500)
 
 
 @app.route('/search/<path:value>', methods=['GET'])

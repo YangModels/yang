@@ -49,6 +49,8 @@ class Module:
         'namespace': True,
         'ietf': True,
         'submodule': True,
+        'dependencies': True,
+        'dependents': True,
         'implementations': True
     }
 

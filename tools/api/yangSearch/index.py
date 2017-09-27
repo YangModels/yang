@@ -43,8 +43,9 @@ def do_search(dbf, options):
     opts = json.loads(options)
     try:
         conn = sqlite3.connect(dbf)
+        conn.row_factory = sqlite3.Row
         conn.create_function('REGEXP', 2, __sqlite_regexp)
-        if opts['case-sensitive']:
+        if 'case-sensitive' in opts and opts['case-sensitive']:
             conn.execute('PRAGMA case_sensitive_like=ON')
         else:
             conn.execute('PRAGMA case_sensitive_like=OFF')
@@ -60,11 +61,11 @@ def do_search(dbf, options):
         wclause = []
         if 'type' in opts and opts['type'] == 'regex':
             for field in sts:
-                if sts in __search_fields:
+                if field in __search_fields:
                     wclause.append('REGEXP(:descr, yi.{})'.format(field))
         else:
             for field in sts:
-                if sts in __search_fields:
+                if field in __search_fields:
                     wclause.append('yi.{} LIKE :descr'.format(field))
 
         sql += '({})'.format(' OR '.join(wclause))
@@ -80,13 +81,13 @@ def do_search(dbf, options):
         sql += ' AND (mo.module = yi.module) GROUP BY yi.module, yi.revision'
         cur.execute(sql, qparams)
 
-        restuls = []
+        results = []
         filter_list = __node_data.keys()
         if 'filter' in opts and 'node' in opts['filter']:
             filter_list = opts['filter']['node']
 
         for row in cur:
-            module = {'latest_revision': row['latest_revision'], 'module': row[
+            module = {'latest_revision': row['latest_revision'], 'name': row[
                 'module'], 'revision': row['revision'], 'organization': row['organization']}
             result = {'module': module}
             result['node'] = {}
