@@ -25,7 +25,7 @@
 import urllib
 
 
-class Module:
+class Module(Object):
     __object_dict = {
         'name': True,
         'revision': True,
