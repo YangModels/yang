@@ -12,8 +12,7 @@
 #
 platform_dir="vendor/cisco/xr"
 to_check="602 613 622 631"
-pyang_flags="--lax-quote-checks"
-debug=1
+debug=0
 
 checkDir () {
     if [ "$debug" -eq "1" ]; then
@@ -44,8 +43,7 @@ checkDir () {
 }
 
 if [ "$debug" -eq "1" ]; then
-    printf "\nChecking modules with pyang command:\n"
-    printf "\n    pyang $pyang_flags MODULE\n\n"
+    printf "\nChecking modules with yanglint, using 'lax quote checks' via perlre filtering\n"
 fi
 
 if [ -e "$platform_dir" ]; then

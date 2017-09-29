@@ -28,18 +28,23 @@ checkDir () {
     cwd=`pwd`
     cd $1
     exit_status=""
-    pyang_flags=""
+    yanglint_flags=""
     if [ `basename $PWD` == "MIBS" ]; then
-        pyang_flags="-p .."
+        yanglint_flags="-p .."
     fi
 
-    pyang_flags="--lax-quote-checks $pyang_flags"
-    for f in *.yang; do
-        errors=`YANG_INSTALL="." pyang $pyang_flags $f 2>&1 | grep "error:"`
-    	if [ ! -z "$errors" ]; then
-    	    echo Errors in $f
-            echo $errors
-    	    exit_status="failed!"
+    to_process=`grep -L submodule *.yang`
+    for f in $to_process; do
+        errors=`yanglint $yanglint_flags $f 2>&1`
+        if [ "$?" -eq 1 ]; then
+	    realerrors=`echo $error | \
+		perl -ne 'if (!/^err : Invalid keyword \"[^(\"\"\.)]/){print;}' | \
+		perl -ne 'if (!/^err : Module \"[^(\")]+\" parsing failed\./){print;}'`
+	    if [ ! -z "$realerrors" ]; then
+		echo Errors in $f
+		echo $realerrors
+		exit_status="failed!"
+	    fi
         fi
     done
     cd $cwd
@@ -50,8 +55,7 @@ checkDir () {
 }
 
 if [ "$debug" -eq "1" ]; then
-    printf "\nChecking modules with pyang command:\n"
-    printf "\n    pyang $pyang_flags MODULE\n\n"
+    printf "\nChecking modules with yanglint, using 'lax quote checks' via perlre filtering\n"
 fi
 
 if [ -e "$platform_dir" ]; then
