@@ -13,7 +13,7 @@
 platform_dir="vendor/cisco/xr"
 to_check="602 613 622 631"
 pyang_flags="--lax-quote-checks"
-debug=0
+debug=1
 
 checkDir () {
     if [ "$debug" -eq "1" ]; then
@@ -22,23 +22,21 @@ checkDir () {
     exit_status=""
     cwd=`pwd`
     cd $1
-    for f in Cisco-IOS-XR-*-cfg.yang; do
-        errors=`YANG_INSTALL="." pyang $pyang_flags $f 2>&1 | grep "error:"`
-        if [ ! -z "$errors" ]; then
-            echo Errors in $f
-            echo $errors
-            exit_status="failed!"
+    to_process=`grep -L submodule *-cfg.yang *-oper.yang`
+    for f in $to_process; do
+        errors=`yanglint $f 2>&1`
+        if [ "$?" -eq 1 ]; then
+	    realerrors=`echo $error | \
+		perl -ne 'if (!/^err : Invalid keyword \"[^(\"\"\.)]/){print;}' | \
+		perl -ne 'if (!/^err : Module \"[^(\")]+\" parsing failed\./){print;}'`
+	    if [ ! -z "$realerrors" ]; then
+		echo Errors in $f
+		echo $realerrors
+		exit_status="failed!"
+	    fi
         fi
     done
-    for f in Cisco-IOS-XR-*-oper.yang; do
-        errors=`YANG_INSTALL="." pyang $pyang_flags $f 2>&1 | grep "error:"`
-        if [ ! -z "$errors" ]; then
-            echo Errors in $f
-            echo $errors
-            exit_status="failed!"
-        fi
-    done
-	cd $cwd
+    cd $cwd
     
     if [ ! -z "$exit_status" ]; then
        exit 1
