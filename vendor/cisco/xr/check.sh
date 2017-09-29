@@ -23,17 +23,25 @@ checkDir () {
     cd $1
     to_process=`grep -L submodule *-cfg.yang *-oper.yang`
     for f in $to_process; do
+	if [ "$debug" -eq "1" ]; then
+	    echo Checking $f...
+	fi
         errors=`yanglint $f 2>&1`
         if [ "$?" -eq 1 ]; then
-	    realerrors=`echo $error | \
-		perl -ne 'if (!/^err : Invalid keyword \"[^(\"\"\.)]/){print;}' | \
-		perl -ne 'if (!/^err : Module \"[^(\")]+\" parsing failed\./){print;}'`
-	    if [ ! -z "$realerrors" ]; then
-		echo Errors in $f
-		echo $realerrors
-		exit_status="failed!"
+	    if [ "$debug" -eq "1" ]; then
+		printf "YANGLINT: found errors in $f, secondary pyang check running...\n"
 	    fi
-        fi
+	    errors=`pyang --lax-quote-checks $yanglint_flags $f 2>&1 | grep -v "warning:"`
+	    if [ ! -z "$errors" ]; then
+		printf "PYANG: Errors in $f\n"
+		printf "$errors\n"
+		exit_status="failed!"
+		if [ "$debug" -eq "1" ]; then
+		    printf "\n\n*** EARLY EXIT DUE TO ERROR ***\n\n"
+		    exit 1
+		fi
+	    fi
+	fi
     done
     cd $cwd
     
@@ -49,6 +57,10 @@ fi
 if [ -e "$platform_dir" ]; then
     cd $platform_dir
 fi
+
+# for d in $to_check; do
+#     checkDir $d
+# done
 
 declare -a pids
 for d in $to_check; do

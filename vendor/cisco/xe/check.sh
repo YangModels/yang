@@ -23,27 +23,39 @@ debug=0
 
 checkDir () {
     if [ "$debug" -eq "1" ]; then
-	echo Checking yang files in $platform_dir/$1
+	printf "\n***\n"
+	printf "*** Checking yang files in $platform_dir/$1\n"
+	printf "***\n"
     fi
     cwd=`pwd`
     cd $1
     exit_status=""
     yanglint_flags=""
     if [ `basename $PWD` == "MIBS" ]; then
-        yanglint_flags="-p .."
+        yanglint_flags="-p . -p .."
+    else
+        yanglint_flags="-p ."	
     fi
 
     to_process=`grep -L submodule *.yang`
     for f in $to_process; do
+	if [ "$debug" -eq "1" ]; then
+	    echo Checking $f...
+	fi
         errors=`yanglint $yanglint_flags $f 2>&1`
         if [ "$?" -eq 1 ]; then
-	    realerrors=`echo $error | \
-		perl -ne 'if (!/^err : Invalid keyword \"[^(\"\"\.)]/){print;}' | \
-		perl -ne 'if (!/^err : Module \"[^(\")]+\" parsing failed\./){print;}'`
-	    if [ ! -z "$realerrors" ]; then
-		echo Errors in $f
-		echo $realerrors
+	    if [ "$debug" -eq "1" ]; then
+		printf "YANGLINT: found errors in $f, secondary pyang check running...\n"
+	    fi
+	    errors=`pyang --lax-quote-checks $yanglint_flags $f 2>&1 | grep -v "warning:"`
+	    if [ ! -z "$errors" ]; then
+		printf "PYANG: Errors in $f\n"
+		printf "$errors\n"
 		exit_status="failed!"
+		if [ "$debug" -eq "1" ]; then
+		    printf "\n\n*** EARLY EXIT DUE TO ERROR ***\n\n"
+		    exit 1
+		fi
 	    fi
         fi
     done
@@ -61,6 +73,10 @@ fi
 if [ -e "$platform_dir" ]; then
     cd $platform_dir
 fi
+
+# for d in $to_check; do
+#     checkDir $d
+# done
 
 declare -a pids
 for d in $to_check; do
