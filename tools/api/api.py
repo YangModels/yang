@@ -12,6 +12,10 @@ import sys
 import urllib2
 from email.mime.text import MIMEText
 from urllib2 import URLError
+import re
+from yangSearch.module import Module
+from yangSearch.rester import Rester, RestException
+import yangSearch.index as index
 
 import MySQLdb
 import datetime
@@ -23,6 +27,9 @@ from flask_httpauth import HTTPBasicAuth
 import tools.utility.log as lo
 from tools.api.sender import Sender
 from tools.utility import repoutil, yangParser
+
+CATALOG_API_URL = 'https://yangcatalog.org:8443'
+DBF = '/var/yang/yang.db'
 
 LOGGER = lo.get_logger('api')
 url = 'https://github.com/'
@@ -47,7 +54,7 @@ def make_cache(credentials, response):
     """After we delete or add modules we need to reload all the modules to the file
     for quicker search. This module is then loaded to the memory.
             Arguments:
-                :param response: (str) Contains string 'work' which will be sent back if 
+                :param response: (str) Contains string 'work' which will be sent back if
                     everything went through fine
                 :param credentials: (list) Basic authorization credentials - username, password
                     respectively
@@ -77,7 +84,7 @@ def create_response(body, status, headers=None):
     """Creates flask response that can be sent to sender.
             Arguments:
                 :param body: (Str) Message body of the response
-                :param status: (int) Status code of the response 
+                :param status: (int) Status code of the response
                 :param headers: (list) List of tuples containing headers information
                 :return: Response that can be returned.
     """
@@ -100,7 +107,7 @@ def http_request(path, method, json_data, http_credentials, header):
                 :param header: (str) to set Content-type and Accept headers to this variable
                 :param http_credentials: (list) Basic authorization credentials - username, password
                     respectively
-                :param json_data: (dict) Body of the payload send via request 
+                :param json_data: (dict) Body of the payload send via request
                 :param method: (str) Request method.
                 :param path : (str) Path of the request.
                 :return a response from the request.
@@ -490,9 +497,9 @@ def delete_vendor(value):
 @auth.login_required
 def add_modules():
     """Add a new module. Use PUT request when we want to update every module there is
-    in the request, use POST request if you want to create just modules that are not 
+    in the request, use POST request if you want to create just modules that are not
     in confd yet. This is not done right away. First it checks if the request sent is
-    ok and if it is, it will send a request to receiver which will work on deleting 
+    ok and if it is, it will send a request to receiver which will work on deleting
     while this request will send a job_id of the request which user can use to see
     the job process.
             Arguments:
@@ -634,9 +641,9 @@ def add_modules():
 @auth.login_required
 def add_vendors():
     """Add a new vendors. Use PUT request when we want to update every module there is
-    in the request, use POST request if you want to create just modules that are not 
+    in the request, use POST request if you want to create just modules that are not
     in confd yet. This is not done right away. First it checks if the request sent is
-    ok and if it is, it will send a request to receiver which will work on deleting 
+    ok and if it is, it will send a request to receiver which will work on deleting
     while this request will send a job_id of the request which user can use to see
     the job process.
             Arguments:
@@ -729,6 +736,82 @@ def add_vendors():
     LOGGER.info('job_id {}'.format(job_id))
     return jsonify({'info': 'Verification successful', 'job-id': job_id})
 
+@app.route('/index/search', methods=['POST'])
+def index_search():
+    """Search through the YANG keyword index for a given search pattern.
+       The arguments are a payload specifying search options and filters.
+    """
+
+    if not request.json:
+        abort(400)
+
+    payload = request.json
+    if 'search' not in payload:
+        return make_response(jsonify({'error': 'You must specify a "search" argument'}), 400)
+
+    try:
+        search_res = index.do_search(DBF, json.dumps(payload))
+        res = []
+        rest = Rester(CATALOG_API_URL)
+        rejects = {}
+        not_founds = {}
+
+        for row in search_res:
+            res_row = {}
+            res_row['node'] = row['node']
+            if 'filter' not in payload or 'module' in payload['filter']:
+                mod_obj = Module.module_factory(rest, row['module']['name'], row['module'][
+                                                'revision'], row['module']['organization'])
+                mod_sig = mod_obj.get_mod_sig()
+                if mod_sig in rejects:
+                    continue
+
+                if 'latest-revisions' in payload and payload['latest-revisions'] is True:
+                    if row['module']['revision'] != row['module']['latest_revision']:
+                        rejects[mod_sig] = True
+                        continue
+
+                mod_meta = None
+                try:
+                    if mod_sig not in not_founds:
+                        try:
+                            mod_meta = mod_obj.to_dict()
+                        except RestException as reste:
+                            if reste.get_response_code() == 404:
+                                not_founds[mod_sig] = True
+                            else:
+                                res_row['module'] = {
+                                    'error': 'Search failed at {}: {}'.format(mod_sig, reste)}
+
+                    if mod_meta is not None and ('include-mibs' not in payload or payload['include-mibs'] is False):
+                        if re.search('yang:smiv2:', mod_obj.get('namespace')):
+                            rejects[mod_sig] = True
+                            continue
+
+                    if mod_meta is not None and 'yang-versions' in payload and len(payload['yang-versions']) > 0:
+                        if mod_obj.get('yang-version') not in payload['yang-versions']:
+                            rejects[mod_sig] = True
+                            continue
+
+                    if mod_meta is not None:
+                        if 'filter' not in payload:
+                            # If the filter is not specified, return all
+                            # fields.
+                            res_row['module'] = mod_meta
+                        elif 'module' in payload['filter']:
+                            res_row['module'] = {}
+                            for field in payload['filter']['module']:
+                                if field in mod_meta:
+                                    res_row['module'][field] = mod_meta[field]
+                except Exception as e:
+                    res_row['module'] = {
+                        'error': 'Search failed at {}: {}'.format(mod_sig, e)}
+
+            res.append(res_row)
+
+        return jsonify({'results': res})
+    except Exception as e:
+        return make_response(jsonify({'error': str(e)}), 500)
 
 @app.route('/search/<path:value>', methods=['GET'])
 def search(value):
@@ -1317,7 +1400,7 @@ def process(data, passed_data, value, module, split, count):
                 :param value: (str) value searched for
                 :param module: (dict) module that is searched
                 :param split: (str) key value that conatins value searched for
-                :param count: (int) if split contains '/' then we need to know 
+                :param count: (int) if split contains '/' then we need to know
                     which part of the path are we searching.
     """
     if isinstance(data, unicode):
