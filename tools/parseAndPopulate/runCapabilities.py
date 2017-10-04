@@ -56,7 +56,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     start = time.time()
     index = 1
-
     integrity = None
     sdo = args.sdo
     search_dirs = [args.dir]
@@ -77,7 +76,10 @@ if __name__ == "__main__":
 
                 LOGGER.info('Found directory for sdo {}'.format(search_dir))
                 integrity = statistics.Statistics(search_dir)
-                capability = cap.Capability(search_dir, index, prepare_sdo, integrity, args.api, sdo, args.json_dir, args.result_html_dir)
+
+                capability = cap.Capability(search_dir, index, prepare_sdo,
+                                            integrity, args.api, sdo,
+                                            args.json_dir, args.result_html_dir)
                 LOGGER.info('Starting to parse files in sdo directory')
                 capability.parse_and_dump_sdo()
                 index += 1
@@ -112,8 +114,11 @@ if __name__ == "__main__":
                         if update:
                             integrity = statistics.Statistics(filename)
                             LOGGER.warning('Found xml source {}'.format(filename))
-                            capability = cap.Capability(filename, index, prepare_vendor, integrity, args.api, sdo,
-                                                        args.json_dir, args.result_html_dir)
+                            capability = cap.Capability(filename, index,
+                                                        prepare_vendor,
+                                                        integrity, args.api,
+                                                        sdo, args.json_dir,
+                                                        args.result_html_dir)
                             if 'ietf-yang-library' in pattern:
                                 capability.parse_and_dump_yang_lib()
                             else:

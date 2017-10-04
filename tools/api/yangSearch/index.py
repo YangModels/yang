@@ -2,6 +2,8 @@ import sqlite3
 import json
 import re
 
+DBF = '/var/yang/yang.db'
+
 
 def __sqlite_regexp(pattern, buf, modifiers=re.I | re.S):
     if pattern is not None and buf is not None:
@@ -39,10 +41,10 @@ __node_data = {
 }
 
 
-def do_search(dbf, options):
+def do_search(options):
     opts = json.loads(options)
     try:
-        conn = sqlite3.connect(dbf)
+        conn = sqlite3.connect(DBF)
         conn.row_factory = sqlite3.Row
         conn.create_function('REGEXP', 2, __sqlite_regexp)
         if 'case-sensitive' in opts and opts['case-sensitive']:
@@ -101,5 +103,3 @@ def do_search(dbf, options):
     except sqlite3.Error as e:
         raise Exception("Error searching for {}: {}".format(
             opts['search'], e.args[0]))
-
-    return None

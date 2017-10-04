@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import unicodedata
 import urllib2
+from datetime import datetime
 
 import requests
 
@@ -187,7 +188,310 @@ if __name__ == "__main__":
             LOGGER.warning('Could not send a load-cache request')
         with open('../parseAndPopulate/' + direc + '/prepare.json', 'r') as f:
             all_modules = json.load(f)
+
         new_modules = []
+        for module in all_modules['module']:
+            LOGGER.info('Searching semver for {}'.format(module['name']))
+            url = '{}://{}:{}/search/name/{}'.format(args.api_protocol, args.api_ip, args.api_port, module['name'])
+            response = requests.get(url, auth=(args.credentials[0], args.credentials[1]),
+                                    headers={'Accept': 'application/json'})
+            if response.status_code == 404:
+                module['derived-semantic-version'] = '1.0.0'
+                new_modules.append(module)
+            else:
+                data = json.loads(response.content)
+                rev = module['revision'].split('-')
+                date = datetime(int(rev[0]), int(rev[1]), int(rev[2]))
+                module_temp = {}
+                module_temp['name'] = module['name']
+                module_temp['revision'] = module['revision']
+                module_temp['organization'] = module['organization']
+                module_temp['compilation'] = module['compilation-status']
+                module_temp['date'] = date
+                module_temp['schema'] = module['schema']
+                modules = [module_temp]
+                semver_exist = True
+                for mod in data['yang-catalog:modules']['module']:
+                    module_temp = {}
+                    revision = mod['revision']
+                    if revision == module['revision']:
+                        continue
+                    rev = revision.split('-')
+                    module_temp['revision'] = revision
+                    module_temp['date'] = datetime(int(rev[0]), int(rev[1]), int(rev[2]))
+                    module_temp['name'] = mod['name']
+                    module_temp['organization'] = mod['organization']
+                    module_temp['schema'] = mod.get('schema')
+                    module_temp['compilation'] = mod['compilation-status']
+                    module_temp['semver'] = mod.get('derived-semantic-version')
+                    if module_temp['semver'] is None:
+                        semver_exist = False
+                    modules.append(module_temp)
+
+                if len(modules) == 1:
+                    module['derived-semantic-version'] = '1.0.0'
+                    new_modules.append(module)
+                    continue
+                modules = sorted(modules, key=lambda k: k['date'])
+                if modules[-1]['date'] == date and semver_exist:
+                    if modules[-1]['compilation'] != 'passed':
+                        versions = modules[-2]['semver'].split('.')
+                        ver = int(versions[0])
+                        ver += 1
+                        upgraded_version = '{}.{}.{}'.format(ver, 0, 0)
+                        module['derived-semantic-version'] = upgraded_version
+                        new_modules.append(module)
+                    else:
+                        if modules[-2]['compilation'] != 'passed':
+                            versions = modules[-2]['semver'].split('.')
+                            ver = int(versions[0])
+                            ver += 1
+                            upgraded_version = '{}.{}.{}'.format(ver, 0, 0)
+                            module['derived-semantic-version'] = upgraded_version
+                            new_modules.append(module)
+                            continue
+                        if (modules[-2]['schema'] is None or
+                                modules[-1]['schema']):
+                            LOGGER.warning('Schema is missing {} or {}'.
+                                           format(modules[-2]['schema'],
+                                                  modules[-1]['schema']))
+                            continue
+                        else:
+                            schema2 = requests.get(modules[-2]['schema'])
+                            schema1 = requests.get(modules[-1]['schema'])
+                            if (schema1.status_code == 404 or
+                                schema2.status_code == 404):
+                                LOGGER.warning('Schema not found {} or {}'.
+                                               format(modules[-2]['schema'],
+                                                      modules[-1]['schema']))
+                                continue
+                        to_write_before = '{}/{}@{}_{}'.format(direc,
+                                                        modules[-2]['name'],
+                                                        modules[-2]['revision'],
+                                                        modules[-2]['organization'])
+                        to_write = '{}/{}@{}_{}'.format(direc,
+                                                               modules[-1][
+                                                                   'name'],
+                                                               modules[-1][
+                                                                   'revision'],
+                                                               modules[-1][
+                                                                   'organization'])
+                        with open(to_write_before, 'w') as f:
+                            f.write(schema2.content)
+                        with open(to_write, 'w+') as f:
+                            f.write(schema1.content)
+                        arguments = ['pyang', '-P', '../../.', '-p', '../../.',
+                                     to_write, '--check-update-from',
+                                     to_write_before]
+                        pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
+                                                 stderr=subprocess.PIPE)
+                        stdout, stderr = pyang.communicate()
+                        if stderr == '':
+                            arguments = ["pyang", '-p', '../../.', "-f", "tree",
+                                         to_write]
+                            pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
+                                                     stderr=subprocess.PIPE)
+                            stdout, stderr = pyang.communicate()
+                            arguments = ["pyang", "-p", "../../.", "-f", "tree",
+                                         to_write_before]
+                            pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
+                                                     stderr=subprocess.PIPE)
+                            stdout2, stderr = pyang.communicate()
+                            if stdout == stdout2:
+                                versions = modules[-2]['semver'].split('.')
+                                ver = int(versions[2])
+                                ver += 1
+                                upgraded_version = '{}.{}.{}'.format(versions[0],
+                                                                     versions[1],
+                                                                     ver)
+                                module[
+                                    'derived-semantic-version'] = upgraded_version
+                                new_modules.append(module)
+                                continue
+                            else:
+                                versions = modules[-2]['semver'].split('.')
+                                ver = int(versions[1])
+                                ver += 1
+                                upgraded_version = '{}.{}.{}'.format(versions[0],
+                                                                     ver, 0)
+                                module[
+                                    'derived-semantic-version'] = upgraded_version
+                                new_modules.append(module)
+                                continue
+                        else:
+                            versions = modules[-2]['semver'].split('.')
+                            ver = int(versions[0])
+                            ver += 1
+                            upgraded_version = '{}.{}.{}'.format(ver, 0, 0)
+                            module[
+                                'derived-semantic-version'] = upgraded_version
+                            new_modules.append(module)
+                            continue
+                else:
+                    mod = {}
+                    mod['name'] = modules[0]['name']
+                    mod['revision'] = modules[0]['revision']
+                    mod['organization'] = modules[0]['organization']
+                    modules[0]['semver'] = '1.0.0'
+                    response = requests.get(
+                        '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(args.protocol, args.ip, args.port,
+                            mod['name'], mod['revision'], mod['organization']),
+                        auth=('admin', 'admin'), headers={'Accept': 'application/vnd.yang.data+json'})
+                    response = json.loads(response.content)['yang-catalog:module']
+                    response['derived-semantic-version'] = '1.0.0'
+                    new_modules.append(response)
+
+                    for x in range(1, len(modules)):
+                        mod = {}
+                        mod['name'] = modules[x]['name']
+                        mod['revision'] = modules[x]['revision']
+                        mod['organization'] = modules[x]['organization']
+                        if modules[x]['compilation'] != 'passed':
+                            versions = modules[x - 1]['semver'].split('.')
+                            ver = int(versions[0])
+                            ver += 1
+                            upgraded_version = '{}.{}.{}'.format(ver, 0, 0)
+                            modules[x]['semver'] = upgraded_version
+                            response = requests.get(
+                                '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
+                                    args.protocol, args.ip, args.port,
+                                    mod['name'], mod['revision'],
+                                    mod['organization']),
+                                auth=('admin', 'admin'), headers={
+                                    'Accept': 'application/vnd.yang.data+json'})
+                            response = json.loads(response.content)[
+                                'yang-catalog:module']
+                            response['derived-semantic-version'] = upgraded_version
+                            new_modules.append(response)
+                        else:
+                            if modules[x - 1]['compilation'] != 'passed':
+                                versions = modules[x - 1]['semver'].split('.')
+                                ver = int(versions[0])
+                                ver += 1
+                                upgraded_version = '{}.{}.{}'.format(ver, 0, 0)
+                                modules[x]['semver'] = upgraded_version
+                                response = requests.get(
+                                    '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
+                                        args.protocol, args.ip, args.port,
+                                        mod['name'], mod['revision'],
+                                        mod['organization']),
+                                    auth=('admin', 'admin'), headers={
+                                        'Accept': 'application/vnd.yang.data+json'})
+                                response = json.loads(response.content)[
+                                    'yang-catalog:module']
+                                response[
+                                    'derived-semantic-version'] = upgraded_version
+                                new_modules.append(response)
+                                continue
+                            if (modules[x]['schema'] is None or
+                                    modules[x-1]['schema']):
+                                break
+                            if (modules[x]['schema'] is None or
+                                    modules[x-1]['schema']):
+                                LOGGER.warning('Schema is missing {} or {}'.
+                                               format(modules[x]['schema'],
+                                                      modules[x-1]['schema']))
+                                continue
+                            else:
+                                schema2 = requests.get(modules[x]['schema'])
+                                schema1 = requests.get(modules[x-1]['schema'])
+                                if (schema1.status_code == 404 or
+                                            schema2.status_code == 404):
+                                    LOGGER.warning('Schema not found {} or {}'.
+                                                   format(modules[-2]['schema'],
+                                                          modules[-1][
+                                                              'schema']))
+                                    continue
+                            to_write = '{}/{}@{}_{}'.format(direc,
+                                                            modules[x]['name'],
+                                                            modules[x]['revision'],
+                                                            modules[x][
+                                                                'organization'])
+                            to_write_before = '{}/{}@{}_{}'.format(direc,
+                                                                   modules[x - 1][
+                                                                       'name'],
+                                                                   modules[x - 1][
+                                                                       'revision'],
+                                                                   modules[x - 1][
+                                                                       'organization'])
+                            with open(to_write, 'w+') as f:
+                                f.write(schema2.content)
+                            with open(to_write_before, 'w+') as f:
+                                f.write(schema1.content)
+                            arguments = ['pyang', '-p', '../../.', '-P', '../../.',
+                                         to_write,
+                                         '--check-update-from', to_write_before]
+                            pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
+                                                     stderr=subprocess.PIPE)
+                            stdout, stderr = pyang.communicate()
+                            if stderr == '':
+                                arguments = ["pyang", '-p', '../../.', "-f", "tree",
+                                             to_write_before]
+                                pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
+                                                         stderr=subprocess.PIPE)
+                                stdout, stderr = pyang.communicate()
+                                arguments = ["pyang", '-p', '../../.', "-f", "tree",
+                                             to_write]
+                                pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
+                                                         stderr=subprocess.PIPE)
+                                stdout2, stderr = pyang.communicate()
+                                if stdout == stdout2:
+                                    versions = modules[x - 1]['semver'].split('.')
+                                    ver = int(versions[2])
+                                    ver += 1
+                                    upgraded_version = '{}.{}.{}'.format(
+                                        versions[0], versions[1], ver)
+                                    modules[x]['semver'] = upgraded_version
+                                    response = requests.get(
+                                        '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
+                                            args.protocol, args.ip, args.port,
+                                            mod['name'], mod['revision'],
+                                            mod['organization']),
+                                        auth=('admin', 'admin'), headers={
+                                            'Accept': 'application/vnd.yang.data+json'})
+                                    response = json.loads(response.content)[
+                                        'yang-catalog:module']
+                                    response[
+                                        'derived-semantic-version'] = upgraded_version
+                                    new_modules.append(response)
+                                else:
+                                    versions = modules[x - 1]['semver'].split('.')
+                                    ver = int(versions[1])
+                                    ver += 1
+                                    upgraded_version = '{}.{}.{}'.format(
+                                        versions[0], ver, 0)
+                                    modules[x]['semver'] = upgraded_version
+                                    response = requests.get(
+                                        '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
+                                            args.protocol, args.ip, args.port,
+                                            mod['name'], mod['revision'],
+                                            mod['organization']),
+                                        auth=('admin', 'admin'), headers={
+                                            'Accept': 'application/vnd.yang.data+json'})
+                                    response = json.loads(response.content)[
+                                        'yang-catalog:module']
+                                    response[
+                                        'derived-semantic-version'] = upgraded_version
+                                    new_modules.append(response)
+                            else:
+                                versions = modules[x - 1]['semver'].split('.')
+                                ver = int(versions[0])
+                                ver += 1
+                                upgraded_version = '{}.{}.{}'.format(ver, 0, 0)
+                                modules[x]['semver'] = upgraded_version
+                                response = requests.get(
+                                    '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
+                                        args.protocol, args.ip, args.port,
+                                        mod['name'], mod['revision'],
+                                        mod['organization']),
+                                    auth=('admin', 'admin'), headers={
+                                        'Accept': 'application/vnd.yang.data+json'})
+                                response = json.loads(response.content)[
+                                    'yang-catalog:module']
+                                response[
+                                    'derived-semantic-version'] = upgraded_version
+                                new_modules.append(response)
+
         for mod in all_modules['module']:
             name = mod['name']
             revision = mod['revision']
@@ -241,7 +545,15 @@ if __name__ == "__main__":
                             mod['dependents'].append(new)
                 if len(mod['dependents']) > 0:
                     new_modules.append(mod)
-        json_modules_data = json.dumps({'modules': {'module': new_modules}})
+        mod = len(new_modules) % 1000
+        for x in range(0, len(new_modules) / 1000):
+            json_modules_data = json.dumps({'modules': {'module': new_modules[x*1000: (x*1000)+1000]}})
+            if '{"module": []}' not in json_modules_data:
+                http_request(prefix + '/api/config/catalog/modules/', 'PATCH',
+                             json_modules_data, args.credentials)
+        rest = (len(new_modules) / 1000) * 1000
+        json_modules_data = json.dumps(
+            {'modules': {'module': new_modules[rest: rest + mod]}})
         if '{"module": []}' not in json_modules_data:
             http_request(prefix + '/api/config/catalog/modules/', 'PATCH',
                          json_modules_data, args.credentials)

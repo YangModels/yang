@@ -6,6 +6,7 @@ import subprocess
 import tarfile
 import urllib
 import urllib2
+from datetime import datetime
 
 from numpy.f2py.auxfuncs import throw_error
 
@@ -52,44 +53,19 @@ def check_name_no_revision_exist(directory):
 def check_early_revisions(directory):
     for f in os.listdir(directory):
         fname = f.split('.yang')[0].split('@')[0]
-        files = []
-        year = []
-        month = []
-        day = []
-        for f2 in os.listdir(directory):
-            if f2.startswith(fname) and '@' in f2:
-                if f2.split(fname)[1].startswith('.') or f2.split(fname)[1].startswith('@'):
-                    files.append(f2)
-                    revision = f2.split(fname)[1].split('.')[0].replace('@', '')
-                    year.append(int(revision.split('-')[0]))
-                    month.append(int(revision.split('-')[1]))
-                    day.append(int(revision.split('-')[2]))
-        latest = max(year)
         files_to_delete = []
-        for x in range(len(files) - 1, -1, -1):
-            if year[x] != latest:
-                files_to_delete.append(files[x])
-                files.remove(files[x])
-                year.remove(year[x])
-                month.remove(month[x])
-                day.remove(day[x])
-
-        latest = max(month)
-        for x in range(len(files) - 1, -1, -1):
-            if month[x] != latest:
-                files_to_delete.append(files[x])
-                files.remove(files[x])
-                year.remove(year[x])
-                month.remove(month[x])
-                day.remove(day[x])
-        latest = max(day)
-        for x in range(len(files) - 1, -1, -1):
-            if day[x] != latest:
-                files_to_delete.append(files[x])
-                files.remove(files[x])
-                year.remove(year[x])
-                month.remove(month[x])
-                day.remove(day[x])
+        revisions = []
+        for f2 in os.listdir(directory):
+            if f2.split('.yang')[0].split('@')[0] == fname:
+                if f2.split(fname)[1].startswith('.') or f2.split(fname)[1].startswith('@'):
+                    files_to_delete.append(f2)
+                    revision = f2.split(fname)[1].split('.')[0].replace('@', '')
+                    year = int(revision.split('-')[0])
+                    month = int(revision.split('-')[1])
+                    day = int(revision.split('-')[2])
+                    revisions.append(datetime(year, month, day))
+        latest = revisions.index(max(revisions))
+        files_to_delete.remove(files_to_delete[latest])
         for fi in files_to_delete:
             os.remove(directory + fi)
 

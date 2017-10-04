@@ -1,10 +1,13 @@
 import json
 import os
+import re
 import subprocess
 import sys
 import unicodedata
 from subprocess import PIPE
-
+from datetime import datetime
+import requests
+import shutil
 from click.exceptions import FileError
 
 import tools.statistics.statistics as stats
@@ -76,8 +79,9 @@ LOGGER = log.get_logger('modules')
 
 
 class Modules:
-    def __init__(self, path, html_result_dir, jsons, is_vendor=False,
-                 is_yang_lib=False, data=None):
+    def __init__(self, path, html_result_dir, jsons, temp_dir, is_vendor=False,
+                 is_yang_lib=False, data=None, is_vendor_imp_inc=False):
+        self.__temp_dir = temp_dir
         self.__missing_submodules = []
         self.__missing_modules = []
         self.__missing_namespace = None
@@ -114,6 +118,8 @@ class Modules:
         else:
             self.__path = path
 
+        if is_vendor_imp_inc:
+            self.__is_vendor = True
         if self.__path:
             self.name = None
             self.organization = None
@@ -137,6 +143,8 @@ class Modules:
             self.dependencies = []
             self.module_type = None
             self.tree_type = None
+            self.semver = None
+            self.derived_semver = None
             self.implementation = []
             self.imports = []
             self.json_submodules = json.dumps([])
@@ -209,7 +217,15 @@ class Modules:
         self.__resolve_working_group()
         self.__resolve_author_email(author_email)
         self.__resolve_maturity_level(maturity_level)
+        self.__resolve_semver()
         # self.__resolve_tree_type()
+
+    def __resolve_semver(self):
+        yang_file = open(self.__path)
+        for line in yang_file:
+            if re.search('oc-ext:openconfig-version .*;', line):
+                self.semver = re.findall('\d.\d.\d', line).pop()
+        yang_file.close()
 
     def __resolve_imports(self):
         try:
@@ -228,7 +244,7 @@ class Modules:
                 else:
                     yang_file = self.__find_file(dependency.name)
                 if yang_file is None:
-                    dependency.schema = MISSING_ELEMENT
+                    dependency.schema = None
                 else:
                     suffix = os.path.abspath(yang_file).split('/yang/')[1]
                     prefix = self.schema.split('/yang/')[0]
@@ -296,7 +312,7 @@ class Modules:
             else:
                 self.schema = schema
         else:
-            self.schema = MISSING_ELEMENT
+            self.schema = None
 
     def __resolve_tree_type(self):
         def is_openconfig(rows, output):
@@ -817,13 +833,13 @@ class Modules:
         try:
             self.contact = self.__parsed_yang.search('contact')[0].arg
         except:
-            self.contact = MISSING_ELEMENT
+            self.contact = None
 
     def __resolve_description(self):
         try:
             self.description = self.__parsed_yang.search('description')[0].arg
         except:
-            self.description = MISSING_ELEMENT
+            self.description = None
 
     def __resolve_namespace(self):
         self.namespace = self.__resolve_submodule_case('namespace')
@@ -835,7 +851,7 @@ class Modules:
             try:
                 self.belongs_to = self.__parsed_yang.search('belongs-to')[0].arg
             except:
-                self.belongs_to = MISSING_ELEMENT
+                self.belongs_to = None
 
     def __resolve_module_type(self):
         LOGGER.debug('Searching for module type')
@@ -910,12 +926,18 @@ class Modules:
             try:
                 return parsed_parent_yang.search(field)[0].arg
             except:
-                return MISSING_ELEMENT
+                if field == 'prefix':
+                    return None
+                else:
+                    return MISSING_ELEMENT
         else:
             try:
                 return self.__parsed_yang.search(field)[0].arg
             except:
-                return MISSING_ELEMENT
+                if field == 'prefix':
+                    return None
+                else:
+                    return MISSING_ELEMENT
 
     def __parse_status(self):
         LOGGER.debug('Parsing status of module {}'.format(self.__path))
@@ -1177,7 +1199,7 @@ class Modules:
                 return [doc_name, doc_source]
             except KeyError:
                 pass
-        return [MISSING_ELEMENT, MISSING_ELEMENT]
+        return [None, None]
 
     def __find_file(self, name, revision='*', submodule=False,
                     normal_search=True):
