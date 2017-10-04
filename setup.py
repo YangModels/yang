@@ -1,13 +1,14 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='yang',
     version='',
-    packages=['tools', 'tools.api', 'tools.recovery', 'tools.validate', 'tools.runYANGallstats',
-              'tools.parseAndPopulate', 'tools.ietfYangDraftPull', 'tools.utility'],
+    packages=find_packages(),
     url='',
     license='',
     author='Miroslav Kovac',
     author_email='',
-    description='', install_requires=['jinja2', 'numpy', 'pyang', 'requests', 'travispy', 'flask', 'Crypto', 'pika']
+    description='',
+    install_requires=['jinja2', 'numpy', 'pyang', 'requests', 'travispy',
+                      'flask', 'Crypto', 'pika']
 )

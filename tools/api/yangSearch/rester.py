@@ -37,7 +37,7 @@ class RestException(Exception):
         return self._rcode
 
 
-class Rester(Object):
+class Rester(object):
     __timeout = REST_TIMEOUT
 
     def __init__(self, base, username=None, password=None, timeout=REST_TIMEOUT):

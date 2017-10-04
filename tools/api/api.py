@@ -2,34 +2,31 @@ import ConfigParser
 import argparse
 import base64
 import collections
+import datetime
 import errno
 import hashlib
 import json
 import os
+import re
 import shutil
 import smtplib
 import sys
 import urllib2
 from email.mime.text import MIMEText
 from urllib2 import URLError
-import re
-from yangSearch.module import Module
-from yangSearch.rester import Rester, RestException
-import yangSearch.index as index
 
 import MySQLdb
-import datetime
 import requests
 from OpenSSL.crypto import load_publickey, FILETYPE_PEM, X509, verify
 from flask import Flask, jsonify, abort, make_response, request, Response
 from flask_httpauth import HTTPBasicAuth
 
 import tools.utility.log as lo
+import yangSearch.index as index
 from tools.api.sender import Sender
 from tools.utility import repoutil, yangParser
-
-CATALOG_API_URL = 'https://yangcatalog.org:8443'
-DBF = '/var/yang/yang.db'
+from yangSearch.module import Module
+from yangSearch.rester import Rester, RestException
 
 LOGGER = lo.get_logger('api')
 url = 'https://github.com/'
@@ -219,7 +216,7 @@ def authorize_for_vendors(request, body):
     if len(rights) > 4:
         check_software_flavor = rights[4]
 
-    for platform in body['platforms']:
+    for platform in body['platforms']['platform']:
         vendor = platform['vendor']
         platform_name = platform['name']
         software_version = platform['software-version']
@@ -293,56 +290,68 @@ def check_local():
 
     global yang_models_url
 
-    if body['repository']['owner_name'] == 'yang-catalog':
-        if body['result_message'] == 'Passed':
-            if body['type'] == 'push':
-                # After build was successful only locally
-                json_body = json.loads(json.dumps({
-                    "title": "Cron job - every day pull and update of ietf draft yang files.",
-                    "body": "ietf extracted yang modules",
-                    "head": "yang-catalog:master",
-                    "base": "master"
-                }))
+    verify_commit = False
+    commit_sha = body['commit']
+    try:
+        commit_file = file(commit_msg_file)
+        for line in commit_file:
+            if commit_sha in line:
+                verify_commit = True
+                break
+    except:
+        return not_found()
 
-                r = requests.post(yang_models_url + '/pulls',
-                                  json=json_body, headers={'Authorization': 'token ' + token})
-                if r.status_code == requests.codes.created:
-                    LOGGER.info('Pull request created successfully')
-                    return make_response(jsonify({'info': 'Success'}), 201)
-                else:
-                    LOGGER.error('Could not create a pull request {}'.format(r.status_code))
-                    return make_response(jsonify({'Error': 'Fails'}), 500)
-        else:
-            LOGGER.warning('Travis job did not pass. Removing forked repository.')
-            requests.delete('https://api.github.com/repos/yang-catalog/yang',
-                            headers={'Authorization': 'token ' + token})
-            return make_response(jsonify({'info': 'Success'}), 201)
-    elif body['repository']['owner_name'] == 'YangModels':
-        if body['result_message'] == 'Passed':
-            if body['type'] == 'pull_request':
-                # If build was successful on pull request
-                pull_number = body['pull_request_number']
-                LOGGER.info('Pull request was successful {}'.format(repr(pull_number)))
-                #response = requests.put('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number +
-                #             '/merge', headers={'Authorization': 'token ' + token})
-                #LOGGER.info('Merge response code {}. Merge response {}.'.format(response.content, response.status_code))
+    if verify_commit:
+        if body['repository']['owner_name'] == 'yang-catalog':
+            if body['result_message'] == 'Passed':
+                if body['type'] == 'push':
+                    # After build was successful only locally
+                    json_body = json.loads(json.dumps({
+                        "title": "Crone job - every day pull and update of ietf draft yang files.",
+                        "body": "ietf extracted yang modules",
+                        "head": "yang-catalog:master",
+                        "base": "master"
+                    }))
+
+                    r = requests.post(yang_models_url + '/pulls',
+                                      json=json_body, headers={'Authorization': 'token ' + token})
+                    if r.status_code == requests.codes.created:
+                        LOGGER.info('Pull request created successfully')
+                        return make_response(jsonify({'info': 'Success'}), 201)
+                    else:
+                        LOGGER.error('Could not create a pull request {}'.format(r.status_code))
+                        return make_response(jsonify({'Error': 'Fails'}), 500)
+            else:
+                LOGGER.warning('Travis job did not pass. Removing forked repository.')
                 requests.delete('https://api.github.com/repos/yang-catalog/yang',
                                 headers={'Authorization': 'token ' + token})
                 return make_response(jsonify({'info': 'Success'}), 201)
+        elif body['repository']['owner_name'] == 'YangModels':
+            if body['result_message'] == 'Passed':
+                if body['type'] == 'pull_request':
+                    # If build was successful on pull request
+                    pull_number = body['pull_request_number']
+                    LOGGER.info('Pull request was successful {}'.format(repr(pull_number)))
+                    #response = requests.put('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number +
+                    #             '/merge', headers={'Authorization': 'token ' + token})
+                    #LOGGER.info('Merge response code {}. Merge response {}.'.format(response.content, response.status_code))
+                    requests.delete('https://api.github.com/repos/yang-catalog/yang',
+                                    headers={'Authorization': 'token ' + token})
+                    return make_response(jsonify({'info': 'Success'}), 201)
+            else:
+                LOGGER.warning('Travis job did not pass. Removing pull request')
+                pull_number = body['pull_request_number']
+                json_body = json.loads(json.dumps({
+                    "title": "Cron job - every day pull and update of ietf draft yang files.",
+                    "body": "ietf extracted yang modules",
+                    "state": "closed",
+                    "base": "master"
+                }))
+                requests.patch('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number, json=json_body,
+                               headers={'Authorization': 'token ' + token})
+                return make_response(jsonify({'info': 'Success'}), 201)
         else:
-            LOGGER.warning('Travis job did not pass. Removing pull request')
-            pull_number = body['pull_request_number']
-            json_body = json.loads(json.dumps({
-                "title": "Cron job - every day pull and update of ietf draft yang files.",
-                "body": "ietf extracted yang modules",
-                "state": "closed",
-                "base": "master"
-            }))
-            requests.patch('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number, json=json_body,
-                           headers={'Authorization': 'token ' + token})
-            return make_response(jsonify({'info': 'Success'}), 201)
-    else:
-        return make_response(jsonify({'Error': 'Fails'}), 500)
+            return make_response(jsonify({'Error': 'Fails'}), 500)
     return make_response(jsonify({'Error': 'Fails'}), 500)
 
 
@@ -667,7 +676,7 @@ def add_vendors():
                      'DELETE', None, credentials, 'application/vnd.yang.collection+json')
     except:
         pass
-    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config'
+    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/platforms'
 
     base64string = base64.b64encode('%s:%s' % (credentials[0], credentials[1]))
     response = requests.put(path, json.dumps(body), headers={'Authorization': 'Basic ' + base64string,
@@ -687,7 +696,7 @@ def add_vendors():
             break
     direc = '../parseAndPopulate/' + repr(direc)
 
-    for platform in body['platforms']:
+    for platform in body['platforms']['platform']:
         capability = platform['module-list-file']
         file_name = capability['path'].split('/')[-1]
         if request.method == 'POST':
@@ -717,8 +726,8 @@ def add_vendors():
                             ignore=shutil.ignore_patterns('*.json', '*.xml', '*.sh', '*.md', '*.txt', '*.bin'))
         except OSError:
             pass
-        with open(save_to + '/' + file_name.split('.')[0] + '.json', "w") as plat:
-            json.dump(platform, plat)
+        with open(save_to + '/' + file_name.split('.')[0] + '.json', "w") as f:
+            json.dump(platform, f)
         shutil.copy(repo[repo_url].localdir + '/' + capability['path'], save_to)
         tree_created = True
 
@@ -736,6 +745,7 @@ def add_vendors():
     LOGGER.info('job_id {}'.format(job_id))
     return jsonify({'info': 'Verification successful', 'job-id': job_id})
 
+
 @app.route('/index/search', methods=['POST'])
 def index_search():
     """Search through the YANG keyword index for a given search pattern.
@@ -748,11 +758,16 @@ def index_search():
     payload = request.json
     if 'search' not in payload:
         return make_response(jsonify({'error': 'You must specify a "search" argument'}), 400)
-
+    api_protocol = 'http'
+    api_port = 5000
+    if ssl_key != '':
+        api_protocol = 'https'
+        api_port = 8443
+    catalog_api_url = '{}://{}:{}'.format(api_protocol, confd_ip, api_port)
     try:
-        search_res = index.do_search(DBF, json.dumps(payload))
+        search_res = index.do_search(json.dumps(payload))
         res = []
-        rest = Rester(CATALOG_API_URL)
+        rest = Rester(catalog_api_url)
         rejects = {}
         not_founds = {}
 
@@ -813,6 +828,7 @@ def index_search():
     except Exception as e:
         return make_response(jsonify({'error': str(e)}), 500)
 
+
 @app.route('/search/<path:value>', methods=['GET'])
 def search(value):
     """Search for a specific leaf from yang-catalog.yang module in modules
@@ -832,7 +848,9 @@ def search(value):
                    'belongs-to', 'generated-from']
     for module_key in module_keys:
         if key == module_key:
-            data = modules_data['module']
+            data = modules_data.get('module')
+            if data is None:
+                return not_found()
             passed_data = []
             for module in data:
                 count = -1
@@ -847,373 +865,398 @@ def search(value):
                     }
                 }), mimetype='application/json')
             else:
-                return Response(mimetype='application/json', status=404)
+                return not_found()
     return Response(json.dumps({'error': 'Search on path {} is not supported'.format(path)})
                     , mimetype='application/json', status=400)
 
 
+@app.route('/search-filter/<leaf>', methods=['POST'])
+def rpc_search_get_one(leaf):
+    response = rpc_search(request.json)
+    modules = json.loads(response.get_data())['yang-catalog:modules']['module']
+    output = set()
+    for module in modules:
+        meta_data = module.get(leaf)
+        output.add(meta_data)
+    if None in output:
+        output.remove(None)
+    if len(output) == 0:
+        return not_found()
+    else:
+        return Response(json.dumps({'output': {leaf: list(output)}}),
+                        mimetype='application/json', status=201)
+
+
 @app.route('/search-filter', methods=['POST'])
-def rpc_search():
-    body = request.json
+def rpc_search(body=None):
+    if body is None:
+        body = request.json
     LOGGER.info('Searching and filtering modules based on RPC {}'
                 .format(json.dumps(body)))
     data = modules_data['module']
-    body = body['input']
-    partial = body.get('partial')
-    if partial is None:
-        partial = False
-    passed_modules = []
-    if partial:
-        for module in data:
-            passed = True
-            if 'dependencies' in body:
-                submodules = module.get('dependencies')
-                if submodules is None:
-                    continue
-                for sub in body['dependencies']:
-                    found = True
-                    name = sub.get('name')
-                    revision = sub.get('revision')
-                    schema = sub.get('schema')
-                    for submodule in submodules:
+    body = body.get('input')
+    if body:
+        partial = body.get('partial')
+        if partial is None:
+            partial = False
+        passed_modules = []
+        if partial:
+            for module in data:
+                passed = True
+                if 'dependencies' in body:
+                    submodules = module.get('dependencies')
+                    if submodules is None:
+                        continue
+                    for sub in body['dependencies']:
                         found = True
-                        if name:
-                            if name not in submodule['name']:
-                                found = False
-                        if not found:
-                            continue
-                        if revision:
-                            if revision not in submodule['revision']:
-                                found = False
-                        if not found:
-                            continue
-                        if schema:
-                            if schema not in submodule['schema']:
-                                found = False
-                        if found:
-                            break
-
-                    if not found:
-                        passed = False
-                        break
-            if not passed:
-                continue
-            if 'dependents' in body:
-                submodules = module.get('dependents')
-                if submodules is None:
-                    continue
-                for sub in body['dependents']:
-                    found = True
-                    name = sub.get('name')
-                    revision = sub.get('revision')
-                    schema = sub.get('schema')
-                    for submodule in submodules:
-                        found = True
-                        if name:
-                            if name not in submodule['name']:
-                                found = False
-                        if not found:
-                            continue
-                        if revision:
-                            if revision not in submodule['revision']:
-                                found = False
-                        if not found:
-                            continue
-                        if schema:
-                            if schema not in submodule['schema']:
-                                found = False
-                        if found:
-                            break
-
-                    if not found:
-                        passed = False
-                        break
-            if not passed:
-                continue
-            if 'submodule' in body:
-                submodules = module.get('submodule')
-                if submodules is None:
-                    continue
-                for sub in body['submodule']:
-                    found = True
-                    name = sub.get('name')
-                    revision = sub.get('revision')
-                    schema = sub.get('schema')
-                    for submodule in submodules:
-                        found = True
-                        if name:
-                            if name not in submodule['name']:
-                                found = False
-                        if not found:
-                            continue
-                        if revision:
-                            if revision not in submodule['revision']:
-                                found = False
-                        if not found:
-                            continue
-                        if schema:
-                            if schema not in submodule['schema']:
-                                found = False
-                        if found:
-                            break
-
-                    if not found:
-                        passed = False
-                        break
-            if not passed:
-                continue
-            if 'implementations' in body:
-                implementations = module.get('implementations')
-                if implementations is None:
-                    continue
-                for imp in body['implementations']['implementation']:
-                    for leaf in imp:
-                        found = False
-                        if leaf == 'deviation':
-                            for implementation in implementations[
-                                'implementation']:
-                                deviations = implementation.get('deviation')
-                                if deviations is None:
+                        name = sub.get('name')
+                        revision = sub.get('revision')
+                        schema = sub.get('schema')
+                        for submodule in submodules:
+                            found = True
+                            if name:
+                                if name not in submodule['name']:
                                     found = False
-                                    break
-                                for dev in imp[leaf]:
-                                    found = True
-                                    name = dev.get('name')
-                                    revision = dev.get('revision')
-                                    for deviation in deviations:
-                                        found = True
-                                        if name:
-                                            if name not in deviation['name']:
-                                                found = False
-                                        if not found:
-                                            continue
-                                        if revision:
-                                            if revision not in deviation['revision']:
-                                                found = False
-                                        if found:
-                                            break
-                                    if not found:
-                                        break
-                                if not found:
-                                    continue
                             if not found:
-                                passed = False
-                                break
-                        elif leaf == 'feature':
-                            feature = implementations['implementation']\
-                            .get('feature')
-                            if feature is None:
-                                passed = False
-                                break
-                            for implementation in implementations['implementation']:
-                                if imp[leaf] in implementation[leaf]:
-                                    found = True
-                                    break
+                                continue
+                            if revision:
+                                if revision not in submodule['revision']:
+                                    found = False
+                            if not found:
+                                continue
+                            if schema:
+                                if schema not in submodule['schema']:
+                                    found = False
                             if found:
-                                passed = True
-                        else:
-                            for implementation in implementations['implementation']:
-                                if imp[leaf] in implementation[leaf]:
-                                    found = True
-                                    break
-                            if not found:
-                                passed = False
-                            break
-                        if not passed:
-                            break
-                    if not passed:
-                        break
-            if not passed:
-                continue
-            for leaf in body:
-                if leaf != 'implementations' and leaf != 'submodule':
-                    module_leaf = module.get(leaf)
-                    if module_leaf:
-                        if body[leaf] not in module_leaf:
+                                break
+
+                        if not found:
                             passed = False
                             break
-            if passed:
-                passed_modules.append(module)
-    else:
-        for module in data:
-            passed = True
-            if 'dependencies' in body:
-                submodules = module.get('dependencies')
-                if submodules is None:
+                if not passed:
                     continue
-                for sub in body['dependencies']:
-                    found = True
-                    name = sub.get('name')
-                    revision = sub.get('revision')
-                    schema = sub.get('schema')
-                    for submodule in submodules:
+                if 'dependents' in body:
+                    submodules = module.get('dependents')
+                    if submodules is None:
+                        continue
+                    for sub in body['dependents']:
                         found = True
-                        if name:
-                            if name != submodule['name']:
-                                found = False
-                        if not found:
-                            continue
-                        if revision:
-                            if revision != submodule['revision']:
-                                found = False
-                        if not found:
-                            continue
-                        if schema:
-                            if schema != submodule['schema']:
-                                found = False
-                        if found:
-                            break
-
-                    if not found:
-                        passed = False
-                        break
-            if not passed:
-                continue
-            if 'dependents' in body:
-                submodules = module.get('dependents')
-                if submodules is None:
-                    continue
-                for sub in body['dependents']:
-                    found = True
-                    name = sub.get('name')
-                    revision = sub.get('revision')
-                    schema = sub.get('schema')
-                    for submodule in submodules:
-                        found = True
-                        if name:
-                            if name != submodule['name']:
-                                found = False
-                        if not found:
-                            continue
-                        if revision:
-                            if revision!= submodule['revision']:
-                                found = False
-                        if not found:
-                            continue
-                        if schema:
-                            if schema != submodule['schema']:
-                                found = False
-                        if found:
-                            break
-
-                    if not found:
-                        passed = False
-                        break
-            if not passed:
-                continue
-            if 'submodule' in body:
-                submodules = module.get('submodule')
-                if submodules is None:
-                    continue
-                for sub in body['submodule']:
-                    found = True
-                    name = sub.get('name')
-                    revision = sub.get('revision')
-                    schema = sub.get('schema')
-                    for submodule in submodules:
-                        found = True
-                        if name:
-                            if name != submodule['name']:
-                                found = False
-                        if not found:
-                            continue
-                        if revision:
-                            if revision != submodule['revision']:
-                                found = False
-                        if not found:
-                            continue
-                        if schema:
-                            if schema != submodule['schema']:
-                                found = False
-                        if found:
-                            break
-
-                    if not found:
-                        passed = False
-                        break
-            if not passed:
-                continue
-            if 'implementations' in body:
-                implementations = module.get('implementations')
-                if implementations is None:
-                    continue
-                for imp in body['implementations']['implementation']:
-                    for leaf in imp:
-                        found = False
-                        if leaf == 'deviation':
-                            for implementation in implementations[
-                                'implementation']:
-                                deviations = implementation.get('deviation')
-                                if deviations is None:
+                        name = sub.get('name')
+                        revision = sub.get('revision')
+                        schema = sub.get('schema')
+                        for submodule in submodules:
+                            found = True
+                            if name:
+                                if name not in submodule['name']:
                                     found = False
-                                    break
-                                for dev in imp[leaf]:
-                                    found = True
-                                    name = dev.get('name')
-                                    revision = dev.get('revision')
-                                    for deviation in deviations:
+                            if not found:
+                                continue
+                            if revision:
+                                if revision not in submodule['revision']:
+                                    found = False
+                            if not found:
+                                continue
+                            if schema:
+                                if schema not in submodule['schema']:
+                                    found = False
+                            if found:
+                                break
+
+                        if not found:
+                            passed = False
+                            break
+                if not passed:
+                    continue
+                if 'submodule' in body:
+                    submodules = module.get('submodule')
+                    if submodules is None:
+                        continue
+                    for sub in body['submodule']:
+                        found = True
+                        name = sub.get('name')
+                        revision = sub.get('revision')
+                        schema = sub.get('schema')
+                        for submodule in submodules:
+                            found = True
+                            if name:
+                                if name not in submodule['name']:
+                                    found = False
+                            if not found:
+                                continue
+                            if revision:
+                                if revision not in submodule['revision']:
+                                    found = False
+                            if not found:
+                                continue
+                            if schema:
+                                if schema not in submodule['schema']:
+                                    found = False
+                            if found:
+                                break
+
+                        if not found:
+                            passed = False
+                            break
+                if not passed:
+                    continue
+                if 'implementations' in body:
+                    implementations = module.get('implementations')
+                    if implementations is None:
+                        continue
+                    for imp in body['implementations']['implementation']:
+                        for leaf in imp:
+                            found = False
+                            if leaf == 'deviation':
+                                for implementation in implementations[
+                                    'implementation']:
+                                    deviations = implementation.get('deviation')
+                                    if deviations is None:
+                                        found = False
+                                        break
+                                    for dev in imp[leaf]:
                                         found = True
-                                        if name:
-                                            if name != deviation['name']:
-                                                found = False
+                                        name = dev.get('name')
+                                        revision = dev.get('revision')
+                                        for deviation in deviations:
+                                            found = True
+                                            if name:
+                                                if name not in deviation['name']:
+                                                    found = False
+                                            if not found:
+                                                continue
+                                            if revision:
+                                                if revision not in deviation['revision']:
+                                                    found = False
+                                            if found:
+                                                break
                                         if not found:
-                                            continue
-                                        if revision:
-                                            if revision != deviation['revision']:
-                                                found = False
-                                        if found:
                                             break
                                     if not found:
+                                        continue
+                                if not found:
+                                    passed = False
+                                    break
+                            elif leaf == 'feature':
+                                feature = implementations['implementation']\
+                                .get('feature')
+                                if feature is None:
+                                    passed = False
+                                    break
+                                for implementation in implementations['implementation']:
+                                    if imp[leaf] in implementation[leaf]:
+                                        found = True
+                                        break
+                                if found:
+                                    passed = True
+                            else:
+                                for implementation in implementations['implementation']:
+                                    if imp[leaf] in implementation[leaf]:
+                                        found = True
                                         break
                                 if not found:
-                                    continue
-                            if not found:
-                                passed = False
+                                    passed = False
                                 break
-                        elif leaf == 'feature':
-                            feature = implementations['implementation']\
-                            .get('feature')
-                            if feature is None:
-                                passed = False
+                            if not passed:
                                 break
-                            for implementation in implementations['implementation']:
-                                if imp[leaf] in implementation[leaf]:
-                                    found = True
-                                    break
-                            if found:
-                                passed = True
-                        else:
-                            for implementation in implementations['implementation']:
-                                if imp[leaf] == implementation[leaf]:
-                                    found = True
-                                    break
-                            if not found:
-                                passed = False
-                            break
                         if not passed:
                             break
-                    if not passed:
-                        break
-            if not passed:
-                continue
-            for leaf in body:
-                if (leaf != 'implementations' and leaf != 'submodule'
-                    and leaf != 'dependencies' and leaf != 'dependents'):
-                    if body[leaf] != module.get(leaf):
-                        passed = False
-                        break
-            if passed:
-                passed_modules.append(module)
-    if len(passed_modules) > 0:
-        modules = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
-            .decode(json.dumps(passed_modules))
-        return Response(json.dumps({
-            'yang-catalog:modules': {
-                'module': modules
-            }
-        }), mimetype='application/json')
+                if not passed:
+                    continue
+                for leaf in body:
+                    if leaf != 'implementations' and leaf != 'submodule':
+                        module_leaf = module.get(leaf)
+                        if module_leaf:
+                            if body[leaf] not in module_leaf:
+                                passed = False
+                                break
+                if passed:
+                    passed_modules.append(module)
+        else:
+            for module in data:
+                if module['name'] == 'ietf-interfaces':
+                    pass
+                passed = True
+                if 'dependencies' in body:
+                    submodules = module.get('dependencies')
+                    if submodules is None:
+                        continue
+                    for sub in body['dependencies']:
+                        found = True
+                        name = sub.get('name')
+                        revision = sub.get('revision')
+                        schema = sub.get('schema')
+                        for submodule in submodules:
+                            found = True
+                            if name:
+                                if name != submodule['name']:
+                                    found = False
+                            if not found:
+                                continue
+                            if revision:
+                                if revision != submodule['revision']:
+                                    found = False
+                            if not found:
+                                continue
+                            if schema:
+                                if schema != submodule['schema']:
+                                    found = False
+                            if found:
+                                break
+
+                        if not found:
+                            passed = False
+                            break
+                if not passed:
+                    continue
+                if 'dependents' in body:
+                    submodules = module.get('dependents')
+                    if submodules is None:
+                        continue
+                    for sub in body['dependents']:
+                        found = True
+                        name = sub.get('name')
+                        revision = sub.get('revision')
+                        schema = sub.get('schema')
+                        for submodule in submodules:
+                            found = True
+                            if name:
+                                if name != submodule['name']:
+                                    found = False
+                            if not found:
+                                continue
+                            if revision:
+                                if revision!= submodule['revision']:
+                                    found = False
+                            if not found:
+                                continue
+                            if schema:
+                                if schema != submodule['schema']:
+                                    found = False
+                            if found:
+                                break
+
+                        if not found:
+                            passed = False
+                            break
+                if not passed:
+                    continue
+                if 'submodule' in body:
+                    submodules = module.get('submodule')
+                    if submodules is None:
+                        continue
+                    for sub in body['submodule']:
+                        found = True
+                        name = sub.get('name')
+                        revision = sub.get('revision')
+                        schema = sub.get('schema')
+                        for submodule in submodules:
+                            found = True
+                            if name:
+                                if name != submodule['name']:
+                                    found = False
+                            if not found:
+                                continue
+                            if revision:
+                                if revision != submodule['revision']:
+                                    found = False
+                            if not found:
+                                continue
+                            if schema:
+                                if schema != submodule['schema']:
+                                    found = False
+                            if found:
+                                break
+
+                        if not found:
+                            passed = False
+                            break
+                if not passed:
+                    continue
+                if 'implementations' in body:
+                    implementations = module.get('implementations')
+                    if implementations is None:
+                        continue
+                    for imp in body['implementations']['implementation']:
+                        for leaf in imp:
+                            found = False
+                            if leaf == 'deviation':
+                                for implementation in implementations[
+                                    'implementation']:
+                                    deviations = implementation.get('deviation')
+                                    if deviations is None:
+                                        found = False
+                                        break
+                                    for dev in imp[leaf]:
+                                        found = True
+                                        name = dev.get('name')
+                                        revision = dev.get('revision')
+                                        for deviation in deviations:
+                                            found = True
+                                            if name:
+                                                if name != deviation['name']:
+                                                    found = False
+                                            if not found:
+                                                continue
+                                            if revision:
+                                                if revision != deviation['revision']:
+                                                    found = False
+                                            if found:
+                                                break
+                                        if not found:
+                                            break
+                                    if not found:
+                                        continue
+                                if not found:
+                                    passed = False
+                                    break
+                            elif leaf == 'feature':
+                                feature = implementations['implementation']\
+                                .get('feature')
+                                if feature is None:
+                                    passed = False
+                                    break
+                                for implementation in implementations['implementation']:
+                                    if imp[leaf] in implementation[leaf]:
+                                        found = True
+                                        break
+                                if found:
+                                    passed = True
+                            else:
+                                for implementation in implementations['implementation']:
+                                    if imp[leaf] == implementation[leaf]:
+                                        found = True
+                                        break
+                                if not found:
+                                    passed = False
+                                break
+                            if not passed:
+                                break
+                        if not passed:
+                            break
+                if not passed:
+                    continue
+                for leaf in body:
+                    if (leaf != 'implementations' and leaf != 'submodule'
+                        and leaf != 'dependencies' and leaf != 'dependents'):
+                        if body[leaf] != module.get(leaf):
+                            passed = False
+                            break
+                if passed:
+                    passed_modules.append(module)
+        if len(passed_modules) > 0:
+            modules = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+                .decode(json.dumps(passed_modules))
+            return Response(json.dumps({
+                'yang-catalog:modules': {
+                    'module': modules
+                }
+            }), mimetype='application/json')
+        else:
+            return not_found()
     else:
-        return Response(mimetype='application/json', status=404)
+        return make_response(
+            jsonify({'error': 'body request has to start with "input" container'}),
+            400)
 
 
 @app.route('/search/vendors/<path:value>', methods=['GET'])
@@ -1493,6 +1536,8 @@ if __name__ == '__main__':
     save_requests = config.get('API-Section', 'save-requests')
     global token
     token = config.get('API-Section', 'yang-catalog-token')
+    global commit_msg_file
+    commit_msg_file = config.get('API-Section', 'commit-dir')
     ssl_context = None
     global integrity_file_location
     integrity_file_location = config.get('API-Section', 'integrity-file-location')

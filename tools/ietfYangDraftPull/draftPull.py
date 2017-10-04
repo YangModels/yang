@@ -51,6 +51,7 @@ if __name__ == "__main__":
     config.read(config_path)
     token = config.get('DraftPull-Section', 'yang-catalog-token')
     username = config.get('DraftPull-Section', 'username')
+    commit_dir = config.get('DraftPull-Section', 'commit-dir')
     github_credentials = ''
     if len(username) > 0:
         github_credentials = username + ':' + token + '@'
@@ -124,6 +125,9 @@ if __name__ == "__main__":
         LOGGER.info('Committing all files locally')
         repo.commit_all('Crone job - every day pull of ietf draft yang files.')
         LOGGER.info('Pushing files to forked repository')
+        LOGGER.info('Commit hash {}'.format(repo.repo.head.commit))
+        with open(commit_dir, 'a') as f:
+            f.write('{}\n'.format(repo.repo.head.commit))
         repo.push()
     except:
         LOGGER.error(

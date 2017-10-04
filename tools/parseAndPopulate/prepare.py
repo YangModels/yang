@@ -54,6 +54,8 @@ class Prepare:
                 'submodule': json.loads(self.yang_modules[key].json_submodules),
                 'dependencies': self.__get_dependencies(self.yang_modules[key]
                                                         .dependencies),
+                'semantic-version': self.yang_modules[key].semver,
+                'derived-semantic-version': self.yang_modules[key].derived_semver,
                 'implementations': {
                     'implementation': [{
                         'vendor': implementation.vendor,

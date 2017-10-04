@@ -72,11 +72,12 @@ class Capability:
             if os.path.isfile('/'.join(self.split[:-1]) + '/platform-metadata.json'):
                 self.platform_data = []
                 json_file = open('/'.join(self.split[:-1]) + '/platform-metadata.json')
-                platforms = json.load(json_file)['platforms']
+                platforms = json.load(json_file)['platforms']['platform']
                 for impl in platforms:
                     self.initialize(impl)
                 json_file.close()
             else:
+                self.platform_data = []
                 LOGGER.debug('Setting metadata concerning whole directory')
                 self.owner = 'YangModels'
                 self.repo = 'yang'
@@ -100,6 +101,9 @@ class Capability:
                     self.platform = 'Unknown'
                 self.os_version = self.split[5]
                 self.software_flavor = 'ALL'
+                self.platform_data.append(
+                    {'software-flavor': self.software_flavor,
+                     'platform': self.platform})
             integrity_checker.add_platform('/'.join(self.split[:-2]), self.platform)
 
         self.parsed_jsons = LoadFiles(self.split)
@@ -147,7 +151,8 @@ class Capability:
                     LOGGER.error('File {} sent via API was not downloaded'.format(file_name))
                     continue
                 if '[1]' not in file_name:
-                    yang = Modules(root + '/' + file_name, self.html_result_dir, self.parsed_jsons)
+                    yang = Modules(root + '/' + file_name, self.html_result_dir,
+                                   self.parsed_jsons, self.json_dir)
                     name = file_name.split('.')[0].split('@')[0]
                     schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + repo_file_path
                     yang.parse_all(name, schema, sdo)
@@ -164,7 +169,8 @@ class Capability:
                             LOGGER.warning('File {} contains [1] it its file name'.format(file_name))
                         else:
                             yang = Modules(root + '/' + file_name,
-                                           self.html_result_dir, self.parsed_jsons)
+                                           self.html_result_dir,
+                                           self.parsed_jsons, self.json_dir)
                             name = file_name.split('.')[0].split('@')[0]
                             self.owner = 'YangModels'
                             self.repo = 'yang'
@@ -179,8 +185,44 @@ class Capability:
     # parse capability xml and save to file
     def parse_and_dump_yang_lib(self):
         LOGGER.debug('Starting to parse files from vendor')
-        capability = []
-        netconf_version = 'netconf'
+        capabilities = []
+        netconf_version = []
+        LOGGER.debug('Getting capabilities out of api message')
+        if self.api:
+            with open(self.hello_message_file.split('.xml')[0] + '.json') as f:
+                impl = json.load(f)
+            caps = impl['platforms'].get('netconf-capabilities')
+            if caps:
+                for cap in caps:
+                    capability = caps[cap]
+                    # Parse netconf version
+                    if ':netconf:base:' in capability:
+                        netconf_version.append(capability)
+                        LOGGER.debug('Getting netconf version')
+                    # Parse capability together with version
+                    elif ':capability:' in capability:
+                        cap_with_version = capability[1]
+                        capabilities.append(cap_with_version.split('?')[0])
+        else:
+            if os.path.isfile('/'.join(self.split[:-1]) + '/platform-metadata.json'):
+                json_file = open('/'.join(self.split[:-1]) + '/platform-metadata.json')
+                platforms = json.load(json_file)['platforms']['platform']
+                for impl in platforms:
+                    if impl['module-list-file']['path'] in self.hello_message_file:
+                        caps = impl.get('netconf-capabilities')
+                        if caps:
+                            for cap in caps:
+                                capability = caps[cap]
+                                # Parse netconf version
+                                if ':netconf:base:' in capability:
+                                    netconf_version.append(capability)
+                                    LOGGER.debug('Getting netconf version')
+                                # Parse capability together with version
+                                elif ':capability:' in capability:
+                                    cap_with_version = capability[1]
+                                    capabilities.append(
+                                        cap_with_version.split('?')[0])
+                json_file.close()
 
         # netconf capability parsing
         modules = self.root[0]
@@ -220,14 +262,15 @@ class Capability:
 
             try:
                 yang = Modules('/'.join(self.split), self.html_result_dir,
-                               self.parsed_jsons, True, True, yang_lib_info)
+                               self.parsed_jsons, self.json_dir, True, True,
+                               yang_lib_info)
                 schema_part = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/'
                 yang.parse_all(module_name, schema_part)
                 yang.add_vendor_information(self.vendor, self.platform_data,
                                             self.software_version,
                                             self.os_version, self.feature_set,
                                             self.os, conformance_type,
-                                            capability, netconf_version)
+                                            capabilities, netconf_version)
                 yang.resolve_integrity(self.integrity_checker, self.split,
                                        self.os_version)
                 self.prepare.add_key_sdo_module(yang)
@@ -244,35 +287,61 @@ class Capability:
 
         for key in keys:
             self.parse_imp_inc(self.prepare.yang_modules[key].submodule,
-                               set_of_names, True, schema_part, capability,
+                               set_of_names, True, schema_part, capabilities,
                                netconf_version)
             self.parse_imp_inc(self.prepare.yang_modules[key].imports,
-                               set_of_names, False, schema_part, capability,
+                               set_of_names, False, schema_part, capabilities,
                                netconf_version)
 
     # parse capability xml and save to file
     def parse_and_dump(self):
         LOGGER.debug('Starting to parse files from vendor')
-        capability = []
+        capabilities = []
         tag = self.root.tag
-        netconf_version = ''
+        netconf_version = []
 
         # netconf capability parsing
         modules = self.root.iter(tag.split('hello')[0] + 'capability')
         set_of_names = set()
         keys = set()
+        capabilities_exist = False
+        LOGGER.debug('Getting capabilities out of hello message')
+        if os.path.isfile(
+                        '/'.join(self.split[:-1]) + '/platform-metadata.json'):
+            json_file = open(
+                '/'.join(self.split[:-1]) + '/platform-metadata.json')
+            platforms = json.load(json_file)['platforms']['platform']
+            for impl in platforms:
+                if impl['module-list-file']['path'] in self.hello_message_file:
+                    caps = impl.get('netconf-capabilities')
+                    if caps:
+                        capabilities_exist = True
+                        for cap in caps:
+                            capability = caps[cap]
+                            # Parse netconf version
+                            if ':netconf:base:' in capability:
+                                netconf_version.append(capability)
+                                LOGGER.debug('Getting netconf version')
+                            # Parse capability together with version
+                            elif ':capability:' in capability:
+                                cap_with_version = capability[1]
+                                capabilities.append(
+                                    cap_with_version.split('?')[0])
+            json_file.close()
+        LOGGER.debug('Getting capabilities out of hello message')
+        if not capabilities_exist:
+            for module in modules:
+                # Parse netconf version
+                if ':netconf:base:' in module.text:
+                    netconf_version.append(module.text)
+                    LOGGER.debug('Getting netconf version')
+                # Parse capability together with version
+                if ':capability:' in module.text:
+                    cap_with_version = module.text.split(':capability:')[1]
+                    capabilities.append(cap_with_version.split('?')[0])
+            modules = self.root.iter(tag.split('hello')[0] + 'capability')
+        # Parse modules
         for module in modules:
-            LOGGER.debug('Getting capabilities out of hello message')
-            # Parse netconf version
-            if ':netconf:base:' in module.text:
-                netconf_version = module.text
-                LOGGER.debug('Getting netconf version')
-            # Parse capability together with version
-            if ':capability:' in module.text:
-                cap_with_version = module.text.split(':capability:')[1]
-                capability.append(cap_with_version.split('?')[0])
-                LOGGER.debug('Getting capabilities out of hello message')
-            # Parse modules
             if 'module=' in module.text:
                 # Parse name of the module
                 module_and_more = module.text.split('module=')[1]
@@ -280,14 +349,15 @@ class Capability:
                 LOGGER.info('Parsing module {}'.format(module_name))
                 try:
                     yang = Modules('/'.join(self.split), self.html_result_dir,
-                                   self.parsed_jsons, True, data=module_and_more)
+                                   self.parsed_jsons, self.json_dir,
+                                   True, data=module_and_more)
                     schema_part = github_raw + self.owner +\
                                   '/' + self.repo + '/' + self.branch + '/'
                     yang.parse_all(module_name, schema_part)
                     yang.add_vendor_information(self.vendor, self.platform_data,
                                                 self.software_version,
                                                 self.os_version, self.feature_set,
-                                                self.os, 'implement', capability,
+                                                self.os, 'implement', capabilities,
                                                 netconf_version)
                     yang.resolve_integrity(self.integrity_checker, self.split,
                                            self.os_version)
@@ -302,14 +372,14 @@ class Capability:
 
         for key in keys:
             self.parse_imp_inc(self.prepare.yang_modules[key].submodule,
-                               set_of_names, True, schema_part, capability,
+                               set_of_names, True, schema_part, capabilities,
                                netconf_version)
             self.parse_imp_inc(self.prepare.yang_modules[key].imports,
-                               set_of_names, False, schema_part, capability,
+                               set_of_names, False, schema_part, capabilities,
                                netconf_version)
 
     def parse_imp_inc(self, modules, set_of_names, is_include, schema_part,
-                      capability, netconf_version):
+                      capabilities, netconf_version):
         for mod in modules:
             if is_include:
                 name = mod.name
@@ -330,21 +400,22 @@ class Capability:
                     return
                 try:
                     yang = Modules(yang_file, self.html_result_dir,
-                                   self.parsed_jsons)
+                                   self.parsed_jsons, self.json_dir,
+                                   is_vendor_imp_inc=True)
                     yang.parse_all(name, schema_part)
                     yang.add_vendor_information(self.vendor, self.platform_data,
                                                 self.software_version,
                                                 self.os_version,
                                                 self.feature_set, self.os,
-                                                conformance_type, capability,
+                                                conformance_type, capabilities,
                                                 netconf_version)
                     yang.resolve_integrity(self.integrity_checker, self.split,
                                            self.os_version)
                     self.prepare.add_key_sdo_module(yang)
                     self.parse_imp_inc(yang.submodule, set_of_names, True,
-                                       schema_part, capability, netconf_version)
+                                       schema_part, capabilities, netconf_version)
                     self.parse_imp_inc(yang.imports, set_of_names, False,
-                                       schema_part, capability, netconf_version)
+                                       schema_part, capabilities, netconf_version)
                 except FileError:
                     self.integrity_checker.add_module('/'.join(self.split),
                                                       [name])
