@@ -27,31 +27,33 @@ import urllib
 
 class Module(object):
     __object_dict = {
-        'name': True,
-        'revision': True,
-        'organization': True,
-        'belongs-to': True,
-        'schema': True,
-        'generated-from': True,
-        'maturity-level': True,
-        'document-name': True,
-        'author-email': True,
-        'reference': True,
-        'module-classification': True,
-        'compilation-status': True,
-        'compilation-result': True,
-        'prefix': True,
-        'yang-version': True,
-        'description': True,
-        'contact': True,
-        'module-type': True,
-        'tree-type': True,
-        'namespace': True,
-        'ietf': True,
-        'submodule': True,
-        'dependencies': True,
-        'dependents': True,
-        'implementations': True
+        'name': true,
+        'revision': true,
+        'organization': true,
+        'ietf': true,
+        'namespace': true,
+        'schema': true,
+        'generated-from': true,
+        'maturity-level': true,
+        'document-name': true,
+        'author-email': true,
+        'reference': true,
+        'module-classification': true,
+        'compilation-status': true,
+        'compilation-result': true,
+        'prefix': true,
+        'yang-version': true,
+        'description': true,
+        'contact': true,
+        'module-type': true,
+        'belongs-to': true,
+        'tree-type': true,
+        'submodule': true,
+        'dependencies': false,
+        'dependents': false,
+        'semantic-version': true,
+        'derived-semantic-version': true,
+        'implementations': true
     }
 
     __seen_modules = {}
@@ -142,6 +144,14 @@ class Module(object):
         arr = {}
         for key, value in Module.__object_dict.items():
             arr[key] = self.__dict[key]
+
+        # We do this in case there was an error searching for the module.
+        if 'name' not in arr:
+            arr['name'] = self.__name
+        if 'revision' not in arr:
+            arr['revision'] = self.__revision
+        if 'organization' not in arr:
+            arr['organization'] = self.__organization
 
         return arr
 
