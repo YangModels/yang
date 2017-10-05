@@ -30,6 +30,17 @@ This repository contains a collection of YANG modules:
 
 # Contribution Procedures
 
+## Direct Contributions
+
+This is the preferred method of contribution. With this approach you pick where your models will reside in the directory hierarchy, and manage the files mainly in your own fork of the main repository, submitting a pull request when you wish to make public updated models.  All push requests must be reviewed by at least one of the repository's Committers, so when pushing a PR, please assign it to one of the committers.
+
+You can find a tutorial here for how to do push requests. Note that there are at least two different approaches to how to do Pull Requests: using a shell/commandline or using the web interface, so if you do not find what you need below, look elsewhere or ask the committers for pointers.
+
+https://yangsu.github.io/pull-request-tutorial/
+
+By convention, there should also be a `check.sh` script provided by the contributors, which should be referenced from the [`travis.yml`](https://github.com/YangModels/yang/blob/master/.travis.yml) file for CI builds. Multiple examples are already in place to copy and modify as required.
+
+
 ## Contributions Via Submodules
 
 Standards bodies or vendors may also provide models to the main repository via a git submodule. Examples of this can be see under [https://github.com/YangModels/yang/tree/master/standard](https://github.com/YangModels/yang/tree/master/standard), with the BBF and MEF submodules. By convention, if a submodule is used, there should also be an equivalent `check.sh` provided by the contributors, which should be referenced from the [`travis.yml`](https://github.com/YangModels/yang/blob/master/.travis.yml) file for CI builds. An example of this may be found [in the BBF's submodule](https://github.com/BroadbandForum/yang), and a sample invocation [here](https://github.com/YangModels/yang/blob/b8ad913fb4cc20ca21b59da1bd8df5cc2927a8e1/.travis.yml#L17).
