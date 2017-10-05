@@ -40,11 +40,15 @@ https://yangsu.github.io/pull-request-tutorial/
 
 By convention, there should also be a `check.sh` script provided by the contributors, which should be referenced from the [`travis.yml`](https://github.com/YangModels/yang/blob/master/.travis.yml) file for CI builds. Multiple examples are already in place to copy and modify as required.
 
+
 ## Contributions Via Submodules
 
 Standards bodies or vendors may also provide models to the main repository via a git submodule. Examples of this can be see under [https://github.com/YangModels/yang/tree/master/standard](https://github.com/YangModels/yang/tree/master/standard), with the BBF and MEF submodules. By convention, if a submodule is used, there should also be an equivalent `check.sh` provided by the contributors, which should be referenced from the [`travis.yml`](https://github.com/YangModels/yang/blob/master/.travis.yml) file for CI builds. An example of this may be found [in the BBF's submodule](https://github.com/BroadbandForum/yang), and a sample invocation [here](https://github.com/YangModels/yang/blob/b8ad913fb4cc20ca21b59da1bd8df5cc2927a8e1/.travis.yml#L17).
 
-A summary of the suggested process is:
+Direct contributions to the top level of the repository are not encouraged; instead each "organization" should create a top-level folder as described above.
+
+
+## A summary of the suggested process is:
 
 1. Create a fork of [https://github.com/YangModels/yang](https://github.com/YangModels/yang)
 1. Enable Travis on your fork
@@ -53,12 +57,15 @@ A summary of the suggested process is:
     - cd into vendor or standards directory (depending on the source of your models)
     - `git submodule add https://github.com/<owner>/<repository>.git <name>`
 1. Add appropriate entry to the `.travis.yml` file to check your models.
+1. Note: this requires a call to a `check.sh` script provided by the contributors, which should be referenced from the [`travis.yml`](https://github.com/YangModels/yang/blob/master/.travis.yml) file for CI builds. Multiple examples are already in place to copy and modify as required, but in general, one is present at the top-most level of each major submodule area.
 1. Commit changes to your fork
 1. Test the Travis CI run of your fork as well as test it by running the testall.sh script from the top level directory.
  
 After you've verified that the submodule addition and module checking is working ok, submit a PR to the main repository. This will take the latest commit from your repository and make it available as a submodule.
 
 Subsequently, when an updated set of models needs to be released, fork, clone, update submodule, commit and submit PR, also ensuring that Travis is again enabled on your fork to allow pre-pull request checks.
+
+All Pull Requests must be reviewed and as such one of the repository's Committers must review the request prior to actually committing the request.  Changes may be suggested during this process, so patience is requested during this process.
 
 
 ## Travis CI Jobs
