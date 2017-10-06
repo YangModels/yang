@@ -1553,4 +1553,5 @@ if __name__ == '__main__':
         ssl_context = (cert, ssl_key)
     load(True)
     LOGGER.info('Starting api')
-    app.run(host=ip, debug=debug, port=port, ssl_context=ssl_context)
+    app.run(host=ip, debug=debug, port=port, ssl_context=ssl_context,
+            threaded=True)

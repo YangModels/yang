@@ -5,9 +5,7 @@ import subprocess
 import sys
 import unicodedata
 from subprocess import PIPE
-from datetime import datetime
-import requests
-import shutil
+
 from click.exceptions import FileError
 
 import tools.statistics.statistics as stats
@@ -218,7 +216,7 @@ class Modules:
         self.__resolve_author_email(author_email)
         self.__resolve_maturity_level(maturity_level)
         self.__resolve_semver()
-        # self.__resolve_tree_type()
+        self.__resolve_tree_type()
 
     def __resolve_semver(self):
         yang_file = open(self.__path)
@@ -461,7 +459,7 @@ class Modules:
                 return False
 
         def is_split(rows, output):
-            states = set()
+            #states = set()
             failed = False
             row_num = 0
             if output.split('\n')[0].endswith('-state'):
@@ -470,8 +468,8 @@ class Modules:
                 if 'x--' in row or 'o--' in row:
                     continue
                 if '+--rw config' == row.replace('|', '').strip(
-                        ' ') or '+--ro state' == row.replace('|', '').strip(
-                    ' '):
+                        ' ') or '+--ro state' == row.replace('|', '')\
+                        .strip(' '):
                     return False
                 if 'augment' in row:
                     part = row.strip(' ').split('/')[-1]
@@ -490,70 +488,69 @@ class Modules:
                             if '-state' not in part:
                                 row_num += 1
                                 continue
-                            if ':' in part:
-                                state = part.split(':')[1].split('-state')[0]
-                            else:
-                                state = part.split('-state')[0]
-                        else:
-                            state = \
-                                row.strip(' ').split('-state')[0].split(' ')[1]
+                            #if ':' in part:
+                            #    state = part.split(':')[1].split('-state')[0]
+                            #else:
+                            #    state = part.split('-state')[0]
+                        #else:
+                        #    state = \
+                        #        row.strip(' ').split('-state')[0].split(' ')[1]
                         for x in range(row_num + 1, len(rows)):
                             if 'x--' in rows[x] or 'o--' in rows[x]:
                                 continue
                             if rows[x].strip(' ') == '' \
-                                    or (len(row.split('+--')[
+                                    or (len(rows[x].split('+--')[
                                                 0]) == 4 and 'augment' not in
-                                        rows[
-                                                row_num - 1]) \
+                                        rows[row_num - 1]) \
                                     or len(row.split('augment')[0]) == 2:
                                 break
                             if '+--rw' in rows[x]:
                                 failed = True
                                 break
-                        states.add(state)
+                        #states.add(state)
 
                 row_num += 1
-            if failed:
-                return False
-
-            for state in states:
-                if failed:
-                    return False
-                row_num = 0
-                failed = True
-                for row in rows:
-                    if 'x--' in row or 'o--' in row:
-                        continue
-                    if '+--:' in row:
-                        continue
-                    if row.strip(' ') == '':
-                        failed = True
-                        break
-                    if (len(row.split('+--')[0]) == 4 and 'augment' not in rows[
-                            row_num - 1]) \
-                            or len(row.split('augment')[0]) == 2:
-                        if ('augment' in row and (
-                                                ':' + state + '/' in row or '/' + state + '/' in row)) \
-                                or ('augment' in row
-                                    and (
-                                                                ':' + state + '-config' + '/' in row or '/' + state + '-config' + '/' in row)) \
-                                or (state + '-config' ==
-                                        row.strip(' ').split(' ')[
-                                            1]) \
-                                or (state == row.strip(' ').split(' ')[1]):
-                            failed = False
-                            for x in range(row_num + 1, len(rows)):
-                                if 'x--' in rows[x] or 'o--' in rows[x]:
-                                    continue
-                                if rows[x].strip(' ') == '' or len(
-                                        rows[x].split('+--')[0]) == 4 \
-                                        or len(row.split('augment')[0]) == 2:
-                                    break
-                                if '+--ro' in rows[x]:
-                                    failed = True
-                                    break
-                            break
-                    row_num += 1
+            #if failed:
+            #    return False
+#
+            #for state in states:
+            #    if failed:
+            #        return False
+            #    row_num = 0
+            #    failed = True
+            #    for row in rows:
+            #        if 'x--' in row or 'o--' in row:
+            #            continue
+            #        if '+--:' in row or '+--ro' in row:
+            #            continue
+            #        if row.strip(' ') == '':
+            #            failed = True
+            #            break
+            #        if (len(row.split('+--')[0]) == 4 and 'augment' not in rows[
+            #                row_num - 1]) \
+            #                or len(row.split('augment')[0]) == 2:
+            #            if ('augment' in row and (
+            #                                    ':' + state + '/' in row or '/' + state + '/' in row)) \
+            #                    or ('augment' in row
+            #                        and (
+            #                                                    ':' + state + '-config' + '/' in row or '/' + state + '-config' + '/' in row)) \
+            #                    or (state + '-config' ==
+            #                            row.strip(' ').split(' ')[
+            #                                1]) \
+            #                    or (state == row.strip(' ').split(' ')[1]):
+            #                failed = False
+            #                for x in range(row_num + 1, len(rows)):
+            #                    if 'x--' in rows[x] or 'o--' in rows[x]:
+            #                        continue
+            #                    if rows[x].strip(' ') == '' or len(
+            #                            rows[x].split('+--')[0]) == 4 \
+            #                            or len(row.split('augment')[0]) == 2:
+            #                        break
+            #                    if '+--ro' in rows[x]:
+            #                        failed = True
+            #                        break
+            #                break
+            #        row_num += 1
             if failed:
                 return False
             else:
@@ -578,12 +575,12 @@ class Modules:
                 self.tree_type = 'not-applicable'
             elif is_combined(pyang_list_of_rows, stdout):
                 self.tree_type = 'nmda-compatible'
-            elif is_split(pyang_list_of_rows, stdout):
-                self.tree_type = 'split'
             elif is_transational(pyang_list_of_rows, stdout):
                 self.tree_type = 'transitional-extra'
             elif is_openconfig(pyang_list_of_rows, stdout):
                 self.tree_type = 'openconfig'
+            elif is_split(pyang_list_of_rows, stdout):
+                self.tree_type = 'split'
             else:
                 self.tree_type = 'unclassified'
 
