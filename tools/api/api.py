@@ -12,8 +12,8 @@ import shutil
 import smtplib
 import sys
 import urllib2
-from threading import Lock
 from email.mime.text import MIMEText
+from threading import Lock
 from urllib2 import URLError
 
 import MySQLdb
@@ -850,7 +850,8 @@ def search(value):
                    'belongs-to', 'generated-from']
     for module_key in module_keys:
         if key == module_key:
-            data = modules_data.get('module')
+            with lock:
+                data = modules_data.get('module')
             if data is None:
                 return not_found()
             passed_data = []
@@ -895,7 +896,8 @@ def rpc_search(body=None):
         body = request.json
     LOGGER.info('Searching and filtering modules based on RPC {}'
                 .format(json.dumps(body)))
-    data = modules_data['module']
+    with lock:
+        data = modules_data['module']
     body = body.get('input')
     if body:
         partial = body.get('partial')
@@ -1292,18 +1294,20 @@ def search_module(name, revision, organization):
                 :return response to the request with job_id that user can use to
                     see if the job is still on or Failed or Finished successfully
     """
-    LOGGER.info('Searching for module {}, {}, {}'.format(name, revision, organization))
-    data = modules_data['module']
-    name = name.split('.yang')[0]
+    with lock:
+        LOGGER.info('Searching for module {}, {}, {}'.format(name, revision,
+                                                             organization))
+        data = modules_data['module']
+        name = name.split('.yang')[0]
 
-    if name + '@' + revision + '/' + organization in mod_lookup_table:
-        LOGGER.info('Returning index {} for {}'.format(mod_lookup_table[name + '@' + revision + '/' + organization],
-                                                       name + '@' + revision + '/' + organization))
-        mod = data[mod_lookup_table[name + '@' + revision + '/' + organization]]
-        return Response(json.dumps({
-            'module': [mod]
-        }), mimetype='application/json')
-    return not_found()
+        if name + '@' + revision + '/' + organization in mod_lookup_table:
+            LOGGER.info('Returning index {} for {}'.format(mod_lookup_table[name + '@' + revision + '/' + organization],
+                                                           name + '@' + revision + '/' + organization))
+            mod = data[mod_lookup_table[name + '@' + revision + '/' + organization]]
+            return Response(json.dumps({
+                'module': [mod]
+            }), mimetype='application/json')
+        return not_found()
 
 
 @app.route('/search/modules', methods=['GET'])
@@ -1311,8 +1315,9 @@ def get_modules():
     """Search for a all the modules populated in confd
             :return response to the request with all the modules
     """
-    LOGGER.info('Searching for modules')
-    return Response(json.dumps(modules_data), mimetype='application/json')
+    with lock:
+        LOGGER.info('Searching for modules')
+        return Response(json.dumps(modules_data), mimetype='application/json')
 
 
 @app.route('/search/vendors', methods=['GET'])
@@ -1320,8 +1325,9 @@ def get_vendors():
     """Search for a all the vendors populated in confd
             :return response to the request with all the vendors
     """
-    LOGGER.info('Searching for vendors')
-    return Response(json.dumps(vendors_data), mimetype='application/json')
+    with lock:
+        LOGGER.info('Searching for vendors')
+        return Response(json.dumps(vendors_data), mimetype='application/json')
 
 
 @app.route('/search/catalog', methods=['GET'])
