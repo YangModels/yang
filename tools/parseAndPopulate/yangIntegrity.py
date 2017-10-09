@@ -4,7 +4,7 @@ import os
 import unicodedata
 import xml.etree.ElementTree as ET
 
-import yangParser
+from tools.utility import yangParser
 
 NS_MAP = {
     "http://cisco.com/ns/yang/": "cisco",

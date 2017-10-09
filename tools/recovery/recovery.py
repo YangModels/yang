@@ -60,12 +60,15 @@ if __name__ == "__main__":
                 raise
         file_save = open('./cache/' + args.name_save + '.json', 'w')
         file_save.write(http_request(prefix + '/api/config/catalog?deep', 'GET', None, args.credentials).read())
+        file_save.close()
     else:
         if args.name_load:
-            file_load = args.name_load
+            with open(args.name_load) as f:
+                file_load = f
         else:
             list_of_files = glob.glob('./cache/*')
             latest_file = max(list_of_files, key=os.path.getctime)
             file_load = open(latest_file, 'rw')
         body = json.load(file_load, object_pairs_hook=OrderedDict)
         http_request(prefix + '/api/config/catalog', 'PUT', json.dumps(body), args.credentials)
+        file_load.close()

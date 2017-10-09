@@ -6,9 +6,19 @@
 # Deviation modules are NOT checked as they require specific imports
 # typically not available locally.
 #
+# This script will only be run for the last three releases. When a new
+# release is added, the current first release (left to right) should
+# be removed.
+#
+# 2017-09-21 einarnn:
+#
+# 16.4.1 currently excluded because this release does not include all
+# "RFC" models required and pyang cannot be configured to pick correct
+# ietf-routing draft without versioned imports.
+#
 platform_dir="vendor/cisco/xe"
-to_check="1631 1631/MIBS 1632 1632/MIBS 1641 1641/MIBS 1651 1651/MIBS 1661 1661/MIBS 1662 1662/MIBS"
-inc_path="../../../../standard/ietf/RFC"
+to_check="1651 1651/MIBS 1661 1661/MIBS 1662 1662/MIBS"
+inc_path="."
 debug=0
 
 checkDir () {
@@ -23,8 +33,9 @@ checkDir () {
         pyang_flags="-p .."
     fi
 
+    pyang_flags="--lax-quote-checks $pyang_flags"
     for f in *.yang; do
-        errors=`pyang $pyang_flags $f 2>&1 | grep "error:"`
+        errors=`YANG_INSTALL="." pyang $pyang_flags $f 2>&1 | grep "error:"`
     	if [ ! -z "$errors" ]; then
     	    echo Errors in $f
             echo $errors

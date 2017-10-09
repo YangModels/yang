@@ -142,15 +142,16 @@ def send_email(to, vendor, sdo):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Script to validate user and add him to database")
-    parser.add_argument('--config-path', type=str, default='./config.ini',
+    parser.add_argument('--config-path', type=str, default='../utility/config.ini',
                         help='Set path to config file')
     args = parser.parse_args()
+    config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
-    config.read(args.config_path)
-    dbHost = config.get('SectionOne', 'dbIp')
-    dbName = config.get('SectionOne', 'dbName')
-    dbUser = config.get('SectionOne', 'dbUser')
-    dbPass = config.get('SectionOne', 'dbPassword')
+    config.read(config_path)
+    dbHost = config.get('Validate-Section', 'dbIp')
+    dbName = config.get('Validate-Section', 'dbName')
+    dbUser = config.get('Validate-Section', 'dbUser')
+    dbPass = config.get('Validate-Section', 'dbPassword')
     dbData = connect()
     vendor_path = None
     sdo_path = None

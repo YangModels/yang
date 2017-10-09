@@ -1,198 +1,150 @@
 import json
 
+import tools.utility.log as log
+
+LOGGER = log.get_logger(__name__)
+
 
 class Prepare:
-    def __init__(self, file_name):
+    def __init__(self, file_name, html_result_dir):
+        self.html_result_dir = html_result_dir
         self.file_name = file_name
-        self.name_revision = set()
-        self.conformance_type = {}
-        self.namespace = {}
-        self.implementations = {}
-        self.reference = {}
-        self.prefix = {}
-        self.yang_version = {}
-        self.organization = {}
-        self.description = {}
-        self.contact = {}
-        self.compilation_status = {}
-        self.author_email = {}
-        self.schema = {}
-        self.feature = {}
-        self.maturity_level = {}
-        self.compilation_result = {}
-        self.deviations = {}
-        self.json_submodules = {}
-        self.module_or_submodule = {}
-        self.document_name = {}
-        self.owner = {}
-        self.repo = {}
-        self.repo_file_path = {}
-        self.local_file_path = {}
-        self.generated_from = {}
-        self.working_group = {}
+        self.name_revision_organization = set()
+        self.yang_modules = {}
 
-    def add_key_sdo(self, key, namespace, conformance_type, reference, prefix, yang_version, organization, description,
-                    contact, schema, feature, json_submodules, compilation_status, author_email, maturity_level,
-                    compilation_result, module_or_submodule, document_name, owner, repo, repo_file_path,
-                    local_file_path, generated_from, working_group):
-        self.name_revision.add(key)
-        self.namespace[key] = namespace
-        self.conformance_type[key] = conformance_type
-        self.reference[key] = reference
-        self.prefix[key] = prefix
-        self.yang_version[key] = yang_version
-        self.organization[key] = organization
-        self.description[key] = description
-        self.contact[key] = contact
-        self.compilation_status[key] = compilation_status
-        self.author_email[key] = author_email
-        self.schema[key] = schema
-        self.feature[key] = feature
-        self.maturity_level[key] = maturity_level
-        self.compilation_result[key] = compilation_result
-        # self.deviations[key] = deviations
-        self.json_submodules[key] = json_submodules
-        self.module_or_submodule[key] = module_or_submodule
-        self.document_name[key] = document_name
-        self.repo_file_path[key] = repo_file_path
-        self.repo[key] = repo
-        self.owner[key] = owner
-        self.local_file_path[key] = local_file_path
-        self.generated_from[key] = generated_from
-        self.working_group[key] = working_group
+    def add_key_sdo_module(self, yang):
+        key = '{}@{}/{}'.format(yang.name, yang.revision, yang.organization)
+        LOGGER.debug('Module {} parsed'.format(key))
+        if key in self.name_revision_organization:
+            self.yang_modules[key].implementation.extend(yang.implementation)
+        else:
+            self.name_revision_organization.add(key)
+            self.yang_modules[key] = yang
 
-    def add_key(self, key, namespace, conformance_type, vendor, platform, software_version, software_flavor, os_type,
-                os_version, feature_set, reference, prefix, yang_version, organization, description, contact,
-                compilation_status, author_email, schema, feature, maturity_level, compilation_result, deviations,
-                json_submodules,module_or_submodule, document_name, owner, repo, repo_file_path,
-                local_file_path, generated_from, working_group):
-        self.name_revision.add(key)
-        self.namespace[key] = namespace
-        self.conformance_type[key] = conformance_type
-        self.reference[key] = reference
-        self.prefix[key] = prefix
-        self.yang_version[key] = yang_version
-        self.organization[key] = organization
-        self.description[key] = description
-        self.contact[key] = contact
-        self.compilation_status[key] = compilation_status
-        self.author_email[key] = author_email
-        self.schema[key] = schema
-        self.feature[key] = feature
-        self.maturity_level[key] = maturity_level
-        self.compilation_result[key] = compilation_result
-        self.deviations[key] = deviations
-        self.json_submodules[key] = json_submodules
-        self.module_or_submodule[key] = module_or_submodule
-        self.document_name[key] = document_name
-        self.repo_file_path[key] = repo_file_path
-        self.repo[key] = repo
-        self.owner[key] = owner
-        self.local_file_path[key] = local_file_path
-        self.generated_from[key] = generated_from
-        self.working_group[key] = working_group
+    def dump_modules(self, directory):
+        LOGGER.debug('Creating prepare.json file from sdo information')
 
-        if key not in self.implementations:
-            self.implementations[key] = {}
-        self.implementations[key][vendor + platform + software_version + software_flavor] = \
-            {'vendor': vendor,
-             'platform': platform,
-             'software-version': software_version,
-             'software-flavor': software_flavor,
-             'os-type': os_type,
-             'os-version': os_version,
-             'feature-set': feature_set
-             #'conformance-type': conformance_type
-             }
-
-    # - deviations, implementations
-    def dump_sdo(self):
-        with open(self.file_name + '.json', "w") as prepare_model:
+        with open('../parseAndPopulate/' + directory + '/' + self.file_name +
+                          '.json', "w") as prepare_model:
             json.dump({'module': [{
-                'name': key.split('@')[0],
-                'revision': key.split('@')[1].split('.')[0],
-                'namespace': self.namespace[key],
-                'reference': self.reference[key],
-                'prefix': self.prefix[key],
-                'yang-version': self.yang_version[key],
-                'organization': self.organization[key],
-                'description': self.description[key],
-                'contact': self.contact[key],
-                'compilation-status': self.compilation_status[key],
-                'schema': self.schema[key],
+                'name': self.yang_modules[key].name,
+                'revision': self.yang_modules[key].revision,
+                'organization': self.yang_modules[key].organization,
+                'schema': self.yang_modules[key].schema,
+                'generated-from': self.yang_modules[key].generated_from,
+                'maturity-level': self.yang_modules[key].maturity_level,
+                'document-name': self.yang_modules[key].document_name,
+                'author-email': self.yang_modules[key].author_email,
+                'reference': self.yang_modules[key].reference,
+                'module-classification': self.yang_modules[
+                    key].module_classification,
+                'compilation-status': self.yang_modules[key].compilation_status,
+                'compilation-result': self.yang_modules[key].compilation_result,
+                'prefix': self.yang_modules[key].prefix,
+                'yang-version': self.yang_modules[key].yang_version,
+                'description': self.yang_modules[key].description,
+                'contact': self.yang_modules[key].contact,
+                'module-type': self.yang_modules[key].module_type,
+                'belongs-to': self.yang_modules[key].belongs_to,
+                'tree-type': self.yang_modules[key].tree_type,
                 'ietf': {
-                    'ietf-wg': self.working_group.get(key)
+                    'ietf-wg': self.yang_modules[key].ietf_wg
                 },
-                #'feature': self.feature[key],
-                'maturity-level': self.maturity_level[key],
-                'compilation-result': self.compilation_result[key],
-                'author-email': self.author_email[key],
-                'submodule': json.loads(self.json_submodules[key]),
-                'module-type': self.module_or_submodule[key],
-                'document-name': self.document_name[key],
-                'generated-from': self.generated_from[key],
-                'source-file': {
-                    'online': {
-                        'owner': self.owner[key],
-                        'repository': self.repo[key],
-                        'path': self.repo_file_path[key]
-                    },
-                    'local': {
-                        'path': self.local_file_path[key]
-                    }
-                }
-            } for key in self.name_revision]}, prepare_model)
-
-    def dump(self):
-        with open(self.file_name + '.json', "w") as prepare_model:
-            json.dump({'module': [{
-                'name': key.split('@')[0],
-                'revision': key.split('@')[1],
-                'namespace': self.namespace[key],
-   #             'conformance-type': self.conformance_type[key],
-                'reference': self.reference[key],
-                'prefix': self.prefix[key],
-                'yang-version': self.yang_version[key],
-                'organization': self.organization[key],
-                'description': self.description[key],
-                'contact': self.contact[key],
-                'compilation-status': self.compilation_status[key],
-                'author-email': self.author_email[key],
-                'schema': self.schema[key],
-                'ietf': {
-                   'ietf-wg': self.working_group[key]
-                },
-                #'feature': self.feature[key],
-                'maturity-level': self.maturity_level[key],
-                'compilation-result': self.compilation_result[key],
-                'submodule': json.loads(self.json_submodules[key]),
-                'module-type': self.module_or_submodule[key],
-                'generated-from': self.generated_from[key],
-                'source-file': {
-                    'online': {
-                        'owner': self.owner[key],
-                        'repository': self.repo[key],
-                        'path': self.repo_file_path[key]
-                    },
-                    'local': {
-                        'path': self.local_file_path[key]
-                    }
-                },
+                'namespace': self.yang_modules[key].namespace,
+                'submodule': json.loads(self.yang_modules[key].json_submodules),
+                'dependencies': self.__get_dependencies(self.yang_modules[key]
+                                                        .dependencies),
+                'semantic-version': self.yang_modules[key].semver,
+                'derived-semantic-version': self.yang_modules[key].derived_semver,
                 'implementations': {
                     'implementation': [{
-                        'vendor': self.implementations[key][implementation]['vendor'],
-                        'platform': self.implementations[key][implementation]['platform'],
-                        'software-version': self.implementations[key][implementation]['software-version'],
-                        'software-flavor': self.implementations[key][implementation]['software-flavor'],
-                        'os-type': self.implementations[key][implementation]['os-type'],
-                        'os-version': self.implementations[key][implementation]['os-version'],
-                        'feature-set': self.implementations[key][implementation]['feature-set'],
-                     #   'conformance-type': self.implementations[key][implementation]['conformance-type'],
-                    } for implementation in self.implementations[key]],
-                }#,
-               # 'deviation': [
-               #     {'name': self.deviations[key]['name'][i],
-               #      'revision': self.deviations[key]['revision'][i]
-               #      } for
-               #     i, val in enumerate(self.deviations[key]['name'])],
-            } for key in self.name_revision]}, prepare_model)
+                        'vendor': implementation.vendor,
+                        'platform': implementation.platform,
+                        'software-version': implementation.software_version,
+                        'software-flavor': implementation.software_flavor,
+                        'os-version': implementation.os_version,
+                        'feature-set': implementation.feature_set,
+                        'os-type': implementation.os_type,
+                        'feature': implementation.feature,
+                        'deviation': self.__get_deviations(
+                            implementation.deviations),
+                        'conformance-type': implementation.conformance_type
+                    } for implementation in
+                        self.yang_modules[key].implementation],
+                }
+            } for key in self.name_revision_organization]}, prepare_model)
+
+    def dump_vendors(self, directory):
+        with open('../parseAndPopulate/' + directory + '/normal.json',
+                  "w") as ietf_model:
+            json.dump({
+                'vendors': {
+                    'vendor': [{
+                        'name': impl.vendor,
+                        'platforms': {
+                            'platform': [{
+                                'name': impl.platform,
+                                'software-versions': {
+                                    'software-version': [{
+                                        'name': impl.software_version,
+                                        'software-flavors': {
+                                            'software-flavor': [{
+                                                'name': impl.software_flavor,
+                                                'protocols': {
+                                                    'protocol': [{
+                                                        'name': 'netconf',
+                                                        'capabilities': impl.capability,
+                                                        'protocol-version': impl.netconf_version,
+                                                    }]
+                                                },
+                                                'modules': {
+                                                    'module': [{
+                                                        'name':
+                                                            self.yang_modules[
+                                                                key].name,
+                                                        'revision':
+                                                            self.yang_modules[
+                                                                key].revision,
+                                                        'organization':
+                                                            self.yang_modules[
+                                                                key].organization,
+                                                        'os-version': impl.os_version,
+                                                        'feature-set': impl.feature_set,
+                                                        'os-type': impl.os_type,
+                                                        'feature': impl.feature,
+                                                        'deviation': self.__get_deviations(
+                                                            impl.deviations),
+                                                        'conformance-type': impl.conformance_type
+                                                    }],
+                                                }
+                                            }]
+                                        }
+                                    }]
+                                }
+                            }]
+                        }
+                    } for key in self.name_revision_organization for impl in
+                        self.yang_modules[key].implementation]
+                }
+            }, ietf_model)
+
+    @staticmethod
+    def __get_deviations(deviations):
+        if deviations is None:
+            return None
+        else:
+            return [
+                {'name': dev.name,
+                 'revision': dev.revision
+                 } for dev in deviations]
+
+    @staticmethod
+    def __get_dependencies(dependencies):
+        if dependencies is None:
+            return None
+        else:
+            return [
+                {'name': dep.name,
+                 'revision': dep.revision,
+                 'schema': dep.schema
+                 } for dep in dependencies]

@@ -28,7 +28,24 @@ Model content may differ based on platform capability. As a convenience, copies 
 * [cat9300-netconf-capability.xml](cat9300-netconf-capability.xml)
 * [cat9500-netconf-capability.xml](cat9500-netconf-capability.xml)
 
-### Major namespace and model changes in 16.6.1
+### 16.6.1 Errata
+
+Please note that the following models, while advertised by several devices, are not actually supported:
+
+* `cisco-qos-common.yang`
+* `openconfig-lacp`
+* `openconfig-lldp`
+* `openconfig-optical-amplifier`
+* `openconfig-platform-transceiver.yang`
+* `openconfig-terminal-device.yang`
+* `openconfig-wavelength-router`
+
+The XML capability files exhibiting errors are:
+
+* [cat3k-netconf-capability.xml](cat3k-netconf-capability.xml)
+* [cat9300-netconf-capability.xml](cat9300-netconf-capability.xml)
+* [cat9500-netconf-capability.xml](cat9500-netconf-capability.xml)
+
 
 ### 16.6.1 Major Model Changes
 

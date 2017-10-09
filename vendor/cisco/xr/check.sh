@@ -6,9 +6,13 @@
 # Deviation modules are NOT checked as they require specific imports
 # typically not available locally.
 #
+# This script will only be run for the last release of a version branch.
+# When a new set of models is committed for a version, the previous
+# should be removed.
+#
 platform_dir="vendor/cisco/xr"
-to_check="530 531 532 533 534 600 601 602 611 612 613 621 622"
-pyang_flags=""
+to_check="602 613 622 631"
+pyang_flags="--lax-quote-checks"
 debug=0
 
 checkDir () {
@@ -19,7 +23,7 @@ checkDir () {
     cwd=`pwd`
     cd $1
     for f in Cisco-IOS-XR-*-cfg.yang; do
-        errors=`pyang $pyang_flags $f 2>&1 | grep "error:"`
+        errors=`YANG_INSTALL="." pyang $pyang_flags $f 2>&1 | grep "error:"`
         if [ ! -z "$errors" ]; then
             echo Errors in $f
             echo $errors
@@ -27,7 +31,7 @@ checkDir () {
         fi
     done
     for f in Cisco-IOS-XR-*-oper.yang; do
-        errors=`pyang $pyang_flags $f 2>&1 | grep "error:"`
+        errors=`YANG_INSTALL="." pyang $pyang_flags $f 2>&1 | grep "error:"`
         if [ ! -z "$errors" ]; then
             echo Errors in $f
             echo $errors
