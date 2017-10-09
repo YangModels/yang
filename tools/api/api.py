@@ -12,6 +12,7 @@ import shutil
 import smtplib
 import sys
 import urllib2
+from threading import Lock
 from email.mime.text import MIMEText
 from urllib2 import URLError
 
@@ -37,6 +38,7 @@ yang_models_url = github_repos_url + '/YangModels/yang'
 
 auth = HTTPBasicAuth()
 app = Flask(__name__)
+lock = Lock()
 
 NS_MAP = {
     "http://cisco.com/ns/yang/": "cisco",
@@ -1386,51 +1388,52 @@ def load_to_memory():
 
 def load(on_start):
     """Load all the data populated to yang-catalog to memory saved in file in ./cache."""
-    if on_start:
-        LOGGER.info('Removinch cache file and loading new one - this is done only when API is starting to get fresh'
-                    ' data')
-        try:
-            shutil.rmtree('./cache')
-        except:
-            # Be happy if it doesn't exist
-            pass
-    global modules_data
-    global vendors_data
-    global mod_lookup_table
-    response = 'work'
-    modules_data = {}
-    vendors_data = {}
-    try:
-        with open('./cache/catalog.json', 'r') as catalog:
-            cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
-                .decode(catalog.read())['yang-catalog:catalog']
-            modules_data = cat['modules']
-            if cat.get('vendors'):
-                vendors_data = cat['vendors']
-            else:
-                vendors_data = {}
-    except (IOError, ValueError):
-        LOGGER.warning('Cache file does not exist')
-        # Try to create a cache if not created yet and load data again
-        response = make_cache(credentials, response)
-        if response != 'work':
-            LOGGER.error('Could not load or create cache')
-        else:
+    with lock:
+        if on_start:
+            LOGGER.info('Removinch cache file and loading new one - this is done only when API is starting to get fresh'
+                        ' data')
             try:
-                with open('./cache/catalog.json', 'r') as catalog:
-                    cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
-                        .decode(catalog.read())['yang-catalog:catalog']
-                    modules_data = cat['modules']
-                    if cat.get('vendors'):
-                        vendors_data = cat['vendors']
-                    else:
-                        vendors_data = {}
+                shutil.rmtree('./cache')
             except:
-                LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
-    if len(modules_data) != 0:
-        for i, mod in enumerate(modules_data['module']):
-            mod_lookup_table[mod['name'] + '@' + mod['revision'] + '/' + mod['organization']] = i
-    LOGGER.info('Data loaded into memory successfully')
+                # Be happy if it doesn't exist
+                pass
+        global modules_data
+        global vendors_data
+        global mod_lookup_table
+        response = 'work'
+        modules_data = {}
+        vendors_data = {}
+        try:
+            with open('./cache/catalog.json', 'r') as catalog:
+                cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+                    .decode(catalog.read())['yang-catalog:catalog']
+                modules_data = cat['modules']
+                if cat.get('vendors'):
+                    vendors_data = cat['vendors']
+                else:
+                    vendors_data = {}
+        except (IOError, ValueError):
+            LOGGER.warning('Cache file does not exist')
+            # Try to create a cache if not created yet and load data again
+            response = make_cache(credentials, response)
+            if response != 'work':
+                LOGGER.error('Could not load or create cache')
+            else:
+                try:
+                    with open('./cache/catalog.json', 'r') as catalog:
+                        cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+                            .decode(catalog.read())['yang-catalog:catalog']
+                        modules_data = cat['modules']
+                        if cat.get('vendors'):
+                            vendors_data = cat['vendors']
+                        else:
+                            vendors_data = {}
+                except:
+                    LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
+        if len(modules_data) != 0:
+            for i, mod in enumerate(modules_data['module']):
+                mod_lookup_table[mod['name'] + '@' + mod['revision'] + '/' + mod['organization']] = i
+        LOGGER.info('Data loaded into memory successfully')
 
 
 def process(data, passed_data, value, module, split, count):
