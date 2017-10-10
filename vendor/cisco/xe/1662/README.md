@@ -30,7 +30,7 @@ Model content may differ based on platform capability. As a convenience, copies 
 
 ### Major namespace and model changes in 16.6.2
 
-### 16.6.2 Major Model Changes
+### 16.6.2 Model Changes
 
 #### 16.6.2 Model changes includes addition of Openconfig Models, new native models and existing native model updation.
 
