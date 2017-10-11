@@ -41,7 +41,7 @@ app = Flask(__name__)
 lock = Lock()
 
 NS_MAP = {
-    "http://cisco.com/ns/yang/": "cisco",
+    "http://cisco.com/": "cisco",
     "http://www.huawei.com/netconf": "huawei",
     "http://openconfig.net/yang/": "openconfig",
     "http://tail-f.com/": "tail-f"

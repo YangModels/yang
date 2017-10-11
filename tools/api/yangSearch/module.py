@@ -73,12 +73,12 @@ class Module(object):
         else:
             self.__initialized = False
 
-        self.__name = name
+        self.__dict['name'] = name
         if revision == '':
             revision = '1970-01-01'
 
-        self.__revision = revision
-        self.__organization = organization
+        self.__dict['revision'] = revision
+        self.__dict['organization'] = organization
 
     @staticmethod
     def module_factory(rest, name, revision, organization, override=False, attrs={}):
@@ -102,7 +102,7 @@ class Module(object):
             return
 
         result = self.__rester.get('/search/modules/{},{},{}'.format(urllib.quote(
-            self.__name), urllib.quote(self.__revision), urllib.quote(self.__organization)))
+            self.__dict['name']), urllib.quote(self.__dict['revision']), urllib.quote(self.__dict['organization'])))
         for key, value in result['module'][0].items():
             if key in Module.__object_dict:
                 self.__dict[key] = value
@@ -123,19 +123,19 @@ class Module(object):
         return self.__dict[field]
 
     def get_name(self):
-        return self.__name
+        return self.__dict['name']
 
     def get_revision(self):
-        return self.__revision
+        return self.__dict['revision']
 
     def get_organization(self):
-        return self.__organization
+        return self.__dict['organization']
 
     def get_rester(self):
         return self.__rester
 
     def get_mod_sig(self):
-        return '{}@{}/{}'.format(self.__name, self.__revision, self.__organization)
+        return '{}@{}/{}'.format(self.__dict['name'], self.__dict['revision'], self.__dict['organization'])
 
     def to_dict(self):
         if not self.__initialized:
@@ -144,14 +144,6 @@ class Module(object):
         arr = {}
         for key, value in Module.__object_dict.items():
             arr[key] = self.__dict[key]
-
-        # We do this in case there was an error searching for the module.
-        if 'name' not in arr:
-            arr['name'] = self.__name
-        if 'revision' not in arr:
-            arr['revision'] = self.__revision
-        if 'organization' not in arr:
-            arr['organization'] = self.__organization
 
         return arr
 
