@@ -13,6 +13,7 @@ import smtplib
 import sys
 import urllib2
 from email.mime.text import MIMEText
+from threading import Lock
 from urllib2 import URLError
 
 import MySQLdb
@@ -37,6 +38,7 @@ yang_models_url = github_repos_url + '/YangModels/yang'
 
 auth = HTTPBasicAuth()
 app = Flask(__name__)
+lock = Lock()
 
 NS_MAP = {
     "http://cisco.com/ns/yang/": "cisco",
@@ -848,7 +850,8 @@ def search(value):
                    'belongs-to', 'generated-from']
     for module_key in module_keys:
         if key == module_key:
-            data = modules_data.get('module')
+            with lock:
+                data = modules_data.get('module')
             if data is None:
                 return not_found()
             passed_data = []
@@ -893,7 +896,8 @@ def rpc_search(body=None):
         body = request.json
     LOGGER.info('Searching and filtering modules based on RPC {}'
                 .format(json.dumps(body)))
-    data = modules_data['module']
+    with lock:
+        data = modules_data['module']
     body = body.get('input')
     if body:
         partial = body.get('partial')
@@ -1290,18 +1294,20 @@ def search_module(name, revision, organization):
                 :return response to the request with job_id that user can use to
                     see if the job is still on or Failed or Finished successfully
     """
-    LOGGER.info('Searching for module {}, {}, {}'.format(name, revision, organization))
-    data = modules_data['module']
-    name = name.split('.yang')[0]
+    with lock:
+        LOGGER.info('Searching for module {}, {}, {}'.format(name, revision,
+                                                             organization))
+        data = modules_data['module']
+        name = name.split('.yang')[0]
 
-    if name + '@' + revision + '/' + organization in mod_lookup_table:
-        LOGGER.info('Returning index {} for {}'.format(mod_lookup_table[name + '@' + revision + '/' + organization],
-                                                       name + '@' + revision + '/' + organization))
-        mod = data[mod_lookup_table[name + '@' + revision + '/' + organization]]
-        return Response(json.dumps({
-            'module': [mod]
-        }), mimetype='application/json')
-    return not_found()
+        if name + '@' + revision + '/' + organization in mod_lookup_table:
+            LOGGER.info('Returning index {} for {}'.format(mod_lookup_table[name + '@' + revision + '/' + organization],
+                                                           name + '@' + revision + '/' + organization))
+            mod = data[mod_lookup_table[name + '@' + revision + '/' + organization]]
+            return Response(json.dumps({
+                'module': [mod]
+            }), mimetype='application/json')
+        return not_found()
 
 
 @app.route('/search/modules', methods=['GET'])
@@ -1309,8 +1315,9 @@ def get_modules():
     """Search for a all the modules populated in confd
             :return response to the request with all the modules
     """
-    LOGGER.info('Searching for modules')
-    return Response(json.dumps(modules_data), mimetype='application/json')
+    with lock:
+        LOGGER.info('Searching for modules')
+        return Response(json.dumps(modules_data), mimetype='application/json')
 
 
 @app.route('/search/vendors', methods=['GET'])
@@ -1318,8 +1325,9 @@ def get_vendors():
     """Search for a all the vendors populated in confd
             :return response to the request with all the vendors
     """
-    LOGGER.info('Searching for vendors')
-    return Response(json.dumps(vendors_data), mimetype='application/json')
+    with lock:
+        LOGGER.info('Searching for vendors')
+        return Response(json.dumps(vendors_data), mimetype='application/json')
 
 
 @app.route('/search/catalog', methods=['GET'])
@@ -1386,51 +1394,52 @@ def load_to_memory():
 
 def load(on_start):
     """Load all the data populated to yang-catalog to memory saved in file in ./cache."""
-    if on_start:
-        LOGGER.info('Removinch cache file and loading new one - this is done only when API is starting to get fresh'
-                    ' data')
-        try:
-            shutil.rmtree('./cache')
-        except:
-            # Be happy if it doesn't exist
-            pass
-    global modules_data
-    global vendors_data
-    global mod_lookup_table
-    response = 'work'
-    modules_data = {}
-    vendors_data = {}
-    try:
-        with open('./cache/catalog.json', 'r') as catalog:
-            cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
-                .decode(catalog.read())['yang-catalog:catalog']
-            modules_data = cat['modules']
-            if cat.get('vendors'):
-                vendors_data = cat['vendors']
-            else:
-                vendors_data = {}
-    except (IOError, ValueError):
-        LOGGER.warning('Cache file does not exist')
-        # Try to create a cache if not created yet and load data again
-        response = make_cache(credentials, response)
-        if response != 'work':
-            LOGGER.error('Could not load or create cache')
-        else:
+    with lock:
+        if on_start:
+            LOGGER.info('Removinch cache file and loading new one - this is done only when API is starting to get fresh'
+                        ' data')
             try:
-                with open('./cache/catalog.json', 'r') as catalog:
-                    cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
-                        .decode(catalog.read())['yang-catalog:catalog']
-                    modules_data = cat['modules']
-                    if cat.get('vendors'):
-                        vendors_data = cat['vendors']
-                    else:
-                        vendors_data = {}
+                shutil.rmtree('./cache')
             except:
-                LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
-    if len(modules_data) != 0:
-        for i, mod in enumerate(modules_data['module']):
-            mod_lookup_table[mod['name'] + '@' + mod['revision'] + '/' + mod['organization']] = i
-    LOGGER.info('Data loaded into memory successfully')
+                # Be happy if it doesn't exist
+                pass
+        global modules_data
+        global vendors_data
+        global mod_lookup_table
+        response = 'work'
+        modules_data = {}
+        vendors_data = {}
+        try:
+            with open('./cache/catalog.json', 'r') as catalog:
+                cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+                    .decode(catalog.read())['yang-catalog:catalog']
+                modules_data = cat['modules']
+                if cat.get('vendors'):
+                    vendors_data = cat['vendors']
+                else:
+                    vendors_data = {}
+        except (IOError, ValueError):
+            LOGGER.warning('Cache file does not exist')
+            # Try to create a cache if not created yet and load data again
+            response = make_cache(credentials, response)
+            if response != 'work':
+                LOGGER.error('Could not load or create cache')
+            else:
+                try:
+                    with open('./cache/catalog.json', 'r') as catalog:
+                        cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+                            .decode(catalog.read())['yang-catalog:catalog']
+                        modules_data = cat['modules']
+                        if cat.get('vendors'):
+                            vendors_data = cat['vendors']
+                        else:
+                            vendors_data = {}
+                except:
+                    LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
+        if len(modules_data) != 0:
+            for i, mod in enumerate(modules_data['module']):
+                mod_lookup_table[mod['name'] + '@' + mod['revision'] + '/' + mod['organization']] = i
+        LOGGER.info('Data loaded into memory successfully')
 
 
 def process(data, passed_data, value, module, split, count):
@@ -1553,4 +1562,5 @@ if __name__ == '__main__':
         ssl_context = (cert, ssl_key)
     load(True)
     LOGGER.info('Starting api')
-    app.run(host=ip, debug=debug, port=port, ssl_context=ssl_context)
+    app.run(host=ip, debug=debug, port=port, ssl_context=ssl_context,
+            threaded=True)

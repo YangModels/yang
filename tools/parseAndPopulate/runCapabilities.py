@@ -99,7 +99,7 @@ if __name__ == "__main__":
                                 time_in_file = file_modification.readline()
                                 if time_in_file in str(time.ctime(os.path.getmtime(filename))):
                                     update = False
-                                    LOGGER.warning('{} is not modified. Skipping this file'.format(filename))
+                                    LOGGER.info('{} is not modified. Skipping this file'.format(filename))
                                     file_modification.close()
                                 else:
                                     file_modification.seek(0)
@@ -113,7 +113,7 @@ if __name__ == "__main__":
                                 file_modification.close()
                         if update:
                             integrity = statistics.Statistics(filename)
-                            LOGGER.warning('Found xml source {}'.format(filename))
+                            LOGGER.info('Found xml source {}'.format(filename))
                             capability = cap.Capability(filename, index,
                                                         prepare_vendor,
                                                         integrity, args.api,

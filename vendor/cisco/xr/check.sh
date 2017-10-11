@@ -12,7 +12,6 @@
 #
 platform_dir="vendor/cisco/xr"
 to_check="602 613 622 631"
-pyang_flags="--lax-quote-checks"
 debug=0
 
 checkDir () {
@@ -22,23 +21,29 @@ checkDir () {
     exit_status=""
     cwd=`pwd`
     cd $1
-    for f in Cisco-IOS-XR-*-cfg.yang; do
-        errors=`YANG_INSTALL="." pyang $pyang_flags $f 2>&1 | grep "error:"`
-        if [ ! -z "$errors" ]; then
-            echo Errors in $f
-            echo $errors
-            exit_status="failed!"
-        fi
+    to_process=`grep -L submodule *-cfg.yang *-oper.yang`
+    for f in $to_process; do
+	if [ "$debug" -eq "1" ]; then
+	    echo Checking $f...
+	fi
+        errors=`yanglint $f 2>&1`
+        if [ "$?" -eq 1 ]; then
+	    if [ "$debug" -eq "1" ]; then
+		printf "YANGLINT: found errors in $f, secondary pyang check running...\n"
+	    fi
+	    errors=`pyang --lax-quote-checks $yanglint_flags $f 2>&1 | grep -v "warning:"`
+	    if [ ! -z "$errors" ]; then
+		printf "PYANG: Errors in $f\n"
+		printf "$errors\n"
+		exit_status="failed!"
+		if [ "$debug" -eq "1" ]; then
+		    printf "\n\n*** EARLY EXIT DUE TO ERROR ***\n\n"
+		    exit 1
+		fi
+	    fi
+	fi
     done
-    for f in Cisco-IOS-XR-*-oper.yang; do
-        errors=`YANG_INSTALL="." pyang $pyang_flags $f 2>&1 | grep "error:"`
-        if [ ! -z "$errors" ]; then
-            echo Errors in $f
-            echo $errors
-            exit_status="failed!"
-        fi
-    done
-	cd $cwd
+    cd $cwd
     
     if [ ! -z "$exit_status" ]; then
        exit 1
@@ -46,13 +51,16 @@ checkDir () {
 }
 
 if [ "$debug" -eq "1" ]; then
-    printf "\nChecking modules with pyang command:\n"
-    printf "\n    pyang $pyang_flags MODULE\n\n"
+    printf "\nChecking modules with yanglint, using 'lax quote checks' via perlre filtering\n"
 fi
 
 if [ -e "$platform_dir" ]; then
     cd $platform_dir
 fi
+
+# for d in $to_check; do
+#     checkDir $d
+# done
 
 declare -a pids
 for d in $to_check; do
