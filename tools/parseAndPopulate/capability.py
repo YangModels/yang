@@ -34,8 +34,9 @@ def find_first_file(directory, pattern, pattern_with_revision):
 
 class Capability:
     def __init__(self, hello_message_file, index, prepare, integrity_checker, api, sdo,
-                 json_dir, html_result_dir):
+                 json_dir, html_result_dir, save_file_to_dir):
         LOGGER.debug('Running constructor')
+        self.to = save_file_to_dir
         self.html_result_dir = html_result_dir
         self.json_dir = json_dir
         self.index = index
@@ -155,7 +156,7 @@ class Capability:
                                    self.parsed_jsons, self.json_dir)
                     name = file_name.split('.')[0].split('@')[0]
                     schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + repo_file_path
-                    yang.parse_all(name, schema, sdo)
+                    yang.parse_all(name, schema, self.to, sdo)
                     self.prepare.add_key_sdo_module(yang)
 
         else:
@@ -178,7 +179,7 @@ class Capability:
                             path = root + '/' + file_name
                             schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + path.replace(
                                 '../', '')
-                            yang.parse_all(name, schema)
+                            yang.parse_all(name, schema, self.to)
                             self.prepare.add_key_sdo_module(yang)
 
 
@@ -265,7 +266,7 @@ class Capability:
                                self.parsed_jsons, self.json_dir, True, True,
                                yang_lib_info)
                 schema_part = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/'
-                yang.parse_all(module_name, schema_part)
+                yang.parse_all(module_name, schema_part, self.to)
                 yang.add_vendor_information(self.vendor, self.platform_data,
                                             self.software_version,
                                             self.os_version, self.feature_set,
@@ -353,7 +354,7 @@ class Capability:
                                    True, data=module_and_more)
                     schema_part = github_raw + self.owner +\
                                   '/' + self.repo + '/' + self.branch + '/'
-                    yang.parse_all(module_name, schema_part)
+                    yang.parse_all(module_name, schema_part, self.to)
                     yang.add_vendor_information(self.vendor, self.platform_data,
                                                 self.software_version,
                                                 self.os_version, self.feature_set,
@@ -402,7 +403,7 @@ class Capability:
                     yang = Modules(yang_file, self.html_result_dir,
                                    self.parsed_jsons, self.json_dir,
                                    is_vendor_imp_inc=True)
-                    yang.parse_all(name, schema_part)
+                    yang.parse_all(name, schema_part, self.to)
                     yang.add_vendor_information(self.vendor, self.platform_data,
                                                 self.software_version,
                                                 self.os_version,

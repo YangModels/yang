@@ -52,6 +52,8 @@ if __name__ == "__main__":
     parser.add_argument('--json-dir', type=str, help='Directory where json files to populate confd will be stored')
     parser.add_argument('--result-html-dir', default='/home/miroslav/results/', type=str,
                         help='Set dir where to write html result files. Default -> /home/miroslav/results/')
+    parser.add_argument('--save-file-dir', default='/home/miroslav/results/',
+                        type=str, help='Directory where the file will be saved')
 
     args = parser.parse_args()
     start = time.time()
@@ -79,7 +81,8 @@ if __name__ == "__main__":
 
                 capability = cap.Capability(search_dir, index, prepare_sdo,
                                             integrity, args.api, sdo,
-                                            args.json_dir, args.result_html_dir)
+                                            args.json_dir, args.result_html_dir,
+                                            args.save_file_dir)
                 LOGGER.info('Starting to parse files in sdo directory')
                 capability.parse_and_dump_sdo()
                 index += 1
@@ -118,7 +121,8 @@ if __name__ == "__main__":
                                                         prepare_vendor,
                                                         integrity, args.api,
                                                         sdo, args.json_dir,
-                                                        args.result_html_dir)
+                                                        args.result_html_dir,
+                                                        args.save_file_dir)
                             if 'ietf-yang-library' in pattern:
                                 capability.parse_and_dump_yang_lib()
                             else:
