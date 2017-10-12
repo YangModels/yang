@@ -195,7 +195,7 @@ class Capability:
             caps = impl['platforms'].get('netconf-capabilities')
             if caps:
                 for cap in caps:
-                    capability = caps[cap]
+                    capability = cap
                     # Parse netconf version
                     if ':netconf:base:' in capability:
                         netconf_version.append(capability)
@@ -213,7 +213,7 @@ class Capability:
                         caps = impl.get('netconf-capabilities')
                         if caps:
                             for cap in caps:
-                                capability = caps[cap]
+                                capability = cap
                                 # Parse netconf version
                                 if ':netconf:base:' in capability:
                                     netconf_version.append(capability)
@@ -318,7 +318,7 @@ class Capability:
                     if caps:
                         capabilities_exist = True
                         for cap in caps:
-                            capability = caps[cap]
+                            capability = cap
                             # Parse netconf version
                             if ':netconf:base:' in capability:
                                 netconf_version.append(capability)
