@@ -3,7 +3,6 @@
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-
 - [YANG](#yang)
 - [Contribution Procedures](#contribution-procedures)
   - [Direct Contributions](#direct-contributions)
@@ -13,6 +12,7 @@
 - [Models Directory Structure](#models-directory-structure)
 - [Tools Directory Structure](#tools-directory-structure)
 - [License Notes](#license-notes)
+- [Code of Conduct](#Code-of-Conduct)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -140,3 +140,10 @@ The following directories are maintained for tools [license note in brackets]:
 **[6] Broadband Forum License:**
 
   * All files contained within this sub-directory are provided under the terms of the Broadband Forum Software license (see Appendix C, Section 3, of https://www.broadband-forum.org/ipr-policy).
+  
+  
+# Code of Conduct
+
+The Yang Models Repository follows [The CNCF Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md).
+
+
