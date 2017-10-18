@@ -18,6 +18,7 @@ from urllib2 import URLError
 
 import MySQLdb
 import requests
+import subprocess
 from OpenSSL.crypto import load_publickey, FILETYPE_PEM, X509, verify
 from flask import Flask, jsonify, abort, make_response, request, Response
 from flask_httpauth import HTTPBasicAuth
@@ -270,6 +271,17 @@ def send_email():
     s.quit()
 
 
+@auth.login_required
+@app.route('/ietf', methods=['GET'])
+def trigger_ietf_pull():
+    username = request.authorization['username']
+    if username != 'admin':
+        return unauthorized
+    job_id = sender.send('run_ietf')
+    LOGGER.info('job_id {}'.format(job_id))
+    return make_response(jsonify({'job-id': job_id}), 202)
+
+
 @app.route('/checkComplete', methods=['POST'])
 def check_local():
     """Authorize sender if it is Travis, if travis job was sent from yang-catalog
@@ -304,6 +316,7 @@ def check_local():
         return not_found()
 
     if verify_commit:
+        LOGGER.info('commit verified')
         if body['repository']['owner_name'] == 'yang-catalog':
             if body['result_message'] == 'Passed':
                 if body['type'] == 'push':
@@ -353,6 +366,7 @@ def check_local():
                                headers={'Authorization': 'token ' + token})
                 return make_response(jsonify({'info': 'Success'}), 201)
         else:
+            LOGGER.warning('commit verification failed')
             return make_response(jsonify({'Error': 'Fails'}), 500)
     return make_response(jsonify({'Error': 'Fails'}), 500)
 
@@ -417,7 +431,7 @@ def delete_modules(name, revision, organization):
     job_id = sender.send('#'.join(arguments))
 
     LOGGER.info('job_id {}'.format(job_id))
-    return jsonify({'info': 'Verification successful', 'job-id': job_id})
+    return make_response(jsonify({'info': 'Verification successful', 'job-id': job_id}), 202)
 
 
 @app.route('/vendors/<path:value>', methods=['DELETE'])
@@ -469,10 +483,10 @@ def delete_vendor(value):
     path_to_delete = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/vendors/' \
                      + value + '?deep'
 
-    vendor = None
-    platform = None
-    software_version = None
-    software_flavor = None
+    vendor = 'None'
+    platform = 'None'
+    software_version = 'None'
+    software_flavor = 'None'
     if '/vendor/' in path_to_delete:
         vendor = path_to_delete.split('?deep')[0].split('/vendor/')[1].split('/')[0]
     if '/platform/' in path_to_delete:
@@ -496,12 +510,12 @@ def delete_vendor(value):
     if ssl_key != '':
         api_protocol = 'https'
         api_port = 8443
-    arguments = [vendor, platform, software_version, software_flavor, protocol, confd_ip, confdPort, credentials[0],
+    arguments = [vendor, platform, software_version, software_flavor, protocol, confd_ip, repr(confdPort), credentials[0],
                  credentials[1], path_to_delete, 'DELETE', api_protocol, repr(api_port)]
     job_id = sender.send('#'.join(arguments))
 
     LOGGER.info('job_id {}'.format(job_id))
-    return jsonify({'info': 'Verification successful', 'job-id': job_id})
+    return make_response(jsonify({'info': 'Verification successful', 'job-id': job_id}), 202)
 
 
 @app.route('/modules', methods=['PUT', 'POST'])
@@ -645,7 +659,7 @@ def add_modules():
         return jsonify({'info': 'Verification successful', 'job-id': job_id, 'warnings': [{'warning': val}
                                                                                           for val in warning]})
     else:
-        return jsonify({'info': 'Verification successful', 'job-id': job_id})
+        return make_response(jsonify({'info': 'Verification successful', 'job-id': job_id}), 202)
 
 
 @app.route('/platforms', methods=['PUT', 'POST'])
@@ -745,7 +759,7 @@ def add_vendors():
                  integrity_file_location, protocol, api_protocol, repr(api_port)]
     job_id = sender.send('#'.join(arguments))
     LOGGER.info('job_id {}'.format(job_id))
-    return jsonify({'info': 'Verification successful', 'job-id': job_id})
+    return make_response(jsonify({'info': 'Verification successful', 'job-id': job_id}), 202)
 
 
 @app.route('/index/search', methods=['POST'])
@@ -888,6 +902,67 @@ def rpc_search_get_one(leaf):
     else:
         return Response(json.dumps({'output': {leaf: list(output)}}),
                         mimetype='application/json', status=201)
+
+
+@app.route('/check-semantic-version', methods=['POST'])
+def check_semver():
+    body = request.json
+    if body is None:
+        return make_response(jsonify({'error': 'body of request is empty'}), 400)
+    if body.get('input') is None:
+        return make_response(jsonify
+                             ({'error':
+                                   'body of request need to start with input'}),
+                             400)
+    if body['input'].get('old') is None or body['input'].get('new') is None:
+        return make_response(jsonify
+                             ({'error':
+                                   'body of request need to contain new and old'
+                                   'container'}),
+                             400)
+    response_new = rpc_search({'input': body['input']['new']})
+    response_old = rpc_search({'input': body['input']['old']})
+
+    if response_new.status_code == 404 or response_old.status_code == 404:
+        return not_found()
+
+    data = json.loads(response_new.data)
+    modules_new = data['yang-catalog:modules']['module']
+    data = json.loads(response_old.data)
+    modules_old = data['yang-catalog:modules']['module']
+
+    output_modules_list = []
+    for mod_old in modules_old:
+        semver_new = None
+        revision_new = None
+        name_old = mod_old['name']
+        revision_old = mod_old['revision']
+        organization_old = mod_old['organization']
+        for mod_new in modules_new:
+            name_new = mod_new['name']
+            revision_new = mod_new['revision']
+            organization_new = mod_new['organization']
+            if name_new == name_old and organization_new == organization_old:
+                if revision_old == revision_new:
+                    break
+                semver_new = mod_new.get('derived-semantic-version')
+                break
+        if semver_new:
+            semver_old = mod_old.get('derived-semantic-version')
+            if semver_old:
+                if semver_new != semver_old:
+                    output_mod = {}
+                    output_mod['name'] = name_old
+                    output_mod['revision-old'] = revision_old
+                    output_mod['revision-new'] = revision_new
+                    output_mod['organization'] = organization_old
+                    output_mod['old-derived-semantic-version'] = semver_old
+                    output_mod['new-derived-semantic-version'] = semver_new
+                    output_modules_list.append(output_mod)
+    if len(output_modules_list) == 0:
+        return not_found()
+    output = {'output': output_modules_list}
+    return make_response(jsonify(output), 200)
 
 
 @app.route('/search-filter', methods=['POST'])
@@ -1377,6 +1452,42 @@ def get_job(job_id):
                     })
 
 
+@app.route('/check-platform-metadata', methods=['POST'])
+def trigger_populate():
+    LOGGER.info('Trigger populate if necessary')
+    body = request.json
+    paths = []
+    added = body.get('added')
+    for add in added:
+        if 'platform-metadata.json' in add:
+            paths.append('/'.join(add.split('/')[:-1]))
+    modified = body.get('modified')
+    for m in modified:
+        if 'platform-metadata.json' in m:
+            paths.append('/'.join(m.split('/')[:-1]))
+
+    LOGGER.info('Forking the repo')
+    repo = repoutil.RepoUtil('https://github.com/YangModels/yang.git')
+    try:
+        LOGGER.info('Cloning repo to local directory {}'.format(repo.localdir))
+        repo.clone()
+        for path in paths:
+            arguments = ['python', repo.localdir + '/' +
+                         'tools/parseAndPopulate/populate.py', '--ip',
+                         'yangcatalog.org', '--api-ip', 'yangcatalog.org',
+                         '--dir', repo.localdir + '/' + path,
+                         '--result-html-dir', result_dir, '--save-file-dir',
+                         save_file_dir]
+            with open("log_trigger.txt", "wr") as f:
+                subprocess.check_call(arguments, stderr=f)
+    except:
+        LOGGER.error('Could not populate after git push')
+        repo.remove()
+        return make_response(jsonify({'error': 'Server Error'}), 500)
+    repo.remove()
+    return make_response(jsonify({'inof': 'Success'}), 200)
+
+
 @app.route('/load-cache', methods=['POST'])
 @auth.login_required
 def load_to_memory():
@@ -1523,6 +1634,8 @@ if __name__ == '__main__':
     config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
     config.read(config_path)
+    global result_dir
+    result_dir = config.get('API-Section', 'result-html-dir')
     global sender
     sender = Sender()
     global dbHost
@@ -1543,6 +1656,8 @@ if __name__ == '__main__':
     protocol = config.get('API-Section', 'protocol')
     global save_requests
     save_requests = config.get('API-Section', 'save-requests')
+    global save_file_dir
+    save_file_dir = config.get('API-Section', 'save-file-dir')
     global token
     token = config.get('API-Section', 'yang-catalog-token')
     global commit_msg_file

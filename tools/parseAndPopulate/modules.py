@@ -162,7 +162,7 @@ class Modules:
             my_list = devs_or_features.split(',')
         return my_list
 
-    def parse_all(self, name, schema, api_sdo_json=None):
+    def parse_all(self, name, schema, to, api_sdo_json=None):
         def get_json(js):
             if js:
                 return js
@@ -201,6 +201,8 @@ class Modules:
         self.__resolve_belongs_to()
         self.__resolve_namespace()
         self.__resolve_organization(organization)
+        self.__save_file(to)
+
         self.__resolve_prefix()
         self.__resolve_contact()
         self.__resolve_description()
@@ -217,6 +219,14 @@ class Modules:
         self.__resolve_maturity_level(maturity_level)
         self.__resolve_semver()
         self.__resolve_tree_type()
+
+    def __save_file(self, to):
+        file_with_path = '{}{}@{}_{}.yang'.format(to, self.name, self.revision,
+                                                   self.organization)
+        if not os.path.exists(file_with_path):
+            with open(self.__path, 'r') as f:
+                with open(file_with_path, 'w') as f2:
+                    f2.write(f.read())
 
     def __resolve_semver(self):
         yang_file = open(self.__path)
@@ -304,8 +314,11 @@ class Modules:
 
     def __resolve_schema(self, schema):
         if schema:
+            split_index = '/yang/'
+            if '/tmp/' in self.__path:
+                split_index = self.__path.split('/')[1]
             if self.__is_vendor:
-                suffix = os.path.abspath(self.__path).split('/yang/')[1]
+                suffix = os.path.abspath(self.__path).split(split_index)[1]
                 self.schema = schema + suffix
             else:
                 self.schema = schema
@@ -754,6 +767,9 @@ class Modules:
                             'revision')[0].arg
                 except:
                     sub.revision = '1970-01-01'
+            if yang_file is None:
+                LOGGER.error('Module can not be found')
+                continue
             path = '/'.join(self.schema.split('/')[0:-1])
             path += '/{}'.format(yang_file.split('/')[-1])
             if yang_file:

@@ -68,7 +68,7 @@ if __name__ == "__main__":
                         help='Set dir where to look for hello message xml files.Default -> ../../vendor')
     parser.add_argument('--api', action='store_true', default=False, help='If we are doing apis')
     parser.add_argument('--sdo', action='store_true', default=False, help='If we are sneding SDOs only')
-    parser.add_argument('--notify-indexing', action='store_true', default=False, help='Weather to send files for'
+    parser.add_argument('--notify-indexing', action='store_true', default=True, help='Weather to send files for'
                                                                                       ' indexing')
     parser.add_argument('--protocol', type=str, default='http', help='Whether confd-6.4 runs on http or https.'
                                                                      ' Default is set to http')
@@ -79,6 +79,8 @@ if __name__ == "__main__":
     parser.add_argument('--config-path', type=str, default='../utility/config.ini',
                         help='Set path to config file')
     parser.add_argument('--force-indexing', action='store_true', default=False, help='Force to index files')
+    parser.add_argument('--save-file-dir', default='/home/miroslav/results/',
+                        type=str, help='Directory where the file will be saved')
     args = parser.parse_args()
     config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
@@ -104,23 +106,27 @@ if __name__ == "__main__":
         if args.sdo:
             with open("log_api_sdo.txt", "wr") as f:
                 arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--sdo", "--dir",
-                             args.dir, "--json-dir", direc, "--result-html-dir", args.result_html_dir]
+                             args.dir, "--json-dir", direc, "--result-html-dir", args.result_html_dir,
+                             '--save-file-dir', args.save_file_dir]
                 subprocess.check_call(arguments, stderr=f)
         else:
             with open("log_api.txt", "wr") as f:
                 arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--dir", args.dir,
-                             "--json-dir", direc, "--result-html-dir", args.result_html_dir]
+                             "--json-dir", direc, "--result-html-dir", args.result_html_dir,
+                             '--save-file-dir', args.save_file_dir]
                 subprocess.check_call(arguments, stderr=f)
     else:
         if args.sdo:
             with open("log_sdo.txt", "wr") as f:
                 arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--sdo", "--dir", args.dir,
-                             "--json-dir", direc, "--result-html-dir", args.result_html_dir]
+                             "--json-dir", direc, "--result-html-dir", args.result_html_dir,
+                             '--save-file-dir', args.save_file_dir]
                 subprocess.check_call(arguments, stderr=f)
         else:
             with open("log_no_sdo_api.txt", "wr") as f:
                 arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--dir", args.dir, "--json-dir", direc,
-                             "--result-html-dir", args.result_html_dir]
+                             "--result-html-dir", args.result_html_dir,
+                             '--save-file-dir', args.save_file_dir]
                 subprocess.check_call(arguments, stderr=f)
 
     LOGGER.info('Populating yang catalog with data. Starting to add modules')
@@ -569,4 +575,3 @@ if __name__ == "__main__":
         except:
             LOGGER.warning('Could not send a load-cache request')
         shutil.rmtree('../parseAndPopulate/' + direc)
-
