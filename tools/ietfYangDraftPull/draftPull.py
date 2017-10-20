@@ -89,14 +89,15 @@ if __name__ == "__main__":
         if e.errno != errno.EEXIST:
             raise
 
-    response = urllib.urlretrieve('http://www.claise.be/YANG-RFC.tar',
-                                  repo.localdir + '/tools/ietfYangDraftPull/rfc.tar')
-    tar = tarfile.open(repo.localdir + '/tools/ietfYangDraftPull/rfc.tar')
-    tar.extractall(repo.localdir + '/standard/ietf/RFC')
-    tar.close()
-    os.remove(repo.localdir + '/tools/ietfYangDraftPull/rfc.tar')
-    check_name_no_revision_exist(repo.localdir + '/standard/ietf/RFC/')
-    check_early_revisions(repo.localdir + '/standard/ietf/RFC/')
+    #TODO send email if new RFC
+    #response = urllib.urlretrieve('http://www.claise.be/YANG-RFC.tar',
+    #                              repo.localdir + '/tools/ietfYangDraftPull/rfc.tar')
+    #tar = tarfile.open(repo.localdir + '/tools/ietfYangDraftPull/rfc.tar')
+    #tar.extractall(repo.localdir + '/standard/ietf/RFC')
+    #tar.close()
+    #os.remove(repo.localdir + '/tools/ietfYangDraftPull/rfc.tar')
+    #check_name_no_revision_exist(repo.localdir + '/standard/ietf/RFC/')
+    #check_early_revisions(repo.localdir + '/standard/ietf/RFC/')
 
     for key in ietf_draft_json:
         yang_file = open(
