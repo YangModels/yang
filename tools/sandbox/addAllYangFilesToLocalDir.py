@@ -8,4 +8,4 @@ if __name__ == '__main__':
             if f.endswith('.yang'):
                 name = f.split('@')[0].split('.')[0]
                 mod = Modules(root + '/' + f, None, None, None)
-                mod.parse_all(name, None, '/home/miroslav/results/')
+                mod.parse_all(name, 'foo', None, '/home/miroslav/results/')

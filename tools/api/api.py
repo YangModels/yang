@@ -565,6 +565,12 @@ def add_modules():
         else:
             break
     direc = '../parseAndPopulate/' + repr(direc)
+    try:
+        os.makedirs(direc)
+    except OSError as e:
+        # be happy if someone already created the path
+        if e.errno != errno.EEXIST:
+            raise
     for mod in body['modules']['module']:
         sdo = mod['source-file']
         orgz = mod['organization']
@@ -711,7 +717,12 @@ def add_vendors():
         else:
             break
     direc = '../parseAndPopulate/' + repr(direc)
-
+    try:
+        os.makedirs(direc)
+    except OSError as e:
+        # be happy if someone already created the path
+        if e.errno != errno.EEXIST:
+            raise
     for platform in body['platforms']['platform']:
         capability = platform['module-list-file']
         file_name = capability['path'].split('/')[-1]
@@ -889,10 +900,24 @@ def search(value):
 
 @app.route('/search-filter/<leaf>', methods=['POST'])
 def rpc_search_get_one(leaf):
-    response = rpc_search(request.json)
-    modules = json.loads(response.get_data())['yang-catalog:modules']['module']
+    rpc = request.json
+    if rpc.get('input'):
+        recursive = rpc['input'].get('recursive')
+    else:
+        return not_found()
+    if recursive:
+        rpc['input'].pop('recursive')
+    response = rpc_search(rpc)
+    modules = json.loads(response.get_data()).get('yang-catalog:modules')
+    if modules is None:
+        return not_found()
+    modules = modules.get('module')
+    if modules is None:
+        return not_found()
     output = set()
     for module in modules:
+        if recursive:
+            search_recursive(output, module, leaf)
         meta_data = module.get(leaf)
         output.add(meta_data)
     if None in output:
@@ -902,6 +927,21 @@ def rpc_search_get_one(leaf):
     else:
         return Response(json.dumps({'output': {leaf: list(output)}}),
                         mimetype='application/json', status=201)
+
+
+def search_recursive(output, module, leaf):
+    r_name = module['name']
+    response = rpc_search({'input':{'dependencies': [{'name': r_name}]}})
+    modules = json.loads(response.get_data()).get('yang-catalog:modules')
+    if modules is None:
+        return
+    modules = modules.get('module')
+    if modules is None:
+        return
+    for mod in modules:
+        search_recursive(output, mod, leaf)
+        meta_data = mod.get(leaf)
+        output.add(meta_data)
 
 
 @app.route('/check-semantic-version', methods=['POST'])
@@ -933,31 +973,103 @@ def check_semver():
 
     output_modules_list = []
     for mod_old in modules_old:
+        name_new = None
         semver_new = None
         revision_new = None
+        schema_new = None
+        status_new = None
         name_old = mod_old['name']
         revision_old = mod_old['revision']
         organization_old = mod_old['organization']
+        schema_old = mod_old.get('schema')
+        if schema_old is None:
+            continue
+        status_old = mod_old['compilation-status']
         for mod_new in modules_new:
             name_new = mod_new['name']
             revision_new = mod_new['revision']
             organization_new = mod_new['organization']
+            schema_new = mod_new.get('schema')
+            status_new = mod_new['compilation-status']
             if name_new == name_old and organization_new == organization_old:
                 if revision_old == revision_new:
                     break
                 semver_new = mod_new.get('derived-semantic-version')
                 break
+        if schema_new is None:
+            continue
         if semver_new:
             semver_old = mod_old.get('derived-semantic-version')
             if semver_old:
                 if semver_new != semver_old:
                     output_mod = {}
+                    if status_old != 'passed' and status_new != 'passed':
+                        reason = 'Both modules failed compilation'
+                    elif status_old != 'passed' and status_new == 'passed':
+                        reason = 'Older module failed compilation'
+                    elif status_new != 'passed' and status_old == 'passed':
+                        reason = 'Newer module failed compilation'
+                    else:
+                        file_name = ('{}{}+check-update-from+{}{}.html'
+                                     .format(name_new, revision_new, name_old,
+                                             revision_old))
+                        schema1 = '{}{}@{}.yang'.format(save_file_dir, name_new,
+                                                        revision_new)
+                        schema2 = '{}{}@{}.yang'.format(save_file_dir, name_old,
+                                                        revision_old)
+                        arguments = ['pyang', '-P', '../../.', '-p', '../../.',
+                                     schema1, '--check-update-from',
+                                     schema2]
+                        pyang = subprocess.Popen(arguments,
+                                                 stdout=subprocess.PIPE,
+                                                 stderr=subprocess.PIPE)
+                        stdout, stderr = pyang.communicate()
+                        reason = (
+                            'pyang --check-update-from output: https://www.{}/compatibility/{}'.
+                            format(confd_ip, file_name))
+                        with open('{}{}'.format(diff_file_dir, file_name),
+                                  'w+') as f:
+                            f.write('<pre>{}</pre>'.format(stderr))
+
+                        arguments = ['pyang', '-p', '../../.', '-f', 'tree',
+                                     save_file_dir + name_new + '@' + revision_new + '.yang']
+                        pyang = subprocess.Popen(arguments,
+                                                 stdout=subprocess.PIPE,
+                                                 stderr=subprocess.PIPE)
+                        stdout, stderr = pyang.communicate()
+                        f_name = '{}{}{}.txt'.format(diff_file_dir, name_new,
+                                                  revision_new)
+                        with open(f_name, 'w+') as f:
+                            f.write(stdout)
+
+                        arguments = ['pyang', '-p', '../../.', '-f', 'tree',
+                                     save_file_dir + name_old + '@' + revision_old + '.yang']
+                        pyang = subprocess.Popen(arguments,
+                                                 stdout=subprocess.PIPE,
+                                                 stderr=subprocess.PIPE)
+                        stdout, stderr = pyang.communicate()
+                        f_name = '{}{}{}.txt'.format(diff_file_dir, name_old,
+                                                   revision_old)
+                        with open(f_name, 'w+') as f:
+                            f.write(stdout)
+                        tree1 = 'https://yangcatalog.org/compatibility/{}{}.txt'.format(name_new, revision_new)
+                        tree2 = 'https://yangcatalog.org/compatibility/{}{}.txt'.format(name_old, revision_old)
+                        diff = (
+                            'https://www.ietf.org/rfcdiff/rfcdiff.pyht?url1={}&url2={}'.
+                                format(tree1, tree2))
+
+                        output_mod['yang-module-pyang-tree-diff'] = diff
+
                     output_mod['name'] = name_old
                     output_mod['revision-old'] = revision_old
                     output_mod['revision-new'] = revision_new
                     output_mod['organization'] = organization_old
                     output_mod['old-derived-semantic-version'] = semver_old
                     output_mod['new-derived-semantic-version'] = semver_new
+                    output_mod['derived-semantic-version-results'] = reason
+                    diff = ('https://www.ietf.org/rfcdiff/rfcdiff.pyht?url1={}&url2={}'.
+                           format(schema_old, schema_new))
+                    output_mod['yang-module-diff'] = diff
                     output_modules_list.append(output_mod)
     if len(output_modules_list) == 0:
         return not_found()
@@ -1665,6 +1777,8 @@ if __name__ == '__main__':
     ssl_context = None
     global integrity_file_location
     integrity_file_location = config.get('API-Section', 'integrity-file-location')
+    global diff_file_dir
+    diff_file_dir = config.get('API-Section', 'save-diff-dir')
     global log
     ip = config.get('API-Section', 'ip')
     port = int(config.get('API-Section', 'port'))

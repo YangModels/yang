@@ -27,6 +27,8 @@ class LoadFiles:
             'http://www.claise.be/IETFYANGDraft.json')
         self.mef_experimental_json = load_json_from_url(
             'http://www.claise.be/MEFExperimental.json')
+        self.openconfig_json = load_json_from_url(
+            'http://www.claise.be/Openconfig.json')
 
         self.xe1631 = ''
         if '1631' in path:
@@ -65,6 +67,14 @@ class LoadFiles:
         if '621' in path:
             self.xr621 = load_json_from_url(
                 'http://www.claise.be/CiscoXR621.json')
+        self.xr622 = ''
+        if '622' in path:
+            self.xr622 = load_json_from_url(
+                'http://www.claise.be/CiscoXR622.json')
+        self.xr631 = ''
+        if '631' in path:
+            self.xr631 = load_json_from_url(
+                'http://www.claise.be/CiscoXR631.json')
 
         self.nx703f11 = ''
         if '7.0-3-F1-1' in path:

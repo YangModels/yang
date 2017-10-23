@@ -156,7 +156,9 @@ class Capability:
                                    self.parsed_jsons, self.json_dir)
                     name = file_name.split('.')[0].split('@')[0]
                     schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + repo_file_path
-                    yang.parse_all(name, schema, self.to, sdo)
+                    yang.parse_all(name,
+                                   self.prepare.name_revision_organization,
+                                   schema, self.to, sdo)
                     self.prepare.add_key_sdo_module(yang)
 
         else:
@@ -179,7 +181,9 @@ class Capability:
                             path = root + '/' + file_name
                             schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + path.replace(
                                 '../', '')
-                            yang.parse_all(name, schema, self.to)
+                            yang.parse_all(name,
+                                           self.prepare.name_revision_organization,
+                                           schema, self.to)
                             self.prepare.add_key_sdo_module(yang)
 
 
@@ -266,7 +270,9 @@ class Capability:
                                self.parsed_jsons, self.json_dir, True, True,
                                yang_lib_info)
                 schema_part = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/'
-                yang.parse_all(module_name, schema_part, self.to)
+                yang.parse_all(module_name,
+                               self.prepare.name_revision_organization,
+                               schema_part, self.to)
                 yang.add_vendor_information(self.vendor, self.platform_data,
                                             self.software_version,
                                             self.os_version, self.feature_set,
@@ -341,6 +347,9 @@ class Capability:
                     cap_with_version = module.text.split(':capability:')[1]
                     capabilities.append(cap_with_version.split('?')[0])
             modules = self.root.iter(tag.split('hello')[0] + 'capability')
+
+        schema_part = github_raw + self.owner + '/' + self.repo + '/' +\
+                      self.branch + '/'
         # Parse modules
         for module in modules:
             if 'module=' in module.text:
@@ -352,22 +361,28 @@ class Capability:
                     yang = Modules('/'.join(self.split), self.html_result_dir,
                                    self.parsed_jsons, self.json_dir,
                                    True, data=module_and_more)
-                    schema_part = github_raw + self.owner +\
-                                  '/' + self.repo + '/' + self.branch + '/'
-                    yang.parse_all(module_name, schema_part, self.to)
+
+                    yang.parse_all(module_name,
+                                   self.prepare.name_revision_organization,
+                                   schema_part, self.to)
                     yang.add_vendor_information(self.vendor, self.platform_data,
                                                 self.software_version,
-                                                self.os_version, self.feature_set,
-                                                self.os, 'implement', capabilities,
+                                                self.os_version,
+                                                self.feature_set,
+                                                self.os, 'implement',
+                                                capabilities,
                                                 netconf_version)
                     yang.resolve_integrity(self.integrity_checker, self.split,
                                            self.os_version)
                     self.prepare.add_key_sdo_module(yang)
-                    keys.add('{}@{}/{}'.format(yang.name, yang.revision, yang.organization))
+                    key = '{}@{}/{}'.format(yang.name, yang.revision,
+                                            yang.organization)
+                    keys.add(key)
                     set_of_names.add(yang.name)
                 except FileError:
                     self.integrity_checker.add_module('/'.join(self.split),
-                                                      [module_and_more.split('&')[0]])
+                                                      [module_and_more.split(
+                                                          '&')[0]])
                     LOGGER.warning('File {} not found in the repository'
                                    .format(module_name))
 
@@ -403,7 +418,9 @@ class Capability:
                     yang = Modules(yang_file, self.html_result_dir,
                                    self.parsed_jsons, self.json_dir,
                                    is_vendor_imp_inc=True)
-                    yang.parse_all(name, schema_part, self.to)
+                    yang.parse_all(name,
+                                   self.prepare.name_revision_organization,
+                                   schema_part, self.to)
                     yang.add_vendor_information(self.vendor, self.platform_data,
                                                 self.software_version,
                                                 self.os_version,
