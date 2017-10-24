@@ -11,6 +11,7 @@ import requests
 from urllib2 import URLError
 
 import jinja2
+import time
 
 import tools.utility.log as log
 from tools.utility import yangParser
@@ -450,7 +451,8 @@ if __name__ == '__main__':
                'xe': xe,
                'nx_values': nx_values,
                'xe_values': xe_values,
-               'xr_values': xr_values}
+               'xr_values': xr_values,
+               'current_date': time.strftime("%d/%m/%y")}
     LOGGER.info('Rendering data')
     result = render('./template/stats.html', context)
     with open('./statistics.html', 'w+') as f:
