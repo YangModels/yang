@@ -261,13 +261,15 @@ def check_authorized(signature, payload):
 
 def send_email():
     """Notify via e-mail message about failed travis job"""
-    msg = MIMEText('Travis pull job failed')
-    msg['Subject'] = 'Travis pull job failed'
+    to = ['bclaise@cisco.com', 'einarnn@cisco.com', 'jclarke@cisco.com']
+    msg = MIMEText('Travis pull job not sent because it was not sent from'
+                   ' travis. Key verification failed')
+    msg['Subject'] = 'Travis pull job not sent'
     msg['From'] = 'info@yangcatalog.org'
-    msg['To'] = 'info@yangcatalog.org'
+    msg['To'] = ', '.join(to)
 
     s = smtplib.SMTP('localhost')
-    s.sendmail('info@yangcatalog.org', 'info@yangcatalog.org', msg.as_string())
+    s.sendmail('info@yangcatalog.org', to, msg.as_string())
     s.quit()
 
 
@@ -298,13 +300,16 @@ def check_local():
         check_authorized(request.headers.environ['HTTP_SIGNATURE'], request.form['payload'])
         LOGGER.info('Authorization successful')
     except:
-        LOGGER.critical('Authorization failed. Maybe someone trying to hack!!!')
+        LOGGER.critical('Authorization failed.'
+                        ' Request did not come from Travis')
         send_email()
         return unauthorized()
 
     global yang_models_url
 
     verify_commit = False
+    LOGGER.info('Checking commit SHA if it is the commit sent by yang-catalog'
+                'user.')
     commit_sha = body['commit']
     try:
         commit_file = file(commit_msg_file)
@@ -322,7 +327,7 @@ def check_local():
                 if body['type'] == 'push':
                     # After build was successful only locally
                     json_body = json.loads(json.dumps({
-                        "title": "Crone job - every day pull and update of ietf draft yang files.",
+                        "title": "Cronjob - every day pull and update of ietf draft yang files.",
                         "body": "ietf extracted yang modules",
                         "head": "yang-catalog:master",
                         "base": "master"
@@ -335,12 +340,12 @@ def check_local():
                         return make_response(jsonify({'info': 'Success'}), 201)
                     else:
                         LOGGER.error('Could not create a pull request {}'.format(r.status_code))
-                        return make_response(jsonify({'Error': 'Fails'}), 500)
+                        return make_response(jsonify({'Error': 'PR creation failed'}), 400)
             else:
                 LOGGER.warning('Travis job did not pass. Removing forked repository.')
                 requests.delete('https://api.github.com/repos/yang-catalog/yang',
                                 headers={'Authorization': 'token ' + token})
-                return make_response(jsonify({'info': 'Success'}), 201)
+                return make_response(jsonify({'info': 'Failed'}), 406)
         elif body['repository']['owner_name'] == 'YangModels':
             if body['result_message'] == 'Passed':
                 if body['type'] == 'pull_request':
@@ -364,10 +369,20 @@ def check_local():
                 }))
                 requests.patch('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number, json=json_body,
                                headers={'Authorization': 'token ' + token})
-                return make_response(jsonify({'info': 'Success'}), 201)
+                LOGGER.warning(
+                    'Travis job did not pass. Removing forked repository.')
+                requests.delete(
+                    'https://api.github.com/repos/yang-catalog/yang',
+                    headers={'Authorization': 'token ' + token})
+                return make_response(jsonify({'info': 'Failed'}), 406)
         else:
-            LOGGER.warning('commit verification failed')
-            return make_response(jsonify({'Error': 'Fails'}), 500)
+            LOGGER.warning('Owner name verification failed. Owner -> {}'
+                           .format(body['repository']['owner_name']))
+            return make_response(jsonify({'Error': 'Owner verfication failed'}),
+                                 401)
+    else:
+        LOGGER.info('Commit verification failed. Commit sent by someone else.'
+                    'Not doing anything.')
     return make_response(jsonify({'Error': 'Fails'}), 500)
 
 
@@ -606,8 +621,7 @@ def add_modules():
             if e.errno != errno.EEXIST:
                 raise
         shutil.copy(repo[repo_url].localdir + '/' + sdo['path'], save_to)
-        if os.path.isfile('./prepare-sdo.json'):
-            shutil.move('./prepare-sdo.json', direc)
+
         tree_created = True
         organization = ''
         try:
@@ -648,6 +662,8 @@ def add_modules():
         if 'organization' in repr(resolved_authorization):
             warning.append(sdo['path'].split('/')[-1] + ' ' + resolved_authorization)
 
+    if os.path.isfile('./prepare-sdo.json'):
+        shutil.move('./prepare-sdo.json', direc)
     for key in repo:
         repo[key].remove()
     api_protocol = 'http'
@@ -1194,16 +1210,19 @@ def rpc_search(body=None):
                     implementations = module.get('implementations')
                     if implementations is None:
                         continue
+                    passed = True
                     for imp in body['implementations']['implementation']:
+                        if not passed:
+                            break
                         for leaf in imp:
                             found = False
+                            impls = []
                             if leaf == 'deviation':
                                 for implementation in implementations[
                                     'implementation']:
                                     deviations = implementation.get('deviation')
                                     if deviations is None:
-                                        found = False
-                                        break
+                                        continue
                                     for dev in imp[leaf]:
                                         found = True
                                         name = dev.get('name')
@@ -1224,33 +1243,34 @@ def rpc_search(body=None):
                                             break
                                     if not found:
                                         continue
+                                    else:
+                                        impls.append(implementation)
                                 if not found:
                                     passed = False
                                     break
                             elif leaf == 'feature':
-                                feature = implementations['implementation']\
-                                .get('feature')
-                                if feature is None:
-                                    passed = False
-                                    break
                                 for implementation in implementations['implementation']:
+                                    if implementation.get(leaf) is None:
+                                        continue
                                     if imp[leaf] in implementation[leaf]:
                                         found = True
-                                        break
-                                if found:
-                                    passed = True
-                            else:
-                                for implementation in implementations['implementation']:
-                                    if imp[leaf] in implementation[leaf]:
-                                        found = True
-                                        break
+                                        impls.append(implementation)
+                                        continue
                                 if not found:
                                     passed = False
-                                break
+                            else:
+                                for implementation in implementations['implementation']:
+                                    if implementation.get(leaf) is None:
+                                        continue
+                                    if imp[leaf] in implementation[leaf]:
+                                        found = True
+                                        impls.append(implementation)
+                                        continue
+                                if not found:
+                                    passed = False
                             if not passed:
                                 break
-                        if not passed:
-                            break
+                            implementations['implementation'] = impls
                 if not passed:
                     continue
                 for leaf in body:
@@ -1264,8 +1284,6 @@ def rpc_search(body=None):
                     passed_modules.append(module)
         else:
             for module in data:
-                if module['name'] == 'ietf-interfaces':
-                    pass
                 passed = True
                 if 'dependencies' in body:
                     submodules = module.get('dependencies')
@@ -1367,16 +1385,19 @@ def rpc_search(body=None):
                     implementations = module.get('implementations')
                     if implementations is None:
                         continue
+                    passed = True
                     for imp in body['implementations']['implementation']:
+                        if not passed:
+                            break
                         for leaf in imp:
                             found = False
+                            impls = []
                             if leaf == 'deviation':
                                 for implementation in implementations[
                                     'implementation']:
                                     deviations = implementation.get('deviation')
                                     if deviations is None:
-                                        found = False
-                                        break
+                                        continue
                                     for dev in imp[leaf]:
                                         found = True
                                         name = dev.get('name')
@@ -1397,33 +1418,34 @@ def rpc_search(body=None):
                                             break
                                     if not found:
                                         continue
+                                    else:
+                                        impls.append(implementation)
                                 if not found:
                                     passed = False
                                     break
                             elif leaf == 'feature':
-                                feature = implementations['implementation']\
-                                .get('feature')
-                                if feature is None:
-                                    passed = False
-                                    break
                                 for implementation in implementations['implementation']:
-                                    if imp[leaf] in implementation[leaf]:
-                                        found = True
-                                        break
-                                if found:
-                                    passed = True
-                            else:
-                                for implementation in implementations['implementation']:
+                                    if implementation.get(leaf) is None:
+                                        continue
                                     if imp[leaf] == implementation[leaf]:
                                         found = True
-                                        break
+                                        impls.append(implementation)
+                                        continue
                                 if not found:
                                     passed = False
-                                break
+                            else:
+                                for implementation in implementations['implementation']:
+                                    if implementation.get(leaf) is None:
+                                        continue
+                                    if imp[leaf] == implementation[leaf]:
+                                        found = True
+                                        impls.append(implementation)
+                                        continue
+                                if not found:
+                                    passed = False
                             if not passed:
                                 break
-                        if not passed:
-                            break
+                            implementations['implementation'] = impls
                 if not passed:
                     continue
                 for leaf in body:
