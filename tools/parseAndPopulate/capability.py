@@ -33,9 +33,11 @@ def find_first_file(directory, pattern, pattern_with_revision):
 
 
 class Capability:
-    def __init__(self, hello_message_file, index, prepare, integrity_checker, api, sdo,
-                 json_dir, html_result_dir, save_file_to_dir):
+    def __init__(self, hello_message_file, index, prepare, integrity_checker,
+                 api, sdo, json_dir, html_result_dir, save_file_to_dir,
+                 run_integrity=False):
         LOGGER.debug('Running constructor')
+        self.run_integrity = run_integrity
         self.to = save_file_to_dir
         self.html_result_dir = html_result_dir
         self.json_dir = json_dir
@@ -268,7 +270,7 @@ class Capability:
             try:
                 yang = Modules('/'.join(self.split), self.html_result_dir,
                                self.parsed_jsons, self.json_dir, True, True,
-                               yang_lib_info)
+                               yang_lib_info, run_integrity=self.run_integrity)
                 schema_part = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/'
                 yang.parse_all(module_name,
                                self.prepare.name_revision_organization,
@@ -278,8 +280,9 @@ class Capability:
                                             self.os_version, self.feature_set,
                                             self.os, conformance_type,
                                             capabilities, netconf_version)
-                yang.resolve_integrity(self.integrity_checker, self.split,
-                                       self.os_version)
+                if self.run_integrity:
+                    yang.resolve_integrity(self.integrity_checker, self.split,
+                                           self.os_version)
                 self.prepare.add_key_sdo_module(yang)
                 keys.add('{}@{}/{}'.format(yang.name, yang.revision,
                                            yang.organization))
@@ -360,7 +363,8 @@ class Capability:
                 try:
                     yang = Modules('/'.join(self.split), self.html_result_dir,
                                    self.parsed_jsons, self.json_dir,
-                                   True, data=module_and_more)
+                                   True, data=module_and_more,
+                                   run_integrity=self.run_integrity)
 
                     yang.parse_all(module_name,
                                    self.prepare.name_revision_organization,
@@ -372,8 +376,9 @@ class Capability:
                                                 self.os, 'implement',
                                                 capabilities,
                                                 netconf_version)
-                    yang.resolve_integrity(self.integrity_checker, self.split,
-                                           self.os_version)
+                    if self.run_integrity:
+                        yang.resolve_integrity(self.integrity_checker,
+                                               self.split, self.os_version)
                     self.prepare.add_key_sdo_module(yang)
                     key = '{}@{}/{}'.format(yang.name, yang.revision,
                                             yang.organization)
@@ -417,7 +422,8 @@ class Capability:
                 try:
                     yang = Modules(yang_file, self.html_result_dir,
                                    self.parsed_jsons, self.json_dir,
-                                   is_vendor_imp_inc=True)
+                                   is_vendor_imp_inc=True,
+                                   run_integrity=self.run_integrity)
                     yang.parse_all(name,
                                    self.prepare.name_revision_organization,
                                    schema_part, self.to)
@@ -427,8 +433,9 @@ class Capability:
                                                 self.feature_set, self.os,
                                                 conformance_type, capabilities,
                                                 netconf_version)
-                    yang.resolve_integrity(self.integrity_checker, self.split,
-                                           self.os_version)
+                    if self.run_integrity:
+                        yang.resolve_integrity(self.integrity_checker,
+                                               self.split, self.os_version)
                     self.prepare.add_key_sdo_module(yang)
                     self.parse_imp_inc(yang.submodule, set_of_names, True,
                                        schema_part, capabilities, netconf_version)

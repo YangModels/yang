@@ -78,7 +78,9 @@ LOGGER = log.get_logger('modules')
 
 class Modules:
     def __init__(self, path, html_result_dir, jsons, temp_dir, is_vendor=False,
-                 is_yang_lib=False, data=None, is_vendor_imp_inc=False):
+                 is_yang_lib=False, data=None, is_vendor_imp_inc=False,
+                 run_integrity=False):
+        self.run_integrity = run_integrity
         self.__temp_dir = temp_dir
         self.__missing_submodules = []
         self.__missing_modules = []
@@ -198,24 +200,24 @@ class Modules:
             self.__resolve_submodule()
             self.__resolve_imports()
             return
-        self.__save_file(to)
-
-        self.__resolve_prefix()
-        self.__resolve_contact()
-        self.__resolve_description()
-        self.__resolve_yang_version()
-        self.__resolve_generated_from(generated_from)
-        self.__resolve_compilation_status_and_result()
         self.__resolve_schema(schema)
         self.__resolve_submodule()
         self.__resolve_imports()
-        self.__resolve_document_name_and_reference(document_name, reference)
-        self.__resolve_module_classification(module_classification)
-        self.__resolve_working_group()
-        self.__resolve_author_email(author_email)
-        self.__resolve_maturity_level(maturity_level)
-        self.__resolve_semver()
-        #self.__resolve_tree_type()
+        if not self.run_integrity:
+            self.__save_file(to)
+            self.__resolve_generated_from(generated_from)
+            self.__resolve_compilation_status_and_result()
+            self.__resolve_yang_version()
+            self.__resolve_prefix()
+            self.__resolve_contact()
+            self.__resolve_description()
+            self.__resolve_document_name_and_reference(document_name, reference)
+            self.__resolve_module_classification(module_classification)
+            self.__resolve_working_group()
+            self.__resolve_author_email(author_email)
+            self.__resolve_maturity_level(maturity_level)
+            self.__resolve_semver()
+            self.__resolve_tree_type()
 
     def __save_file(self, to):
         file_with_path = '{}{}@{}.yang'.format(to, self.name, self.revision)

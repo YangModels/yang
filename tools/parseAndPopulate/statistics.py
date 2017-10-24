@@ -2,6 +2,8 @@ import fnmatch
 import glob
 import os
 
+import time
+
 
 def find_missing_hello(directory, pattern):
     for root, dirs, files in os.walk(directory):
@@ -74,7 +76,10 @@ class Statistics:
 
     @staticmethod
     def dumps(file):
-        file.write('<!DOCTYPE html><html><body><h1>Yangcatalog statistics</h1>')
+        file.write('<!DOCTYPE html><html><body> <ul>'
+                   '<li>Generated on {}</li>'
+                   '</ul><h1>Yangcatalog statistics</h1>'
+                   .format(time.strftime("%d/%m/%y")))
         file.write('<h3>YANG modules in directory but not present in any NETCONF hello message in that directory:</h3>')
         for key in Statistics.useless_modules:
             if len(Statistics.useless_modules[key]) > 0:
