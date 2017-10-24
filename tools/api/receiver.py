@@ -16,6 +16,7 @@ import pika
 import requests
 
 import tools.utility.log as log
+from tools.utility import messageFactory
 
 LOGGER = log.get_logger('receiver')
 
@@ -147,7 +148,10 @@ def send_to_indexing(modules_to_index, credentials, confd_api_ip, api_port, api_
     """
     LOGGER.debug('Sending data for indexing')
     if delete:
-        body_to_send = json.dumps({'modules-to-delete': modules_to_index})
+        body_to_send = json.dumps({'modules-to-delete': modules_to_index},
+                                  indent=4)
+
+        mf.send_removed_yang_files(body_to_send)
         for mod in modules_to_index:
             name, revision_organization = mod.split('@')
             revision, organization = revision_organization.split('/')
@@ -214,13 +218,16 @@ def send_to_indexing(modules_to_index, credentials, confd_api_ip, api_port, api_
                     else:
                         path = 'module does not exist'
                     post_body[module['name'] + '@' + module['revision'] + '/' + module['organization']] = path
-        body_to_send = json.dumps({'modules-to-index': post_body})
+        body_to_send = json.dumps({'modules-to-index': post_body}, indent=4)
+        if len(post_body) > 0:
+            mf.send_added_new_yang_files(body_to_send)
 
     try:
         set_key = key
     except NameError:
         pass
     LOGGER.info('Sending data for indexing with body {}'.format(body_to_send))
+
     try:
         http_request('https://' + confd_api_ip + '/yang-search/metadata-update.php', 'POST', body_to_send,
                      credentials, 'application/json', indexing=create_signature(set_key, body_to_send))
@@ -1015,6 +1022,8 @@ if __name__ == '__main__':
     config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
     config.read(config_path)
+    global mf
+    mf = messageFactory.MessageFactory()
     global key
     key = config.get('Receiver-Section', 'key')
     global notify_indexing
