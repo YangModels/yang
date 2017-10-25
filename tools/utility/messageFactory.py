@@ -102,7 +102,7 @@ class MessageFactory:
         message = ("There were new or modified platform metadata json files "
                    "added to yangModels-yang repository, that are currently"
                    "being processed in following paths:\n\n"
-                   "\'\'\' New json files: \n {} \n\n Modified json files:\n{}"
-                   "\'\'\'"
+                   "''' New json files: \n {} \n\n Modified json files:\n{}"
+                   "'''"
                    .format(new_files, modified_files))
         self.__post_to_spark(message, True)
