@@ -83,15 +83,15 @@ class MessageFactory:
 
     def send_removed_yang_files(self, removed_yang_files):
         LOGGER.info('Sending notification about removed yang modules')
-        message = ('The following files has been removed from yangcatalog.org'
-                   ' using api: \'\'\'{}\'\'\''.format(removed_yang_files))
+        message = ("The following files has been removed from yangcatalog.org"
+                   " using api: ```{}```".format(removed_yang_files))
         self.__post_to_spark(message, True)
 
     def send_added_new_yang_files(self, added_yang_files):
         LOGGER.info('Sending notification about added yang modules')
-        message = ('The following files has been added to yangcatalog.org'
-                   ' using api as a new modules or new old modules with new '
-                   'revision: \'\'\'{}\'\'\''.format(added_yang_files))
+        message = ("The following files has been added to yangcatalog.org"
+                   " using api as a new modules or new old modules with new "
+                   "revision: ```{}```".format(added_yang_files))
         self.__post_to_spark(message, True)
 
     def send_new_modified_platform_metadata(self, new_files, modified_files):
@@ -99,10 +99,10 @@ class MessageFactory:
             'Sending notification about new or modified platform metadata')
         new_files = '\n'.join(new_files)
         modified_files = '\n'.join(modified_files)
-        message = ('There were new or modified platform metadata json files '
-                   'added to yangModels-yang repository, that are currently'
-                   'being processed in following paths:\n\n'
-                   '\'\'\' New json files: \n {} \n\n Modified json files:\n{}'
-                   '\'\'\''
+        message = ("There were new or modified platform metadata json files "
+                   "added to yangModels-yang repository, that are currently"
+                   "being processed in following paths:\n\n"
+                   "\'\'\' New json files: \n {} \n\n Modified json files:\n{}"
+                   "\'\'\'"
                    .format(new_files, modified_files))
         self.__post_to_spark(message, True)
