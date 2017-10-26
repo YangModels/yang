@@ -78,7 +78,9 @@ LOGGER = log.get_logger('modules')
 
 class Modules:
     def __init__(self, path, html_result_dir, jsons, temp_dir, is_vendor=False,
-                 is_yang_lib=False, data=None, is_vendor_imp_inc=False):
+                 is_yang_lib=False, data=None, is_vendor_imp_inc=False,
+                 run_integrity=False):
+        self.run_integrity = run_integrity
         self.__temp_dir = temp_dir
         self.__missing_submodules = []
         self.__missing_modules = []
@@ -162,7 +164,7 @@ class Modules:
             my_list = devs_or_features.split(',')
         return my_list
 
-    def parse_all(self, name, schema, api_sdo_json=None):
+    def parse_all(self, name, keys, schema, to, api_sdo_json=None):
         def get_json(js):
             if js:
                 return js
@@ -170,19 +172,10 @@ class Modules:
                 return u'missing element'
 
         if api_sdo_json:
-            author_email = unicodedata.normalize('NFKD', get_json(
-                api_sdo_json.get('author-email'))) \
-                .encode('ascii', 'ignore')
-            if author_email == MISSING_ELEMENT:
-                author_email = None
-            maturity_level = unicodedata.normalize('NFKD', get_json(
-                api_sdo_json.get('maturity-level'))).encode('ascii', 'ignore')
-            reference = unicodedata.normalize('NFKD',
-                                              get_json(api_sdo_json.get(
-                                                  'reference'))) \
-                .encode('ascii', 'ignore')
-            document_name = unicodedata.normalize('NFKD', get_json(
-                api_sdo_json.get('document-name'))).encode('ascii', 'ignore')
+            author_email = api_sdo_json.get('author-email')
+            maturity_level = api_sdo_json.get('maturity-level')
+            reference = api_sdo_json.get('reference')
+            document_name = api_sdo_json.get('document-name')
             generated_from = api_sdo_json.get('generated-from')
             organization = unicodedata.normalize('NFKD', get_json(
                 api_sdo_json.get('organization'))).encode('ascii', 'ignore')
@@ -201,22 +194,37 @@ class Modules:
         self.__resolve_belongs_to()
         self.__resolve_namespace()
         self.__resolve_organization(organization)
-        self.__resolve_prefix()
-        self.__resolve_contact()
-        self.__resolve_description()
-        self.__resolve_yang_version()
-        self.__resolve_generated_from(generated_from)
-        self.__resolve_compilation_status_and_result()
+        key = '{}@{}/{}'.format(self.name, self.revision, self.organization)
+        if key in keys:
+            self.__resolve_schema(schema)
+            self.__resolve_submodule()
+            self.__resolve_imports()
+            return
         self.__resolve_schema(schema)
         self.__resolve_submodule()
         self.__resolve_imports()
-        self.__resolve_document_name_and_reference(document_name, reference)
-        self.__resolve_module_classification(module_classification)
-        self.__resolve_working_group()
-        self.__resolve_author_email(author_email)
-        self.__resolve_maturity_level(maturity_level)
-        self.__resolve_semver()
-        self.__resolve_tree_type()
+        if not self.run_integrity:
+            self.__save_file(to)
+            self.__resolve_generated_from(generated_from)
+            self.__resolve_compilation_status_and_result()
+            self.__resolve_yang_version()
+            self.__resolve_prefix()
+            self.__resolve_contact()
+            self.__resolve_description()
+            self.__resolve_document_name_and_reference(document_name, reference)
+            self.__resolve_module_classification(module_classification)
+            self.__resolve_working_group()
+            self.__resolve_author_email(author_email)
+            self.__resolve_maturity_level(maturity_level)
+            self.__resolve_semver()
+            self.__resolve_tree_type()
+
+    def __save_file(self, to):
+        file_with_path = '{}{}@{}.yang'.format(to, self.name, self.revision)
+        if not os.path.exists(file_with_path):
+            with open(self.__path, 'r') as f:
+                with open(file_with_path, 'w') as f2:
+                    f2.write(f.read())
 
     def __resolve_semver(self):
         yang_file = open(self.__path)
@@ -304,8 +312,11 @@ class Modules:
 
     def __resolve_schema(self, schema):
         if schema:
+            split_index = '/yang/'
+            if '/tmp/' in self.__path:
+                split_index = self.__path.split('/')[1]
             if self.__is_vendor:
-                suffix = os.path.abspath(self.__path).split('/yang/')[1]
+                suffix = os.path.abspath(self.__path).split(split_index)[1]
                 self.schema = schema + suffix
             else:
                 self.schema = schema
@@ -754,6 +765,9 @@ class Modules:
                             'revision')[0].arg
                 except:
                     sub.revision = '1970-01-01'
+            if yang_file is None:
+                LOGGER.error('Module can not be found')
+                continue
             path = '/'.join(self.schema.split('/')[0:-1])
             path += '/{}'.format(yang_file.split('/')[-1])
             if yang_file:
@@ -816,6 +830,10 @@ class Modules:
             result = self.compilation_result
         result['name'] = self.name
         result['revision'] = self.revision
+        if self.organization == 'ietf':
+            result['switch'] = '--ietf'
+        else:
+            result['switch'] = '--lint'
         context = {'result': result}
         rendered_html = stats.render(
             '../parseAndPopulate/template/compilationStatusTemplate.html',
@@ -957,6 +975,10 @@ class Modules:
         if status == 'unknown':
             status = self.__get_module_status(self.jsons.xr621)
         if status == 'unknown':
+            status = self.__get_module_status(self.jsons.xr622)
+        if status == 'unknown':
+            status = self.__get_module_status(self.jsons.xr631)
+        if status == 'unknown':
             status = self.__get_module_status(self.jsons.xe1631)
         if status == 'unknown':
             status = self.__get_module_status(self.jsons.xe1632)
@@ -982,6 +1004,8 @@ class Modules:
             status = self.__get_module_status(self.jsons.huawei8910)
         if status == 'unknown':
             status = self.__get_module_status(self.jsons.mef_experimental_json)
+        if status == 'unknown':
+            status = self.__get_module_status(self.jsons.openconfig_json)
         return status
 
     def __get_module_status(self, files_json, index=0):
@@ -1080,6 +1104,12 @@ class Modules:
         res = self.__parse_res(self.jsons.xr621)
         if res != '':
             return res
+        res = self.__parse_res(self.jsons.xr622)
+        if res != '':
+            return res
+        res = self.__parse_res(self.jsons.xr631)
+        if res != '':
+            return res
         res = self.__parse_res(self.jsons.xr613)
         if res != '':
             return res
@@ -1108,6 +1138,9 @@ class Modules:
         if res != '':
             return res
         res = self.__parse_res(self.jsons.ietf_rfc_standard_json)
+        if res != '':
+            return res
+        res = self.__parse_res(self.jsons.openconfig_json)
         if res != '':
             return res
         return {'pyang': '', 'pyang_lint': '', 'confdrc': '', 'yumadump': '',

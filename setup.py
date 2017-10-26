@@ -10,5 +10,5 @@ setup(
     author_email='',
     description='',
     install_requires=['jinja2', 'numpy', 'pyang', 'requests', 'travispy',
-                      'flask', 'Crypto', 'pika']
+                      'flask', 'Crypto', 'pika', 'ciscosparkapi']
 )

@@ -17,7 +17,7 @@
 # ietf-routing draft without versioned imports.
 #
 platform_dir="vendor/cisco/xe"
-to_check="1651 1651/MIBS 1661 1661/MIBS"
+to_check="1651 1651/MIBS 1661 1661/MIBS 1662 1662/MIBS"
 inc_path="."
 debug=0
 
