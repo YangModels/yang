@@ -4,23 +4,20 @@ import errno
 import filecmp
 import json
 import os
-import smtplib
+import shutil
 import sys
 import tarfile
 import urllib
 import urllib2
-from email.mime.text import MIMEText
 
 import requests
-import shutil
 from numpy.f2py.auxfuncs import throw_error
-from tools.utility.util import GREETINGS
 from travispy import TravisPy
 
 import tools.utility.log as log
 from tools.ietfYangDraftPull.draftPullLocal import check_name_no_revision_exist, \
     check_early_revisions
-from tools.utility import repoutil
+from tools.utility import repoutil, messageFactory
 
 LOGGER = log.get_logger('draftPull')
 
@@ -42,27 +39,6 @@ def load_json_from_url(url):
     if tries == 0:
         raise throw_error('Couldn`t open a json file from url: ' + url)
     return loaded_json
-
-
-def send_email(new_files, diff_files):
-    """Notify via e-mail message about failed travis job"""
-    new_files = '\n'.join(new_files)
-    diff_files = '\n'.join(diff_files)
-    message = '{}\n\nSome of the files are different' \
-              ' in http://www.claise.be/IETFYANGRFC.json against' \
-              ' yangModels/yang repository\n\n' \
-              'Files that are missing in yangModles repo: \n{} \n\n ' \
-              'Files that are different then in yangModels repo: \n{}'.format(
-        GREETINGS, new_files, diff_files)
-    to = ['bclaise@cisco.com', 'einarnn@cisco.com', 'jclarke@cisco.com']
-    msg = MIMEText(message)
-    msg['Subject'] = 'Automatic generated message - RFC ietf'
-    msg['From'] = 'no-reply@yangcatalog.org'
-    msg['To'] = ', '.join(to)
-
-    s = smtplib.SMTP('localhost')
-    s.sendmail('no-reply@yangcatalog.org', to, msg.as_string())
-    s.quit()
 
 
 if __name__ == "__main__":
@@ -148,7 +124,8 @@ if __name__ == "__main__":
     os.remove(repo.localdir + '/tools/ietfYangDraftPull/rfc.tar')
     if len(new_files) > 0 or len(diff_files) > 0:
         LOGGER.warning('new or modified RFC files found. Sending an E-mail')
-        send_email(new_files, diff_files)
+        mf = messageFactory.MessageFactory()
+        mf.send_new_rfc_message(new_files, diff_files)
 
     for key in ietf_draft_json:
         yang_file = open(

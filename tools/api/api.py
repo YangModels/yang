@@ -9,24 +9,21 @@ import json
 import os
 import re
 import shutil
-import smtplib
+import subprocess
 import sys
 import urllib2
-from email.mime.text import MIMEText
 from threading import Lock
 from urllib2 import URLError
 
 import MySQLdb
 import requests
-import subprocess
+import tools.utility.log as lo
+import yangSearch.index as index
 from OpenSSL.crypto import load_publickey, FILETYPE_PEM, X509, verify
 from flask import Flask, jsonify, abort, make_response, request, Response
 from flask_httpauth import HTTPBasicAuth
-
-import tools.utility.log as lo
-import yangSearch.index as index
 from tools.api.sender import Sender
-from tools.utility import repoutil, yangParser
+from tools.utility import repoutil, yangParser, messageFactory
 from yangSearch.module import Module
 from yangSearch.rester import Rester, RestException
 
@@ -259,20 +256,6 @@ def check_authorized(signature, payload):
     verify(certificate, base64.b64decode(signature), payload, str('SHA1'))
 
 
-def send_email():
-    """Notify via e-mail message about failed travis job"""
-    to = ['bclaise@cisco.com', 'einarnn@cisco.com', 'jclarke@cisco.com']
-    msg = MIMEText('Travis pull job not sent because it was not sent from'
-                   ' travis. Key verification failed')
-    msg['Subject'] = 'Travis pull job not sent'
-    msg['From'] = 'info@yangcatalog.org'
-    msg['To'] = ', '.join(to)
-
-    s = smtplib.SMTP('localhost')
-    s.sendmail('info@yangcatalog.org', to, msg.as_string())
-    s.quit()
-
-
 @auth.login_required
 @app.route('/ietf', methods=['GET'])
 def trigger_ietf_pull():
@@ -302,7 +285,7 @@ def check_local():
     except:
         LOGGER.critical('Authorization failed.'
                         ' Request did not come from Travis')
-        send_email()
+        mf.send_travis_auth_failed()
         return unauthorized()
 
     global yang_models_url
@@ -1592,14 +1575,19 @@ def trigger_populate():
     body = request.json
     paths = []
     added = body.get('added')
+    new = []
+    mod = []
     for add in added:
         if 'platform-metadata.json' in add:
             paths.append('/'.join(add.split('/')[:-1]))
+            new.append('/'.join(add.split('/')[:-1]))
     modified = body.get('modified')
     for m in modified:
         if 'platform-metadata.json' in m:
             paths.append('/'.join(m.split('/')[:-1]))
+            mod.append('/'.join(m.split('/')[:-1]))
 
+    mf.send_new_modified_platform_metadata(new, mod)
     LOGGER.info('Forking the repo')
     repo = repoutil.RepoUtil('https://github.com/YangModels/yang.git')
     try:
@@ -1768,6 +1756,8 @@ if __name__ == '__main__':
     config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
     config.read(config_path)
+    global mf
+    mf = messageFactory.MessageFactory()
     global result_dir
     result_dir = config.get('API-Section', 'result-html-dir')
     global sender
