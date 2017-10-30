@@ -17,6 +17,7 @@ import requests
 
 import tools.utility.log as log
 from tools.utility import messageFactory
+from tools.utility.util import get_curr_dir
 
 LOGGER = log.get_logger('receiver')
 
@@ -91,14 +92,14 @@ def process_sdo(arguments):
             return __response_type[0] + '#split#Server error while parsing or populating data'
 
     try:
-        os.makedirs('../../api/sdo/')
+        os.makedirs(get_curr_dir(__file__) + '/../../api/sdo/')
     except OSError as e:
         # be happy if someone already created the path
         if e.errno != errno.EEXIST:
             return __response_type[0] + '#split#Server error - could not create directory'
 
     if tree_created:
-        subprocess.call(["cp", "-r", direc + "/temp/.", "../../api/sdo/"])
+        subprocess.call(["cp", "-r", direc + "/temp/.", get_curr_dir(__file__) + "/../../api/sdo/"])
         with open('../parseAndPopulate/' + direc + '/prepare.json',
                   'r') as f:
             global all_modules
@@ -147,11 +148,12 @@ def send_to_indexing(modules_to_index, credentials, confd_api_ip, api_port, api_
                 :param force_indexing: (bool) Whether or not we should force indexing even if module exists in cache.
     """
     LOGGER.debug('Sending data for indexing')
+    mf = messageFactory.MessageFactory()
     if delete:
         body_to_send = json.dumps({'modules-to-delete': modules_to_index},
                                   indent=4)
 
-        mf.send_removed_yang_files(body_to_send)
+        #mf.send_removed_yang_files(body_to_send)
         for mod in modules_to_index:
             name, revision_organization = mod.split('@')
             revision, organization = revision_organization.split('/')
@@ -199,7 +201,7 @@ def send_to_indexing(modules_to_index, credentials, confd_api_ip, api_port, api_
                 if force_indexing or (code != 200 and code != 201 and code != 204):
                     if module.get('schema'):
                         path = prefix + module['schema'].split('githubusercontent.com/')[1]
-                        path = os.path.abspath('../../' + path)
+                        path = os.path.abspath(get_curr_dir(__file__) + '/../../' + path)
                     else:
                         path = 'module does not exist'
                     post_body[module['name'] + '@' + module['revision'] + '/' + module['organization']] = path
@@ -214,13 +216,13 @@ def send_to_indexing(modules_to_index, credentials, confd_api_ip, api_port, api_
                 if force_indexing or (code != 200 and code != 201 and code != 204):
                     if module.get('schema'):
                         path = module['schema'].split('master')[1]
-                        path = os.path.abspath('../../' + path)
+                        path = os.path.abspath(get_curr_dir(__file__) + '/../../' + path)
                     else:
                         path = 'module does not exist'
                     post_body[module['name'] + '@' + module['revision'] + '/' + module['organization']] = path
         body_to_send = json.dumps({'modules-to-index': post_body}, indent=4)
-        if len(post_body) > 0:
-            mf.send_added_new_yang_files(body_to_send)
+        #if len(post_body) > 0:
+            #mf.send_added_new_yang_files(body_to_send)
 
     try:
         set_key = key
@@ -269,14 +271,14 @@ def process_vendor(arguments):
             LOGGER.error('Server error: {}'.format(e))
             return __response_type[0] + '#split#Server error while parsing or populating data'
     try:
-        os.makedirs('../../api/vendor/')
+        os.makedirs(get_curr_dir(__file__) + '/../../api/vendor/')
     except OSError as e:
         # be happy if someone already created the path
         if e.errno != errno.EEXIST:
             LOGGER.error('Server error: {}'.format(e))
             return __response_type[0] + '#split#Server error - could not create directory'
 
-    subprocess.call(["cp", "-r", direc + "/temp/.", "../../api/vendor/"])
+    subprocess.call(["cp", "-r", direc + "/temp/.", get_curr_dir(__file__) + "/../../api/vendor/"])
 
     if tree_created:
         with open('../parseAndPopulate/' + direc + '/prepare.json',
@@ -673,8 +675,8 @@ def on_request(ch, method, props, body):
                                 #    f.write(schema2)
                                 # with open(to_write, 'w+') as f:
                                 #    f.write(schema1.content)
-                                arguments = ['pyang', '-P', '../../.', '-p',
-                                             '../../.',
+                                arguments = ['pyang', '-P', get_curr_dir(__file__) + '/../../.', '-p',
+                                             get_curr_dir(__file__) + '/../../.',
                                              schema1, '--check-update-from',
                                              schema2]
                                 pyang = subprocess.Popen(arguments,
@@ -682,14 +684,14 @@ def on_request(ch, method, props, body):
                                                          stderr=subprocess.PIPE)
                                 stdout, stderr = pyang.communicate()
                                 if stderr == '':
-                                    arguments = ["pyang", '-p', '../../.', "-f",
+                                    arguments = ["pyang", '-p', get_curr_dir(__file__) + '/../../.', "-f",
                                                  "tree",
                                                  schema1]
                                     pyang = subprocess.Popen(arguments,
                                                              stdout=subprocess.PIPE,
                                                              stderr=subprocess.PIPE)
                                     stdout, stderr = pyang.communicate()
-                                    arguments = ["pyang", "-p", "../../.", "-f",
+                                    arguments = ["pyang", "-p", get_curr_dir(__file__) + "/../../.", "-f",
                                                  "tree",
                                                  schema2]
                                     pyang = subprocess.Popen(arguments,
@@ -835,8 +837,8 @@ def on_request(ch, method, props, body):
                                     #    f.write(schema2.content)
                                     # with open(to_write_before, 'w+') as f:
                                     #    f.write(schema1.content)
-                                    arguments = ['pyang', '-p', '../../.', '-P',
-                                                 '../../.',
+                                    arguments = ['pyang', '-p', get_curr_dir(__file__) + '/../../.', '-P',
+                                                 get_curr_dir(__file__) + '/../../.',
                                                  schema2,
                                                  '--check-update-from', schema1]
                                     pyang = subprocess.Popen(arguments,
@@ -844,14 +846,14 @@ def on_request(ch, method, props, body):
                                                              stderr=subprocess.PIPE)
                                     stdout, stderr = pyang.communicate()
                                     if stderr == '':
-                                        arguments = ["pyang", '-p', '../../.',
+                                        arguments = ["pyang", '-p', get_curr_dir(__file__) + '/../../.',
                                                      "-f", "tree",
                                                      schema1]
                                         pyang = subprocess.Popen(arguments,
                                                                  stdout=subprocess.PIPE,
                                                                  stderr=subprocess.PIPE)
                                         stdout, stderr = pyang.communicate()
-                                        arguments = ["pyang", '-p', '../../.',
+                                        arguments = ["pyang", '-p', get_curr_dir(__file__) + '/../../.',
                                                      "-f", "tree",
                                                      schema2]
                                         pyang = subprocess.Popen(arguments,
@@ -1022,8 +1024,6 @@ if __name__ == '__main__':
     config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
     config.read(config_path)
-    global mf
-    mf = messageFactory.MessageFactory()
     global key
     key = config.get('Receiver-Section', 'key')
     global notify_indexing

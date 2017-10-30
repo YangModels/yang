@@ -13,11 +13,13 @@ import urllib2
 import requests
 from numpy.f2py.auxfuncs import throw_error
 from travispy import TravisPy
+from travispy.errors import TravisError
 
 import tools.utility.log as log
 from tools.ietfYangDraftPull.draftPullLocal import check_name_no_revision_exist, \
     check_early_revisions
 from tools.utility import repoutil, messageFactory
+from tools.utility.util import get_curr_dir
 
 LOGGER = log.get_logger('draftPull')
 
@@ -113,8 +115,8 @@ if __name__ == "__main__":
                     repo.localdir + '/standard/ietf/RFCtemp'):
         for file_name in sdos:
             if '.yang' in file_name:
-                if os.path.exists('../../standard/ietf/RFC/' + file_name):
-                    same = filecmp.cmp('../../standard/ietf/RFC/' + file_name,
+                if os.path.exists( get_curr_dir(__file__) + '/../../standard/ietf/RFC/' + file_name):
+                    same = filecmp.cmp( get_curr_dir(__file__) + '/../../standard/ietf/RFC/' + file_name,
                                        root + '/' + file_name)
                     if not same:
                         diff_files.append(file_name)
@@ -155,9 +157,13 @@ if __name__ == "__main__":
         repo.commit_all('Cronjob - every day pull of ietf draft yang files.')
         LOGGER.info('Pushing files to forked repository')
         LOGGER.info('Commit hash {}'.format(repo.repo.head.commit))
-        with open(commit_dir, 'a') as f:
+        with open(commit_dir, 'w+') as f:
             f.write('{}\n'.format(repo.repo.head.commit))
         repo.push()
+    except TravisError as e:
+        LOGGER.error('Error while pushing procedure {}'.format(e.message()))
+        requests.delete(yang_models_url,
+                        headers={'Authorization': 'token ' + token})
     except:
         LOGGER.error(
             'Error while pushing procedure {}'.format(sys.exc_info()[0]))

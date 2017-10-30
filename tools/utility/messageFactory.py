@@ -77,6 +77,13 @@ class MessageFactory:
                    ' travis. Key verification failed')
         self.__post_to_spark(message)
 
+    def send_automated_procedure_failed(self, procedure, error_message):
+        LOGGER.info('Sending notification about any automated procedure failure'
+                    )
+        message = ('Automated procedure - {} - failed with error - {}'
+                   .format(procedure, error_message))
+        self.__post_to_spark(message)
+
     def send_removed_temp_diff_files(self):
         # TODO send spark message about removed searched diff files
         pass
@@ -102,7 +109,7 @@ class MessageFactory:
         message = ("There were new or modified platform metadata json files "
                    "added to yangModels-yang repository, that are currently"
                    "being processed in following paths:\n\n"
-                   "``` New json files: \n {} \n\n Modified json files:\n{}"
-                   "```"
+                   "''' New json files: \n {} \n\n Modified json files:\n{}"
+                   "'''"
                    .format(new_files, modified_files))
         self.__post_to_spark(message, True)

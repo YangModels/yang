@@ -10,6 +10,7 @@ import capability as cap
 import prepare
 import statistics
 import tools.utility.log as log
+from tools.utility.util import get_curr_dir
 
 LOGGER = log.get_logger('runCapabilities')
 
@@ -69,7 +70,7 @@ if __name__ == "__main__":
     else:
         stats_list = {'vendor': search_dirs}
     if args.run_integrity:
-        stats_list = {'vendor': ['../../vendor/cisco']}
+        stats_list = {'vendor': [get_curr_dir(__file__) + '/../../vendor/cisco']}
     LOGGER.info('Starting to iterate through files')
     for key in stats_list:
         search_dirs = stats_list[key]

@@ -10,7 +10,7 @@ from click.exceptions import FileError
 
 import tools.statistics.statistics as stats
 from tools.utility import log, yangParser
-from tools.utility.util import find_first_file
+from tools.utility.util import find_first_file, get_curr_dir
 
 IETF_RFC_MAP = {
     "iana-crypt-hash@2014-08-06.yang": "NETMOD",
@@ -434,7 +434,7 @@ class Modules:
                 coresponding_nmda_file = self.__find_file(name_of_module,
                                                           normal_search=False)
                 if coresponding_nmda_file:
-                    arguments = ["pyang", "-p", "../../.", "-f", "tree",
+                    arguments = ["pyang", "-p", get_curr_dir(__file__) + "/../../.", "-f", "tree",
                                  coresponding_nmda_file]
                     pyang = subprocess.Popen(arguments, stdout=PIPE,
                                              stderr=PIPE)
@@ -569,7 +569,7 @@ class Modules:
 
         LOGGER.debug(
             'Get tree type from tag from module {}'.format(self.__path))
-        arguments = ["pyang", "-p", "../../.", "-f", "tree", self.__path]
+        arguments = ["pyang", "-p", get_curr_dir(__file__) + "/../../.", "-f", "tree", self.__path]
         pyang = subprocess.Popen(arguments, stdout=PIPE, stderr=PIPE)
         stdout, stderr = pyang.communicate()
         if 'error' in stderr and 'is not found' in stderr:
@@ -924,7 +924,7 @@ class Modules:
                     self.organization = 'cisco'
                     return
             if self.organization is None:
-                self.organization = MISSING_ELEMENT
+                self.organization = 'independent'
 
     def __resolve_prefix(self):
         self.prefix = self.__resolve_submodule_case('prefix')
@@ -1242,7 +1242,7 @@ class Modules:
                     self.__missing_submodules.append(name)
                 else:
                     self.__missing_modules.append(name)
-            yang_file = find_first_file('../../.', name + '.yang',
+            yang_file = find_first_file(get_curr_dir(__file__) + '/../../.', name + '.yang',
                                         name + '@' + revision + '.yang')
         return yang_file
 

@@ -4,6 +4,8 @@ import os
 
 import time
 
+from tools.utility.util import get_curr_dir
+
 
 def find_missing_hello(directory, pattern):
     for root, dirs, files in os.walk(directory):
@@ -110,11 +112,11 @@ class Statistics:
             for value in Statistics.missing_wrong_namespaces[key]:
                 file.write('<p>' + str(value) + '</p>')
         missing = []
-        my_files = find_missing_hello('./../../vendor/', '*.yang')
+        my_files = find_missing_hello(get_curr_dir(__file__) + '/../../vendor/', '*.yang')
         for name in set(my_files):
             if '.incompatible' not in name and 'MIBS' not in name:
                 missing.append(name)
-        missing = ', '.join(missing).replace('./../..', '')
+        missing = ', '.join(missing).replace(get_curr_dir(__file__) + '/../..', '')
         file.write('<h3>Folders with yang files but missing hello message inside of file:</h3><p>' + missing + '</p>')
         file.write('</body></html>')
 
