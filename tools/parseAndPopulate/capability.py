@@ -12,6 +12,7 @@ from click.exceptions import FileError
 import tools.utility.log as log
 from tools.parseAndPopulate.loadJsonFiles import LoadFiles
 from tools.parseAndPopulate.modules import Modules
+from tools.utility.util import get_curr_dir
 
 LOGGER = log.get_logger(__name__)
 
@@ -414,7 +415,7 @@ class Capability:
                 yang_file = find_first_file('/'.join(self.split[0: -1]),
                                             name + '.yang', name + '@*.yang')
                 if yang_file is None:
-                    yang_file = find_first_file('../../.', name + '.yang',
+                    yang_file = find_first_file(get_curr_dir(__file__) + '/../../.', name + '.yang',
                                                 name + '@*.yang')
                 if yang_file is None:
                     # TODO add integrity that this file is missing

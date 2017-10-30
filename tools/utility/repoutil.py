@@ -1,6 +1,8 @@
 import tempfile
 import shutil
 import os
+
+import sys
 from git import Repo
 from git.exc import GitCommandError
 
@@ -29,11 +31,12 @@ repo.git.rm([f1, f2, ...])
 
 '''
 
+
 class RepoUtil(object):
-    '''Simple class for rolling up some git operations as part of file
+    """Simple class for rolling up some git operations as part of file
     manipulation. The user should create the object with the URL to
     the repository and an appropriate set of credentials. At this
-    '''
+    """
 
     def __init__(self, repourl):
         self.repourl = repourl
@@ -41,12 +44,13 @@ class RepoUtil(object):
         self.repo = None
 
     def get_repo_dir(self):
-        '''Return the repository directory name from the URL'''
+        """Return the repository directory name from the URL"""
         return os.path.basename(self.repourl)
 
     def get_repo_owner(self):
-        '''Return the root directory name of the repo.  In GitHub
-        parlance, this would be the owner of the repository.'''
+        """Return the root directory name of the repo.  In GitHub
+        parlance, this would be the owner of the repository.
+        """
         owner = os.path.basename(os.path.dirname(self.repourl))
         if ':' in owner:
             return owner[owner.index(':') + 1:]
@@ -54,18 +58,18 @@ class RepoUtil(object):
         return owner
 
     def clone(self):
-        '''Clone the specified repository to a local temp directory. This
+        """Clone the specified repository to a local temp directory. This
         method may generate a git.exec.GitCommandError if the
         repository does not exist
-        '''
+        """
         self.localdir = tempfile.mkdtemp()
         self.repo = Repo.clone_from(self.repourl, self.localdir)
 
     def add_all_untracked(self):
-        '''Commit all untracked and modified files. This method shouldn't
+        """Commit all untracked and modified files. This method shouldn't
         generate any exceptions as we don't allow unexpected
         operations to be invoked.
-        '''
+        """
         self.repo.index.add(self.repo.untracked_files)
         modified = []
         deleted = []
@@ -74,27 +78,27 @@ class RepoUtil(object):
                 modified.append(i.a_path)
             else:
                 deleted.append(i.a_path)
-        if len(modified)>0:
+        if len(modified) > 0:
             self.repo.index.add(modified)
-        if len(deleted)>0:
-            self.repo.index.remove(modified)
+        if len(deleted) > 0:
+            self.repo.index.remove(deleted)
 
     def commit_all(self, message='RepoUtil Commit'):
-        '''Equivalent of git commit -a -m MESSAGE.'''
+        """Equivalent of git commit -a -m MESSAGE."""
         self.repo.git.commit(a=True, m=message)
 
     def push(self):
-        '''Push repo to origin. Credential errors may happen here.'''
+        """Push repo to origin. Credential errors may happen here."""
         self.repo.git.push("origin")
 
     def remove(self):
-        '''Remove the temporary storage.'''
+        """Remove the temporary storage."""
         shutil.rmtree(self.localdir)
         self.localdir = None
         self.repo = None
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
 
     #
     # local imports
@@ -106,7 +110,8 @@ if __name__=='__main__':
     #
     parser = ArgumentParser(description='RepoUtil test params:')
     parser.add_argument('userpass', nargs=1, type=str,
-                        help='Provide username:password for github https access')
+                        help='Provide username:password for github https access'
+                        )
     args = parser.parse_args()
     if not args.userpass:
         print("username:password required")
