@@ -67,7 +67,7 @@ module ietf-ntp {
      This version of this YANG module is part of RFC XXXX;
      see the RFC itself for full legal notices.";
 
-  revision 2017-05-12 {
+  revision 2017-10-28 {
     description
       "Updated revision.";
     reference
@@ -153,12 +153,12 @@ module ietf-ntp {
       "This defines NTP acess modes.";
   }
 
-  typedef association-modes {
+  typedef unicast-configuration-type {
     type enumeration {
       enum server {
         value "0";
         description
-          "Use client association mode.  This device
+          "Use client association mode. This device
           will not provide synchronization to the
           configured NTP server.";
       }
@@ -169,14 +169,46 @@ module ietf-ntp {
           This device may provide synchronization
           to the configured NTP server.";
       }
-      enum pool {
+    }
+    description
+      "This defines NTP unicast mode of operation.";
+  }
+
+  typedef association-modes {
+    type enumeration {
+      enum client {
+        value "0";
+        description
+          "Use client association mode(mode 3).
+          This device will not provide synchronization
+          to the configured NTP server.";
+      }
+      enum active {
+        value "1";
+        description
+          "Use symmetric active association mode(mode 1).
+          This device may synchronize with its NTP peer,
+          or provide synchronization to configured NTP peer.";
+      }
+      enum passive {
         value "2";
         description
-          "Use client association mode with one or
-          more of the NTP servers found by DNS
-          resolution of the domain name given by
-          the 'address' leaf.  This device will not
-          provide synchronization to the servers.";
+          "Use symmetric passive association mode(mode 2).
+          This device has learnt this asso dynamically.
+          This device may synchronize with its NTP peer.";
+      }
+      enum broadcast {
+        value "3";
+        description
+          "Use broadcast mode(mode 5).
+          This mode defines that its eigther working
+          as broadcast-server or multicast-server.";
+      }
+      enum broadcast-client {
+        value "4";
+        description
+          "This mode defines that its eigther working
+          as broadcast-client or multicast-client.";
       }
     }
     description
@@ -315,6 +347,7 @@ module ietf-ntp {
         "Indicates the number of packets dropped.";
     }
   }
+
   grouping comman-attributes {
     description
       "NTP common attributes for configuration.";
@@ -340,6 +373,35 @@ module ietf-ntp {
       type ntp-version;
       description
         "NTP version.";
+    }
+  }
+
+  grouping association-ref {
+    description
+      "Reference to NTP association node";
+    leaf associations-address {
+        type leafref {
+            path "/ntp:ntp/ntp:associations/ntp:address";
+        }
+        description
+          "Indicates the association address
+          which result in clock synchronization.";
+    }
+    leaf associations-local-mode {
+        type leafref {
+            path "/ntp:ntp/ntp:associations/ntp:local-mode";
+        }
+        description
+          "Indicates the association local-mode
+          which result in clock synchronization.";
+    }
+    leaf associations-isConfigured {
+        type leafref {
+            path "/ntp:ntp/ntp:associations/ntp:isConfigured";
+        }
+        description
+          "Indicates the association was configured or dynamic
+          which result in clock synchronization.";
     }
   }
 
@@ -434,10 +496,12 @@ module ietf-ntp {
         "System status of NTP.";
      leaf clock-state {
        type ntp-clock-status;
+       mandatory true;
        description "Indicates the state of system clock.";
      }
      leaf clock-stratum {
          type ntp-stratum;
+         mandatory true;
          description
            "Indicates the stratum of the reference clock.";
      }
@@ -451,15 +515,21 @@ module ietf-ntp {
                  length "4";
              }
          }
+         mandatory true;
          description
            "IPv4 address or first 32 bits of the MD5 hash of
            the IPv6 address or reference clock of the peer to
            which clock is synchronized.";
      }
+     uses association-ref {
+       description
+         "Reference to Association node";
+     }
      leaf nominal-freq {
          type decimal64 {
              fraction-digits 4;
          }
+         mandatory true;
          description
            "Indicates the nominal frequency of the
            local clock, in Hz.";
@@ -468,12 +538,14 @@ module ietf-ntp {
          type decimal64 {
              fraction-digits 4;
          }
+         mandatory true;
          description
            "Indicates the actual frequency of the
            local clock, in Hz.";
      }
      leaf clock-precision {
          type uint8;
+         mandatory true;
          description
            "Precision of the clock of this system
            in Hz.(prec=2^(-n))";
@@ -502,14 +574,6 @@ module ietf-ntp {
            "Indicates the dispersion between the local clock
            and the master reference clock, in milliseconds.";
      }
-     leaf peer-dispersion {
-         type decimal64 {
-             fraction-digits 2;
-         }
-         description
-           "Indicates the dispersion between the local clock
-           and the peer clock, in milliseconds.";
-     }
      leaf reference-time {
          type yang:date-and-time;
          description
@@ -517,6 +581,7 @@ module ietf-ntp {
      }
      leaf sync-state {
        type ntp-sync-state;
+       mandatory true;
        description
          "Indicates the synchronization status of
          the local clock.";
@@ -524,19 +589,19 @@ module ietf-ntp {
    }
  }
 
- list associations {
-   key "address association-type";
+ list unicast {
+   key "address type";
    description
-     "list of association.";
+     "list of unicast configuration.";
    leaf address {
      type inet:host;
      description
        "The address of this association.";
    }
-   leaf association-type {
-     type association-modes;
+   leaf type {
+     type unicast-configuration-type;
      description
-       "The desired association type for this NTP server.";
+       "Type for this NTP configuration";
    }
    container authentication{
      description
@@ -575,9 +640,30 @@ module ietf-ntp {
      description
        "Common attribute like port, version, min and max poll.";
    }
+ }
+
+ list associations {
+   key "address local-mode isConfigured";
+   config "false";
+   description
+     "list of NTP association.";
+   leaf address {
+     type inet:host;
+     description
+       "The address of this association.";
+   }
+   leaf local-mode {
+     type association-modes;
+     description
+       "Local mode for this NTP association.";
+   }
+   leaf isConfigured {
+     type boolean;
+     description
+       "Whether this association is configured or dynamically learnt.";
+   }
    leaf stratum {
      type ntp-stratum;
-     config "false";
      description
        "Indicates the stratum of the reference clock.";
    }
@@ -591,34 +677,52 @@ module ietf-ntp {
          length "4";
        }
      }
-     config "false";
      description
        "Reference clock type or address for the peer.";
    }
+   leaf authentication{
+     type leafref {
+       path "/ntp:ntp/ntp:authentication/"
+           + "ntp:authentication-keys/ntp:key-id";
+     }
+     description
+       "Authentication Key used for this association.";
+   }
+   leaf prefer {
+     type boolean;
+     default "false";
+     description
+       "Whether this association is preferred.";
+   }
+   leaf peer-interface {
+     type if:interface-ref;
+     description
+       "The interface which is used for communication.";
+   }
+   uses comman-attributes {
+     description
+       "Common attribute like port, version, min and max poll.";
+   }
    leaf reach {
      type uint8;
-     config "false";
      description
         "Indicates the reachability of the configured
         server or peer.";
    }
    leaf unreach {
      type uint8;
-     config "false";
      description
        "Indicates the unreachability of the configured
        server or peer.";
    }
    leaf poll {
      type uint8;
-     config "false";
      description
        "Indicates the polling interval for current,
        in seconds.";
    }
    leaf now {
      type uint32;
-     config "false";
      description
        "Indicates the time since the NTP packet was
        not received or last synchronized, in seconds.";
@@ -627,7 +731,6 @@ module ietf-ntp {
      type decimal64 {
        fraction-digits 4;
      }
-     config "false";
      description
        "Indicates the offset between the local clock
        and the superior reference clock.";
@@ -636,7 +739,6 @@ module ietf-ntp {
      type decimal64 {
        fraction-digits 2;
      }
-     config "false";
      description
        "Indicates the delay between the local clock
        and the superior reference clock.";
@@ -645,37 +747,31 @@ module ietf-ntp {
      type decimal64 {
        fraction-digits 2;
      }
-     config "false";
      description
        "Indicates the dispersion between the local
        clock and the superior reference clock.";
    }
    leaf originate-time {
      type yang:date-and-time;
-     config "false";
      description
        "Indicates packet originate timestamp(T1).";
    }
    leaf receive-time {
      type yang:date-and-time;
-     config "false";
      description
        "Indicates packet receive timestamp(T2).";
    }
    leaf transmit-time {
      type yang:date-and-time;
-     config "false";
      description
        "Indicates packet transmit timestamp(T3).";
    }
    leaf input-time {
      type yang:date-and-time;
-     config "false";
      description
        "Indicates packet input timestamp(T4).";
    }
    container ntp-statistics {
-     config "false";
      description
        "Per Peer packet send and receive statistic.";
      uses statistics {
@@ -685,14 +781,14 @@ module ietf-ntp {
    }
  }
 
- container interface {
+ container interfaces {
    description
      "Configuration parameters for NTP interfaces.";
    list interface {
-     key "interface";
+     key "name";
      description
        "List of interfaces.";
-     leaf interface {
+     leaf name {
            type if:interface-ref;
            description
              "The interface name.";
@@ -819,17 +915,16 @@ module ietf-ntp {
      }
     }
    }
- }
+   /* Operational state data */
 
- /* Operational state data */
-
- container ntp-statistics {
-   config "false";
-   description
-     "Total NTP packet statistic.";
-   uses statistics {
-       description
-         "NTP send and receive packet statistic.";
+   container ntp-statistics {
+     config "false";
+     description
+       "Total NTP packet statistic.";
+     uses statistics {
+         description
+           "NTP send and receive packet statistic.";
+     }
    }
  }
 }
