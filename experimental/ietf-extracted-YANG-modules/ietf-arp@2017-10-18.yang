@@ -1,0 +1,389 @@
+module ietf-arp {
+  namespace "urn:ietf:params:xml:ns:yang:ietf-arp";
+  prefix arp;
+
+ // import some basic types
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  import ietf-network-instance {
+    prefix ni;
+  }
+  organization
+    "IETF Netmod (Network Modeling) Working Group";
+  contact
+    "WG Web: <http://tools.ietf.org/wg/netmod/>
+     WG List: <mailto: netmod@ietf.org>
+     Editor: Xiaojian Ding
+                 dingxiaojian1@huawei.com
+     Editor: Feng Zheng
+                 habby.zheng@huawei.com";
+  description
+    "Address Resolution Protocol (ARP) management, which includes
+        static ARP configuration, dynamic ARP learning, ARP entry query,
+        and packet statistics collection.";
+
+  revision 2017-10-18 {
+    description
+      "Init revision";
+    reference
+      "RFC XXX: ARP (Address Resolution Protocol) YANG data model.";
+  }
+
+/*grouping*/
+
+  grouping arp-prob-grouping {
+    description
+      "Common configuration for all ARP probe.";
+    leaf probe-interval {
+      type uint8 {
+        range "1..5";
+      }
+          units "second";
+      description
+        "Interval for detecting dynamic ARP entries.";
+    }
+    leaf probe-times {
+      type uint8 {
+        range "0..10";
+      }
+      description
+        "Number of aging probe attempts for a dynamic ARP entry. If
+    a device does not receive an ARP reply message after the number
+                of aging probe attempts reaches a specified number, the
+                dynamic ARP entry is deleted.";
+    }
+    leaf probe-unicast {
+      type boolean;
+      default "false";
+      description
+        "Send unicast ARP aging probe messages for a dynamic ARP
+                entry.";
+    }
+  }
+
+  grouping arp-gratuitous-grouping {
+    description
+      "Configure gratuitous ARP.";
+    leaf arp-gratuitous {
+      type boolean;
+      default "false";
+      description
+      "Enable or disable sending gratuitous-arp packet on
+          interface.";
+    }
+    leaf arp-gratuitous-interval {
+      type uint32 {
+        range "1..86400";
+      }
+          units "second";
+      description
+        "The interval of sending gratuitous-arp packet on the
+                interface.";
+    }
+    leaf arp-gratuitous-drop {
+      type boolean;
+      default "false";
+      description
+      "Drop the receipt of gratuitous ARP packets on the interface.";
+    }
+  }
+
+  grouping arp-statistics-grouping {
+    description "IP ARP statistics information";
+    leaf requests-received {
+      type uint32;
+      description "Total ARP requests received";
+    }
+    leaf replies-received {
+      type uint32;
+      description "Total ARP replies received";
+    }
+    leaf gratuitous-received {
+      type uint32;
+      description "Total gratuitous ARP received";
+    }
+    leaf requests-sent {
+      type uint32;
+      description "Total ARP requests sent";
+    }
+    leaf replies-sent {
+      type uint32;
+      description "Total ARP replies sent";
+    }
+    leaf gratuitous-sent {
+      type uint32;
+      description "Total gratuituous ARP sent";
+    }
+  }
+
+  /* Typedefs */
+
+  typedef routing-instance-ref {
+    type leafref {
+      path "/ni:network-instances/ni:network-instance/ni:name";
+    }
+    description
+      "This type is used for leafs that reference a routing instance
+          configuration.";
+  }
+
+  /* Configuration data nodes */
+
+  container arp {
+    description
+      "Address Resolution Protocol (ARP) management, which includes
+          static ARP configuration, dynamic ARP learning, ARP entry
+          query, and packet statistics collection.";
+
+    container arp-static-tables {
+      description
+        "List of static ARP configurations.";
+      list arp-static-table {
+        key "vrf-name ip-address";
+        description
+          "Static ARP table. By default, the system ARP table is
+                  empty, and address mappings are implemented by dynamic
+                  ARP.";
+        leaf vrf-name {
+          type arp:routing-instance-ref;
+          description
+            "Name of a VPN instance. This parameter is used to
+                        support the VPN feature. If this parameter is
+                        set, it indicates that the ARP entry is in the
+                        associated VLAN.";
+        }
+        leaf ip-address {
+          type inet:ipv4-address-no-zone;
+          description
+            "IP address, in dotted decimal notation.";
+        }
+        leaf mac-address {
+          type yang:mac-address;
+          mandatory true;
+          description
+            "MAC address in the format of H-H-H, in which H is
+                        a hexadecimal number of 1 to 4 bits. ";
+        }
+        leaf if-name {
+          type leafref {
+            path "/if:interfaces/if:interface/if:name";
+          }
+          description
+            "Name of the ARP outbound interface.";
+        }
+      }
+    }//End of arp-static-tables
+
+    container arp-interfaces {
+      description
+        "List of ARP Interface configurations.";
+      list arp-interface {
+        key "if-name";
+        description
+          "ARP interface configuration, including the aging time,
+                  probe interval, number of aging probe attempts, ARP
+                  learning status, and ARP proxy.";
+        leaf if-name {
+          type leafref {
+            path "/if:interfaces/if:interface/if:name";
+          }
+          description
+            "Name of the interface that has learned dynamic ARP
+                        entries.";
+        }
+        leaf expire-time {
+          type uint32 {
+            range "60..86400";
+          }
+                  units "second";
+          description
+            "Aging time of a dynamic ARP entry.";
+        }
+        leaf arp-learn-disable {
+          type boolean;
+          default "false";
+          description
+            "Whether dynamic ARP learning is disabled. If the value
+                        is True, dynamic ARP learning is disabled. If the value
+                        is False, dynamic ARP learning is enabled.";
+        }
+        leaf proxy-enable {
+          type boolean;
+          default "false";
+          description
+            "Enable proxy ARP.";
+        }
+        uses arp-prob-grouping;
+        uses arp-gratuitous-grouping;
+
+        container arp-if-limits {
+          description
+            "Maximum number of dynamic ARP entries that an interface
+                        can learn.";
+          list arp-if-limit {
+            key "vlan-id";
+            description
+              "Maximum number of dynamic ARP entries that an
+                          interface can learn. If the number of ARP entries that
+                          an interface can learn changes and the number of the
+                          learned ARP entries exceeds the changed value, the
+                          interface cannot learn additional ARP entries. The
+                          system prompts you to delete the excess ARP entries.";
+             leaf vlan-id {
+              type uint16 {
+                range "0..4094";
+              }
+              description
+                "ID of the VLAN where ARP learning is restricted.
+                                This parameter can be set only on Layer 2 interfaces
+                                and sub-interfaces. Ethernet, GE, VE, and Eth-Trunk
+                                interfaces can be both Layer 3 and Layer 2
+                                interfaces. When they work in Layer 3 mode, they
+                                cannot have VLANs configured. When they work in Layer
+                                2 mode, they must have VLANs configured. Ethernet,
+                                GE, and Eth-Trunk sub-interfaces can be both common
+                                and QinQ sub-interfaces. ";
+            }
+            leaf limit-number {
+              type uint32 {
+                range "1..65536";
+              }
+              mandatory true;
+              description
+                "Maximum number of dynamic ARP entries that an
+                                interface can learn.";
+            }
+            leaf threshold-value {
+              type uint32 {
+                range "60..100";
+              }
+              must "not(not(../limit-number))"{
+                          description
+              "Upper boundary must be higher than lower boundary.";
+                          }
+              description
+                "Alarm-Threshold for maximum number of ARP entries
+                                that an interface can learn.";
+            }
+          }
+        }//End of arp-if-limits
+      }
+    }// End of arp-interfaces
+
+    container arp-tables {
+        config false;
+      description
+        "List of ARP entries that can be queried.";
+      list arp-table {
+        key "vrf-name ip-address";
+        description
+          "Query ARP entries, including static, dynamic, and
+                  interface-based ARP entries.";
+        leaf vrf-name {
+          type arp:routing-instance-ref;
+          description
+            "Name of the VPN instance to which an ARP entry
+                        belongs.";
+        }
+        leaf ip-address {
+          type inet:ipv4-address-no-zone;
+          description
+            "IP address, in dotted decimal notation.";
+        }
+        leaf mac-address {
+          type yang:mac-address;
+          description
+            "MAC address in the format of H-H-H, in which H is a
+                        hexadecimal number of 1 to 4 bits. ";
+        }
+        leaf expire-time {
+          type uint32 {
+            range "1..1440";
+          }
+          description
+            "Aging time of a dynamic ARP entry. ";
+        }
+        leaf if-name {
+          type leafref {
+            path "/if:interfaces/if:interface/if:name";
+          }
+          description
+            "Type and number of the interface that has learned ARP
+                        entries.";
+        }
+      }
+    }//End of arp-tables
+
+    container arp-statistics {
+      config false;
+      description
+        "List of ARP packet statistics.";
+      list global-statistics {
+        description
+          "ARP packet statistics.";
+        uses arp-statistics-grouping;
+        leaf drops-received {
+          type uint32 {
+            range "0..4294967294";
+          }
+          description
+            "Number of ARP packets discarded.";
+        }
+        leaf total-received {
+          type uint32 {
+            range "0..4294967294";
+          }
+          description
+            "Total number of ARP received packets.";
+        }
+        leaf total-sent {
+          type uint32 {
+            range "0..4294967294";
+          }
+          description
+            "Total number of ARP sent packets.";
+        }
+        leaf arp-dynamic-count {
+          type uint32 {
+            range "0..4294967294";
+          }
+          description
+            "Number of dynamic ARP count.";
+        }
+        leaf arp-static-count {
+          type uint32 {
+            range "0..4294967294";
+          }
+          description
+            "Number of static ARP count.";
+        }
+      }
+      list arp-if-statistics {
+        key "if-name";
+        description
+          "ARP statistics on interfaces. ARP statistics on all
+                  interfaces are displayed in sequence.";
+        leaf if-name {
+          type leafref {
+            path "/if:interfaces/if:interface/if:name";
+          }
+          description
+            "Name of an interface where ARP statistics to be
+                        displayed reside.";
+        }
+        uses arp-statistics-grouping;
+      }
+    }// End of arp-statistics
+  }
+}

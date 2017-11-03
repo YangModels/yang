@@ -11,9 +11,11 @@ import requests
 from urllib2 import URLError
 
 import jinja2
+import time
 
 import tools.utility.log as log
 from tools.utility import yangParser
+from tools.utility.util import get_curr_dir
 
 LOGGER = log.get_logger('statistics')
 
@@ -256,9 +258,9 @@ if __name__ == '__main__':
     xr = []
     nx = []
     xe = []
-    xr_versions = sorted(next(os.walk('../../vendor/cisco/xr'))[1])
-    nx_versions = sorted(next(os.walk('../../vendor/cisco/nx'))[1])
-    xe_versions = sorted(next(os.walk('../../vendor/cisco/xe'))[1])
+    xr_versions = sorted(next(os.walk(get_curr_dir(__file__) + '/../../vendor/cisco/xr'))[1])
+    nx_versions = sorted(next(os.walk(get_curr_dir(__file__) + '/../../vendor/cisco/nx'))[1])
+    xe_versions = sorted(next(os.walk(get_curr_dir(__file__) + '/../../vendor/cisco/xe'))[1])
     xr_values = []
     nx_values = []
     xe_values = []
@@ -341,101 +343,101 @@ if __name__ == '__main__':
     # Vendors sparately
     vendor_list = []
 
-    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', '../../vendor/cisco',
+    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', get_curr_dir(__file__) + '/../../vendor/cisco',
                                 '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, vendor_list, '../../vendor/cisco', 'cisco')
+    process_data(out, vendor_list, get_curr_dir(__file__) + '/../../vendor/cisco', 'cisco')
 
-    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', '../../vendor/ciena',
+    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', get_curr_dir(__file__) + '/../../vendor/ciena',
                                 '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, vendor_list, '../../vendor/ciena', 'ciena')
+    process_data(out, vendor_list, get_curr_dir(__file__) + '/../../vendor/ciena', 'ciena')
 
-    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', '../../vendor/juniper',
+    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', get_curr_dir(__file__) + '/../../vendor/juniper',
                                 '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, vendor_list, '../../vendor/juniper', 'juniper')
+    process_data(out, vendor_list, get_curr_dir(__file__) + '/../../vendor/juniper', 'juniper')
 
-    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', '../../vendor/huawei',
+    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', get_curr_dir(__file__) + '/../../vendor/huawei',
                                 '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, vendor_list, '../../vendor/huawei', 'huawei')
+    process_data(out, vendor_list, get_curr_dir(__file__) + '/../../vendor/huawei', 'huawei')
 
     # Vendors all together
-    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', '../../vendor',
+    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', get_curr_dir(__file__) + '/../../vendor',
                                 '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    vendor_modules = out.split('../../vendor : ')[1].split('\n')[0]
-    vendor_modules_ndp = out.split('../../vendor (duplicates removed): ')[1].split('\n')[0]
+    vendor_modules = out.split(get_curr_dir(__file__) + '/../../vendor : ')[1].split('\n')[0]
+    vendor_modules_ndp = out.split(get_curr_dir(__file__) + '/../../vendor (duplicates removed): ')[1].split('\n')[0]
 
     # Standard all together
-    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', '../../standard',
+    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', get_curr_dir(__file__) + '/../../standard',
                                 '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    standard_modules = out.split('../../standard : ')[1].split('\n')[0]
-    standard_modules_ndp = out.split('../../standard (duplicates removed): ')[1].split('\n')[0]
+    standard_modules = out.split(get_curr_dir(__file__) + '/../../standard : ')[1].split('\n')[0]
+    standard_modules_ndp = out.split(get_curr_dir(__file__) + '/../../standard (duplicates removed): ')[1].split('\n')[0]
 
     # Standard separately
     sdo_list = []
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                '../../standard/ietf/RFC', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                get_curr_dir(__file__) + '/../../standard/ietf/RFC', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, '../../standard/ietf/RFC', 'IETF RFCs')
+    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/ietf/RFC', 'IETF RFCs')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                '../../standard/ietf/DRAFT', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                get_curr_dir(__file__) + '/../../standard/ietf/DRAFT', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, '../../standard/ietf/DRAFT', 'IETF drafts')
+    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/ietf/DRAFT', 'IETF drafts')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                '../../standard/bbf/standard', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                get_curr_dir(__file__) + '/../../standard/bbf/standard', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, '../../standard/bbf/standard', 'BBF standard')
+    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/bbf/standard', 'BBF standard')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                '../../standard/bbf/draft', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                get_curr_dir(__file__) + '/../../standard/bbf/draft', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, '../../standard/bbf/draft', 'BBF draft')
+    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/bbf/draft', 'BBF draft')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                '../../standard/ieee/802.1', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                get_curr_dir(__file__) + '/../../standard/ieee/802.1', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, '../../standard/ieee/802.1', 'IEEE 802.1 with par')
+    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/ieee/802.1', 'IEEE 802.1 with par')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                '../../experimental/ieee/802.1', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                get_curr_dir(__file__) + '/../../experimental/ieee/802.1', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, '../../experimental/ieee/802.1', 'IEEE 802.1 no par')
+    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../experimental/ieee/802.1', 'IEEE 802.1 no par')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                '../../standard/ieee/802.3', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                get_curr_dir(__file__) + '/../../standard/ieee/802.3', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, '../../standard/ieee/802.3', 'IEEE 802.3 with par')
+    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/ieee/802.3', 'IEEE 802.3 with par')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                '../../experimental/ieee/802.3', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                get_curr_dir(__file__) + '/../../experimental/ieee/802.3', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, '../../experimental/ieee/802.3', 'IEEE 802.3 no par')
+    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../experimental/ieee/802.3', 'IEEE 802.3 no par')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                '../../standard/ieee/draft', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                get_curr_dir(__file__) + '/../../standard/ieee/draft', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, '../../standard/ieee/draft', 'IEEE draft with par')
+    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/ieee/draft', 'IEEE draft with par')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                '../../standard/mef/src/model/standard', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                get_curr_dir(__file__) + '/../../standard/mef/src/model/standard', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, '../../standard/mef/src/model/standard', 'MEF standard')
+    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/mef/src/model/standard', 'MEF standard')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                '../../standard/mef/src/model/draft', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                get_curr_dir(__file__) + '/../../standard/mef/src/model/draft', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, '../../standard/mef/src/model/draft', 'MEF draft')
+    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/mef/src/model/draft', 'MEF draft')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                '../../experimental/openconfig', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                get_curr_dir(__file__) + '/../../experimental/openconfig', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, '../../experimental/openconfig', 'openconfig')
+    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../experimental/openconfig', 'openconfig')
 
     context = {'table_sdo': sdo_list,
                'table_vendor': vendor_list,
@@ -450,7 +452,8 @@ if __name__ == '__main__':
                'xe': xe,
                'nx_values': nx_values,
                'xe_values': xe_values,
-               'xr_values': xr_values}
+               'xr_values': xr_values,
+               'current_date': time.strftime("%d/%m/%y")}
     LOGGER.info('Rendering data')
     result = render('./template/stats.html', context)
     with open('./statistics.html', 'w+') as f:

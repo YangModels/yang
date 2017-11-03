@@ -2,6 +2,10 @@ import fnmatch
 import glob
 import os
 
+import time
+
+from tools.utility.util import get_curr_dir
+
 
 def find_missing_hello(directory, pattern):
     for root, dirs, files in os.walk(directory):
@@ -74,7 +78,10 @@ class Statistics:
 
     @staticmethod
     def dumps(file):
-        file.write('<!DOCTYPE html><html><body><h1>Yangcatalog statistics</h1>')
+        file.write('<!DOCTYPE html><html><body> <ul>'
+                   '<li>Generated on {}</li>'
+                   '</ul><h1>Yangcatalog statistics</h1>'
+                   .format(time.strftime("%d/%m/%y")))
         file.write('<h3>YANG modules in directory but not present in any NETCONF hello message in that directory:</h3>')
         for key in Statistics.useless_modules:
             if len(Statistics.useless_modules[key]) > 0:
@@ -105,11 +112,11 @@ class Statistics:
             for value in Statistics.missing_wrong_namespaces[key]:
                 file.write('<p>' + str(value) + '</p>')
         missing = []
-        my_files = find_missing_hello('./../../vendor/', '*.yang')
+        my_files = find_missing_hello(get_curr_dir(__file__) + '/../../vendor/', '*.yang')
         for name in set(my_files):
             if '.incompatible' not in name and 'MIBS' not in name:
                 missing.append(name)
-        missing = ', '.join(missing).replace('./../..', '')
+        missing = ', '.join(missing).replace(get_curr_dir(__file__) + '/../..', '')
         file.write('<h3>Folders with yang files but missing hello message inside of file:</h3><p>' + missing + '</p>')
         file.write('</body></html>')
 

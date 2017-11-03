@@ -1,6 +1,5 @@
 import ConfigParser
 import argparse
-import base64
 import errno
 import fnmatch
 import json
@@ -8,13 +7,13 @@ import os
 import shutil
 import subprocess
 import unicodedata
-import urllib2
 from datetime import datetime
 
 import requests
 
 import tools.utility.log as log
 from tools.api.receiver import send_to_indexing
+from tools.utility.util import get_curr_dir
 
 LOGGER = log.get_logger('populate')
 
@@ -30,23 +29,6 @@ def find_files(directory, pattern):
 # Unicode to string
 def unicode_normalize(variable):
     return unicodedata.normalize('NFKD', variable).encode('ascii', 'ignore')
-
-
-# Make a http request on path with json_data
-def http_request(path, method, json_data, credentials):
-    try:
-        opener = urllib2.build_opener(urllib2.HTTPHandler)
-        request = urllib2.Request(path, data=json_data)
-        request.add_header('Content-Type', 'application/vnd.yang.data+json')
-        request.add_header('Accept', 'application/vnd.yang.data+json')
-        base64string = base64.b64encode('%s:%s' % (credentials[0], credentials[1]))
-        request.add_header("Authorization", "Basic %s" % base64string)
-        request.get_method = lambda: method
-        opener.open(request)
-    except:
-        LOGGER.error('Could not send request with body {} and path {}'.format(json_data, path))
-        raise
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parse hello messages and yang files to json dictionary. These"
@@ -79,6 +61,8 @@ if __name__ == "__main__":
     parser.add_argument('--config-path', type=str, default='../utility/config.ini',
                         help='Set path to config file')
     parser.add_argument('--force-indexing', action='store_true', default=False, help='Force to index files')
+    parser.add_argument('--save-file-dir', default='/home/miroslav/results/',
+                        type=str, help='Directory where the file will be saved')
     args = parser.parse_args()
     config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
@@ -98,78 +82,151 @@ if __name__ == "__main__":
                 if e.errno != errno.EEXIST:
                     raise
         direc = repr(direc)
-    prefix = args.protocol + '://{}:{}'.format(args.ip, args.port)
+    prefix = '{}://{}:{}'.format(args.protocol, args.ip, args.port)
     LOGGER.info('Calling runcapabilities script')
     if args.api:
         if args.sdo:
             with open("log_api_sdo.txt", "wr") as f:
                 arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--sdo", "--dir",
-                             args.dir, "--json-dir", direc, "--result-html-dir", args.result_html_dir]
+                             args.dir, "--json-dir", direc, "--result-html-dir", args.result_html_dir,
+                             '--save-file-dir', args.save_file_dir]
                 subprocess.check_call(arguments, stderr=f)
         else:
             with open("log_api.txt", "wr") as f:
                 arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--dir", args.dir,
-                             "--json-dir", direc, "--result-html-dir", args.result_html_dir]
+                             "--json-dir", direc, "--result-html-dir", args.result_html_dir,
+                             '--save-file-dir', args.save_file_dir]
                 subprocess.check_call(arguments, stderr=f)
     else:
         if args.sdo:
             with open("log_sdo.txt", "wr") as f:
                 arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--sdo", "--dir", args.dir,
-                             "--json-dir", direc, "--result-html-dir", args.result_html_dir]
+                             "--json-dir", direc, "--result-html-dir", args.result_html_dir,
+                             '--save-file-dir', args.save_file_dir]
                 subprocess.check_call(arguments, stderr=f)
         else:
             with open("log_no_sdo_api.txt", "wr") as f:
                 arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--dir", args.dir, "--json-dir", direc,
-                             "--result-html-dir", args.result_html_dir]
+                             "--result-html-dir", args.result_html_dir,
+                             '--save-file-dir', args.save_file_dir]
                 subprocess.check_call(arguments, stderr=f)
 
     LOGGER.info('Populating yang catalog with data. Starting to add modules')
-    for filename_prepare in find_files('../parseAndPopulate/' + direc, 'prepare.json'):
-        with open(filename_prepare) as data_file:
-            read = data_file.read()
+
+    with open('../parseAndPopulate/{}/prepare.json'.format(direc)) as data_file:
+        read = data_file.read()
+        modules_json = json.loads(read)['module']
+        mod = len(modules_json) % 1000
+        for x in range(0, len(modules_json) / 1000):
             json_modules_data = json.dumps({
-                'modules': json.loads(read)
+                'modules':
+                    {
+                        'module': modules_json[x*1000: (x*1000)+1000]
+                    }
             })
 
             if '{"module": []}' not in read:
-                http_request(prefix + '/api/config/catalog/modules/', 'PATCH',
-                             json_modules_data, args.credentials)
-
-    files = []
-    # Find all parsed json files
-    for filename in find_files('../parseAndPopulate/' + direc, 'normal*.json'):
-        with open(filename) as data_file:
-            files.append(json.load(data_file))
+                url = prefix + '/api/config/catalog/modules/'
+                response = requests.patch(url, json_modules_data,
+                                          auth=(args.credentials[0],
+                                                args.credentials[1]),
+                                          headers={
+                                              'Accept': 'application/vnd.yang.data+json',
+                                              'Content-type': 'application/vnd.yang.data+json'})
+                if response.status_code < 200 or response.status_code > 299:
+                    LOGGER.error('Request with body on path {} failed with {}'
+                                 .format(json_modules_data, url,
+                                        response.content))
+    rest = (len(modules_json) / 1000) * 1000
+    json_modules_data = json.dumps({
+        'modules':
+            {
+                'module': modules_json[rest: rest + mod]
+            }
+    })
+    url = prefix + '/api/config/catalog/modules/'
+    response = requests.patch(url, json_modules_data,
+                              auth=(args.credentials[0],
+                                    args.credentials[1]),
+                              headers={
+                                  'Accept': 'application/vnd.yang.data+json',
+                                  'Content-type': 'application/vnd.yang.data+json'})
+    if response.status_code < 200 or response.status_code > 299:
+        LOGGER.error('Request with body on path {} failed with {}'
+                     .format(json_modules_data, url,
+                             response.content))
+    #files = []
+    ## Find all parsed json files
+    #for filename in find_files('../parseAndPopulate/' + direc, 'normal*.json'):
+    #    with open(filename) as data_file:
+    #        files.append(json.load(data_file))
 
     # In each json
     LOGGER.info('Starting to add vendors')
-    for data in files:
-        # Prepare json_data for put request - this request will prepare list vendors
-        # to populate it with protocols and modules
-        json_implementations_data = json.dumps(data)
-        # Make a PUT request to create a root for each file
-        http_request(prefix + '/api/config/catalog/vendors/', 'PATCH', json_implementations_data,
-                     args.credentials)
+    if os.path.exists('../parseAndPopulate/{}/normal.json'):
+        with open('../parseAndPopulate/{}/normal.json'.format(direc)) as data:
+            vendors = json.loads(data.read())['vendors']['vendor']
 
+            mod = len(vendors) % 1000
+            for x in range(0, len(vendors) / 1000):
+                json_implementations_data = json.dumps({
+                    'vendors':
+                        {
+                            'vendor': vendors[x * 1000: (x * 1000) + 1000]
+                        }
+                })
+                # Prepare json_data for put request - this request will prepare list vendors
+                # to populate it with protocols and modules
+                #json_implementations_data = json.dumps(data)
+                # Make a PATCH request to create a root for each file
+                url = prefix + '/api/config/catalog/vendors/'
+                response = requests.patch(url, json_implementations_data,
+                                          auth=(args.credentials[0],
+                                                args.credentials[1]),
+                                          headers={
+                                              'Accept': 'application/vnd.yang.data+json',
+                                              'Content-type': 'application/vnd.yang.data+json'})
+                if response.status_code < 200 or response.status_code > 299:
+                    LOGGER.error('Request with body on path {} failed with {}'.
+                                 format(json_implementations_data, url,
+                                        response.content))
+            rest = (len(vendors) / 1000) * 1000
+            json_implementations_data = json.dumps({
+                'vendors':
+                    {
+                        'vendor': vendors[rest: rest + mod]
+                    }
+            })
+            url = prefix + '/api/config/catalog/vendors/'
+            response = requests.patch(url, json_implementations_data,
+                                      auth=(args.credentials[0],
+                                            args.credentials[1]),
+                                      headers={
+                                          'Accept': 'application/vnd.yang.data+json',
+                                          'Content-type': 'application/vnd.yang.data+json'})
+            if response.status_code < 200 or response.status_code > 299:
+                LOGGER.error('Request with body on path {} failed with {}'
+                             .format(json_implementations_data, url,
+                                     response.content))
     if not args.api:
-        do_indexing = True
-        if 'ietf-extracted-YANG-modules' in args.dir:
-            try:
-                os.makedirs('./old')
-            except OSError:
-                # Be happy if deleted
-                pass
-            try:
-                with open('./old/prepare.json', 'r') as f:
-                    old = f.read()
-            except:
-                old = ''
-            with open('../parseAndPopulate/' + direc + '/prepare.json', 'r') as f:
-                new = f.read()
-            if old != new:
-                do_indexing = True
-            shutil.copy('../parseAndPopulate/' + direc + '/prepare.json', './old/.')
-        if args.notify_indexing and do_indexing:
+        #do_indexing = True
+        #if 'ietf-extracted-YANG-modules' in args.dir:
+        #    try:
+        #        os.makedirs('./old')
+        #    except OSError:
+        #        # Be happy if deleted
+        #        pass
+        #    try:
+        #        with open('./old/prepare.json', 'r') as f:
+        #            old = f.read()
+        #    except:
+        #        old = ''
+        #    with open('../parseAndPopulate/' + direc + '/prepare.json', 'r') as f:
+        #        new = f.read()
+        #    if old != new:
+        #        do_indexing = True
+        #    shutil.copy('../parseAndPopulate/' + direc + '/prepare.json', './old/.')
+        if args.notify_indexing:# and do_indexing:
             LOGGER.info('Sending files for indexing')
             send_to_indexing('../parseAndPopulate/' + direc + '/prepare.json', args.credentials, args.ip, args.api_port,
                              args.api_protocol, from_api=False, set_key=key, force_indexing=args.force_indexing)
@@ -180,12 +237,18 @@ if __name__ == "__main__":
         except OSError:
             # Be happy if deleted
             pass
-        try:
-            LOGGER.info('Sending request to reload cache')
-            http_request(args.api_protocol + '://' + args.api_ip + ':' + repr(args.api_port) + '/load-cache', 'POST', None,
-                         args.credentials)
-        except:
+        LOGGER.info('Sending request to reload cache')
+        url = (args.api_protocol + '://' + args.api_ip + ':' +
+               repr(args.api_port) + '/load-cache')
+        response = requests.post(url, None,
+                                 auth=(args.credentials[0],
+                                        args.credentials[1]),
+                                 headers={
+                                     'Accept': 'application/vnd.yang.data+json',
+                                     'Content-type': 'application/vnd.yang.data+json'})
+        if response.status_code != 201:
             LOGGER.warning('Could not send a load-cache request')
+
         with open('../parseAndPopulate/' + direc + '/prepare.json', 'r') as f:
             all_modules = json.load(f)
 
@@ -250,50 +313,51 @@ if __name__ == "__main__":
                             module['derived-semantic-version'] = upgraded_version
                             new_modules.append(module)
                             continue
-                        if (modules[-2]['schema'] is None or
-                                modules[-1]['schema']):
-                            LOGGER.warning('Schema is missing {} or {}'.
-                                           format(modules[-2]['schema'],
-                                                  modules[-1]['schema']))
-                            continue
+                        #if (modules[-2]['schema'] is None or
+                        #        modules[-1]['schema']):
+                        #    LOGGER.warning('Schema is missing {} or {}'.
+                        #                   format(modules[-2]['schema'],
+                        #                          modules[-1]['schema']))
+                        #    continue
                         else:
-                            schema2 = requests.get(modules[-2]['schema'])
-                            schema1 = requests.get(modules[-1]['schema'])
-                            if (schema1.status_code == 404 or
-                                schema2.status_code == 404):
-                                LOGGER.warning('Schema not found {} or {}'.
-                                               format(modules[-2]['schema'],
-                                                      modules[-1]['schema']))
-                                continue
-                        to_write_before = '{}/{}@{}_{}'.format(direc,
-                                                        modules[-2]['name'],
-                                                        modules[-2]['revision'],
-                                                        modules[-2]['organization'])
-                        to_write = '{}/{}@{}_{}'.format(direc,
-                                                               modules[-1][
-                                                                   'name'],
-                                                               modules[-1][
-                                                                   'revision'],
-                                                               modules[-1][
-                                                                   'organization'])
-                        with open(to_write_before, 'w') as f:
-                            f.write(schema2.content)
-                        with open(to_write, 'w+') as f:
-                            f.write(schema1.content)
-                        arguments = ['pyang', '-P', '../../.', '-p', '../../.',
-                                     to_write, '--check-update-from',
-                                     to_write_before]
+                            schema2 = '{}{}@{}.yang'.format(args.save_file_dir,
+                                                            modules[-2]['name'],
+                                                            modules[-2]['revision'])
+                            schema1 = '{}{}@{}.yang'.format(args.save_file_dir,
+                                                            modules[-1]['name'],
+                                                            modules[-1]['revision'])
+                            #if (schema1.status_code == 404 or
+                            #    schema2.status_code == 404):
+                            #    LOGGER.warning('Schema not found {} or {}'.
+                            #                   format(modules[-2]['schema'],
+                            #                          modules[-1]['schema']))
+                            #    continue
+                        #to_write_before = '{}/{}@{}.yang'.format(direc,
+                        #                                modules[-2]['name'],
+                        #                                modules[-2]['revision'])
+                        #to_write = '{}/{}@{}.yang'.format(direc,
+                        #                                       modules[-1][
+                        #                                           'name'],
+                        #                                       modules[-1][
+                        #                                           'revision'])
+                        #with open(to_write_before, 'w') as f:
+                        #    f.write(schema2)
+                        #with open(to_write, 'w+') as f:
+                        #    f.write(schema1.content)
+                        arguments = ['pyang', '-P', get_curr_dir(__file__) + '/../../.', '-p', get_curr_dir(__file__) + '/../../.',
+                                     schema1, '--check-update-from',
+                                     schema2]
                         pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                                                  stderr=subprocess.PIPE)
                         stdout, stderr = pyang.communicate()
                         if stderr == '':
-                            arguments = ["pyang", '-p', '../../.', "-f", "tree",
-                                         to_write]
+                            arguments = ["pyang", '-p', get_curr_dir(__file__) + '/../../.', "-f", "tree",
+                                         schema1]
                             pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                                                      stderr=subprocess.PIPE)
                             stdout, stderr = pyang.communicate()
-                            arguments = ["pyang", "-p", "../../.", "-f", "tree",
-                                         to_write_before]
+                            arguments = ["pyang", "-p", get_curr_dir(__file__) + "/../../.", "-f", "tree",
+                                         schema2]
                             pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                                                      stderr=subprocess.PIPE)
                             stdout2, stderr = pyang.communicate()
@@ -383,55 +447,57 @@ if __name__ == "__main__":
                                     'derived-semantic-version'] = upgraded_version
                                 new_modules.append(response)
                                 continue
-                            if (modules[x]['schema'] is None or
-                                    modules[x-1]['schema']):
-                                break
-                            if (modules[x]['schema'] is None or
-                                    modules[x-1]['schema']):
-                                LOGGER.warning('Schema is missing {} or {}'.
-                                               format(modules[x]['schema'],
-                                                      modules[x-1]['schema']))
-                                continue
+                            #if (modules[x]['schema'] is None or
+                            #        modules[x-1]['schema']):
+                            #    break
+                            #if (modules[x]['schema'] is None or
+                            #        modules[x-1]['schema']):
+                            #    LOGGER.warning('Schema is missing {} or {}'.
+                            #                   format(modules[x]['schema'],
+                            #                          modules[x-1]['schema']))
+                            #    continue
                             else:
-                                schema2 = requests.get(modules[x]['schema'])
-                                schema1 = requests.get(modules[x-1]['schema'])
-                                if (schema1.status_code == 404 or
-                                            schema2.status_code == 404):
-                                    LOGGER.warning('Schema not found {} or {}'.
-                                                   format(modules[-2]['schema'],
-                                                          modules[-1][
-                                                              'schema']))
-                                    continue
-                            to_write = '{}/{}@{}_{}'.format(direc,
-                                                            modules[x]['name'],
-                                                            modules[x]['revision'],
-                                                            modules[x][
-                                                                'organization'])
-                            to_write_before = '{}/{}@{}_{}'.format(direc,
-                                                                   modules[x - 1][
-                                                                       'name'],
-                                                                   modules[x - 1][
-                                                                       'revision'],
-                                                                   modules[x - 1][
-                                                                       'organization'])
-                            with open(to_write, 'w+') as f:
-                                f.write(schema2.content)
-                            with open(to_write_before, 'w+') as f:
-                                f.write(schema1.content)
-                            arguments = ['pyang', '-p', '../../.', '-P', '../../.',
-                                         to_write,
-                                         '--check-update-from', to_write_before]
+                                schema2 = '{}{}@{}.yang'.format(
+                                    args.save_file_dir,
+                                    modules[x]['name'],
+                                    modules[x]['revision'])
+                                schema1 = '{}{}@{}.yang'.format(
+                                    args.save_file_dir,
+                                    modules[x - 1]['name'],
+                                    modules[x - 1]['revision'])
+                                #if (schema1.status_code == 404 or
+                                #            schema2.status_code == 404):
+                                #    LOGGER.warning('Schema not found {} or {}'.
+                                #                   format(modules[-2]['schema'],
+                                #                          modules[-1][
+                                #                              'schema']))
+                                #    continue
+                            #to_write = '{}/{}@{}.yang'.format(direc,
+                            #                                modules[x]['name'],
+                            #                                modules[x]['revision'])
+                            #to_write_before = '{}/{}@{}.yang'.format(direc,
+                            #                                       modules[x - 1][
+                            #                                           'name'],
+                            #                                       modules[x - 1][
+                            #                                           'revision'])
+                            #with open(to_write, 'w+') as f:
+                            #    f.write(schema2.content)
+                            #with open(to_write_before, 'w+') as f:
+                            #    f.write(schema1.content)
+                            arguments = ['pyang', '-p', get_curr_dir(__file__) + '/../../.', '-P', get_curr_dir(__file__) + '/../../.',
+                                         schema2,
+                                         '--check-update-from', schema1]
                             pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                                                      stderr=subprocess.PIPE)
                             stdout, stderr = pyang.communicate()
                             if stderr == '':
-                                arguments = ["pyang", '-p', '../../.', "-f", "tree",
-                                             to_write_before]
+                                arguments = ["pyang", '-p', get_curr_dir(__file__) + '/../../.', "-f", "tree",
+                                             schema1]
                                 pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                                                          stderr=subprocess.PIPE)
                                 stdout, stderr = pyang.communicate()
-                                arguments = ["pyang", '-p', '../../.', "-f", "tree",
-                                             to_write]
+                                arguments = ["pyang", '-p', get_curr_dir(__file__) + '/../../.', "-f", "tree",
+                                             schema2]
                                 pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                                                          stderr=subprocess.PIPE)
                                 stdout2, stderr = pyang.communicate()
@@ -545,28 +611,46 @@ if __name__ == "__main__":
                             mod['dependents'].append(new)
                 if len(mod['dependents']) > 0:
                     new_modules.append(mod)
-        mod = len(new_modules) % 1000
-        for x in range(0, len(new_modules) / 1000):
-            json_modules_data = json.dumps({'modules': {'module': new_modules[x*1000: (x*1000)+1000]}})
+        mod = len(new_modules) % 250
+        for x in range(0, len(new_modules) / 250):
+            json_modules_data = json.dumps({'modules': {'module': new_modules[x*250: (x*250)+250]}})
             if '{"module": []}' not in json_modules_data:
-                http_request(prefix + '/api/config/catalog/modules/', 'PATCH',
-                             json_modules_data, args.credentials)
-        rest = (len(new_modules) / 1000) * 1000
+                url = prefix + '/api/config/catalog/modules/'
+                response = requests.patch(url, json_modules_data,
+                                          auth=(args.credentials[0],
+                                                args.credentials[1]),
+                                          headers={
+                                              'Accept': 'application/vnd.yang.data+json',
+                                              'Content-type': 'application/vnd.yang.data+json'})
+                if response.status_code < 200 or response.status_code > 299:
+                    LOGGER.error('Request with body on path {} failed with {}'.
+                                 format(json_modules_data, url,
+                                        response.content))
+        rest = (len(new_modules) / 250) * 250
         json_modules_data = json.dumps(
             {'modules': {'module': new_modules[rest: rest + mod]}})
         if '{"module": []}' not in json_modules_data:
-            http_request(prefix + '/api/config/catalog/modules/', 'PATCH',
-                         json_modules_data, args.credentials)
+            url = prefix + '/api/config/catalog/modules/'
+            response = requests.patch(url, json_modules_data,
+                                      auth=(args.credentials[0],
+                                            args.credentials[1]),
+                                      headers={
+                                          'Accept': 'application/vnd.yang.data+json',
+                                          'Content-type': 'application/vnd.yang.data+json'})
+            if response.status_code < 200 or response.status_code > 299:
+                LOGGER.error('Request with body on path {} failed with {}'.
+                             format(json_modules_data, url,
+                                    response.content))
         try:
             shutil.rmtree('../api/cache')
         except OSError:
             # Be happy if deleted
             pass
-        try:
-            LOGGER.info('Sending request to reload cache')
-            http_request(args.api_protocol + '://' + args.api_ip + ':' + repr(args.api_port) + '/load-cache', 'POST', None,
-                         args.credentials)
-        except:
+        url = (args.api_protocol + '://' + args.api_ip + ':' +
+               repr(args.api_port) + '/load-cache')
+        response = requests.post(url, None,
+                                 auth=(args.credentials[0],
+                                       args.credentials[1]))
+        if response.status_code != 201:
             LOGGER.warning('Could not send a load-cache request')
         shutil.rmtree('../parseAndPopulate/' + direc)
-

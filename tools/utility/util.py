@@ -9,6 +9,10 @@ from numpy.f2py.auxfuncs import throw_error
 from tools.utility import yangParser
 
 
+def get_curr_dir(f):
+    return os.path.dirname(os.path.realpath(f))
+
+
 def load_json_from_url(url):
     failed = True
     loaded_json = None
