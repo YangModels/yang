@@ -14,7 +14,7 @@ The schemas here may also be retrieved from devices running IOS-XE 16.7 by using
 * ASR1000
 * CSR1000V/ISRv
 * ISR4000
-* ASR920/SPAG
+* ASR920/ASR900 RSP2/RSP3
 
 Model content may differ based on platform capability. As a convenience, copies of the platform "hello" messages are also provided:
 
@@ -42,12 +42,6 @@ Model content may differ based on platform capability. As a convenience, copies 
 * Cisco-IOS-XE-mdt-cfg.yang
 * Cisco-IOS-XE-mdt-common-defs.yang
 * Cisco-IOS-XE-mdt-oper.yang
-
-#### Other new models added:
-
-* Cisco-xe-ietf-event-notifications-deviation.yang
-* Cisco-xe-ietf-yang-push-deviation.yang
-* Cisco-xe-ietf-yang-push-ext.yang
 
 #### List of models that requires ODM configuration in 16.7:
 
@@ -77,7 +71,7 @@ Each supported platform advertises NETCONF capabilities during NETCONF session e
 
 ### Exceptions to capability statement:
 
-Below are the list of CODM models advertised in the capability of ASR920, but not supported.
+Below are the list of CODM models advertised in the capability of ASR920/ASR900 RSP2/RSP3, but not supported.
 
 * Cisco-IOS-XE-bfd-oper.yang
 * Cisco-IOS-XE-cdp-oper.yang
