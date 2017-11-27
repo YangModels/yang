@@ -29,7 +29,7 @@ Model content may differ based on platform capability. As a convenience, copies 
 
 #### 16.7 Model changes includes addition of ietf models, new native models and existing native model updation.
 
-#### List of ietf models added in 16.7
+#### List of ietf models added in 16.7:
 
 * ietf-yang-push.yang
 * ietf-event-notifications.yang
@@ -43,7 +43,7 @@ Model content may differ based on platform capability. As a convenience, copies 
 * Cisco-IOS-XE-mdt-common-defs.yang
 * Cisco-IOS-XE-mdt-oper.yang
 
-#### Other models added
+#### Other new models added:
 
 * Cisco-xe-ietf-event-notifications-deviation.yang
 * Cisco-xe-ietf-yang-push-deviation.yang
@@ -76,7 +76,9 @@ Revision statements embedded in the YANG files **should** accurately reflect whe
 Each supported platform advertises NETCONF capabilities during NETCONF session establishment. 
 
 ### Exceptions to capability statement:
+
 Below are the list of CODM models advertised in the capability of ASR920, but not supported.
+
 * Cisco-IOS-XE-bfd-oper.yang
 * Cisco-IOS-XE-cdp-oper.yang
 * Cisco-IOS-XE-diffserv-target-oper.yang
