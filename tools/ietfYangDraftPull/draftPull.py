@@ -1,15 +1,20 @@
 import ConfigParser
 import argparse
 import errno
+import filecmp
 import json
 import os
+import smtplib
 import sys
 import tarfile
 import urllib
 import urllib2
+from email.mime.text import MIMEText
 
 import requests
+import shutil
 from numpy.f2py.auxfuncs import throw_error
+from tools.utility.util import GREETINGS
 from travispy import TravisPy
 
 import tools.utility.log as log
@@ -37,6 +42,27 @@ def load_json_from_url(url):
     if tries == 0:
         raise throw_error('Couldn`t open a json file from url: ' + url)
     return loaded_json
+
+
+def send_email(new_files, diff_files):
+    """Notify via e-mail message about failed travis job"""
+    new_files = '\n'.join(new_files)
+    diff_files = '\n'.join(diff_files)
+    message = '{}\n\nSome of the files are different' \
+              ' in http://www.claise.be/IETFYANGRFC.json against' \
+              ' yangModels/yang repository\n\n' \
+              'Files that are missing in yangModles repo: \n{} \n\n ' \
+              'Files that are different then in yangModels repo: \n{}'.format(
+        GREETINGS, new_files, diff_files)
+    to = ['bclaise@cisco.com', 'einarnn@cisco.com', 'jclarke@cisco.com']
+    msg = MIMEText(message)
+    msg['Subject'] = 'Automatic generated message - RFC ietf'
+    msg['From'] = 'no-reply@yangcatalog.org'
+    msg['To'] = ', '.join(to)
+
+    s = smtplib.SMTP('localhost')
+    s.sendmail('no-reply@yangcatalog.org', to, msg.as_string())
+    s.quit()
 
 
 if __name__ == "__main__":
@@ -92,18 +118,44 @@ if __name__ == "__main__":
     response = urllib.urlretrieve('http://www.claise.be/YANG-RFC.tar',
                                   repo.localdir + '/tools/ietfYangDraftPull/rfc.tar')
     tar = tarfile.open(repo.localdir + '/tools/ietfYangDraftPull/rfc.tar')
-    tar.extractall(repo.localdir + '/standard/ietf/RFC')
+    try:
+        os.makedirs(
+            repo.localdir + '/standard/ietf/RFCtemp')
+    except OSError as e:
+        # be happy if someone already created the path
+        if e.errno != errno.EEXIST:
+            raise
+    tar.extractall(repo.localdir + '/standard/ietf/RFCtemp')
     tar.close()
+    diff_files = []
+    new_files = []
+    check_name_no_revision_exist(
+        repo.localdir + '/standard/ietf/RFCtemp/')
+    check_early_revisions(
+        repo.localdir + '/standard/ietf/RFCtemp/')
+    for root, subdirs, sdos in os.walk(
+                    repo.localdir + '/standard/ietf/RFCtemp'):
+        for file_name in sdos:
+            if '.yang' in file_name:
+                if os.path.exists('../../standard/ietf/RFC/' + file_name):
+                    same = filecmp.cmp('../../standard/ietf/RFC/' + file_name,
+                                       root + '/' + file_name)
+                    if not same:
+                        diff_files.append(file_name)
+                else:
+                    new_files.append(file_name)
+    shutil.rmtree(repo.localdir + '/standard/ietf/RFCtemp')
     os.remove(repo.localdir + '/tools/ietfYangDraftPull/rfc.tar')
-    check_name_no_revision_exist(repo.localdir + '/standard/ietf/RFC/')
-    check_early_revisions(repo.localdir + '/standard/ietf/RFC/')
+    if len(new_files) > 0 or len(diff_files) > 0:
+        LOGGER.warning('new or modified RFC files found. Sending an E-mail')
+        send_email(new_files, diff_files)
 
     for key in ietf_draft_json:
         yang_file = open(
             repo.localdir + '/experimental/ietf-extracted-YANG-modules/' + key,
             'w+')
         yang_download_link = \
-        ietf_draft_json[key][2].split('href="')[1].split('">Download')[0]
+            ietf_draft_json[key][2].split('href="')[1].split('">Download')[0]
         try:
             yang_raw = urllib2.urlopen(yang_download_link).read()
             yang_file.write(yang_raw)
@@ -123,7 +175,7 @@ if __name__ == "__main__":
         LOGGER.info('Adding all untracked files locally')
         repo.add_all_untracked()
         LOGGER.info('Committing all files locally')
-        repo.commit_all('Crone job - every day pull of ietf draft yang files.')
+        repo.commit_all('Cronjob - every day pull of ietf draft yang files.')
         LOGGER.info('Pushing files to forked repository')
         LOGGER.info('Commit hash {}'.format(repo.repo.head.commit))
         with open(commit_dir, 'a') as f:

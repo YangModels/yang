@@ -42,8 +42,7 @@ checkDir () {
 }
 
 if [ "$debug" -eq "1" ]; then
-    printf "\nChecking modules with pyang command:\n"
-    printf "\n    pyang $pyang_flags MODULE\n\n"
+    printf "\nChecking modules with yanglint, using 'lax quote checks' via perlre filtering\n"
 fi
 
 if [ -e "$platform_dir" ]; then

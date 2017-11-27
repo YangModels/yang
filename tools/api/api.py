@@ -13,10 +13,12 @@ import smtplib
 import sys
 import urllib2
 from email.mime.text import MIMEText
+from threading import Lock
 from urllib2 import URLError
 
 import MySQLdb
 import requests
+import subprocess
 from OpenSSL.crypto import load_publickey, FILETYPE_PEM, X509, verify
 from flask import Flask, jsonify, abort, make_response, request, Response
 from flask_httpauth import HTTPBasicAuth
@@ -37,9 +39,10 @@ yang_models_url = github_repos_url + '/YangModels/yang'
 
 auth = HTTPBasicAuth()
 app = Flask(__name__)
+lock = Lock()
 
 NS_MAP = {
-    "http://cisco.com/ns/yang/": "cisco",
+    "http://cisco.com/": "cisco",
     "http://www.huawei.com/netconf": "huawei",
     "http://openconfig.net/yang/": "openconfig",
     "http://tail-f.com/": "tail-f"
@@ -258,14 +261,27 @@ def check_authorized(signature, payload):
 
 def send_email():
     """Notify via e-mail message about failed travis job"""
-    msg = MIMEText('Travis pull job failed')
-    msg['Subject'] = 'Travis pull job failed'
+    to = ['bclaise@cisco.com', 'einarnn@cisco.com', 'jclarke@cisco.com']
+    msg = MIMEText('Travis pull job not sent because it was not sent from'
+                   ' travis. Key verification failed')
+    msg['Subject'] = 'Travis pull job not sent'
     msg['From'] = 'info@yangcatalog.org'
-    msg['To'] = 'info@yangcatalog.org'
+    msg['To'] = ', '.join(to)
 
     s = smtplib.SMTP('localhost')
-    s.sendmail('info@yangcatalog.org', 'info@yangcatalog.org', msg.as_string())
+    s.sendmail('info@yangcatalog.org', to, msg.as_string())
     s.quit()
+
+
+@auth.login_required
+@app.route('/ietf', methods=['GET'])
+def trigger_ietf_pull():
+    username = request.authorization['username']
+    if username != 'admin':
+        return unauthorized
+    job_id = sender.send('run_ietf')
+    LOGGER.info('job_id {}'.format(job_id))
+    return make_response(jsonify({'job-id': job_id}), 202)
 
 
 @app.route('/checkComplete', methods=['POST'])
@@ -284,13 +300,16 @@ def check_local():
         check_authorized(request.headers.environ['HTTP_SIGNATURE'], request.form['payload'])
         LOGGER.info('Authorization successful')
     except:
-        LOGGER.critical('Authorization failed. Maybe someone trying to hack!!!')
+        LOGGER.critical('Authorization failed.'
+                        ' Request did not come from Travis')
         send_email()
         return unauthorized()
 
     global yang_models_url
 
     verify_commit = False
+    LOGGER.info('Checking commit SHA if it is the commit sent by yang-catalog'
+                'user.')
     commit_sha = body['commit']
     try:
         commit_file = file(commit_msg_file)
@@ -302,12 +321,13 @@ def check_local():
         return not_found()
 
     if verify_commit:
+        LOGGER.info('commit verified')
         if body['repository']['owner_name'] == 'yang-catalog':
             if body['result_message'] == 'Passed':
                 if body['type'] == 'push':
                     # After build was successful only locally
                     json_body = json.loads(json.dumps({
-                        "title": "Crone job - every day pull and update of ietf draft yang files.",
+                        "title": "Cronjob - every day pull and update of ietf draft yang files.",
                         "body": "ietf extracted yang modules",
                         "head": "yang-catalog:master",
                         "base": "master"
@@ -320,12 +340,12 @@ def check_local():
                         return make_response(jsonify({'info': 'Success'}), 201)
                     else:
                         LOGGER.error('Could not create a pull request {}'.format(r.status_code))
-                        return make_response(jsonify({'Error': 'Fails'}), 500)
+                        return make_response(jsonify({'Error': 'PR creation failed'}), 400)
             else:
                 LOGGER.warning('Travis job did not pass. Removing forked repository.')
                 requests.delete('https://api.github.com/repos/yang-catalog/yang',
                                 headers={'Authorization': 'token ' + token})
-                return make_response(jsonify({'info': 'Success'}), 201)
+                return make_response(jsonify({'info': 'Failed'}), 406)
         elif body['repository']['owner_name'] == 'YangModels':
             if body['result_message'] == 'Passed':
                 if body['type'] == 'pull_request':
@@ -349,9 +369,20 @@ def check_local():
                 }))
                 requests.patch('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number, json=json_body,
                                headers={'Authorization': 'token ' + token})
-                return make_response(jsonify({'info': 'Success'}), 201)
+                LOGGER.warning(
+                    'Travis job did not pass. Removing forked repository.')
+                requests.delete(
+                    'https://api.github.com/repos/yang-catalog/yang',
+                    headers={'Authorization': 'token ' + token})
+                return make_response(jsonify({'info': 'Failed'}), 406)
         else:
-            return make_response(jsonify({'Error': 'Fails'}), 500)
+            LOGGER.warning('Owner name verification failed. Owner -> {}'
+                           .format(body['repository']['owner_name']))
+            return make_response(jsonify({'Error': 'Owner verfication failed'}),
+                                 401)
+    else:
+        LOGGER.info('Commit verification failed. Commit sent by someone else.'
+                    'Not doing anything.')
     return make_response(jsonify({'Error': 'Fails'}), 500)
 
 
@@ -415,7 +446,7 @@ def delete_modules(name, revision, organization):
     job_id = sender.send('#'.join(arguments))
 
     LOGGER.info('job_id {}'.format(job_id))
-    return jsonify({'info': 'Verification successful', 'job-id': job_id})
+    return make_response(jsonify({'info': 'Verification successful', 'job-id': job_id}), 202)
 
 
 @app.route('/vendors/<path:value>', methods=['DELETE'])
@@ -467,10 +498,10 @@ def delete_vendor(value):
     path_to_delete = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/vendors/' \
                      + value + '?deep'
 
-    vendor = None
-    platform = None
-    software_version = None
-    software_flavor = None
+    vendor = 'None'
+    platform = 'None'
+    software_version = 'None'
+    software_flavor = 'None'
     if '/vendor/' in path_to_delete:
         vendor = path_to_delete.split('?deep')[0].split('/vendor/')[1].split('/')[0]
     if '/platform/' in path_to_delete:
@@ -494,12 +525,12 @@ def delete_vendor(value):
     if ssl_key != '':
         api_protocol = 'https'
         api_port = 8443
-    arguments = [vendor, platform, software_version, software_flavor, protocol, confd_ip, confdPort, credentials[0],
+    arguments = [vendor, platform, software_version, software_flavor, protocol, confd_ip, repr(confdPort), credentials[0],
                  credentials[1], path_to_delete, 'DELETE', api_protocol, repr(api_port)]
     job_id = sender.send('#'.join(arguments))
 
     LOGGER.info('job_id {}'.format(job_id))
-    return jsonify({'info': 'Verification successful', 'job-id': job_id})
+    return make_response(jsonify({'info': 'Verification successful', 'job-id': job_id}), 202)
 
 
 @app.route('/modules', methods=['PUT', 'POST'])
@@ -549,6 +580,12 @@ def add_modules():
         else:
             break
     direc = '../parseAndPopulate/' + repr(direc)
+    try:
+        os.makedirs(direc)
+    except OSError as e:
+        # be happy if someone already created the path
+        if e.errno != errno.EEXIST:
+            raise
     for mod in body['modules']['module']:
         sdo = mod['source-file']
         orgz = mod['organization']
@@ -584,8 +621,7 @@ def add_modules():
             if e.errno != errno.EEXIST:
                 raise
         shutil.copy(repo[repo_url].localdir + '/' + sdo['path'], save_to)
-        if os.path.isfile('./prepare-sdo.json'):
-            shutil.move('./prepare-sdo.json', direc)
+
         tree_created = True
         organization = ''
         try:
@@ -626,6 +662,8 @@ def add_modules():
         if 'organization' in repr(resolved_authorization):
             warning.append(sdo['path'].split('/')[-1] + ' ' + resolved_authorization)
 
+    if os.path.isfile('./prepare-sdo.json'):
+        shutil.move('./prepare-sdo.json', direc)
     for key in repo:
         repo[key].remove()
     api_protocol = 'http'
@@ -643,7 +681,7 @@ def add_modules():
         return jsonify({'info': 'Verification successful', 'job-id': job_id, 'warnings': [{'warning': val}
                                                                                           for val in warning]})
     else:
-        return jsonify({'info': 'Verification successful', 'job-id': job_id})
+        return make_response(jsonify({'info': 'Verification successful', 'job-id': job_id}), 202)
 
 
 @app.route('/platforms', methods=['PUT', 'POST'])
@@ -695,7 +733,12 @@ def add_vendors():
         else:
             break
     direc = '../parseAndPopulate/' + repr(direc)
-
+    try:
+        os.makedirs(direc)
+    except OSError as e:
+        # be happy if someone already created the path
+        if e.errno != errno.EEXIST:
+            raise
     for platform in body['platforms']['platform']:
         capability = platform['module-list-file']
         file_name = capability['path'].split('/')[-1]
@@ -743,7 +786,7 @@ def add_vendors():
                  integrity_file_location, protocol, api_protocol, repr(api_port)]
     job_id = sender.send('#'.join(arguments))
     LOGGER.info('job_id {}'.format(job_id))
-    return jsonify({'info': 'Verification successful', 'job-id': job_id})
+    return make_response(jsonify({'info': 'Verification successful', 'job-id': job_id}), 202)
 
 
 @app.route('/index/search', methods=['POST'])
@@ -848,7 +891,8 @@ def search(value):
                    'belongs-to', 'generated-from']
     for module_key in module_keys:
         if key == module_key:
-            data = modules_data.get('module')
+            with lock:
+                data = modules_data.get('module')
             if data is None:
                 return not_found()
             passed_data = []
@@ -872,10 +916,24 @@ def search(value):
 
 @app.route('/search-filter/<leaf>', methods=['POST'])
 def rpc_search_get_one(leaf):
-    response = rpc_search(request.json)
-    modules = json.loads(response.get_data())['yang-catalog:modules']['module']
+    rpc = request.json
+    if rpc.get('input'):
+        recursive = rpc['input'].get('recursive')
+    else:
+        return not_found()
+    if recursive:
+        rpc['input'].pop('recursive')
+    response = rpc_search(rpc)
+    modules = json.loads(response.get_data()).get('yang-catalog:modules')
+    if modules is None:
+        return not_found()
+    modules = modules.get('module')
+    if modules is None:
+        return not_found()
     output = set()
     for module in modules:
+        if recursive:
+            search_recursive(output, module, leaf)
         meta_data = module.get(leaf)
         output.add(meta_data)
     if None in output:
@@ -887,13 +945,162 @@ def rpc_search_get_one(leaf):
                         mimetype='application/json', status=201)
 
 
+def search_recursive(output, module, leaf):
+    r_name = module['name']
+    response = rpc_search({'input':{'dependencies': [{'name': r_name}]}})
+    modules = json.loads(response.get_data()).get('yang-catalog:modules')
+    if modules is None:
+        return
+    modules = modules.get('module')
+    if modules is None:
+        return
+    for mod in modules:
+        search_recursive(output, mod, leaf)
+        meta_data = mod.get(leaf)
+        output.add(meta_data)
+
+
+@app.route('/check-semantic-version', methods=['POST'])
+def check_semver():
+    body = request.json
+    if body is None:
+        return make_response(jsonify({'error': 'body of request is empty'}), 400)
+    if body.get('input') is None:
+        return make_response(jsonify
+                             ({'error':
+                                   'body of request need to start with input'}),
+                             400)
+    if body['input'].get('old') is None or body['input'].get('new') is None:
+        return make_response(jsonify
+                             ({'error':
+                                   'body of request need to contain new and old'
+                                   'container'}),
+                             400)
+    response_new = rpc_search({'input': body['input']['new']})
+    response_old = rpc_search({'input': body['input']['old']})
+
+    if response_new.status_code == 404 or response_old.status_code == 404:
+        return not_found()
+
+    data = json.loads(response_new.data)
+    modules_new = data['yang-catalog:modules']['module']
+    data = json.loads(response_old.data)
+    modules_old = data['yang-catalog:modules']['module']
+
+    output_modules_list = []
+    for mod_old in modules_old:
+        name_new = None
+        semver_new = None
+        revision_new = None
+        schema_new = None
+        status_new = None
+        name_old = mod_old['name']
+        revision_old = mod_old['revision']
+        organization_old = mod_old['organization']
+        schema_old = mod_old.get('schema')
+        if schema_old is None:
+            continue
+        status_old = mod_old['compilation-status']
+        for mod_new in modules_new:
+            name_new = mod_new['name']
+            revision_new = mod_new['revision']
+            organization_new = mod_new['organization']
+            schema_new = mod_new.get('schema')
+            status_new = mod_new['compilation-status']
+            if name_new == name_old and organization_new == organization_old:
+                if revision_old == revision_new:
+                    break
+                semver_new = mod_new.get('derived-semantic-version')
+                break
+        if schema_new is None:
+            continue
+        if semver_new:
+            semver_old = mod_old.get('derived-semantic-version')
+            if semver_old:
+                if semver_new != semver_old:
+                    output_mod = {}
+                    if status_old != 'passed' and status_new != 'passed':
+                        reason = 'Both modules failed compilation'
+                    elif status_old != 'passed' and status_new == 'passed':
+                        reason = 'Older module failed compilation'
+                    elif status_new != 'passed' and status_old == 'passed':
+                        reason = 'Newer module failed compilation'
+                    else:
+                        file_name = ('{}{}+check-update-from+{}{}.html'
+                                     .format(name_new, revision_new, name_old,
+                                             revision_old))
+                        schema1 = '{}{}@{}.yang'.format(save_file_dir, name_new,
+                                                        revision_new)
+                        schema2 = '{}{}@{}.yang'.format(save_file_dir, name_old,
+                                                        revision_old)
+                        arguments = ['pyang', '-P', '../../.', '-p', '../../.',
+                                     schema1, '--check-update-from',
+                                     schema2]
+                        pyang = subprocess.Popen(arguments,
+                                                 stdout=subprocess.PIPE,
+                                                 stderr=subprocess.PIPE)
+                        stdout, stderr = pyang.communicate()
+                        reason = (
+                            'pyang --check-update-from output: https://www.{}/compatibility/{}'.
+                            format(confd_ip, file_name))
+                        with open('{}{}'.format(diff_file_dir, file_name),
+                                  'w+') as f:
+                            f.write('<pre>{}</pre>'.format(stderr))
+
+                        arguments = ['pyang', '-p', '../../.', '-f', 'tree',
+                                     save_file_dir + name_new + '@' + revision_new + '.yang']
+                        pyang = subprocess.Popen(arguments,
+                                                 stdout=subprocess.PIPE,
+                                                 stderr=subprocess.PIPE)
+                        stdout, stderr = pyang.communicate()
+                        f_name = '{}{}{}.txt'.format(diff_file_dir, name_new,
+                                                  revision_new)
+                        with open(f_name, 'w+') as f:
+                            f.write(stdout)
+
+                        arguments = ['pyang', '-p', '../../.', '-f', 'tree',
+                                     save_file_dir + name_old + '@' + revision_old + '.yang']
+                        pyang = subprocess.Popen(arguments,
+                                                 stdout=subprocess.PIPE,
+                                                 stderr=subprocess.PIPE)
+                        stdout, stderr = pyang.communicate()
+                        f_name = '{}{}{}.txt'.format(diff_file_dir, name_old,
+                                                   revision_old)
+                        with open(f_name, 'w+') as f:
+                            f.write(stdout)
+                        tree1 = 'https://yangcatalog.org/compatibility/{}{}.txt'.format(name_new, revision_new)
+                        tree2 = 'https://yangcatalog.org/compatibility/{}{}.txt'.format(name_old, revision_old)
+                        diff = (
+                            'https://www.ietf.org/rfcdiff/rfcdiff.pyht?url1={}&url2={}'.
+                                format(tree1, tree2))
+
+                        output_mod['yang-module-pyang-tree-diff'] = diff
+
+                    output_mod['name'] = name_old
+                    output_mod['revision-old'] = revision_old
+                    output_mod['revision-new'] = revision_new
+                    output_mod['organization'] = organization_old
+                    output_mod['old-derived-semantic-version'] = semver_old
+                    output_mod['new-derived-semantic-version'] = semver_new
+                    output_mod['derived-semantic-version-results'] = reason
+                    diff = ('https://www.ietf.org/rfcdiff/rfcdiff.pyht?url1={}&url2={}'.
+                           format(schema_old, schema_new))
+                    output_mod['yang-module-diff'] = diff
+                    output_modules_list.append(output_mod)
+    if len(output_modules_list) == 0:
+        return not_found()
+    output = {'output': output_modules_list}
+    return make_response(jsonify(output), 200)
+
+
 @app.route('/search-filter', methods=['POST'])
 def rpc_search(body=None):
     if body is None:
         body = request.json
     LOGGER.info('Searching and filtering modules based on RPC {}'
                 .format(json.dumps(body)))
-    data = modules_data['module']
+    with lock:
+        data = modules_data['module']
     body = body.get('input')
     if body:
         partial = body.get('partial')
@@ -1003,16 +1210,19 @@ def rpc_search(body=None):
                     implementations = module.get('implementations')
                     if implementations is None:
                         continue
+                    passed = True
                     for imp in body['implementations']['implementation']:
+                        if not passed:
+                            break
                         for leaf in imp:
                             found = False
+                            impls = []
                             if leaf == 'deviation':
                                 for implementation in implementations[
                                     'implementation']:
                                     deviations = implementation.get('deviation')
                                     if deviations is None:
-                                        found = False
-                                        break
+                                        continue
                                     for dev in imp[leaf]:
                                         found = True
                                         name = dev.get('name')
@@ -1033,33 +1243,34 @@ def rpc_search(body=None):
                                             break
                                     if not found:
                                         continue
+                                    else:
+                                        impls.append(implementation)
                                 if not found:
                                     passed = False
                                     break
                             elif leaf == 'feature':
-                                feature = implementations['implementation']\
-                                .get('feature')
-                                if feature is None:
-                                    passed = False
-                                    break
                                 for implementation in implementations['implementation']:
+                                    if implementation.get(leaf) is None:
+                                        continue
                                     if imp[leaf] in implementation[leaf]:
                                         found = True
-                                        break
-                                if found:
-                                    passed = True
-                            else:
-                                for implementation in implementations['implementation']:
-                                    if imp[leaf] in implementation[leaf]:
-                                        found = True
-                                        break
+                                        impls.append(implementation)
+                                        continue
                                 if not found:
                                     passed = False
-                                break
+                            else:
+                                for implementation in implementations['implementation']:
+                                    if implementation.get(leaf) is None:
+                                        continue
+                                    if imp[leaf] in implementation[leaf]:
+                                        found = True
+                                        impls.append(implementation)
+                                        continue
+                                if not found:
+                                    passed = False
                             if not passed:
                                 break
-                        if not passed:
-                            break
+                            implementations['implementation'] = impls
                 if not passed:
                     continue
                 for leaf in body:
@@ -1073,8 +1284,6 @@ def rpc_search(body=None):
                     passed_modules.append(module)
         else:
             for module in data:
-                if module['name'] == 'ietf-interfaces':
-                    pass
                 passed = True
                 if 'dependencies' in body:
                     submodules = module.get('dependencies')
@@ -1176,16 +1385,19 @@ def rpc_search(body=None):
                     implementations = module.get('implementations')
                     if implementations is None:
                         continue
+                    passed = True
                     for imp in body['implementations']['implementation']:
+                        if not passed:
+                            break
                         for leaf in imp:
                             found = False
+                            impls = []
                             if leaf == 'deviation':
                                 for implementation in implementations[
                                     'implementation']:
                                     deviations = implementation.get('deviation')
                                     if deviations is None:
-                                        found = False
-                                        break
+                                        continue
                                     for dev in imp[leaf]:
                                         found = True
                                         name = dev.get('name')
@@ -1206,33 +1418,34 @@ def rpc_search(body=None):
                                             break
                                     if not found:
                                         continue
+                                    else:
+                                        impls.append(implementation)
                                 if not found:
                                     passed = False
                                     break
                             elif leaf == 'feature':
-                                feature = implementations['implementation']\
-                                .get('feature')
-                                if feature is None:
-                                    passed = False
-                                    break
                                 for implementation in implementations['implementation']:
-                                    if imp[leaf] in implementation[leaf]:
-                                        found = True
-                                        break
-                                if found:
-                                    passed = True
-                            else:
-                                for implementation in implementations['implementation']:
+                                    if implementation.get(leaf) is None:
+                                        continue
                                     if imp[leaf] == implementation[leaf]:
                                         found = True
-                                        break
+                                        impls.append(implementation)
+                                        continue
                                 if not found:
                                     passed = False
-                                break
+                            else:
+                                for implementation in implementations['implementation']:
+                                    if implementation.get(leaf) is None:
+                                        continue
+                                    if imp[leaf] == implementation[leaf]:
+                                        found = True
+                                        impls.append(implementation)
+                                        continue
+                                if not found:
+                                    passed = False
                             if not passed:
                                 break
-                        if not passed:
-                            break
+                            implementations['implementation'] = impls
                 if not passed:
                     continue
                 for leaf in body:
@@ -1290,18 +1503,20 @@ def search_module(name, revision, organization):
                 :return response to the request with job_id that user can use to
                     see if the job is still on or Failed or Finished successfully
     """
-    LOGGER.info('Searching for module {}, {}, {}'.format(name, revision, organization))
-    data = modules_data['module']
-    name = name.split('.yang')[0]
+    with lock:
+        LOGGER.info('Searching for module {}, {}, {}'.format(name, revision,
+                                                             organization))
+        data = modules_data['module']
+        name = name.split('.yang')[0]
 
-    if name + '@' + revision + '/' + organization in mod_lookup_table:
-        LOGGER.info('Returning index {} for {}'.format(mod_lookup_table[name + '@' + revision + '/' + organization],
-                                                       name + '@' + revision + '/' + organization))
-        mod = data[mod_lookup_table[name + '@' + revision + '/' + organization]]
-        return Response(json.dumps({
-            'module': [mod]
-        }), mimetype='application/json')
-    return not_found()
+        if name + '@' + revision + '/' + organization in mod_lookup_table:
+            LOGGER.info('Returning index {} for {}'.format(mod_lookup_table[name + '@' + revision + '/' + organization],
+                                                           name + '@' + revision + '/' + organization))
+            mod = data[mod_lookup_table[name + '@' + revision + '/' + organization]]
+            return Response(json.dumps({
+                'module': [mod]
+            }), mimetype='application/json')
+        return not_found()
 
 
 @app.route('/search/modules', methods=['GET'])
@@ -1309,8 +1524,9 @@ def get_modules():
     """Search for a all the modules populated in confd
             :return response to the request with all the modules
     """
-    LOGGER.info('Searching for modules')
-    return Response(json.dumps(modules_data), mimetype='application/json')
+    with lock:
+        LOGGER.info('Searching for modules')
+        return Response(json.dumps(modules_data), mimetype='application/json')
 
 
 @app.route('/search/vendors', methods=['GET'])
@@ -1318,8 +1534,9 @@ def get_vendors():
     """Search for a all the vendors populated in confd
             :return response to the request with all the vendors
     """
-    LOGGER.info('Searching for vendors')
-    return Response(json.dumps(vendors_data), mimetype='application/json')
+    with lock:
+        LOGGER.info('Searching for vendors')
+        return Response(json.dumps(vendors_data), mimetype='application/json')
 
 
 @app.route('/search/catalog', methods=['GET'])
@@ -1369,6 +1586,42 @@ def get_job(job_id):
                     })
 
 
+@app.route('/check-platform-metadata', methods=['POST'])
+def trigger_populate():
+    LOGGER.info('Trigger populate if necessary')
+    body = request.json
+    paths = []
+    added = body.get('added')
+    for add in added:
+        if 'platform-metadata.json' in add:
+            paths.append('/'.join(add.split('/')[:-1]))
+    modified = body.get('modified')
+    for m in modified:
+        if 'platform-metadata.json' in m:
+            paths.append('/'.join(m.split('/')[:-1]))
+
+    LOGGER.info('Forking the repo')
+    repo = repoutil.RepoUtil('https://github.com/YangModels/yang.git')
+    try:
+        LOGGER.info('Cloning repo to local directory {}'.format(repo.localdir))
+        repo.clone()
+        for path in paths:
+            arguments = ['python', repo.localdir + '/' +
+                         'tools/parseAndPopulate/populate.py', '--ip',
+                         'yangcatalog.org', '--api-ip', 'yangcatalog.org',
+                         '--dir', repo.localdir + '/' + path,
+                         '--result-html-dir', result_dir, '--save-file-dir',
+                         save_file_dir]
+            with open("log_trigger.txt", "wr") as f:
+                subprocess.check_call(arguments, stderr=f)
+    except:
+        LOGGER.error('Could not populate after git push')
+        repo.remove()
+        return make_response(jsonify({'error': 'Server Error'}), 500)
+    repo.remove()
+    return make_response(jsonify({'inof': 'Success'}), 200)
+
+
 @app.route('/load-cache', methods=['POST'])
 @auth.login_required
 def load_to_memory():
@@ -1386,51 +1639,52 @@ def load_to_memory():
 
 def load(on_start):
     """Load all the data populated to yang-catalog to memory saved in file in ./cache."""
-    if on_start:
-        LOGGER.info('Removinch cache file and loading new one - this is done only when API is starting to get fresh'
-                    ' data')
-        try:
-            shutil.rmtree('./cache')
-        except:
-            # Be happy if it doesn't exist
-            pass
-    global modules_data
-    global vendors_data
-    global mod_lookup_table
-    response = 'work'
-    modules_data = {}
-    vendors_data = {}
-    try:
-        with open('./cache/catalog.json', 'r') as catalog:
-            cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
-                .decode(catalog.read())['yang-catalog:catalog']
-            modules_data = cat['modules']
-            if cat.get('vendors'):
-                vendors_data = cat['vendors']
-            else:
-                vendors_data = {}
-    except (IOError, ValueError):
-        LOGGER.warning('Cache file does not exist')
-        # Try to create a cache if not created yet and load data again
-        response = make_cache(credentials, response)
-        if response != 'work':
-            LOGGER.error('Could not load or create cache')
-        else:
+    with lock:
+        if on_start:
+            LOGGER.info('Removinch cache file and loading new one - this is done only when API is starting to get fresh'
+                        ' data')
             try:
-                with open('./cache/catalog.json', 'r') as catalog:
-                    cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
-                        .decode(catalog.read())['yang-catalog:catalog']
-                    modules_data = cat['modules']
-                    if cat.get('vendors'):
-                        vendors_data = cat['vendors']
-                    else:
-                        vendors_data = {}
+                shutil.rmtree('./cache')
             except:
-                LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
-    if len(modules_data) != 0:
-        for i, mod in enumerate(modules_data['module']):
-            mod_lookup_table[mod['name'] + '@' + mod['revision'] + '/' + mod['organization']] = i
-    LOGGER.info('Data loaded into memory successfully')
+                # Be happy if it doesn't exist
+                pass
+        global modules_data
+        global vendors_data
+        global mod_lookup_table
+        response = 'work'
+        modules_data = {}
+        vendors_data = {}
+        try:
+            with open('./cache/catalog.json', 'r') as catalog:
+                cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+                    .decode(catalog.read())['yang-catalog:catalog']
+                modules_data = cat['modules']
+                if cat.get('vendors'):
+                    vendors_data = cat['vendors']
+                else:
+                    vendors_data = {}
+        except (IOError, ValueError):
+            LOGGER.warning('Cache file does not exist')
+            # Try to create a cache if not created yet and load data again
+            response = make_cache(credentials, response)
+            if response != 'work':
+                LOGGER.error('Could not load or create cache')
+            else:
+                try:
+                    with open('./cache/catalog.json', 'r') as catalog:
+                        cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+                            .decode(catalog.read())['yang-catalog:catalog']
+                        modules_data = cat['modules']
+                        if cat.get('vendors'):
+                            vendors_data = cat['vendors']
+                        else:
+                            vendors_data = {}
+                except:
+                    LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
+        if len(modules_data) != 0:
+            for i, mod in enumerate(modules_data['module']):
+                mod_lookup_table[mod['name'] + '@' + mod['revision'] + '/' + mod['organization']] = i
+        LOGGER.info('Data loaded into memory successfully')
 
 
 def process(data, passed_data, value, module, split, count):
@@ -1514,6 +1768,8 @@ if __name__ == '__main__':
     config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
     config.read(config_path)
+    global result_dir
+    result_dir = config.get('API-Section', 'result-html-dir')
     global sender
     sender = Sender()
     global dbHost
@@ -1534,6 +1790,8 @@ if __name__ == '__main__':
     protocol = config.get('API-Section', 'protocol')
     global save_requests
     save_requests = config.get('API-Section', 'save-requests')
+    global save_file_dir
+    save_file_dir = config.get('API-Section', 'save-file-dir')
     global token
     token = config.get('API-Section', 'yang-catalog-token')
     global commit_msg_file
@@ -1541,6 +1799,8 @@ if __name__ == '__main__':
     ssl_context = None
     global integrity_file_location
     integrity_file_location = config.get('API-Section', 'integrity-file-location')
+    global diff_file_dir
+    diff_file_dir = config.get('API-Section', 'save-diff-dir')
     global log
     ip = config.get('API-Section', 'ip')
     port = int(config.get('API-Section', 'port'))
@@ -1553,4 +1813,5 @@ if __name__ == '__main__':
         ssl_context = (cert, ssl_key)
     load(True)
     LOGGER.info('Starting api')
-    app.run(host=ip, debug=debug, port=port, ssl_context=ssl_context)
+    app.run(host=ip, debug=debug, port=port, ssl_context=ssl_context,
+            threaded=True)

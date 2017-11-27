@@ -60,6 +60,10 @@ def check_early_revisions(directory):
                 if f2.split(fname)[1].startswith('.') or f2.split(fname)[1].startswith('@'):
                     files_to_delete.append(f2)
                     revision = f2.split(fname)[1].split('.')[0].replace('@', '')
+                    if revision == '':
+                        revision = (yangParser.parse(os.path.abspath(directory
+                                                                     + f2))
+                                    .search('revision')[0].arg)
                     year = int(revision.split('-')[0])
                     month = int(revision.split('-')[1])
                     day = int(revision.split('-')[2])
@@ -87,6 +91,7 @@ if __name__ == "__main__":
     result_html_dir = config.get('DraftPullLocal-Section', 'result-html-dir')
     protocol = config.get('DraftPullLocal-Section', 'protocol')
     notify = config.get('DraftPullLocal-Section', 'notify-index')
+    save_file_dir = config.get('DraftPullLocal-Section', 'save-file-dir')
 
     LOGGER.info('Loading all files from http://www.claise.be/IETFYANGDraft.json')
     ietf_draft_json = load_json_from_url('http://www.claise.be/IETFYANGDraft.json')
@@ -105,7 +110,8 @@ if __name__ == "__main__":
             arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port", confd_port, "--ip",
                          confd_ip, "--api-protocol", protocol, "--api-port", api_port, "--api-ip", api_ip,
                          "--dir", "../../standard/ietf/RFC", "--result-html-dir", result_html_dir,
-                         "--credentials", credentials[0], credentials[1]]
+                         "--credentials", credentials[0], credentials[1],
+                         "--save-file-dir", save_file_dir]
             if notify == 'True':
                 arguments.append("--notify-indexing")
             subprocess.check_call(arguments, stderr=f)
@@ -130,7 +136,8 @@ if __name__ == "__main__":
             arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port", confd_port, "--ip",
                          confd_ip, "--api-protocol", protocol, "--api-port", api_port, "--api-ip", api_ip,
                          "--dir", "../../experimental/ietf-extracted-YANG-modules", "--result-html-dir",
-                         result_html_dir, "--credentials", credentials[0], credentials[1]]
+                         result_html_dir, "--credentials", credentials[0], credentials[1],
+                         "--save-file-dir", save_file_dir]
             if notify == 'True':
                 arguments.append("--notify-indexing")
             subprocess.check_call(arguments, stderr=f)

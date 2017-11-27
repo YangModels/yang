@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import ConfigParser
 import argparse
 import fnmatch
 import os
@@ -30,7 +31,10 @@ def find_files(directory, pattern):
 
 
 def create_integrity():
-    integrity_file = open('integrity.html', 'w')
+    config = ConfigParser.ConfigParser()
+    config.read('../utility/config.ini')
+    path = config.get('Statistics-Section', 'file-location')
+    integrity_file = open('{}/integrity.html'.format(path), 'w')
     integrity.dump()
     integrity.dumps(integrity_file)
     integrity_file.close()
@@ -45,13 +49,13 @@ if __name__ == "__main__":
                              'file was modified from last time if not it will skip it.')
     parser.add_argument('--api', action='store_true', default=False, help='if we are doing apis')
     parser.add_argument('--sdo', action='store_true', default=False, help='if we are doing sdos')
-    parser.add_argument('--run-statistics', action='store_true', default=False, help='if we are running statistics. '
-                                                                                     'Also if this is true it will run'
-                                                                                     ' all -SDOs and Vendors brought '
-                                                                                     'via api or not')
+    parser.add_argument('--run-integrity', action='store_true', default=False,
+                        help='If we are running integrity tool')
     parser.add_argument('--json-dir', type=str, help='Directory where json files to populate confd will be stored')
     parser.add_argument('--result-html-dir', default='/home/miroslav/results/', type=str,
                         help='Set dir where to write html result files. Default -> /home/miroslav/results/')
+    parser.add_argument('--save-file-dir', default='/home/miroslav/results/',
+                        type=str, help='Directory where the file will be saved')
 
     args = parser.parse_args()
     start = time.time()
@@ -64,8 +68,8 @@ if __name__ == "__main__":
         stats_list = {'sdo': search_dirs}
     else:
         stats_list = {'vendor': search_dirs}
-    if args.run_statistics:
-        stats_list = {'sdo': ['../../experimental', '../../standard'], 'vendor': ['../../vendor']}
+    if args.run_integrity:
+        stats_list = {'vendor': ['../../vendor/cisco']}
     LOGGER.info('Starting to iterate through files')
     for key in stats_list:
         search_dirs = stats_list[key]
@@ -79,7 +83,8 @@ if __name__ == "__main__":
 
                 capability = cap.Capability(search_dir, index, prepare_sdo,
                                             integrity, args.api, sdo,
-                                            args.json_dir, args.result_html_dir)
+                                            args.json_dir, args.result_html_dir,
+                                            args.save_file_dir)
                 LOGGER.info('Starting to parse files in sdo directory')
                 capability.parse_and_dump_sdo()
                 index += 1
@@ -99,7 +104,7 @@ if __name__ == "__main__":
                                 time_in_file = file_modification.readline()
                                 if time_in_file in str(time.ctime(os.path.getmtime(filename))):
                                     update = False
-                                    LOGGER.warning('{} is not modified. Skipping this file'.format(filename))
+                                    LOGGER.info('{} is not modified. Skipping this file'.format(filename))
                                     file_modification.close()
                                 else:
                                     file_modification.seek(0)
@@ -113,26 +118,24 @@ if __name__ == "__main__":
                                 file_modification.close()
                         if update:
                             integrity = statistics.Statistics(filename)
-                            LOGGER.warning('Found xml source {}'.format(filename))
+                            LOGGER.info('Found xml source {}'.format(filename))
                             capability = cap.Capability(filename, index,
                                                         prepare_vendor,
                                                         integrity, args.api,
                                                         sdo, args.json_dir,
-                                                        args.result_html_dir)
+                                                        args.result_html_dir,
+                                                        args.save_file_dir,
+                                                        args.run_integrity)
                             if 'ietf-yang-library' in pattern:
                                 capability.parse_and_dump_yang_lib()
                             else:
                                 capability.parse_and_dump()
                             index += 1
-            prepare_vendor.dump_modules(args.json_dir)
-            prepare_vendor.dump_vendors(args.json_dir)
+            if not args.run_integrity:
+                prepare_vendor.dump_modules(args.json_dir)
+                prepare_vendor.dump_vendors(args.json_dir)
 
-    if integrity is not None:
+    if integrity is not None and args.run_integrity:
         create_integrity()
     end = time.time()
     LOGGER.info('Time taken to parse all the files {} seconds'.format(end - start))
-    if args.run_statistics:
-        for item in os.listdir('./'):
-            if item.endswith(".json") or ('log' in item and '.txt' in item):
-                LOGGER.debug('Removing file {}'.format(item))
-                os.remove(item)

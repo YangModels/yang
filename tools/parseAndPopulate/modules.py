@@ -5,9 +5,7 @@ import subprocess
 import sys
 import unicodedata
 from subprocess import PIPE
-from datetime import datetime
-import requests
-import shutil
+
 from click.exceptions import FileError
 
 import tools.statistics.statistics as stats
@@ -80,7 +78,9 @@ LOGGER = log.get_logger('modules')
 
 class Modules:
     def __init__(self, path, html_result_dir, jsons, temp_dir, is_vendor=False,
-                 is_yang_lib=False, data=None, is_vendor_imp_inc=False):
+                 is_yang_lib=False, data=None, is_vendor_imp_inc=False,
+                 run_integrity=False):
+        self.run_integrity = run_integrity
         self.__temp_dir = temp_dir
         self.__missing_submodules = []
         self.__missing_modules = []
@@ -164,7 +164,7 @@ class Modules:
             my_list = devs_or_features.split(',')
         return my_list
 
-    def parse_all(self, name, schema, api_sdo_json=None):
+    def parse_all(self, name, keys, schema, to, api_sdo_json=None):
         def get_json(js):
             if js:
                 return js
@@ -172,19 +172,10 @@ class Modules:
                 return u'missing element'
 
         if api_sdo_json:
-            author_email = unicodedata.normalize('NFKD', get_json(
-                api_sdo_json.get('author-email'))) \
-                .encode('ascii', 'ignore')
-            if author_email == MISSING_ELEMENT:
-                author_email = None
-            maturity_level = unicodedata.normalize('NFKD', get_json(
-                api_sdo_json.get('maturity-level'))).encode('ascii', 'ignore')
-            reference = unicodedata.normalize('NFKD',
-                                              get_json(api_sdo_json.get(
-                                                  'reference'))) \
-                .encode('ascii', 'ignore')
-            document_name = unicodedata.normalize('NFKD', get_json(
-                api_sdo_json.get('document-name'))).encode('ascii', 'ignore')
+            author_email = api_sdo_json.get('author-email')
+            maturity_level = api_sdo_json.get('maturity-level')
+            reference = api_sdo_json.get('reference')
+            document_name = api_sdo_json.get('document-name')
             generated_from = api_sdo_json.get('generated-from')
             organization = unicodedata.normalize('NFKD', get_json(
                 api_sdo_json.get('organization'))).encode('ascii', 'ignore')
@@ -203,22 +194,37 @@ class Modules:
         self.__resolve_belongs_to()
         self.__resolve_namespace()
         self.__resolve_organization(organization)
-        self.__resolve_prefix()
-        self.__resolve_contact()
-        self.__resolve_description()
-        self.__resolve_yang_version()
-        self.__resolve_generated_from(generated_from)
-        self.__resolve_compilation_status_and_result()
+        key = '{}@{}/{}'.format(self.name, self.revision, self.organization)
+        if key in keys:
+            self.__resolve_schema(schema)
+            self.__resolve_submodule()
+            self.__resolve_imports()
+            return
         self.__resolve_schema(schema)
         self.__resolve_submodule()
         self.__resolve_imports()
-        self.__resolve_document_name_and_reference(document_name, reference)
-        self.__resolve_module_classification(module_classification)
-        self.__resolve_working_group()
-        self.__resolve_author_email(author_email)
-        self.__resolve_maturity_level(maturity_level)
-        self.__resolve_semver()
-        # self.__resolve_tree_type()
+        if not self.run_integrity:
+            self.__save_file(to)
+            self.__resolve_generated_from(generated_from)
+            self.__resolve_compilation_status_and_result()
+            self.__resolve_yang_version()
+            self.__resolve_prefix()
+            self.__resolve_contact()
+            self.__resolve_description()
+            self.__resolve_document_name_and_reference(document_name, reference)
+            self.__resolve_module_classification(module_classification)
+            self.__resolve_working_group()
+            self.__resolve_author_email(author_email)
+            self.__resolve_maturity_level(maturity_level)
+            self.__resolve_semver()
+            self.__resolve_tree_type()
+
+    def __save_file(self, to):
+        file_with_path = '{}{}@{}.yang'.format(to, self.name, self.revision)
+        if not os.path.exists(file_with_path):
+            with open(self.__path, 'r') as f:
+                with open(file_with_path, 'w') as f2:
+                    f2.write(f.read())
 
     def __resolve_semver(self):
         yang_file = open(self.__path)
@@ -306,8 +312,11 @@ class Modules:
 
     def __resolve_schema(self, schema):
         if schema:
+            split_index = '/yang/'
+            if '/tmp/' in self.__path:
+                split_index = self.__path.split('/')[1]
             if self.__is_vendor:
-                suffix = os.path.abspath(self.__path).split('/yang/')[1]
+                suffix = os.path.abspath(self.__path).split(split_index)[1]
                 self.schema = schema + suffix
             else:
                 self.schema = schema
@@ -461,7 +470,7 @@ class Modules:
                 return False
 
         def is_split(rows, output):
-            states = set()
+            #states = set()
             failed = False
             row_num = 0
             if output.split('\n')[0].endswith('-state'):
@@ -470,8 +479,8 @@ class Modules:
                 if 'x--' in row or 'o--' in row:
                     continue
                 if '+--rw config' == row.replace('|', '').strip(
-                        ' ') or '+--ro state' == row.replace('|', '').strip(
-                    ' '):
+                        ' ') or '+--ro state' == row.replace('|', '')\
+                        .strip(' '):
                     return False
                 if 'augment' in row:
                     part = row.strip(' ').split('/')[-1]
@@ -490,70 +499,69 @@ class Modules:
                             if '-state' not in part:
                                 row_num += 1
                                 continue
-                            if ':' in part:
-                                state = part.split(':')[1].split('-state')[0]
-                            else:
-                                state = part.split('-state')[0]
-                        else:
-                            state = \
-                                row.strip(' ').split('-state')[0].split(' ')[1]
+                            #if ':' in part:
+                            #    state = part.split(':')[1].split('-state')[0]
+                            #else:
+                            #    state = part.split('-state')[0]
+                        #else:
+                        #    state = \
+                        #        row.strip(' ').split('-state')[0].split(' ')[1]
                         for x in range(row_num + 1, len(rows)):
                             if 'x--' in rows[x] or 'o--' in rows[x]:
                                 continue
                             if rows[x].strip(' ') == '' \
-                                    or (len(row.split('+--')[
+                                    or (len(rows[x].split('+--')[
                                                 0]) == 4 and 'augment' not in
-                                        rows[
-                                                row_num - 1]) \
+                                        rows[row_num - 1]) \
                                     or len(row.split('augment')[0]) == 2:
                                 break
                             if '+--rw' in rows[x]:
                                 failed = True
                                 break
-                        states.add(state)
+                        #states.add(state)
 
                 row_num += 1
-            if failed:
-                return False
-
-            for state in states:
-                if failed:
-                    return False
-                row_num = 0
-                failed = True
-                for row in rows:
-                    if 'x--' in row or 'o--' in row:
-                        continue
-                    if '+--:' in row:
-                        continue
-                    if row.strip(' ') == '':
-                        failed = True
-                        break
-                    if (len(row.split('+--')[0]) == 4 and 'augment' not in rows[
-                            row_num - 1]) \
-                            or len(row.split('augment')[0]) == 2:
-                        if ('augment' in row and (
-                                                ':' + state + '/' in row or '/' + state + '/' in row)) \
-                                or ('augment' in row
-                                    and (
-                                                                ':' + state + '-config' + '/' in row or '/' + state + '-config' + '/' in row)) \
-                                or (state + '-config' ==
-                                        row.strip(' ').split(' ')[
-                                            1]) \
-                                or (state == row.strip(' ').split(' ')[1]):
-                            failed = False
-                            for x in range(row_num + 1, len(rows)):
-                                if 'x--' in rows[x] or 'o--' in rows[x]:
-                                    continue
-                                if rows[x].strip(' ') == '' or len(
-                                        rows[x].split('+--')[0]) == 4 \
-                                        or len(row.split('augment')[0]) == 2:
-                                    break
-                                if '+--ro' in rows[x]:
-                                    failed = True
-                                    break
-                            break
-                    row_num += 1
+            #if failed:
+            #    return False
+#
+            #for state in states:
+            #    if failed:
+            #        return False
+            #    row_num = 0
+            #    failed = True
+            #    for row in rows:
+            #        if 'x--' in row or 'o--' in row:
+            #            continue
+            #        if '+--:' in row or '+--ro' in row:
+            #            continue
+            #        if row.strip(' ') == '':
+            #            failed = True
+            #            break
+            #        if (len(row.split('+--')[0]) == 4 and 'augment' not in rows[
+            #                row_num - 1]) \
+            #                or len(row.split('augment')[0]) == 2:
+            #            if ('augment' in row and (
+            #                                    ':' + state + '/' in row or '/' + state + '/' in row)) \
+            #                    or ('augment' in row
+            #                        and (
+            #                                                    ':' + state + '-config' + '/' in row or '/' + state + '-config' + '/' in row)) \
+            #                    or (state + '-config' ==
+            #                            row.strip(' ').split(' ')[
+            #                                1]) \
+            #                    or (state == row.strip(' ').split(' ')[1]):
+            #                failed = False
+            #                for x in range(row_num + 1, len(rows)):
+            #                    if 'x--' in rows[x] or 'o--' in rows[x]:
+            #                        continue
+            #                    if rows[x].strip(' ') == '' or len(
+            #                            rows[x].split('+--')[0]) == 4 \
+            #                            or len(row.split('augment')[0]) == 2:
+            #                        break
+            #                    if '+--ro' in rows[x]:
+            #                        failed = True
+            #                        break
+            #                break
+            #        row_num += 1
             if failed:
                 return False
             else:
@@ -578,12 +586,12 @@ class Modules:
                 self.tree_type = 'not-applicable'
             elif is_combined(pyang_list_of_rows, stdout):
                 self.tree_type = 'nmda-compatible'
-            elif is_split(pyang_list_of_rows, stdout):
-                self.tree_type = 'split'
             elif is_transational(pyang_list_of_rows, stdout):
                 self.tree_type = 'transitional-extra'
             elif is_openconfig(pyang_list_of_rows, stdout):
                 self.tree_type = 'openconfig'
+            elif is_split(pyang_list_of_rows, stdout):
+                self.tree_type = 'split'
             else:
                 self.tree_type = 'unclassified'
 
@@ -757,6 +765,9 @@ class Modules:
                             'revision')[0].arg
                 except:
                     sub.revision = '1970-01-01'
+            if yang_file is None:
+                LOGGER.error('Module can not be found')
+                continue
             path = '/'.join(self.schema.split('/')[0:-1])
             path += '/{}'.format(yang_file.split('/')[-1])
             if yang_file:
@@ -819,6 +830,10 @@ class Modules:
             result = self.compilation_result
         result['name'] = self.name
         result['revision'] = self.revision
+        if self.organization == 'ietf':
+            result['switch'] = '--ietf'
+        else:
+            result['switch'] = '--lint'
         context = {'result': result}
         rendered_html = stats.render(
             '../parseAndPopulate/template/compilationStatusTemplate.html',
@@ -960,6 +975,10 @@ class Modules:
         if status == 'unknown':
             status = self.__get_module_status(self.jsons.xr621)
         if status == 'unknown':
+            status = self.__get_module_status(self.jsons.xr622)
+        if status == 'unknown':
+            status = self.__get_module_status(self.jsons.xr631)
+        if status == 'unknown':
             status = self.__get_module_status(self.jsons.xe1631)
         if status == 'unknown':
             status = self.__get_module_status(self.jsons.xe1632)
@@ -985,6 +1004,8 @@ class Modules:
             status = self.__get_module_status(self.jsons.huawei8910)
         if status == 'unknown':
             status = self.__get_module_status(self.jsons.mef_experimental_json)
+        if status == 'unknown':
+            status = self.__get_module_status(self.jsons.openconfig_json)
         return status
 
     def __get_module_status(self, files_json, index=0):
@@ -1083,6 +1104,12 @@ class Modules:
         res = self.__parse_res(self.jsons.xr621)
         if res != '':
             return res
+        res = self.__parse_res(self.jsons.xr622)
+        if res != '':
+            return res
+        res = self.__parse_res(self.jsons.xr631)
+        if res != '':
+            return res
         res = self.__parse_res(self.jsons.xr613)
         if res != '':
             return res
@@ -1111,6 +1138,9 @@ class Modules:
         if res != '':
             return res
         res = self.__parse_res(self.jsons.ietf_rfc_standard_json)
+        if res != '':
+            return res
+        res = self.__parse_res(self.jsons.openconfig_json)
         if res != '':
             return res
         return {'pyang': '', 'pyang_lint': '', 'confdrc': '', 'yumadump': '',
