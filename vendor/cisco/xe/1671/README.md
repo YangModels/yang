@@ -75,7 +75,7 @@ Revision statements embedded in the YANG files **should** accurately reflect whe
 
 Each supported platform advertises NETCONF capabilities during NETCONF session establishment. 
 
-###Exceptions to capability statement:
+### Exceptions to capability statement:
 Below are the list of CODM models advertised in the capability of ASR920, but not supported.
 * Cisco-IOS-XE-bfd-oper.yang
 * Cisco-IOS-XE-cdp-oper.yang
