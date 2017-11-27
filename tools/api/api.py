@@ -9,24 +9,22 @@ import json
 import os
 import re
 import shutil
-import smtplib
+import subprocess
 import sys
 import urllib2
-from email.mime.text import MIMEText
 from threading import Lock
 from urllib2 import URLError
 
 import MySQLdb
 import requests
-import subprocess
+import tools.utility.log as lo
+import yangSearch.index as index
 from OpenSSL.crypto import load_publickey, FILETYPE_PEM, X509, verify
 from flask import Flask, jsonify, abort, make_response, request, Response
 from flask_httpauth import HTTPBasicAuth
-
-import tools.utility.log as lo
-import yangSearch.index as index
 from tools.api.sender import Sender
-from tools.utility import repoutil, yangParser
+from tools.utility import repoutil, yangParser, messageFactory
+from tools.utility.util import get_curr_dir
 from yangSearch.module import Module
 from yangSearch.rester import Rester, RestException
 
@@ -259,6 +257,7 @@ def check_authorized(signature, payload):
     verify(certificate, base64.b64decode(signature), payload, str('SHA1'))
 
 
+<<<<<<< HEAD
 def send_email():
     """Notify via e-mail message about failed travis job"""
     to = ['bclaise@cisco.com', 'einarnn@cisco.com', 'jclarke@cisco.com']
@@ -271,6 +270,17 @@ def send_email():
     s = smtplib.SMTP('localhost')
     s.sendmail('info@yangcatalog.org', to, msg.as_string())
     s.quit()
+=======
+@auth.login_required
+@app.route('/ietf', methods=['GET'])
+def trigger_ietf_pull():
+    username = request.authorization['username']
+    if username != 'admin':
+        return unauthorized
+    job_id = sender.send('run_ietf')
+    LOGGER.info('job_id {}'.format(job_id))
+    return make_response(jsonify({'job-id': job_id}), 202)
+>>>>>>> upstream/master
 
 
 @auth.login_required
@@ -302,7 +312,12 @@ def check_local():
     except:
         LOGGER.critical('Authorization failed.'
                         ' Request did not come from Travis')
+<<<<<<< HEAD
         send_email()
+=======
+        mf = messageFactory.MessageFactory()
+        mf.send_travis_auth_failed()
+>>>>>>> upstream/master
         return unauthorized()
 
     global yang_models_url
@@ -310,7 +325,14 @@ def check_local():
     verify_commit = False
     LOGGER.info('Checking commit SHA if it is the commit sent by yang-catalog'
                 'user.')
+<<<<<<< HEAD
     commit_sha = body['commit']
+=======
+    if body['repository']['owner_name'] == 'yang-catalog':
+        commit_sha = body['commit']
+    else:
+        commit_sha = body['head_commit']
+>>>>>>> upstream/master
     try:
         commit_file = file(commit_msg_file)
         for line in commit_file:
@@ -351,10 +373,20 @@ def check_local():
                 if body['type'] == 'pull_request':
                     # If build was successful on pull request
                     pull_number = body['pull_request_number']
-                    LOGGER.info('Pull request was successful {}'.format(repr(pull_number)))
-                    #response = requests.put('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number +
-                    #             '/merge', headers={'Authorization': 'token ' + token})
-                    #LOGGER.info('Merge response code {}. Merge response {}.'.format(response.content, response.status_code))
+                    LOGGER.info('Pull request was successful {}. sending review.'.format(repr(pull_number)))
+                    url = 'https://api.github.com/repos/YangModels/yang/pulls/'+ repr(pull_number) +'/reviews'
+                    data = json.dumps({
+                        'body': 'AUTOMATED YANG CATALOG APPROVAL',
+                        'event': 'APPROVE'
+                    })
+                    response = requests.post(url, data, headers={'Authorization': 'token ' + admin_token})
+                    LOGGER.info('review response code {}. Merge response {}.'.format(
+                            response.status_code, response.content))
+                    data = json.dumps({'commit-title': 'Travis job passed',
+                                       'sha': body['head_commit']})
+                    response = requests.put('https://api.github.com/repos/YangModels/yang/pulls/' + repr(pull_number) +
+                                 '/merge', data, headers={'Authorization': 'token ' + admin_token})
+                    LOGGER.info('Merge response code {}. Merge response {}.'.format(response.status_code, response.content))
                     requests.delete('https://api.github.com/repos/yang-catalog/yang',
                                     headers={'Authorization': 'token ' + token})
                     return make_response(jsonify({'info': 'Success'}), 201)
@@ -744,7 +776,7 @@ def add_vendors():
         file_name = capability['path'].split('/')[-1]
         if request.method == 'POST':
             repo_split = capability['repository'].split('.')[0]
-            if os.path.isfile('../../api/vendor/' + capability['owner'] + '/' + repo_split + '/' + capability['path']):
+            if os.path.isfile(get_curr_dir(__file__) + '/../../api/vendor/' + capability['owner'] + '/' + repo_split + '/' + capability['path']):
                 continue
 
         repo_url = url + capability['owner'] + '/' + capability['repository']
@@ -1033,7 +1065,11 @@ def check_semver():
                                                         revision_new)
                         schema2 = '{}{}@{}.yang'.format(save_file_dir, name_old,
                                                         revision_old)
+<<<<<<< HEAD
                         arguments = ['pyang', '-P', '../../.', '-p', '../../.',
+=======
+                        arguments = ['pyang', '-P', get_curr_dir(__file__) + '/../../.', '-p', get_curr_dir(__file__) + '/../../.',
+>>>>>>> upstream/master
                                      schema1, '--check-update-from',
                                      schema2]
                         pyang = subprocess.Popen(arguments,
@@ -1047,7 +1083,11 @@ def check_semver():
                                   'w+') as f:
                             f.write('<pre>{}</pre>'.format(stderr))
 
+<<<<<<< HEAD
                         arguments = ['pyang', '-p', '../../.', '-f', 'tree',
+=======
+                        arguments = ['pyang', '-p', get_curr_dir(__file__) + '/../../.', '-f', 'tree',
+>>>>>>> upstream/master
                                      save_file_dir + name_new + '@' + revision_new + '.yang']
                         pyang = subprocess.Popen(arguments,
                                                  stdout=subprocess.PIPE,
@@ -1058,7 +1098,11 @@ def check_semver():
                         with open(f_name, 'w+') as f:
                             f.write(stdout)
 
+<<<<<<< HEAD
                         arguments = ['pyang', '-p', '../../.', '-f', 'tree',
+=======
+                        arguments = ['pyang', '-p', get_curr_dir(__file__) + '/../../.', '-f', 'tree',
+>>>>>>> upstream/master
                                      save_file_dir + name_old + '@' + revision_old + '.yang']
                         pyang = subprocess.Popen(arguments,
                                                  stdout=subprocess.PIPE,
@@ -1592,14 +1636,29 @@ def trigger_populate():
     body = request.json
     paths = []
     added = body.get('added')
+<<<<<<< HEAD
     for add in added:
         if 'platform-metadata.json' in add:
             paths.append('/'.join(add.split('/')[:-1]))
+=======
+    new = []
+    mod = []
+    for add in added:
+        if 'platform-metadata.json' in add:
+            paths.append('/'.join(add.split('/')[:-1]))
+            new.append('/'.join(add.split('/')[:-1]))
+>>>>>>> upstream/master
     modified = body.get('modified')
     for m in modified:
         if 'platform-metadata.json' in m:
             paths.append('/'.join(m.split('/')[:-1]))
+<<<<<<< HEAD
 
+=======
+            mod.append('/'.join(m.split('/')[:-1]))
+    mf = messageFactory.MessageFactory()
+    mf.send_new_modified_platform_metadata(new, mod)
+>>>>>>> upstream/master
     LOGGER.info('Forking the repo')
     repo = repoutil.RepoUtil('https://github.com/YangModels/yang.git')
     try:
@@ -1641,7 +1700,11 @@ def load(on_start):
     """Load all the data populated to yang-catalog to memory saved in file in ./cache."""
     with lock:
         if on_start:
+<<<<<<< HEAD
             LOGGER.info('Removinch cache file and loading new one - this is done only when API is starting to get fresh'
+=======
+            LOGGER.info('Removing cache file and loading new one - this is done only when API is starting to get fresh'
+>>>>>>> upstream/master
                         ' data')
             try:
                 shutil.rmtree('./cache')
@@ -1794,6 +1857,8 @@ if __name__ == '__main__':
     save_file_dir = config.get('API-Section', 'save-file-dir')
     global token
     token = config.get('API-Section', 'yang-catalog-token')
+    global admin_token
+    admin_token = config.get('API-Section', 'admin-token')
     global commit_msg_file
     commit_msg_file = config.get('API-Section', 'commit-dir')
     ssl_context = None

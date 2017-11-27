@@ -8,6 +8,8 @@ from email.mime.text import MIMEText
 
 import MySQLdb
 
+from tools.utility.util import get_curr_dir
+
 
 def query_yes_no(question, default=None):
     """Ask a yes/no question via raw_input() and return their answer.
@@ -67,7 +69,7 @@ def query_create(question):
             else:
                 choice_without_last = choice
 
-        if os.path.isdir('../../' + choice):
+        if os.path.isdir(get_curr_dir(__file__) + '/../../' + choice):
             return choice
         else:
             print ('Path ' + choice_without_last + ' does not exist.')

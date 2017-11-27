@@ -13,6 +13,7 @@ import requests
 
 import tools.utility.log as log
 from tools.api.receiver import send_to_indexing
+from tools.utility.util import get_curr_dir
 
 LOGGER = log.get_logger('populate')
 
@@ -343,19 +344,19 @@ if __name__ == "__main__":
                         #    f.write(schema2)
                         #with open(to_write, 'w+') as f:
                         #    f.write(schema1.content)
-                        arguments = ['pyang', '-P', '../../.', '-p', '../../.',
+                        arguments = ['pyang', '-P', get_curr_dir(__file__) + '/../../.', '-p', get_curr_dir(__file__) + '/../../.',
                                      schema1, '--check-update-from',
                                      schema2]
                         pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                                                  stderr=subprocess.PIPE)
                         stdout, stderr = pyang.communicate()
                         if stderr == '':
-                            arguments = ["pyang", '-p', '../../.', "-f", "tree",
+                            arguments = ["pyang", '-p', get_curr_dir(__file__) + '/../../.', "-f", "tree",
                                          schema1]
                             pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                                                      stderr=subprocess.PIPE)
                             stdout, stderr = pyang.communicate()
-                            arguments = ["pyang", "-p", "../../.", "-f", "tree",
+                            arguments = ["pyang", "-p", get_curr_dir(__file__) + "/../../.", "-f", "tree",
                                          schema2]
                             pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                                                      stderr=subprocess.PIPE)
@@ -483,19 +484,20 @@ if __name__ == "__main__":
                             #    f.write(schema2.content)
                             #with open(to_write_before, 'w+') as f:
                             #    f.write(schema1.content)
-                            arguments = ['pyang', '-p', '../../.', '-P', '../../.',
+
+                            arguments = ['pyang', '-p', get_curr_dir(__file__) + '/../../.', '-P', get_curr_dir(__file__) + '/../../.',
                                          schema2,
                                          '--check-update-from', schema1]
                             pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                                                      stderr=subprocess.PIPE)
                             stdout, stderr = pyang.communicate()
                             if stderr == '':
-                                arguments = ["pyang", '-p', '../../.', "-f", "tree",
+                                arguments = ["pyang", '-p', get_curr_dir(__file__) + '/../../.', "-f", "tree",
                                              schema1]
                                 pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                                                          stderr=subprocess.PIPE)
                                 stdout, stderr = pyang.communicate()
-                                arguments = ["pyang", '-p', '../../.', "-f", "tree",
+                                arguments = ["pyang", '-p', get_curr_dir(__file__) + '/../../.', "-f", "tree",
                                              schema2]
                                 pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                                                          stderr=subprocess.PIPE)

@@ -12,6 +12,7 @@ from numpy.f2py.auxfuncs import throw_error
 
 import tools.utility.log as log
 from tools.utility import yangParser
+from tools.utility.util import get_curr_dir
 
 LOGGER = log.get_logger('draftPullLocal')
 
@@ -71,6 +72,8 @@ def check_early_revisions(directory):
         latest = revisions.index(max(revisions))
         files_to_delete.remove(files_to_delete[latest])
         for fi in files_to_delete:
+            if 'iana-if-type' in fi:
+                break
             os.remove(directory + fi)
 
 
@@ -99,17 +102,17 @@ if __name__ == "__main__":
     response = urllib.urlretrieve('http://www.claise.be/YANG-RFC.tar', './rfc.tar')
 
     tar = tarfile.open('./rfc.tar')
-    tar.extractall('../../standard/ietf/RFC')
+    tar.extractall(get_curr_dir(__file__) + '/../../standard/ietf/RFC')
     tar.close()
     os.remove('./rfc.tar')
-    check_name_no_revision_exist('../../standard/ietf/RFC/')
-    check_early_revisions('../../standard/ietf/RFC/')
+    check_name_no_revision_exist(get_curr_dir(__file__) + '/../../standard/ietf/RFC/')
+    check_early_revisions(get_curr_dir(__file__) + '/../../standard/ietf/RFC/')
     with open("log.txt", "wr") as f:
         try:
             LOGGER.info('Calling populate script')
             arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port", confd_port, "--ip",
                          confd_ip, "--api-protocol", protocol, "--api-port", api_port, "--api-ip", api_ip,
-                         "--dir", "../../standard/ietf/RFC", "--result-html-dir", result_html_dir,
+                         "--dir", get_curr_dir(__file__) + "/../../standard/ietf/RFC", "--result-html-dir", result_html_dir,
                          "--credentials", credentials[0], credentials[1],
                          "--save-file-dir", save_file_dir]
             if notify == 'True':
@@ -118,7 +121,7 @@ if __name__ == "__main__":
         except subprocess.CalledProcessError as e:
             LOGGER.error('Error calling process populate.py {}'.format(e.message))
     for key in ietf_draft_json:
-        yang_file = open('../../experimental/ietf-extracted-YANG-modules/' + key, 'w+')
+        yang_file = open(get_curr_dir(__file__) + '/../../experimental/ietf-extracted-YANG-modules/' + key, 'w+')
         yang_download_link = ietf_draft_json[key][2].split('href="')[1].split('">Download')[0]
         try:
             yang_raw = urllib2.urlopen(yang_download_link).read()
@@ -127,15 +130,15 @@ if __name__ == "__main__":
             LOGGER.warning('{} - {}'.format(key, yang_download_link))
             yang_file.write('')
         yang_file.close()
-    check_name_no_revision_exist('../../experimental/ietf-extracted-YANG-modules/')
-    check_early_revisions('../../experimental/ietf-extracted-YANG-modules/')
+    check_name_no_revision_exist(get_curr_dir(__file__) + '/../../experimental/ietf-extracted-YANG-modules/')
+    check_early_revisions(get_curr_dir(__file__) + '/../../experimental/ietf-extracted-YANG-modules/')
 
     with open("log.txt", "wr") as f:
         try:
             LOGGER.info('Calling populate script')
             arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port", confd_port, "--ip",
                          confd_ip, "--api-protocol", protocol, "--api-port", api_port, "--api-ip", api_ip,
-                         "--dir", "../../experimental/ietf-extracted-YANG-modules", "--result-html-dir",
+                         "--dir", get_curr_dir(__file__) + "/../../experimental/ietf-extracted-YANG-modules", "--result-html-dir",
                          result_html_dir, "--credentials", credentials[0], credentials[1],
                          "--save-file-dir", save_file_dir]
             if notify == 'True':

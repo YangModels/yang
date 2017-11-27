@@ -3,6 +3,7 @@ import os
 
 from tools.utility import yangParser
 import tools.utility.log as log
+from tools.utility.util import get_curr_dir
 
 LOGGER = log.get_logger('dependencies')
 
@@ -66,6 +67,8 @@ def search_dependencies(base):
 if __name__ == "__main__":
     dependencies = {}
     dependants = {}
-    for dir in ['../../experimental', '../../standard', '../../vendor']:
+    for dir in [get_curr_dir(__file__) + '/../../experimental',
+                get_curr_dir(__file__) + '/../../standard',
+                get_curr_dir(__file__) + '/../../vendor']:
         search_dependencies(dir)
     pass

@@ -4,7 +4,8 @@ import errno
 import filecmp
 import json
 import os
-import smtplib
+import shutil
+>>>>>>> upstream/master
 import sys
 import tarfile
 import urllib
@@ -16,11 +17,13 @@ import shutil
 from numpy.f2py.auxfuncs import throw_error
 from tools.utility.util import GREETINGS
 from travispy import TravisPy
+from travispy.errors import TravisError
 
 import tools.utility.log as log
 from tools.ietfYangDraftPull.draftPullLocal import check_name_no_revision_exist, \
     check_early_revisions
-from tools.utility import repoutil
+from tools.utility import repoutil, messageFactory
+from tools.utility.util import get_curr_dir
 
 LOGGER = log.get_logger('draftPull')
 
@@ -137,8 +140,8 @@ if __name__ == "__main__":
                     repo.localdir + '/standard/ietf/RFCtemp'):
         for file_name in sdos:
             if '.yang' in file_name:
-                if os.path.exists('../../standard/ietf/RFC/' + file_name):
-                    same = filecmp.cmp('../../standard/ietf/RFC/' + file_name,
+                if os.path.exists( get_curr_dir(__file__) + '/../../standard/ietf/RFC/' + file_name):
+                    same = filecmp.cmp( get_curr_dir(__file__) + '/../../standard/ietf/RFC/' + file_name,
                                        root + '/' + file_name)
                     if not same:
                         diff_files.append(file_name)
@@ -148,7 +151,8 @@ if __name__ == "__main__":
     os.remove(repo.localdir + '/tools/ietfYangDraftPull/rfc.tar')
     if len(new_files) > 0 or len(diff_files) > 0:
         LOGGER.warning('new or modified RFC files found. Sending an E-mail')
-        send_email(new_files, diff_files)
+        mf = messageFactory.MessageFactory()
+        mf.send_new_rfc_message(new_files, diff_files)
 
     for key in ietf_draft_json:
         yang_file = open(
@@ -178,9 +182,13 @@ if __name__ == "__main__":
         repo.commit_all('Cronjob - every day pull of ietf draft yang files.')
         LOGGER.info('Pushing files to forked repository')
         LOGGER.info('Commit hash {}'.format(repo.repo.head.commit))
-        with open(commit_dir, 'a') as f:
+        with open(commit_dir, 'w+') as f:
             f.write('{}\n'.format(repo.repo.head.commit))
         repo.push()
+    except TravisError as e:
+        LOGGER.error('Error while pushing procedure {}'.format(e.message()))
+        requests.delete(yang_models_url,
+                        headers={'Authorization': 'token ' + token})
     except:
         LOGGER.error(
             'Error while pushing procedure {}'.format(sys.exc_info()[0]))

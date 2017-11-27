@@ -6,6 +6,7 @@ import time
 import math
 
 import tools.utility.log as lo
+from tools.utility import messageFactory
 
 LOGGER = lo.get_logger('api')
 
@@ -18,6 +19,7 @@ if __name__ == '__main__':
                         default='.',
                         help='Set path to config file')
     args = parser.parse_args()
+    mf = messageFactory.MessageFactory()
     LOGGER.info('Removing unused files')
     to_remove = []
     for root, dirs, files in os.walk(args.remove_dir):
@@ -36,6 +38,10 @@ if __name__ == '__main__':
                     c_time = c_time / 60 / 60 / 24
                     if math.floor(c_time) != 0:
                         to_remove.append(remove_path)
-
+    mf.send_removed_temp_diff_files()
     for remove in to_remove:
-        os.remove(remove)
+        try:
+            os.remove(remove)
+        except OSError as e:
+            mf.send_automated_procedure_failed('Remove unused diff files',
+                                               e.message)
