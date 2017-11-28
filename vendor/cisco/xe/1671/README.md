@@ -13,6 +13,8 @@ The schemas here may also be retrieved from devices running IOS XE 16.7 by using
 * ISR4000
 * ASR900 RSP2/RSP3 and ASR920
 
+#### NOTE: IOS XE is not supported on Catalyst switching platforms.
+
 Model content may differ based on platform capability. As a convenience, copies of the platform "hello" messages are also provided:
 #### ASR1000
 Netconf capability Statement: [asr1k-netconf-capability.xml](asr1k-netconf-capability.xml)
