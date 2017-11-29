@@ -11,7 +11,7 @@ The schemas here may also be retrieved from devices running IOS XE 16.7 by using
 * ASR1000
 * CSR1000V/ISRv
 * ISR4000
-* ASR900 RSP2/RSP3 and ASR920
+* ASR900 RSP2/RSP3 ASR920 and NCS4200
 
 #### NOTE: IOS XE is not supported on Catalyst switching platforms.
 
@@ -22,7 +22,7 @@ Netconf capability Statement: [asr1k-netconf-capability.xml](asr1k-netconf-capab
 Netconf capability Statement: [csr1k-netconf-capability.xml](csr1k-netconf-capability.xml)
 #### ISR4000
 Netconf capability Statement: [isr4k-netconf-capability.xml](isr4k-netconf-capability.xml)
-#### ASR900/ASR920 RSP2/RSP3 
+#### ASR900 ASR920 RSP2/RSP3 NCS4200
 Netconf capability Statement: [asr920-netconf-capability.xml](asr920-netconf-capability.xml)
 
 ### Major namespace and model changes in 16.7
@@ -44,6 +44,73 @@ Netconf capability Statement: [asr920-netconf-capability.xml](asr920-netconf-cap
 * Cisco-IOS-XE-mdt-cfg.yang
 * Cisco-IOS-XE-mdt-common-defs.yang
 * Cisco-IOS-XE-mdt-oper.yang
+* Cisco-IOS-XE-stackwise-virtual.yang
+
+#### Native models modified 
+
+* Cisco-IOS-XE-aaa.yang
+* Cisco-IOS-XE-acl.yang
+* Cisco-IOS-XE-bfd.yang
+* Cisco-IOS-XE-bgp.yang
+* Cisco-IOS-XE-cdp.yang
+* Cisco-IOS-XE-crypto.yang
+* Cisco-IOS-XE-cts.yang
+* Cisco-IOS-XE-device-sensor.yang
+* Cisco-IOS-XE-device-tracking.yang
+* Cisco-IOS-XE-dhcp.yang
+* Cisco-IOS-XE-dot1x.yang
+* Cisco-IOS-XE-eem.yang
+* Cisco-IOS-XE-eigrp.yang
+* Cisco-IOS-XE-ethernet.yang
+* Cisco-IOS-XE-ezpm.yang
+* Cisco-IOS-XE-flow.yang
+* Cisco-IOS-XE-icmp.yang
+* Cisco-IOS-XE-igmp.yang
+* Cisco-IOS-XE-interface-common.yang
+* Cisco-IOS-XE-interfaces.yang
+* Cisco-IOS-XE-ip.yang
+* Cisco-IOS-XE-ipv6.yang
+* Cisco-IOS-XE-isis.yang
+* Cisco-IOS-XE-l2vpn.yang
+* Cisco-IOS-XE-license.yang
+* Cisco-IOS-XE-line.yang
+* Cisco-IOS-XE-lisp.yang
+* Cisco-IOS-XE-lldp.yang
+* Cisco-IOS-XE-logging.yang
+* Cisco-IOS-XE-mdt-common-defs.yang
+* Cisco-IOS-XE-mka.yang
+* Cisco-IOS-XE-mmode.yang
+* Cisco-IOS-XE-mpls.yang
+* Cisco-IOS-XE-multicast.yang
+* Cisco-IOS-XE-nat.yang
+* Cisco-IOS-XE-native.yang
+* Cisco-IOS-XE-nbar.yang
+* Cisco-IOS-XE-nd.yang
+* Cisco-IOS-XE-object-group.yang
+* Cisco-IOS-XE-ospf.yang
+* Cisco-IOS-XE-ospfv3.yang
+* Cisco-IOS-XE-parser.yang
+* Cisco-IOS-XE-platform.yang
+* Cisco-IOS-XE-policy.yang
+* Cisco-IOS-XE-power.yang
+* Cisco-IOS-XE-rip.yang
+* Cisco-IOS-XE-route-map.yang
+* Cisco-IOS-XE-rpc.yang
+* Cisco-IOS-XE-rsvp.yang
+* Cisco-IOS-XE-sanet.yang
+* Cisco-IOS-XE-service-insertion.yang
+* Cisco-IOS-XE-service-routing.yang
+* Cisco-IOS-XE-sla.yang
+* Cisco-IOS-XE-snmp.yang
+* Cisco-IOS-XE-spanning-tree.yang
+* Cisco-IOS-XE-switch.yang
+* Cisco-IOS-XE-tunnel.yang
+* Cisco-IOS-XE-types.yang
+* Cisco-IOS-XE-udld.yang
+* Cisco-IOS-XE-utd.yang
+* Cisco-IOS-XE-vlan.yang
+* Cisco-IOS-XE-vservice.yang
+* Cisco-IOS-XE-zone.yang
 
 #### Models that requires ODM configuration in 16.7:
 
