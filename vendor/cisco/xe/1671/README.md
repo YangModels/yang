@@ -4,26 +4,26 @@ This directory contains the [MIBS](MIBS) subdirectory and YANG models supported 
 
 * Models unique to IOS XE platforms
 * MIB-based models generated using the algorithms in [RFC 6643](https://tools.ietf.org/html/rfc6643)
-* IETF, OpenConfig and tailf-f models(and deviations) 
+* IETF, OpenConfig and tail-f models (and deviations) 
 
-The schemas here may also be retrieved from devices running IOS XE 16.7.1 by using the NETCONF "get-schema" RPC as detailed in [RFC 6022](https://tools.ietf.org/html/rfc6022) Section 3.1. For Restconf we can do a "get" on the schema leaf of ietf-yang-library.yang model,which provides the list of URL's from which the schemas can be dowloaded. Models listed in this repository are supported by following IOS XE platforms:
+The schemas here may also be retrieved from devices running IOS XE 16.7.1 by using the NETCONF "get-schema" RPC as detailed in [RFC 6022](https://tools.ietf.org/html/rfc6022) Section 3.1. For RESTCONF we can do a "get" on the schema leaf of ietf-yang-library.yang model, which provides the list of URL's from which the schemas can be dowloaded. Models listed in this repository are supported by following IOS XE platforms:
 
 * ASR1000
 * CSR1000V/ISRv
 * ISR4000
-* ASR900 RSP2/RSP3 ASR920 and NCS4200
+* ASR900, RSP2/RSP3, ASR920 and NCS4200
 
-**NOTE: IOS XE 16.7.1 is not supported on Catalyst switching platforms.**
+** NOTE: IOS XE 16.7.1 is not supported on Catalyst switching platforms.**
 
 Model content may differ based on platform capability. As a convenience, copies of the platform "hello" messages are also provided:
 #### ASR1000
-Netconf capability Statement: [asr1k-netconf-capability.xml](asr1k-netconf-capability.xml)
+NETCONF capability Statement: [asr1k-netconf-capability.xml](asr1k-netconf-capability.xml)
 #### CSR1000
-Netconf capability Statement: [csr1k-netconf-capability.xml](csr1k-netconf-capability.xml)
+NETCONF capability Statement: [csr1k-netconf-capability.xml](csr1k-netconf-capability.xml)
 #### ISR4000
-Netconf capability Statement: [isr4k-netconf-capability.xml](isr4k-netconf-capability.xml)
-#### ASR900 ASR920 RSP2/RSP3 NCS4200
-Netconf capability Statement: [asr920-netconf-capability.xml](asr920-netconf-capability.xml)
+NETCONF capability Statement: [isr4k-netconf-capability.xml](isr4k-netconf-capability.xml)
+#### ASR900, ASR920, RSP2/RSP3 and NCS4200
+NETCONF capability Statement: [asr920-netconf-capability.xml](asr920-netconf-capability.xml)
 
 ### Major Namespace And Model Changes In 16.7.1
 
@@ -33,7 +33,7 @@ Netconf capability Statement: [asr920-netconf-capability.xml](asr920-netconf-cap
 
 * ietf-yang-push.yang
 * ietf-event-notifications.yang
- 
+
 #### Native Models Added
 
 * Cisco-IOS-XE-common-types.yang
@@ -44,7 +44,7 @@ Netconf capability Statement: [asr920-netconf-capability.xml](asr920-netconf-cap
 * Cisco-IOS-XE-mdt-oper.yang
 * Cisco-IOS-XE-stackwise-virtual.yang
 
-#### Native Models Modified
+#### Native Models Modified 
 
 * Cisco-IOS-XE-aaa.yang
 * Cisco-IOS-XE-acl.yang
@@ -110,7 +110,7 @@ Netconf capability Statement: [asr920-netconf-capability.xml](asr920-netconf-cap
 * Cisco-IOS-XE-vservice.yang
 * Cisco-IOS-XE-zone.yang
 
-#### Models Requiring Operational Data Manager (ODM) Configuration
+#### Models Requiring Operational Data manager (ODM) configuration
 
 * Cisco-IOS-XE-bfd-oper.yang
 * Cisco-IOS-XE-cfm-oper.yang
@@ -146,7 +146,7 @@ Each supported platform advertises NETCONF capabilities during NETCONF session e
 
 ### Exceptions to capability statement:
 
-Below is the list of operational models advertised in the capability of ASR920/ASR900 RSP2/RSP3, but not supported.
+Below is the list of operational models advertised in the capability of ASR920, ASR900, RSP2/RSP3 and NCS4200 but not supported.
 
 * Cisco-IOS-XE-bfd-oper.yang
 * Cisco-IOS-XE-cdp-oper.yang
