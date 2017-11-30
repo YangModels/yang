@@ -1,19 +1,19 @@
-## YANG Models and Platform Capabilities for Cisco IOS XE 16.7
+## YANG Models and Platform Capabilities for Cisco IOS XE 16.7.1
 
-This directory contains the [MIBS](MIBS) subdirectory and YANG models supported by IOS XE 16.7:
+This directory contains the [MIBS](MIBS) subdirectory and YANG models supported by IOS XE 16.7.1:
 
 * Models unique to IOS XE platforms
 * MIB-based models generated using the algorithms in [RFC 6643](https://tools.ietf.org/html/rfc6643)
 * IETF, OpenConfig and tail-f models (and deviations) 
 
-The schemas here may also be retrieved from devices running IOS XE 16.7 by using the NETCONF "get-schema" RPC as detailed in [RFC 6022](https://tools.ietf.org/html/rfc6022) Section 3.1. For RESTCONF we can do a "get" on the schema leaf of ietf-yang-library.yang model, which provides the list of URL's from which the schemas can be dowloaded. Models listed in this repository are supported by following IOS XE platforms:
+The schemas here may also be retrieved from devices running IOS XE 16.7.1 by using the NETCONF "get-schema" RPC as detailed in [RFC 6022](https://tools.ietf.org/html/rfc6022) Section 3.1. For RESTCONF we can do a "get" on the schema leaf of ietf-yang-library.yang model, which provides the list of URL's from which the schemas can be dowloaded. Models listed in this repository are supported by following IOS XE platforms:
 
 * ASR1000
 * CSR1000V/ISRv
 * ISR4000
 * ASR900, RSP2/RSP3, ASR920 and NCS4200
 
-#### NOTE: IOS XE 16.7 is not supported on Catalyst switching platforms.
+**NOTE: IOS XE 16.7.1 is not supported on Catalyst switching platforms.**
 
 Model content may differ based on platform capability. As a convenience, copies of the platform "hello" messages are also provided:
 #### ASR1000
@@ -25,14 +25,17 @@ NETCONF capability Statement: [isr4k-netconf-capability.xml](isr4k-netconf-capab
 #### ASR900, ASR920, RSP2/RSP3 and NCS4200
 NETCONF capability Statement: [asr920-netconf-capability.xml](asr920-netconf-capability.xml)
 
-### Major namespace and model changes in 16.7
+### Major Namespace And Model Changes In 16.7.1
 
-### 16.7 Model Changes
+16.7.1 model changes include the addition of IETF models, new native models and existing native model updates.
 
-#### Models added in 16.7:
+#### IETF Models Added
 
 * ietf-yang-push.yang
 * ietf-event-notifications.yang
+
+#### Native Models Added
+
 * Cisco-IOS-XE-common-types.yang
 * Cisco-IOS-XE-iwanfabric.yang
 * Cisco-IOS-XE-lisp-oper.yang
@@ -41,7 +44,7 @@ NETCONF capability Statement: [asr920-netconf-capability.xml](asr920-netconf-cap
 * Cisco-IOS-XE-mdt-oper.yang
 * Cisco-IOS-XE-stackwise-virtual.yang
 
-#### Models modified in 16.7 
+#### Native Models Modified 
 
 * Cisco-IOS-XE-aaa.yang
 * Cisco-IOS-XE-acl.yang
@@ -107,7 +110,7 @@ NETCONF capability Statement: [asr920-netconf-capability.xml](asr920-netconf-cap
 * Cisco-IOS-XE-vservice.yang
 * Cisco-IOS-XE-zone.yang
 
-#### Models requiring ODM configuration in 16.7:
+#### Models Requiring Operational Data manager (ODM) configuration
 
 * Cisco-IOS-XE-bfd-oper.yang
 * Cisco-IOS-XE-cfm-oper.yang
@@ -126,7 +129,15 @@ Some models are not fully compliant with all IETF guidelines as exemplified by r
 
 ### Revision Statements
 
-Revision statements embedded in the YANG files **should** accurately reflect whether or not a new revision has been introduced.
+Revision statements embedded in the YANG files **should** accurately reflect whether or not a new revision has been introduced. However, the following models have been changed with no corresponding update to the revision statement:
+
+* Cisco-IOS-XE-acl.yang
+* Cisco-IOS-XE-device-tracking.yang
+* Cisco-IOS-XE-interfaces.yang
+* Cisco-IOS-XE-ipv6.yang
+* Cisco-IOS-XE-parser.yang
+* Cisco-IOS-XE-service-insertion.yang
+* Cisco-IOS-XE-vlan.yang
 
 
 ## Platform Differences
