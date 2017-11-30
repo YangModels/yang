@@ -13,7 +13,7 @@ The schemas here may also be retrieved from devices running IOS XE 16.7.1 by usi
 * ISR4000
 * ASR900, RSP2/RSP3, ASR920 and NCS4200
 
-**NOTE: IOS XE 16.7.1 is not supported on Catalyst switching platforms.**
+** NOTE: IOS XE 16.7.1 is not supported on Catalyst switching platforms.**
 
 Model content may differ based on platform capability. As a convenience, copies of the platform "hello" messages are also provided:
 #### ASR1000
