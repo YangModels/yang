@@ -126,7 +126,6 @@ NETCONF capability Statement: [asr920-netconf-capability.xml](asr920-netconf-cap
 
 Some models are not fully compliant with all IETF guidelines as exemplified by running the pyang tool with the ```--lint``` flag. The errors and warnings exhibited by running pyang with the ```--lint``` flag are currently deemed to be non-critical as they do not impact the semantic of the models or prevent the models being used as part of toolchains. A script has been provided, "check-models.sh", that runs pyang with ```--lint``` validation enabled, but ignoring certain errors. This allows the developer to determine what issues may be present.
 
-
 ### Revision Statements
 
 Revision statements embedded in the YANG files **should** accurately reflect whether or not a new revision has been introduced. However, the following models have been changed with no corresponding update to the revision statement:
