@@ -139,7 +139,6 @@ Revision statements embedded in the YANG files **should** accurately reflect whe
 * Cisco-IOS-XE-service-insertion.yang
 * Cisco-IOS-XE-vlan.yang
 
-
 ## Platform Differences
 
 Each supported platform advertises NETCONF capabilities during NETCONF session establishment. 
