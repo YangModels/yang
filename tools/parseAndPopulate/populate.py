@@ -50,7 +50,7 @@ if __name__ == "__main__":
                         help='Set dir where to look for hello message xml files.Default -> ../../vendor')
     parser.add_argument('--api', action='store_true', default=False, help='If we are doing apis')
     parser.add_argument('--sdo', action='store_true', default=False, help='If we are sneding SDOs only')
-    parser.add_argument('--notify-indexing', action='store_true', default=False, help='Weather to send files for'
+    parser.add_argument('--notify-indexing', action='store_true', default=True, help='Weather to send files for'
                                                                                       ' indexing')
     parser.add_argument('--protocol', type=str, default='http', help='Whether confd-6.4 runs on http or https.'
                                                                      ' Default is set to http')
@@ -484,6 +484,7 @@ if __name__ == "__main__":
                             #    f.write(schema2.content)
                             #with open(to_write_before, 'w+') as f:
                             #    f.write(schema1.content)
+
                             arguments = ['pyang', '-p', get_curr_dir(__file__) + '/../../.', '-P', get_curr_dir(__file__) + '/../../.',
                                          schema2,
                                          '--check-update-from', schema1]

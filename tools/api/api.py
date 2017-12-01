@@ -257,6 +257,32 @@ def check_authorized(signature, payload):
     verify(certificate, base64.b64decode(signature), payload, str('SHA1'))
 
 
+<<<<<<< HEAD
+def send_email():
+    """Notify via e-mail message about failed travis job"""
+    to = ['bclaise@cisco.com', 'einarnn@cisco.com', 'jclarke@cisco.com']
+    msg = MIMEText('Travis pull job not sent because it was not sent from'
+                   ' travis. Key verification failed')
+    msg['Subject'] = 'Travis pull job not sent'
+    msg['From'] = 'info@yangcatalog.org'
+    msg['To'] = ', '.join(to)
+
+    s = smtplib.SMTP('localhost')
+    s.sendmail('info@yangcatalog.org', to, msg.as_string())
+    s.quit()
+=======
+@auth.login_required
+@app.route('/ietf', methods=['GET'])
+def trigger_ietf_pull():
+    username = request.authorization['username']
+    if username != 'admin':
+        return unauthorized
+    job_id = sender.send('run_ietf')
+    LOGGER.info('job_id {}'.format(job_id))
+    return make_response(jsonify({'job-id': job_id}), 202)
+>>>>>>> upstream/master
+
+
 @auth.login_required
 @app.route('/ietf', methods=['GET'])
 def trigger_ietf_pull():
@@ -286,8 +312,12 @@ def check_local():
     except:
         LOGGER.critical('Authorization failed.'
                         ' Request did not come from Travis')
+<<<<<<< HEAD
+        send_email()
+=======
         mf = messageFactory.MessageFactory()
         mf.send_travis_auth_failed()
+>>>>>>> upstream/master
         return unauthorized()
 
     global yang_models_url
@@ -295,10 +325,14 @@ def check_local():
     verify_commit = False
     LOGGER.info('Checking commit SHA if it is the commit sent by yang-catalog'
                 'user.')
+<<<<<<< HEAD
+    commit_sha = body['commit']
+=======
     if body['repository']['owner_name'] == 'yang-catalog':
         commit_sha = body['commit']
     else:
         commit_sha = body['head_commit']
+>>>>>>> upstream/master
     try:
         commit_file = file(commit_msg_file)
         for line in commit_file:
@@ -1031,7 +1065,11 @@ def check_semver():
                                                         revision_new)
                         schema2 = '{}{}@{}.yang'.format(save_file_dir, name_old,
                                                         revision_old)
+<<<<<<< HEAD
+                        arguments = ['pyang', '-P', '../../.', '-p', '../../.',
+=======
                         arguments = ['pyang', '-P', get_curr_dir(__file__) + '/../../.', '-p', get_curr_dir(__file__) + '/../../.',
+>>>>>>> upstream/master
                                      schema1, '--check-update-from',
                                      schema2]
                         pyang = subprocess.Popen(arguments,
@@ -1045,7 +1083,11 @@ def check_semver():
                                   'w+') as f:
                             f.write('<pre>{}</pre>'.format(stderr))
 
+<<<<<<< HEAD
+                        arguments = ['pyang', '-p', '../../.', '-f', 'tree',
+=======
                         arguments = ['pyang', '-p', get_curr_dir(__file__) + '/../../.', '-f', 'tree',
+>>>>>>> upstream/master
                                      save_file_dir + name_new + '@' + revision_new + '.yang']
                         pyang = subprocess.Popen(arguments,
                                                  stdout=subprocess.PIPE,
@@ -1056,7 +1098,11 @@ def check_semver():
                         with open(f_name, 'w+') as f:
                             f.write(stdout)
 
+<<<<<<< HEAD
+                        arguments = ['pyang', '-p', '../../.', '-f', 'tree',
+=======
                         arguments = ['pyang', '-p', get_curr_dir(__file__) + '/../../.', '-f', 'tree',
+>>>>>>> upstream/master
                                      save_file_dir + name_old + '@' + revision_old + '.yang']
                         pyang = subprocess.Popen(arguments,
                                                  stdout=subprocess.PIPE,
@@ -1590,19 +1636,29 @@ def trigger_populate():
     body = request.json
     paths = []
     added = body.get('added')
+<<<<<<< HEAD
+    for add in added:
+        if 'platform-metadata.json' in add:
+            paths.append('/'.join(add.split('/')[:-1]))
+=======
     new = []
     mod = []
     for add in added:
         if 'platform-metadata.json' in add:
             paths.append('/'.join(add.split('/')[:-1]))
             new.append('/'.join(add.split('/')[:-1]))
+>>>>>>> upstream/master
     modified = body.get('modified')
     for m in modified:
         if 'platform-metadata.json' in m:
             paths.append('/'.join(m.split('/')[:-1]))
+<<<<<<< HEAD
+
+=======
             mod.append('/'.join(m.split('/')[:-1]))
     mf = messageFactory.MessageFactory()
     mf.send_new_modified_platform_metadata(new, mod)
+>>>>>>> upstream/master
     LOGGER.info('Forking the repo')
     repo = repoutil.RepoUtil('https://github.com/YangModels/yang.git')
     try:
@@ -1644,7 +1700,11 @@ def load(on_start):
     """Load all the data populated to yang-catalog to memory saved in file in ./cache."""
     with lock:
         if on_start:
+<<<<<<< HEAD
+            LOGGER.info('Removinch cache file and loading new one - this is done only when API is starting to get fresh'
+=======
             LOGGER.info('Removing cache file and loading new one - this is done only when API is starting to get fresh'
+>>>>>>> upstream/master
                         ' data')
             try:
                 shutil.rmtree('./cache')

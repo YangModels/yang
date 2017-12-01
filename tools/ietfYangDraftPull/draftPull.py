@@ -5,13 +5,17 @@ import filecmp
 import json
 import os
 import shutil
+>>>>>>> upstream/master
 import sys
 import tarfile
 import urllib
 import urllib2
+from email.mime.text import MIMEText
 
 import requests
+import shutil
 from numpy.f2py.auxfuncs import throw_error
+from tools.utility.util import GREETINGS
 from travispy import TravisPy
 from travispy.errors import TravisError
 
@@ -41,6 +45,27 @@ def load_json_from_url(url):
     if tries == 0:
         raise throw_error('Couldn`t open a json file from url: ' + url)
     return loaded_json
+
+
+def send_email(new_files, diff_files):
+    """Notify via e-mail message about failed travis job"""
+    new_files = '\n'.join(new_files)
+    diff_files = '\n'.join(diff_files)
+    message = '{}\n\nSome of the files are different' \
+              ' in http://www.claise.be/IETFYANGRFC.json against' \
+              ' yangModels/yang repository\n\n' \
+              'Files that are missing in yangModles repo: \n{} \n\n ' \
+              'Files that are different then in yangModels repo: \n{}'.format(
+        GREETINGS, new_files, diff_files)
+    to = ['bclaise@cisco.com', 'einarnn@cisco.com', 'jclarke@cisco.com']
+    msg = MIMEText(message)
+    msg['Subject'] = 'Automatic generated message - RFC ietf'
+    msg['From'] = 'no-reply@yangcatalog.org'
+    msg['To'] = ', '.join(to)
+
+    s = smtplib.SMTP('localhost')
+    s.sendmail('no-reply@yangcatalog.org', to, msg.as_string())
+    s.quit()
 
 
 if __name__ == "__main__":

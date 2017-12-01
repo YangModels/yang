@@ -45,4 +45,3 @@ if __name__ == '__main__':
         except OSError as e:
             mf.send_automated_procedure_failed('Remove unused diff files',
                                                e.message)
-
