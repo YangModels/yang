@@ -63,7 +63,7 @@ module ietf-ipsec {
        enum null-auth-aes-gmac {  description "Null-Auth-AES-GMAC"; }
                enum ieee-p1619-xts-aes {
                        description
-                       "encr-ieee-p1619-xts-aes --> Reserved for IEEE P1619 XTS-AES.";
+                       "encr-ieee-p1619-xts-aes -> Reserved for IEEE P1619 XTS-AES.";
                }
        enum camellia-cbc {  description "CAMELLIA-CBC"; }
        enum camellia-ctr {  description "CAMELLIA.CTR"; }
@@ -80,8 +80,10 @@ module ietf-ipsec {
        enum camellia-128 { description "CAMELLIA-128"; }
        enum camellia-192 { description "CAMELLIA-192"; }
        enum camellia-256 { description "CAMELLIA-256"; }
+       enum AES-GCM-16-ICV {  description "AES-GCM-16-ICV (AEAD)"; }
+       enum AES-CCM { description "AES-CCM (AEAD)"; }
                }
-       description "Encryption algorithms --> RFC_5996";
+       description "Encryption algorithms -> RFC_5996";
        }
 
        typedef integrity-algorithm-t {
@@ -104,16 +106,17 @@ module ietf-ipsec {
        enum hmac-sha2-512-256 { description "HMAC-SHA2-512-256"; }
        enum hmac-sha2-256-96 { description "HMAC-SHA2-256-096"; }
                }
-       description "Integrity Algorithms --> RFC_5996";
+       description "Integrity Algorithms -> RFC_5996";
        }
 
- typedef combined-algorithm-t {
-
-   type enumeration {
-   enum AES-GCM-16-ICV {  description "AES-GCM-16-ICV"; }
-   enum AES-CCM { description "AES-CCM"; }
-   }
-   description "Combined Algorithms --> RFC 7321";
+ typedef type-autostartup
+ {
+ type enumeration {
+     enum ALWAYSON { description " ";}
+     enum INITIATE-ON-DEMAND {description " ";}
+     enum RESPOND-ONLY {description " ";}
+ }
+ description "Different types of how IKEv2 starts the IPsec SAs";
  }
 
  typedef auth-protocol-type {
@@ -132,14 +135,25 @@ module ietf-ipsec {
  }
 
  typedef ipsec-mode {
+
    type enumeration {
      enum TRANSPORT { description "Transport mode"; }
      enum TUNNEL { description "Tunnel mode"; }
-     enum BEET { description "Bound End-to-End Tunnel (BEET) mode for ESP.";} /*Supported by XFRM*/
-     enum RO { description "Route Optimization mode for Mobile IPv6";} /*Supported by XFRM*/
-     enum IN_TRIGGER {description "In trigger mode for Mobile IPv6";} /*Supported by XFRM*/
+     enum BEET { description "Bound End-to-End Tunnel (BEET) mode for ESP.";}
+     enum RO { description "Route Optimization mode for Mobile IPv6";}
+     enum IN_TRIGGER {description "In trigger mode for Mobile IPv6";}
    }
    description "type define of ipsec mode";
+ }
+
+ typedef esp-encap {
+
+   type enumeration {
+       enum ESPINTCP { description "ESP in TCP encapulation.";}
+       enum ESPINTLS { description "ESP in TCP encapsulation using TLS.";}
+       enum ESPINUDP { description "ESP in UDP encapsulation. RFC 3948 ";}
+   }
+   description "type defining types of ESP encapsulation";
  }
 
  typedef ipsec-protocol {
@@ -399,7 +413,6 @@ module ietf-ipsec {
   }
 
 /*################## SAD grouping ####################*/
-
   grouping ipsec-sa-grouping {
     description "Configure Security Association (SA). Section 4.4.2.1 in RFC 4301";
 
@@ -416,8 +429,11 @@ module ietf-ipsec {
     container ah-sa {
       when "../security-protocol = 'ah'";
       description "Configure Authentication Header (AH) for SA";
-      leaf integrity-algorithm { type integrity-algorithm-t; description "Configure Authentication Header (AH)."; }
-      leaf key { type string; description "AH key value";}
+      container integrity {
+        description "Configure integrity for IPSec Authentication Header (AH)";
+        leaf integrity-algorithm { type integrity-algorithm-t; description "Configure Authentication Header (AH)."; }
+        leaf key { type string; description "AH key value";}
+      }
     }
 
     container esp-sa {
@@ -436,11 +452,7 @@ module ietf-ipsec {
         leaf integrity-algorithm { type integrity-algorithm-t; description "Configure Authentication Header (AH)."; }
         leaf key { type string; description "ESP integrity key value";}
       }
-
-      container combined {
-        description "ESP combined mode algorithms (encryption and integrity)";
-        leaf combined-algorithm { type combined-algorithm-t; description "Combined algorithm AEAD";}
-      }
+      leaf combined-enc-intr { type boolean; description "ESP combined mode algorithms. The algorithm is specified in encryption-algorithm in the container encryption";}
     }
 
     container sa-lifetime {
@@ -470,7 +482,7 @@ module ietf-ipsec {
 
     container encap { /* This is defined by XFRM */
       description "Encapsulation container";
-      leaf espinudp {type boolean; description "TRUE espinudp; FALSE espindup-nonike";}
+      leaf espencap { type esp-encap; description "ESP in TCP, ESP in UDP or ESP in TLS";}
       leaf sport {type inet:port-number; description "Encapsulation source port";}
       leaf dport {type inet:port-number; description "Encapsulation destination port"; }
       leaf oaddr {type inet:ip-address; description "Encapsulation Original Address ";}
@@ -503,7 +515,7 @@ module ietf-ipsec {
     }
 
     container condition {
-      description "SPD condition --> RFC4301";
+      description "SPD condition -> RFC4301";
 
       list traffic-selector-list {
 
@@ -521,7 +533,7 @@ module ietf-ipsec {
     }
 
     container processing-info {
-      description "SPD processing --> RFC4301";
+      description "SPD processing -> RFC4301";
       leaf action{ type ipsec-spd-operation; mandatory true; description "If the action is bypass or discard processing container ipsec-sa-cfg is empty";}
 
       container ipsec-sa-cfg {
@@ -583,11 +595,7 @@ module ietf-ipsec {
                         mandatory true;
                         description "lifetime for IKE Phase 1 SAs";
                 }
-                leaf phase1-authby {
-                        type auth-method-type;
-                        mandatory true;
-                        description "Auth method for IKE Phase 1 SAs";
-                }
+
                 leaf-list phase1-authalg {
                         type integrity-algorithm-t;
                         description "Auth algorigthm for IKE Phase 1 SAs";
@@ -596,6 +604,9 @@ module ietf-ipsec {
                         type encryption-algorithm-t;
                         description "Auth algorigthm for IKE Phase 1 SAs";
                 }
+
+        leaf combined-enc-intr { type boolean; description "Combined mode algorithms (encryption and integrity).";}
+
                 leaf dh_group {
                         type uint32;
                         mandatory true;
@@ -605,36 +616,15 @@ module ietf-ipsec {
 
         grouping phase2-info {
     description "IKE Phase 2 Information";
-                leaf local-addrs {
-                        type inet:ip-address;
-                        mandatory true;
-            description "IKEv2 Local address";
-                }
-                leaf remote-addr {
-                        type inet:ip-address;
-                        mandatory true;
-            description "IKEv2 Remote address";
-                }
-                leaf pfs_group {
+
+                leaf-list pfs_group {
                         type uint32;
                         description
                         "If non-zero, require perfect forward secrecy
                         when requesting new SA. The non-zero value is
                         the required group number";
                 }
-                leaf phase2-lifetime {
-                        type uint32;
-                        mandatory true;
-                        description "lifetime for IKE Phase 2 SAs";
-                }
-                leaf-list phase2-authalg {
-                        type integrity-algorithm-t;
-                        description "Auth algorigthm for IKE Phase 2 SAs";
-                }
-                leaf-list phase2-encalg {
-                        type encryption-algorithm-t;
-                        description "Auth algorithm for IKE Phase 2 SAs";
-                }
+
         }
 
         grouping local-grouping {
@@ -826,7 +816,7 @@ module ietf-ipsec {
                                                 description "Name of IKE connection";
                 }
                         leaf autostartup {
-                                type boolean;
+                                type type-autostartup;
                                 mandatory true;
                                 description "if True: automatically start tunnel at startup; else we do lazy tunnel setup based on trigger from datapath";
                         }
@@ -835,6 +825,16 @@ module ietf-ipsec {
                                 default false;
                                 description "Enable/Disable NAT traversal";
                         }
+
+                container encap {
+                    when "../nat-traversal = 'true'";
+                    description "Encapsulation container";
+                    leaf espencap { type esp-encap; description "ESP in TCP, ESP in UDP or ESP in TLS";}
+                    leaf sport {type inet:port-number; description "Encapsulation source port";}
+                    leaf dport {type inet:port-number; description "Encapsulation destination port"; }
+                    leaf oaddr {type inet:ip-address; description "Encapsulation Original Address ";}
+                }
+
                         leaf version {
                     type enumeration {
                     /* we only support ikev2 in this version */
@@ -883,6 +883,7 @@ module ietf-ipsec {
           key "pad-entry-id";
           ordered-by user;
           description "Peer Authorization Database (PAD)";
+
           leaf pad-entry-id {
             type uint64;
             description "SAD index. ";
@@ -921,7 +922,7 @@ module ietf-ipsec {
     }
   }
 
-  notification spd-expire {
+  notification spdb_expire {
     description "A SPD entry has expired";
     leaf index {
       type uint64;
@@ -947,6 +948,16 @@ module ietf-ipsec {
       description
         "Notify the expiration of a entry in the SADB";
     }
+  }
+
+  notification sadb_bad-spi {
+      description ".....";
+      leaf state {
+          type ipsec-spi;
+          mandatory "true";
+          description "Notify when a SPI";
+      }
+
   }
 
 }  /*module ietf-ipsec*/
