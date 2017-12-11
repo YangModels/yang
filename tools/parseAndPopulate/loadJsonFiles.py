@@ -50,6 +50,13 @@ class LoadFiles:
         if '1661' in path:
             self.xe1661 = load_json_from_url(
                 'http://www.claise.be/CiscoXE1661.json')
+        if '1662' in path:
+            self.xe1662 = load_json_from_url(
+                'http://www.claise.be/CiscoXE1662.json')
+        self.xe1671 = ''
+        if '1671' in path:
+            self.xe1671 = load_json_from_url(
+                'http://www.claise.be/CiscoXE1671.json')
 
         self.xr611 = ''
         if '611' in path:
@@ -81,9 +88,17 @@ class LoadFiles:
             self.nx703f11 = load_json_from_url(
                 'http://www.claise.be/CiscoNX703F11.json')
         self.nx703f21 = ''
-        if '7.0-3-F2-1' in path or '7.0-3-F2-2' in path:
+        if '7.0-3-F2-1':
             self.nx703f21 = load_json_from_url(
                 'http://www.claise.be/CiscoNX703F21.json')
+        self.nx703f22 = ''
+        if '7.0-3-F2-2':
+            self.nx703f22 = load_json_from_url(
+                'http://www.claise.be/CiscoNX703F22.json')
+        self.nx703f31 = ''
+        if '7.0-3-F3-1':
+            self.nx703f31 = load_json_from_url(
+                'http://www.claise.be/CiscoNX703F31.json')
         self.nx703i51 = ''
         if '7.0-3-I5-1' in path:
             self.nx703i51 = load_json_from_url(
@@ -100,5 +115,9 @@ class LoadFiles:
         if '7.0-3-I7-1' in path:
             self.nx703i71 = load_json_from_url(
                 'http://www.claise.be/CiscoNX703I71.json')
+        self.nx703i72 = ''
+        if '7.0-3-I7-2' in path:
+            self.nx703i72 = load_json_from_url(
+                'http://www.claise.be/CiscoNX703I72.json')
         self.huawei8910 = load_json_from_url(
             'http://www.claise.be/NETWORKROUTER8910.json')
