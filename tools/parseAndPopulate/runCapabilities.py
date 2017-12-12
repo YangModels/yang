@@ -57,6 +57,13 @@ if __name__ == "__main__":
                         help='Set dir where to write html result files. Default -> /home/miroslav/results/')
     parser.add_argument('--save-file-dir', default='/home/miroslav/results/',
                         type=str, help='Directory where the file will be saved')
+    parser.add_argument('--api-protocol', type=str, default='https',
+                        help='Whether api runs on http or https.'
+                             ' Default is set to http')
+    parser.add_argument('--api-port', default=8443, type=int,
+                        help='Set port where the api is started. Default -> 8443')
+    parser.add_argument('--api-ip', default='yangcatalog.org', type=str,
+                        help='Set ip address where the api is started. Default -> yangcatalog.org')
 
     args = parser.parse_args()
     start = time.time()
@@ -76,7 +83,9 @@ if __name__ == "__main__":
         search_dirs = stats_list[key]
         if key == 'sdo':
             sdo = True
-            prepare_sdo = prepare.Prepare("prepare", args.result_html_dir)
+            prepare_sdo = prepare.Prepare("prepare", args.result_html_dir,
+                                          args.api_port, args.api_ip,
+                                          args.api_protocol)
             for search_dir in search_dirs:
 
                 LOGGER.info('Found directory for sdo {}'.format(search_dir))
@@ -92,7 +101,9 @@ if __name__ == "__main__":
             prepare_sdo.dump_modules(args.json_dir)
         else:
             sdo = False
-            prepare_vendor = prepare.Prepare("prepare", args.result_html_dir)
+            prepare_vendor = prepare.Prepare("prepare", args.result_html_dir,
+                                          args.api_port, args.api_ip,
+                                          args.api_protocol)
             for search_dir in search_dirs:
                 patterns = ['*ietf-yang-library*.xml', '*capabilit*.xml']
                 for pattern in patterns:

@@ -1,3 +1,4 @@
+
 import json
 
 import tools.utility.log as log
@@ -6,11 +7,14 @@ LOGGER = log.get_logger(__name__)
 
 
 class Prepare:
-    def __init__(self, file_name, html_result_dir):
+    def __init__(self, file_name, html_result_dir, port, ip, protocol):
         self.html_result_dir = html_result_dir
         self.file_name = file_name
         self.name_revision_organization = set()
         self.yang_modules = {}
+        self.api_protocol = protocol
+        self.api_ip = ip
+        self.api_port = port
 
     def add_key_sdo_module(self, yang):
         key = '{}@{}/{}'.format(yang.name, yang.revision, yang.organization)
@@ -18,6 +22,11 @@ class Prepare:
         if key in self.name_revision_organization:
             self.yang_modules[key].implementation.extend(yang.implementation)
         else:
+            if yang.tree is not None:
+                yang.tree = '{}://{}:{}/{}'.format(self.api_protocol,
+                                                   self.api_ip, self.api_port,
+                                                   yang.tree)
+
             self.name_revision_organization.add(key)
             self.yang_modules[key] = yang
 
@@ -47,6 +56,7 @@ class Prepare:
                 'module-type': self.yang_modules[key].module_type,
                 'belongs-to': self.yang_modules[key].belongs_to,
                 'tree-type': self.yang_modules[key].tree_type,
+                'yang-tree': self.yang_modules[key].tree,
                 'ietf': {
                     'ietf-wg': self.yang_modules[key].ietf_wg
                 },

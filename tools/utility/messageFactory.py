@@ -39,11 +39,12 @@ class MessageFactory:
         self.__room = rooms[0]
         self.__smtp = smtplib.SMTP('localhost')
 
-    def __post_to_spark(self, msg, markdown=False):
+    def __post_to_spark(self, msg, markdown=False, files=None):
         if markdown:
-            self.__api.messages.create(self.__room.id, markdown=msg)
+            self.__api.messages.create(self.__room.id, markdown=msg
+                                       , files=files)
         else:
-            self.__api.messages.create(self.__room.id, text=msg)
+            self.__api.messages.create(self.__room.id, text=msg, files=files)
 
     def __post_to_email(self, message, to):
         if not isinstance(to, list):
@@ -91,14 +92,14 @@ class MessageFactory:
     def send_removed_yang_files(self, removed_yang_files):
         LOGGER.info('Sending notification about removed yang modules')
         message = ("The following files has been removed from yangcatalog.org"
-                   " using api: ```{}```".format(removed_yang_files))
+                   " using api: ```\n{}\n```".format(removed_yang_files))
         self.__post_to_spark(message, True)
 
     def send_added_new_yang_files(self, added_yang_files):
         LOGGER.info('Sending notification about added yang modules')
         message = ("The following files has been added to yangcatalog.org"
-                   " using api as a new modules or new old modules with new "
-                   "revision: ```{}```".format(added_yang_files))
+                   " using api as a new modules or old modules with new "
+                   "revision: ```\n{}\n```".format(added_yang_files))
         self.__post_to_spark(message, True)
 
     def send_new_modified_platform_metadata(self, new_files, modified_files):
@@ -109,7 +110,7 @@ class MessageFactory:
         message = ("There were new or modified platform metadata json files "
                    "added to yangModels-yang repository, that are currently"
                    "being processed in following paths:\n\n"
-                   "''' New json files: \n {} \n\n Modified json files:\n{}"
+                   "'''\n New json files: \n {} \n\n Modified json files:\n{}\n"
                    "'''"
                    .format(new_files, modified_files))
         self.__post_to_spark(message, True)

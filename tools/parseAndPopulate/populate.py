@@ -87,28 +87,40 @@ if __name__ == "__main__":
     if args.api:
         if args.sdo:
             with open("log_api_sdo.txt", "wr") as f:
-                arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--sdo", "--dir",
-                             args.dir, "--json-dir", direc, "--result-html-dir", args.result_html_dir,
-                             '--save-file-dir', args.save_file_dir]
+                arguments = ["python", "../parseAndPopulate/runCapabilities.py",
+                             "--api", "--sdo", "--dir",args.dir, "--json-dir",
+                             direc, "--result-html-dir", args.result_html_dir,
+                             '--save-file-dir', args.save_file_dir, '--api-ip',
+                             args.api_ip, '--api-port', repr(args.api_port),
+                             '--api-protocol', args.api_protocol]
                 subprocess.check_call(arguments, stderr=f)
         else:
             with open("log_api.txt", "wr") as f:
-                arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--api", "--dir", args.dir,
-                             "--json-dir", direc, "--result-html-dir", args.result_html_dir,
-                             '--save-file-dir', args.save_file_dir]
+                arguments = ["python", "../parseAndPopulate/runCapabilities.py",
+                             "--api", "--dir", args.dir,"--json-dir", direc,
+                             "--result-html-dir", args.result_html_dir,
+                             '--save-file-dir', args.save_file_dir, '--api-ip',
+                             args.api_ip, '--api-port', repr(args.api_port),
+                             '--api-protocol', args.api_protocol]
                 subprocess.check_call(arguments, stderr=f)
     else:
         if args.sdo:
             with open("log_sdo.txt", "wr") as f:
-                arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--sdo", "--dir", args.dir,
-                             "--json-dir", direc, "--result-html-dir", args.result_html_dir,
-                             '--save-file-dir', args.save_file_dir]
+                arguments = ["python", "../parseAndPopulate/runCapabilities.py",
+                             "--sdo", "--dir", args.dir, "--json-dir", direc,
+                             "--result-html-dir", args.result_html_dir,
+                             '--save-file-dir', args.save_file_dir, '--api-ip',
+                             args.api_ip, '--api-port', repr(args.api_port),
+                             '--api-protocol', args.api_protocol]
                 subprocess.check_call(arguments, stderr=f)
         else:
             with open("log_no_sdo_api.txt", "wr") as f:
-                arguments = ["python", "../parseAndPopulate/runCapabilities.py", "--dir", args.dir, "--json-dir", direc,
+                arguments = ["python", "../parseAndPopulate/runCapabilities.py",
+                             "--dir", args.dir, "--json-dir", direc,
                              "--result-html-dir", args.result_html_dir,
-                             '--save-file-dir', args.save_file_dir]
+                             '--save-file-dir', args.save_file_dir,  '--api-ip',
+                             args.api_ip, '--api-port', repr(args.api_port),
+                             '--api-protocol', args.api_protocol]
                 subprocess.check_call(arguments, stderr=f)
 
     LOGGER.info('Populating yang catalog with data. Starting to add modules')
@@ -155,15 +167,10 @@ if __name__ == "__main__":
         LOGGER.error('Request with body on path {} failed with {}'
                      .format(json_modules_data, url,
                              response.content))
-    #files = []
-    ## Find all parsed json files
-    #for filename in find_files('../parseAndPopulate/' + direc, 'normal*.json'):
-    #    with open(filename) as data_file:
-    #        files.append(json.load(data_file))
 
     # In each json
     LOGGER.info('Starting to add vendors')
-    if os.path.exists('../parseAndPopulate/{}/normal.json'):
+    if os.path.exists('../parseAndPopulate/{}/normal.json'.format(direc)):
         with open('../parseAndPopulate/{}/normal.json'.format(direc)) as data:
             vendors = json.loads(data.read())['vendors']['vendor']
 
@@ -175,9 +182,7 @@ if __name__ == "__main__":
                             'vendor': vendors[x * 1000: (x * 1000) + 1000]
                         }
                 })
-                # Prepare json_data for put request - this request will prepare list vendors
-                # to populate it with protocols and modules
-                #json_implementations_data = json.dumps(data)
+
                 # Make a PATCH request to create a root for each file
                 url = prefix + '/api/config/catalog/vendors/'
                 response = requests.patch(url, json_implementations_data,
@@ -209,27 +214,6 @@ if __name__ == "__main__":
                              .format(json_implementations_data, url,
                                      response.content))
     if not args.api:
-        #do_indexing = True
-        #if 'ietf-extracted-YANG-modules' in args.dir:
-        #    try:
-        #        os.makedirs('./old')
-        #    except OSError:
-        #        # Be happy if deleted
-        #        pass
-        #    try:
-        #        with open('./old/prepare.json', 'r') as f:
-        #            old = f.read()
-        #    except:
-        #        old = ''
-        #    with open('../parseAndPopulate/' + direc + '/prepare.json', 'r') as f:
-        #        new = f.read()
-        #    if old != new:
-        #        do_indexing = True
-        #    shutil.copy('../parseAndPopulate/' + direc + '/prepare.json', './old/.')
-        if args.notify_indexing:# and do_indexing:
-            LOGGER.info('Sending files for indexing')
-            send_to_indexing('../parseAndPopulate/' + direc + '/prepare.json', args.credentials, args.ip, args.api_port,
-                             args.api_protocol, from_api=False, set_key=key, force_indexing=args.force_indexing)
         LOGGER.info('Removing temporary json data and cache data')
 
         try:
@@ -313,12 +297,6 @@ if __name__ == "__main__":
                             module['derived-semantic-version'] = upgraded_version
                             new_modules.append(module)
                             continue
-                        #if (modules[-2]['schema'] is None or
-                        #        modules[-1]['schema']):
-                        #    LOGGER.warning('Schema is missing {} or {}'.
-                        #                   format(modules[-2]['schema'],
-                        #                          modules[-1]['schema']))
-                        #    continue
                         else:
                             schema2 = '{}{}@{}.yang'.format(args.save_file_dir,
                                                             modules[-2]['name'],
@@ -326,24 +304,6 @@ if __name__ == "__main__":
                             schema1 = '{}{}@{}.yang'.format(args.save_file_dir,
                                                             modules[-1]['name'],
                                                             modules[-1]['revision'])
-                            #if (schema1.status_code == 404 or
-                            #    schema2.status_code == 404):
-                            #    LOGGER.warning('Schema not found {} or {}'.
-                            #                   format(modules[-2]['schema'],
-                            #                          modules[-1]['schema']))
-                            #    continue
-                        #to_write_before = '{}/{}@{}.yang'.format(direc,
-                        #                                modules[-2]['name'],
-                        #                                modules[-2]['revision'])
-                        #to_write = '{}/{}@{}.yang'.format(direc,
-                        #                                       modules[-1][
-                        #                                           'name'],
-                        #                                       modules[-1][
-                        #                                           'revision'])
-                        #with open(to_write_before, 'w') as f:
-                        #    f.write(schema2)
-                        #with open(to_write, 'w+') as f:
-                        #    f.write(schema1.content)
                         arguments = ['pyang', '-P', get_curr_dir(__file__) + '/../../.', '-p', get_curr_dir(__file__) + '/../../.',
                                      schema1, '--check-update-from',
                                      schema2]
@@ -447,15 +407,6 @@ if __name__ == "__main__":
                                     'derived-semantic-version'] = upgraded_version
                                 new_modules.append(response)
                                 continue
-                            #if (modules[x]['schema'] is None or
-                            #        modules[x-1]['schema']):
-                            #    break
-                            #if (modules[x]['schema'] is None or
-                            #        modules[x-1]['schema']):
-                            #    LOGGER.warning('Schema is missing {} or {}'.
-                            #                   format(modules[x]['schema'],
-                            #                          modules[x-1]['schema']))
-                            #    continue
                             else:
                                 schema2 = '{}{}@{}.yang'.format(
                                     args.save_file_dir,
@@ -465,25 +416,6 @@ if __name__ == "__main__":
                                     args.save_file_dir,
                                     modules[x - 1]['name'],
                                     modules[x - 1]['revision'])
-                                #if (schema1.status_code == 404 or
-                                #            schema2.status_code == 404):
-                                #    LOGGER.warning('Schema not found {} or {}'.
-                                #                   format(modules[-2]['schema'],
-                                #                          modules[-1][
-                                #                              'schema']))
-                                #    continue
-                            #to_write = '{}/{}@{}.yang'.format(direc,
-                            #                                modules[x]['name'],
-                            #                                modules[x]['revision'])
-                            #to_write_before = '{}/{}@{}.yang'.format(direc,
-                            #                                       modules[x - 1][
-                            #                                           'name'],
-                            #                                       modules[x - 1][
-                            #                                           'revision'])
-                            #with open(to_write, 'w+') as f:
-                            #    f.write(schema2.content)
-                            #with open(to_write_before, 'w+') as f:
-                            #    f.write(schema1.content)
                             arguments = ['pyang', '-p', get_curr_dir(__file__) + '/../../.', '-P', get_curr_dir(__file__) + '/../../.',
                                          schema2,
                                          '--check-update-from', schema1]
@@ -653,4 +585,8 @@ if __name__ == "__main__":
                                        args.credentials[1]))
         if response.status_code != 201:
             LOGGER.warning('Could not send a load-cache request')
+        if args.notify_indexing:
+            LOGGER.info('Sending files for indexing')
+            send_to_indexing('../parseAndPopulate/' + direc + '/prepare.json', args.credentials, args.ip, args.api_port,
+                             args.api_protocol, from_api=False, set_key=key, force_indexing=args.force_indexing)
         shutil.rmtree('../parseAndPopulate/' + direc)

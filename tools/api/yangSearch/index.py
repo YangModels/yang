@@ -55,7 +55,7 @@ def do_search(options):
         cur = conn.cursor()
 
         sql = 'SELECT yi.*, MAX(mo.revision) AS latest_revision FROM yindex yi, modules mo WHERE '
-        qparams = {'descr': '%'+opts['search']+'%'}
+        qparams = {'descr': '%' + opts['search'] + '%'}
         sts = __search_fields
         if 'search-fields' in opts:
             sts = opts['search-fields']
