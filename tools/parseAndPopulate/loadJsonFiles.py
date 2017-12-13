@@ -50,6 +50,7 @@ class LoadFiles:
         if '1661' in path:
             self.xe1661 = load_json_from_url(
                 'http://www.claise.be/CiscoXE1661.json')
+        self.xe1662 = ''
         if '1662' in path:
             self.xe1662 = load_json_from_url(
                 'http://www.claise.be/CiscoXE1662.json')

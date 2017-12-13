@@ -12,20 +12,19 @@ import subprocess
 import sys
 import urllib2
 import uuid
-from _ctypes import sizeof
+from copy import deepcopy
 from datetime import datetime
 from threading import Lock
 from urllib2 import URLError
-
 import MySQLdb
 import jinja2
 import requests
-from OpenSSL.crypto import load_publickey, FILETYPE_PEM, X509, verify
-from flask import Flask, jsonify, abort, make_response, request, Response, redirect
-from flask_httpauth import HTTPBasicAuth
-
 import tools.utility.log as lo
 import yangSearch.index as index
+from OpenSSL.crypto import load_publickey, FILETYPE_PEM, X509, verify
+from flask import Flask, jsonify, abort, make_response, request, Response, \
+    redirect
+from flask_httpauth import HTTPBasicAuth
 from tools.api.sender import Sender
 from tools.utility import repoutil, yangParser, messageFactory
 from tools.utility.util import get_curr_dir
@@ -238,7 +237,6 @@ class MyFlask(Flask):
             return self.response
 
 app = MyFlask(__name__)
-
 lock = Lock()
 
 NS_MAP = {
@@ -1268,6 +1266,49 @@ def create_diff(f1, r1, f2, r2):
     return '<html><body>{}</body></html>'.format(response.content)
 
 
+@app.route('/get-common', methods=['POST'])
+def get_common():
+    body = request.json
+    if body is None:
+        return make_response(jsonify({'error': 'body of request is empty'}), 400)
+    if body.get('input') is None:
+        return make_response(jsonify
+                             ({'error':
+                                   'body of request need to start with input'}),
+                             400)
+    if body['input'].get('first') is None or body['input'].get('second') is None:
+        return make_response(jsonify
+                             ({'error':
+                                   'body of request need to contain first and '
+                                   'second container'}),
+                             400)
+    response_first = rpc_search({'input': body['input']['first']})
+    response_second = rpc_search({'input': body['input']['second']})
+
+    if response_first.status_code == 404 or response_second.status_code == 404:
+        return not_found()
+
+    data = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+        .decode(response_first.data)
+    modules_first = data['yang-catalog:modules']['module']
+    data = json.JSONDecoder(object_pairs_hook=collections.OrderedDict)\
+        .decode(response_second.data)
+    modules_second = data['yang-catalog:modules']['module']
+
+    output_modules_list = []
+    names = []
+    for mod_first in modules_first:
+        for mod_second in modules_second:
+            if mod_first['name'] == mod_second['name']:
+                if mod_first['name'] not in names:
+                    names.append(mod_first['name'])
+                    output_modules_list.append(mod_first)
+    if len(output_modules_list) == 0:
+        return not_found()
+    return Response(json.dumps({'output': output_modules_list}),
+                    mimetype='application/json')
+
+
 @app.route('/check-semantic-version', methods=['POST'])
 def check_semver():
     api_protocol = 'http'
@@ -1285,7 +1326,7 @@ def check_semver():
         return make_response(jsonify
                              ({'error':
                                    'body of request need to contain new and old'
-                                   'container'}),
+                                   ' container'}),
                              400)
     response_new = rpc_search({'input': body['input']['new']})
     response_old = rpc_search({'input': body['input']['old']})
@@ -1389,7 +1430,7 @@ def rpc_search(body=None):
             for module in data:
                 passed = True
                 if 'dependencies' in body:
-                    submodules = module.get('dependencies')
+                    submodules = deepcopy(module.get('dependencies'))
                     if submodules is None:
                         continue
                     for sub in body['dependencies']:
@@ -1421,7 +1462,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'dependents' in body:
-                    submodules = module.get('dependents')
+                    submodules = deepcopy(module.get('dependents'))
                     if submodules is None:
                         continue
                     for sub in body['dependents']:
@@ -1453,7 +1494,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'submodule' in body:
-                    submodules = module.get('submodule')
+                    submodules = deepcopy(module.get('submodule'))
                     if submodules is None:
                         continue
                     for sub in body['submodule']:
@@ -1485,7 +1526,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'implementations' in body:
-                    implementations = module.get('implementations')
+                    implementations = deepcopy(module.get('implementations'))
                     if implementations is None:
                         continue
                     passed = True
@@ -1564,7 +1605,7 @@ def rpc_search(body=None):
             for module in data:
                 passed = True
                 if 'dependencies' in body:
-                    submodules = module.get('dependencies')
+                    submodules = deepcopy(module.get('dependencies'))
                     if submodules is None:
                         continue
                     for sub in body['dependencies']:
@@ -1596,7 +1637,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'dependents' in body:
-                    submodules = module.get('dependents')
+                    submodules = deepcopy(module.get('dependents'))
                     if submodules is None:
                         continue
                     for sub in body['dependents']:
@@ -1628,7 +1669,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'submodule' in body:
-                    submodules = module.get('submodule')
+                    submodules = deepcopy(module.get('submodule'))
                     if submodules is None:
                         continue
                     for sub in body['submodule']:
@@ -1660,7 +1701,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'implementations' in body:
-                    implementations = module.get('implementations')
+                    implementations = deepcopy(module.get('implementations'))
                     if implementations is None:
                         continue
                     passed = True
@@ -1921,8 +1962,22 @@ def load_to_memory():
         return unauthorized
     if get_password(username) != hash_pw(request.authorization['password']):
         return unauthorized()
-    load(False)
+    load(True)
     return make_response(jsonify({'info': 'Success'}), 201)
+
+
+@app.route('/contributors', methods=['GET'])
+def get_organizations():
+    orgs = set()
+    with lock:
+        data = modules_data.get('module')
+    for mod in data:
+        if mod['organization'] != 'example' and mod['organization'] != 'missing element':
+            orgs.add(mod['organization'])
+    orgs = list(orgs)
+    resp = make_response(jsonify({'contributors': orgs}), 200)
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    return resp
 
 
 def load(on_start):
