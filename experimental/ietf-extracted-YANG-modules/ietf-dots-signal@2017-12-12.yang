@@ -7,7 +7,7 @@ module ietf-dots-signal {
   import ietf-yang-types {prefix yang;}
   import ietf-access-control-list {prefix "ietf-acl";}
 
-  organization "IETF DOTS Working Group";
+  organization "IETF DDoS Open Threat Signaling (DOTS) Working Group";
 
   contact
     "Konda, Tirumaleswar Reddy <TirumaleswarReddy_Konda@McAfee.com>
@@ -18,7 +18,7 @@ module ietf-dots-signal {
 
   description
     "This module contains YANG definition for the signaling
-     messages exchanged between the DOTS client to the DOTS server.
+     messages exchanged between a DOTS client and a DOTS server.
 
      Copyright (c) 2017 IETF Trust and the persons identified as
      authors of the code.  All rights reserved.
@@ -33,7 +33,7 @@ module ietf-dots-signal {
      This version of this YANG module is part of RFC XXXX; see
      the RFC itself for full legal notices.";
 
-  revision 2017-12-07 {
+  revision 2017-12-12 {
     description
       "Initial revision.";
     reference
@@ -44,12 +44,6 @@ module ietf-dots-signal {
   grouping target {
     description
       "Specifies the scope of the mitigation request.";
-
-    leaf-list target-ip {
-      type inet:ip-address;
-      description
-        "IPv4 or IPv6 address identifying the target.";
-    }
 
     leaf-list target-prefix {
       type inet:ip-prefix;
@@ -92,7 +86,7 @@ module ietf-dots-signal {
          https://www.iana.org/assignments/protocol-numbers/
          protocol-numbers.xhtml
 
-         For example, 6 for a TCP or 17 for UDP.";
+         For example, 6 for TCP or 17 for UDP.";
     }
 
     leaf-list target-fqdn {
@@ -120,11 +114,11 @@ module ietf-dots-signal {
       description
         "The client identifier may be conveyed by
          the DOTS gateway to propagate the DOTS client
-         identity from the gateway's client-side to the
+         identification information from the gateway's client-side to the
          gateway's server-side, and from the gateway's
          server-side to the DOTS server.
 
-         It allows the final DOTS server to accept
+         It allows the destination DOTS server to accept
          mitigation requests with scopes which the DOTS
          client is authorized to manage.";
     }
@@ -138,12 +132,12 @@ module ietf-dots-signal {
         type int32;
         description
           "Mitigation request identifier.
+
            This identifier must be unique for each mitigation
            request bound to the DOTS client.";
       }
 
       uses target;
-
       leaf lifetime {
         type int32;
         units "seconds";
@@ -165,58 +159,66 @@ module ietf-dots-signal {
 
       leaf status {
         type enumeration {
-          enum "1"  {
+          enum "attack-mitigation-in-progress"  {
+            value 1;
             description
               "Attack mitigation is in progress (e.g., changing
                the network path to re-route the inbound traffic
                to DOTS mitigator).";
           }
 
-          enum "2" {
+          enum "attack-successfully-mitigated" {
+            value 2;
             description
               "Attack is successfully mitigated (e.g., traffic
                is redirected to a DDOS mitigator and attack
-               traffic is dropped).";
+               traffic is dropped or blackholed).";
           }
 
-          enum "3" {
+          enum "attack-stopped" {
+            value 3;
             description
               "Attack has stopped and the DOTS client can
                withdraw the mitigation request.";
           }
 
-          enum "4" {
+          enum "attack-exceeded-capability" {
+            value 4;
             description
               "Attack has exceeded the mitigation provider
                capability.";
           }
 
-          enum "5" {
+          enum "dots-client-withdrawn-mitigation" {
+            value 5;
             description
               "DOTS client has withdrawn the mitigation
                request and the mitigation is active but
                terminating.";
           }
 
-          enum "6" {
+          enum "attack-mitigation-terminated" {
+            value 6;
             description
               "Attack mitigation is now terminated.";
           }
 
-          enum "7" {
+          enum "attack-mitigation-withdrawn" {
+            value 7;
             description
               "Attack mitigation is withdrawn.";
           }
 
-          enum "8" {
-           description
-             "Attack mitigation is rejected.";
+          enum "attack-mitigation-rejected" {
+            value 8;
+            description
+              "Attack mitigation is rejected.";
           }
         }
         config false;
         description
           "Indicates the status of a mitigation request.
-           It must be included in responses, only.";
+           It must be included in responses only.";
         }
 
         container conflict-information {
@@ -227,7 +229,8 @@ module ietf-dots-signal {
 
           leaf conflict-status {
             type enumeration {
-              enum "1"  {
+              enum "request-inactive-other-active"  {
+                value 1;
                 description
                   "DOTS Server has detected conflicting mitigation
                    requests from different DOTS clients.
@@ -236,14 +239,16 @@ module ietf-dots-signal {
                    mitigation request is active.";
               }
 
-              enum "2" {
+              enum "request-active" {
+                value 2;
                 description
                   "DOTS Server has detected conflicting mitigation
                    requests from different DOTS clients.
                    This mitigation request is currently active.";
-              }
+               }
 
-              enum "3" {
+              enum "all-requests-inactive" {
+                value 3;
                 description
                   "DOTS Server has detected conflicting mitigation
                    requests from different DOTS clients.  All
@@ -252,29 +257,32 @@ module ietf-dots-signal {
             }
             description
               "Indicates the conflict status.
-               It must be included in responses, only.";
+               It must be included in responses only.";
           }
 
           leaf conflict-cause {
              type enumeration {
-               enum "1"  {
+               enum "overlapping-targets"  {
+                 value 1;
                  description
                    "Overlapping targets. conflict-scope provides
                     more details about the exact conflict.";
                }
 
-               enum "2" {
+               enum "conflict-with-whitelist" {
+                 value 2;
                  description
                    "Conflicts with an existing white list.
 
                     This code is returned when the DDoS mitigation
-                    detects source addresses/prefixes in the
-                    white-listed ACLs are attacking the target.";
+                    detects that some of the source addresses/prefixes
+                    listed in the white list ACLs are actually
+                    attacking the target.";
                }
             }
             description
               "Indicates the cause of the conflict.
-               It must be included in responses, only.";
+               It must be included in responses only.";
           }
 
           leaf retry-timer {
@@ -291,16 +299,16 @@ module ietf-dots-signal {
               "Provides more information about the conflict scope.";
 
             uses target {
-              when "../conflict-cause = '1'";
+              when "../conflict-cause = 'overlapping-targets'";
             }
 
             list acl-list {
-              when "../../conflict-cause = '2'";
-              key "name type";
+              when "../../conflict-cause = 'conflict-with-whitelist'";
+              key "acl-name acl-type";
               description
                 "List of conflicting ACLs";
 
-              leaf name {
+              leaf acl-name {
                 type leafref {
                   path "/ietf-acl:access-lists/ietf-acl:acl" +
                        "/ietf-acl:acl-name";
@@ -310,7 +318,7 @@ module ietf-dots-signal {
                    a DOTS client.";
               }
 
-              leaf type {
+              leaf acl-type {
                 type leafref {
                   path "/ietf-acl:access-lists/ietf-acl:acl" +
                        "/ietf-acl:acl-type";
@@ -322,18 +330,18 @@ module ietf-dots-signal {
             }
           }
         }
-
         leaf pkts-dropped {
           type yang:zero-based-counter64;
           config false;
           description
             "Number of dropped packets";
         }
+
         leaf bps-dropped {
           type yang:zero-based-counter64;
           config false;
           description
-            "The average dropped bytes per second for
+            "The average number of dropped bytes per second for
              the mitigation request since the attack
              mitigation is triggered.";
         }
@@ -350,7 +358,7 @@ module ietf-dots-signal {
           type yang:zero-based-counter64;
           config false;
           description
-            "The average dropped packets per second
+            "The average number of dropped packets per second
              for the mitigation request since the attack
              mitigation is triggered.";
       }
@@ -375,8 +383,11 @@ module ietf-dots-signal {
       default 30;
       description
         "DOTS agents regularly send heartbeats to each other
-         after mutual authentication in order to keep
-         the DOTS signal channel open.";
+         after mutual authentication is successfully
+         completed, in order to keep the DOTS signal channel
+         open.
+
+         '0' means that heartbeat mechanism is deactivated.";
       reference
         "RFC XXXX: Distributed Denial-of-Service Open Threat
                    Signaling (DOTS) Signal Channel";
@@ -435,12 +446,32 @@ module ietf-dots-signal {
         "RFC XXXX: Distributed Denial-of-Service Open Threat
                    Signaling (DOTS) Signal Channel";
     }
+
+    leaf config-interval {
+      type int32;
+      units "minutes";
+      description
+        "This parameter is returned by a DOTS server to
+         a requesting DOTS client to indicate the time interval
+         after which the DOTS client must contact the DOTS
+         server in order to retrieve the signal channel
+         configuration data.
+
+         This mechanism allows the update of the configuration
+         data if a change occurs.
+
+         For example, the new configuration may instruct
+         a DOTS client to cease heartbeats or reduce
+         heartbeat frequency.
+
+         '0' is used to disable this refresh mechanism.";
+    }
   }
 
   container dots-signal {
     description
-      "Main contaner for DOTS signal message.
-       A DOTS signal message can be a mitigation messages or
+      "Main container for DOTS signal message.
+       A DOTS signal message can be a mitigation message or
        a configuration message.";
 
     choice message-type {
