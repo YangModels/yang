@@ -484,7 +484,11 @@ class Modules:
                                 rows[x].split('+--ro ')[1].split(' ')[0].split(
                                     '?')[0]
 
-                            if leaf not in pyang_list_of_rows[x]:
+                            dataExist = False
+                            for y in range(0, len(pyang_list_of_rows)):
+                                if leaf in pyang_list_of_rows[y]:
+                                    dataExist = True
+                            if not dataExist:
                                 return False
                     return True
                 else:

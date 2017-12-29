@@ -275,57 +275,73 @@ if __name__ == '__main__':
         if 'NX-OS' == os_type:
             nx.append(platform_name)
     for version in xr_versions:
+        j = None
+        try:
+            with open('../../vendor/cisco/xr/' + version + '/platform-metadata.json', 'r') as f:
+                j = json.load(f)
+                j = j['platforms']['platform']
+        except:
+            j = []
+
         values = [version]
         for value in xr:
             if version == '':
                 ver = ''
             else:
                 ver = '.'.join(version)
-            path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco/platforms/platform/'\
-                   + value + '/software-versions/software-version/' + ver
-            xr_data = requests.get(path, auth=(auth[0], auth[1]))
-            if xr_data:
-                values.append('<i class="fa fa-check"></i>')
-            else:
-                path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco/platforms/platform/' \
-                       + value + '/software-versions/software-version/' + version
-                xr_data = requests.get(path, auth=(auth[0], auth[1]))
-                if xr_data.status_code == 200:
+            found = False
+            for platform in j:
+                if (platform['name'] == value and
+                            platform['software-version'] == ver):
                     values.append('<i class="fa fa-check"></i>')
-                else:
-                    values.append('<i class="fa fa-times"></i>')
+                    found = True
+                    break
+            if not found:
+                values.append('<i class="fa fa-times"></i>')
         xr_values.append(values)
 
     for version in xe_versions:
+        j = None
+        try:
+            with open('../../vendor/cisco/xe/' + version + '/platform-metadata.json', 'r') as f:
+                j = json.load(f)
+                j = j['platforms']['platform']
+        except:
+            j = []
         values = [version]
         for value in xe:
-            path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco/platforms/platform/'\
-                   + value + '/software-versions/software-version/' + version
-            xe_data = requests.get(path, auth=(auth[0], auth[1]))
-            if xe_data.status_code == 200:
-                values.append('<i class="fa fa-check"></i>')
-            else:
+            found = False
+            for platform in j:
+                if (platform['name'] == value and
+                            platform['software-version'] == version):
+                    values.append('<i class="fa fa-check"></i>')
+                    found = True
+                    break
+            if not found:
                 values.append('<i class="fa fa-times"></i>')
         xe_values.append(values)
 
     for version in nx_versions:
+        j = None
+        try:
+            with open('../../vendor/cisco/nx/' + version + '/platform-metadata.json', 'r') as f:
+                j = json.load(f)
+                j = j['platforms']['platform']
+        except:
+            j = []
         values = [version]
         for value in nx:
-            path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco/platforms/platform/'\
-                   + value + '/software-versions/software-version/' + version
-            nx_data = requests.get(path, auth=(auth[0], auth[1]))
-            if nx_data.status_code == 200:
-                values.append('<i class="fa fa-check"></i>')
-            else:
-                ver = version.split('-')
-                ver = '{}({}){}({})'.format(ver[0], ver[1], ver[2], ver[3])
-                path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco/platforms/platform/' \
-                       + value + '/software-versions/software-version/' + ver
-                nx_data = requests.get(path, auth=(auth[0], auth[1]))
-                if nx_data.status_code == 200:
+            ver = version.split('-')
+            ver = '{}({}){}({})'.format(ver[0], ver[1], ver[2], ver[3])
+            found = False
+            for platform in j:
+                if (platform['name'] == value and
+                            platform['software-version'] == ver):
                     values.append('<i class="fa fa-check"></i>')
-                else:
-                    values.append('<i class="fa fa-times"></i>')
+                    found = True
+                    break
+            if not found:
+                values.append('<i class="fa fa-times"></i>')
         nx_values.append(values)
 
     path = protocol + '://' + api_ip + ':' + api_port + '/search/modules'
