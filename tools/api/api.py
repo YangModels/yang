@@ -2,7 +2,6 @@ import ConfigParser
 import argparse
 import base64
 import collections
-import datetime
 import errno
 import hashlib
 import json
@@ -12,15 +11,19 @@ import shutil
 import subprocess
 import sys
 import urllib2
+import uuid
+from copy import deepcopy
+from datetime import datetime
 from threading import Lock
 from urllib2 import URLError
-
 import MySQLdb
+import jinja2
 import requests
 import tools.utility.log as lo
 import yangSearch.index as index
 from OpenSSL.crypto import load_publickey, FILETYPE_PEM, X509, verify
-from flask import Flask, jsonify, abort, make_response, request, Response
+from flask import Flask, jsonify, abort, make_response, request, Response, \
+    redirect
 from flask_httpauth import HTTPBasicAuth
 from tools.api.sender import Sender
 from tools.utility import repoutil, yangParser, messageFactory
@@ -36,7 +39,204 @@ github_repos_url = github_api_url + '/repos'
 yang_models_url = github_repos_url + '/YangModels/yang'
 
 auth = HTTPBasicAuth()
-app = Flask(__name__)
+
+
+class MyFlask(Flask):
+
+    def __init__(self, import_name):
+        super(MyFlask, self).__init__(import_name)
+        self.response = None
+        self.api_protocol = 'http'
+        self.local_ip = '127.0.0.1'
+        self.ys_set = 'set'
+
+    def process_response(self, response):
+        if ssl_key != '':
+            self.local_ip = 'yangcatalog.org'
+            self.api_protocol = 'https'
+        self.response = response
+        self.create_response_only_latest_revision()
+        self.create_response_with_yangsuite_link()
+
+        return self.response
+
+    def create_response_only_latest_revision(self):
+        if request.args.get('latest-revision'):
+            if 'True' == request.args.get('latest-revision'):
+                if self.response.data:
+                    json_data = json.JSONDecoder(object_pairs_hook=collections.OrderedDict).decode(self.response.data)
+                else:
+                    return self.response
+                modules = None
+                if json_data.get('yang-catalog:modules') is not None:
+                    if json_data.get('yang-catalog:modules').get(
+                            'module') is not None:
+                        modules = json_data.get('yang-catalog:modules').get(
+                            'module')
+                elif json_data.get('module') is not None:
+                    modules = json_data.get('module')
+                modules_to_remove = []
+                if modules:
+                    if len(modules) > 0:
+                        newlist = sorted(modules, key=lambda k: k['name'])
+                        temp_module = None
+                        i = 0
+                        for mod in newlist:
+                            name = mod['name']
+                            if temp_module:
+                                if temp_module['name'] == name:
+                                    revisions = []
+                                    mod['index'] = i
+                                    year = int(temp_module['revision'].split('-')[0])
+                                    month = int(temp_module['revision'].split('-')[1])
+                                    day = int(temp_module['revision'].split('-')[2])
+                                    revisions.append(datetime(year, month, day))
+                                    year = int(mod['revision'].split('-')[0])
+                                    month = int(mod['revision'].split('-')[1])
+                                    day = int(mod['revision'].split('-')[2])
+                                    revisions.append(datetime(year, month, day))
+                                    latest = revisions.index(max(revisions))
+                                    if latest == 0:
+                                        modules_to_remove.append(mod['index'])
+                                    elif latest == 1:
+                                        modules_to_remove.append(temp_module['index'])
+                                else:
+                                    mod['index'] = i
+                                    temp_module = mod
+                            else:
+                                mod['index'] = i
+                                temp_module = mod
+                            i += 1
+                        for mod_to_remove in reversed(modules_to_remove):
+                            newlist.remove(newlist[mod_to_remove])
+                        for mod in newlist:
+                            if mod.get('index'):
+                                del mod['index']
+                        self.response.data = json.dumps(newlist)
+
+    def get_dependencies(self, mod, mods, inset):
+        if mod.get('dependencies'):
+            for dep in mod['dependencies']:
+                if dep['name'] in inset:
+                    continue
+                if dep.get('revision'):
+                    mods.add(dep['name'] + '@' + dep[
+                        'revision'] + '.yang')
+                    inset.add(dep['name'])
+                    search_filter = json.dumps({
+                        'input': {
+                            'name': dep['name'],
+                            'revision': dep['revision']
+
+                        }
+                    })
+                    rp = requests.post('{}://{}:{}/search-filter'.format(
+                        self.api_protocol, self.local_ip, port), search_filter)
+                    mo = rp.json()['yang-catalog:modules']['module'][0]
+                    self.get_dependencies(mo, mods, inset)
+                else:
+                    rp = requests.get('{}://{}:{}/search/name/{}'
+                                      .format(self.api_protocol,
+                                              self.local_ip, port,
+                                              dep['name']))
+                    if rp.status_code == 404:
+                        continue
+                    mo = rp.json()['yang-catalog:modules']['module']
+                    revisions = []
+                    for m in mo:
+                        revision = m['revision']
+                        year = int(revision.split('-')[0])
+                        month = int(revision.split('-')[1])
+                        day = int(revision.split('-')[2])
+                        revisions.append(datetime(year, month, day))
+                    latest = revisions.index(max(revisions))
+                    inset.add(dep['name'])
+                    mods.add('{}@{}.yang'.format(dep['name'],
+                                                 mo[latest][
+                                                     'revision']))
+                    self.get_dependencies(mo[latest], mods, inset)
+
+    def create_response_with_yangsuite_link(self):
+
+        if request.headers.environ.get('HTTP_YANGSUITE'):
+            if 'true' != request.headers.environ['HTTP_YANGSUITE']:
+                return self.response
+            if request.headers.environ.get('HTTP_YANGSET_NAME'):
+                self.ys_set = request.headers.environ.get(
+                    'HTTP_YANGSET_NAME').replace('/', '_')
+        else:
+            return self.response
+
+        if self.response.data:
+            json_data = json.loads(self.response.data)
+        else:
+            return self.response
+        modules = None
+        if json_data.get('yang-catalog:modules') is not None:
+            if json_data.get('yang-catalog:modules').get('module') is not None:
+                modules = json_data.get('yang-catalog:modules').get('module')
+        elif json_data.get('module') is not None:
+            modules = json_data.get('module')
+        if modules:
+            if len(modules) > 0:
+                ys_dir = get_curr_dir(__file__) + '/../../../yangsuite-users/'
+                ys_dir = os.path.abspath(ys_dir)
+                id = uuid.uuid4().hex
+                ys_dir += '/' + id + '/repositories/' + self.ys_set
+                try:
+                    os.makedirs(ys_dir)
+                except OSError as e:
+                    # be happy if someone already created the path
+                    if e.errno != errno.EEXIST:
+                        return 'Server error - could not create directory'
+                mods = set()
+                inset = set()
+                if len(modules) == 1:
+                    defmod = modules[0]['name']
+                for mod in modules:
+                    name = mod['name']
+                    if name in inset:
+                        continue
+                    name += '@{}.yang'.format(mod['revision'])
+                    mods.add(name)
+                    inset.add(mod['name'])
+                    self.get_dependencies(mod, mods, inset)
+
+                modules = []
+                for mod in mods:
+                    if not os.path.exists(save_file_dir + '/' + mod):
+                        continue
+                    shutil.copy(save_file_dir + '/' + mod, ys_dir)
+                    modules.append([mod.split('@')[0], mod.split('@')[1]
+                                   .replace('.yang', '')])
+                ys_dir = get_curr_dir(__file__) + '/../../../yangsuite-users/'
+                ys_dir = os.path.abspath(ys_dir)
+                ys_dir += '/' + id + '/yangsets'
+                try:
+                    os.makedirs(ys_dir)
+                except OSError as e:
+                    # be happy if someone already created the path
+                    if e.errno != errno.EEXIST:
+                        return 'Server error - could not create directory'
+                json_set = {'owner': id,
+                            'repository': id + '+' + self.ys_set,
+                            'setname': self.ys_set,
+                            'defmod': defmod.split('@')[0],
+                            'modules': modules}
+
+                with open(ys_dir + '/' + self.ys_set, 'w') as f:
+                    f.write(json.dumps(json_set, indent=4))
+                json_data['yangsuite-url'] = (
+                    '{}://{}:{}/yangsuite/{}'.format(self.api_protocol, self.local_ip,
+                                                     port, id))
+                self.response.data = json.dumps(json_data)
+                return self.response
+            else:
+                return self.response
+        else:
+            return self.response
+
+app = MyFlask(__name__)
 lock = Lock()
 
 NS_MAP = {
@@ -255,6 +455,14 @@ def check_authorized(signature, payload):
     certificate = X509()
     certificate.set_pubkey(pkey_public_key)
     verify(certificate, base64.b64decode(signature), payload, str('SHA1'))
+
+
+@app.route('/yangsuite/<id>', methods=['GET'])
+def yangsuite_redirect(id):
+    local_ip = '127.0.0.1'
+    if ssl_key != '':
+        local_ip = 'yangcatalog.org'
+    return redirect('http://{}:8000/ydk/aaa/{}'.format(local_ip, id))
 
 
 @auth.login_required
@@ -958,8 +1166,154 @@ def search_recursive(output, module, leaf):
         output.add(meta_data)
 
 
+@app.route('/services/tree/<f1>@<r1>.yang')
+def create_tree(f1, r1):
+    try:
+        os.makedirs(get_curr_dir(__file__) + '/temp')
+    except OSError as e:
+        # be happy if someone already created the path
+        if e.errno != errno.EEXIST:
+            return 'Server error - could not create directory'
+    schema1 = '{}{}@{}.yang'.format(save_file_dir, f1, r1)
+    arguments = ['pyang', '-p', save_file_dir, '-f', 'tree', schema1]
+    pyang = subprocess.Popen(arguments,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+    stdout, stderr = pyang.communicate()
+    if stdout == '' and stderr != '':
+        return create_bootstrap_danger()
+    elif stdout != '' and stderr != '':
+        return create_bootstrap_warning(stdout)
+    else:
+        return '<html><body><pre>{}</pre></body></html>'.format(stdout)
+
+
+def create_bootstrap_info():
+    with open(get_curr_dir(__file__) + '/template/info.html', 'r') as f:
+        template = f.read()
+    return template
+
+
+def create_bootstrap_warning(tree):
+    LOGGER.info('Rendering bootstrap data')
+    context = {'tree': tree}
+    path, filename = os.path.split(
+        get_curr_dir(__file__) + '/template/warning.html')
+    return jinja2.Environment(loader=jinja2.FileSystemLoader(path or './')
+                              ).get_template(filename).render(context)
+
+
+def create_bootstrap_danger():
+    with open(get_curr_dir(__file__) + '/template/danger.html', 'r') as f:
+        template = f.read()
+    return template
+
+
+@app.route('/services/file1=<f1>@<r1>/check-update-from/file2=<f2>@<r2>', methods=['GET'])
+def create_update_from(f1, r1, f2, r2):
+    try:
+        os.makedirs(get_curr_dir(__file__) + '/temp')
+    except OSError as e:
+        # be happy if someone already created the path
+        if e.errno != errno.EEXIST:
+            return 'Server error - could not create directory'
+    schema1 = '{}{}@{}.yang'.format(save_file_dir, f1, r1)
+    schema2 = '{}{}@{}.yang'.format(save_file_dir, f2, r2)
+    arguments = ['pyang', '-P', get_curr_dir(__file__) + '/../../.', '-p',
+                 get_curr_dir(__file__) + '/../../.',
+                 schema1, '--check-update-from',
+                 schema2]
+    pyang = subprocess.Popen(arguments,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+    stdout, stderr = pyang.communicate()
+    return '<html><header><title>This is title</title></header><body><pre>{}</pre></body></html>'.format(stderr)
+
+
+@app.route('/services/diff/file1=<f1>@<r1>/file2=<f2>@<r2>', methods=['GET'])
+def create_diff(f1, r1, f2, r2):
+    try:
+        os.makedirs(get_curr_dir(__file__) + '/temp')
+    except OSError as e:
+        # be happy if someone already created the path
+        if e.errno != errno.EEXIST:
+            return 'Server error - could not create directory'
+    schema1 = '{}{}@{}.yang'.format(save_file_dir, f1, r1)
+    schema2 = '{}{}@{}.yang'.format(save_file_dir, f2, r2)
+
+    arguments = ['pyang', '-p', save_file_dir, '-f', 'tree', schema1]
+    pyang = subprocess.Popen(arguments,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+    stdout, stderr = pyang.communicate()
+    file_name1 = 'schema1.txt'
+    with open('{}{}'.format(diff_file_dir, file_name1), 'w+') as f:
+        f.write('<pre>{}</pre>'.format(stdout))
+    arguments = ['pyang', '-p', save_file_dir, '-f', 'tree', schema2]
+    pyang = subprocess.Popen(arguments,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+    stdout, stderr = pyang.communicate()
+    file_name2 = 'schema2.txt'
+    with open('{}{}'.format(diff_file_dir, file_name2), 'w+') as f:
+        f.write('<pre>{}</pre>'.format(stdout))
+    tree1 = 'https://yangcatalog.org/compatibility/{}'.format(file_name1)
+    tree2 = 'https://yangcatalog.org/compatibility/{}'.format(file_name2)
+    url = 'https://www.ietf.org/rfcdiff/rfcdiff.pyht?url1={}&url2={}'.format(tree1, tree2)
+    response = requests.get(url)
+    os.remove(diff_file_dir + '/' + file_name1)
+    os.remove(diff_file_dir + '/' + file_name2)
+    return '<html><body>{}</body></html>'.format(response.content)
+
+
+@app.route('/get-common', methods=['POST'])
+def get_common():
+    body = request.json
+    if body is None:
+        return make_response(jsonify({'error': 'body of request is empty'}), 400)
+    if body.get('input') is None:
+        return make_response(jsonify
+                             ({'error':
+                                   'body of request need to start with input'}),
+                             400)
+    if body['input'].get('first') is None or body['input'].get('second') is None:
+        return make_response(jsonify
+                             ({'error':
+                                   'body of request need to contain first and '
+                                   'second container'}),
+                             400)
+    response_first = rpc_search({'input': body['input']['first']})
+    response_second = rpc_search({'input': body['input']['second']})
+
+    if response_first.status_code == 404 or response_second.status_code == 404:
+        return not_found()
+
+    data = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+        .decode(response_first.data)
+    modules_first = data['yang-catalog:modules']['module']
+    data = json.JSONDecoder(object_pairs_hook=collections.OrderedDict)\
+        .decode(response_second.data)
+    modules_second = data['yang-catalog:modules']['module']
+
+    output_modules_list = []
+    names = []
+    for mod_first in modules_first:
+        for mod_second in modules_second:
+            if mod_first['name'] == mod_second['name']:
+                if mod_first['name'] not in names:
+                    names.append(mod_first['name'])
+                    output_modules_list.append(mod_first)
+    if len(output_modules_list) == 0:
+        return not_found()
+    return Response(json.dumps({'output': output_modules_list}),
+                    mimetype='application/json')
+
+
 @app.route('/check-semantic-version', methods=['POST'])
 def check_semver():
+    api_protocol = 'http'
+    if ssl_key != '':
+        api_protocol = 'https'
     body = request.json
     if body is None:
         return make_response(jsonify({'error': 'body of request is empty'}), 400)
@@ -972,7 +1326,7 @@ def check_semver():
         return make_response(jsonify
                              ({'error':
                                    'body of request need to contain new and old'
-                                   'container'}),
+                                   ' container'}),
                              400)
     response_new = rpc_search({'input': body['input']['new']})
     response_old = rpc_search({'input': body['input']['old']})
@@ -1012,6 +1366,10 @@ def check_semver():
                 break
         if schema_new is None:
             continue
+        if ip == '0.0.0.0':
+            local_ip = 'yangcatalog.org'
+        else:
+            local_ip = ip
         if semver_new:
             semver_old = mod_old.get('derived-semantic-version')
             if semver_old:
@@ -1024,53 +1382,16 @@ def check_semver():
                     elif status_new != 'passed' and status_old == 'passed':
                         reason = 'Newer module failed compilation'
                     else:
-                        file_name = ('{}{}+check-update-from+{}{}.html'
-                                     .format(name_new, revision_new, name_old,
+                        file_name = ('{}://{}:{}/services/file1={}@{}/check-update-from/file2={}@{}'
+                                     .format(api_protocol, local_ip, port, name_new, revision_new, name_old,
                                              revision_old))
-                        schema1 = '{}{}@{}.yang'.format(save_file_dir, name_new,
-                                                        revision_new)
-                        schema2 = '{}{}@{}.yang'.format(save_file_dir, name_old,
-                                                        revision_old)
-                        arguments = ['pyang', '-P', get_curr_dir(__file__) + '/../../.', '-p', get_curr_dir(__file__) + '/../../.',
-                                     schema1, '--check-update-from',
-                                     schema2]
-                        pyang = subprocess.Popen(arguments,
-                                                 stdout=subprocess.PIPE,
-                                                 stderr=subprocess.PIPE)
-                        stdout, stderr = pyang.communicate()
-                        reason = (
-                            'pyang --check-update-from output: https://www.{}/compatibility/{}'.
-                            format(confd_ip, file_name))
-                        with open('{}{}'.format(diff_file_dir, file_name),
-                                  'w+') as f:
-                            f.write('<pre>{}</pre>'.format(stderr))
+                        reason = ('pyang --check-update-from output: {}'.
+                                  format(file_name))
 
-                        arguments = ['pyang', '-p', get_curr_dir(__file__) + '/../../.', '-f', 'tree',
-                                     save_file_dir + name_new + '@' + revision_new + '.yang']
-                        pyang = subprocess.Popen(arguments,
-                                                 stdout=subprocess.PIPE,
-                                                 stderr=subprocess.PIPE)
-                        stdout, stderr = pyang.communicate()
-                        f_name = '{}{}{}.txt'.format(diff_file_dir, name_new,
-                                                  revision_new)
-                        with open(f_name, 'w+') as f:
-                            f.write(stdout)
-
-                        arguments = ['pyang', '-p', get_curr_dir(__file__) + '/../../.', '-f', 'tree',
-                                     save_file_dir + name_old + '@' + revision_old + '.yang']
-                        pyang = subprocess.Popen(arguments,
-                                                 stdout=subprocess.PIPE,
-                                                 stderr=subprocess.PIPE)
-                        stdout, stderr = pyang.communicate()
-                        f_name = '{}{}{}.txt'.format(diff_file_dir, name_old,
-                                                   revision_old)
-                        with open(f_name, 'w+') as f:
-                            f.write(stdout)
-                        tree1 = 'https://yangcatalog.org/compatibility/{}{}.txt'.format(name_new, revision_new)
-                        tree2 = 'https://yangcatalog.org/compatibility/{}{}.txt'.format(name_old, revision_old)
                         diff = (
-                            'https://www.ietf.org/rfcdiff/rfcdiff.pyht?url1={}&url2={}'.
-                                format(tree1, tree2))
+                            '{}://{}:{}/services/diff/file1={}@{}/file2={}@{}'.
+                                format(api_protocol, local_ip, port, name_old,
+                                       revision_old, name_new, revision_new))
 
                         output_mod['yang-module-pyang-tree-diff'] = diff
 
@@ -1109,7 +1430,7 @@ def rpc_search(body=None):
             for module in data:
                 passed = True
                 if 'dependencies' in body:
-                    submodules = module.get('dependencies')
+                    submodules = deepcopy(module.get('dependencies'))
                     if submodules is None:
                         continue
                     for sub in body['dependencies']:
@@ -1141,7 +1462,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'dependents' in body:
-                    submodules = module.get('dependents')
+                    submodules = deepcopy(module.get('dependents'))
                     if submodules is None:
                         continue
                     for sub in body['dependents']:
@@ -1173,7 +1494,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'submodule' in body:
-                    submodules = module.get('submodule')
+                    submodules = deepcopy(module.get('submodule'))
                     if submodules is None:
                         continue
                     for sub in body['submodule']:
@@ -1205,7 +1526,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'implementations' in body:
-                    implementations = module.get('implementations')
+                    implementations = deepcopy(module.get('implementations'))
                     if implementations is None:
                         continue
                     passed = True
@@ -1284,7 +1605,7 @@ def rpc_search(body=None):
             for module in data:
                 passed = True
                 if 'dependencies' in body:
-                    submodules = module.get('dependencies')
+                    submodules = deepcopy(module.get('dependencies'))
                     if submodules is None:
                         continue
                     for sub in body['dependencies']:
@@ -1316,7 +1637,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'dependents' in body:
-                    submodules = module.get('dependents')
+                    submodules = deepcopy(module.get('dependents'))
                     if submodules is None:
                         continue
                     for sub in body['dependents']:
@@ -1348,7 +1669,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'submodule' in body:
-                    submodules = module.get('submodule')
+                    submodules = deepcopy(module.get('submodule'))
                     if submodules is None:
                         continue
                     for sub in body['submodule']:
@@ -1380,7 +1701,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'implementations' in body:
-                    implementations = module.get('implementations')
+                    implementations = deepcopy(module.get('implementations'))
                     if implementations is None:
                         continue
                     passed = True
@@ -1587,42 +1908,47 @@ def get_job(job_id):
 @app.route('/check-platform-metadata', methods=['POST'])
 def trigger_populate():
     LOGGER.info('Trigger populate if necessary')
-    body = request.json
-    paths = []
-    added = body.get('added')
-    new = []
-    mod = []
-    for add in added:
-        if 'platform-metadata.json' in add:
-            paths.append('/'.join(add.split('/')[:-1]))
-            new.append('/'.join(add.split('/')[:-1]))
-    modified = body.get('modified')
-    for m in modified:
-        if 'platform-metadata.json' in m:
-            paths.append('/'.join(m.split('/')[:-1]))
-            mod.append('/'.join(m.split('/')[:-1]))
-    mf = messageFactory.MessageFactory()
-    mf.send_new_modified_platform_metadata(new, mod)
-    LOGGER.info('Forking the repo')
-    repo = repoutil.RepoUtil('https://github.com/YangModels/yang.git')
     try:
-        LOGGER.info('Cloning repo to local directory {}'.format(repo.localdir))
-        repo.clone()
-        for path in paths:
-            arguments = ['python', repo.localdir + '/' +
-                         'tools/parseAndPopulate/populate.py', '--ip',
-                         'yangcatalog.org', '--api-ip', 'yangcatalog.org',
-                         '--dir', repo.localdir + '/' + path,
-                         '--result-html-dir', result_dir, '--save-file-dir',
-                         save_file_dir]
-            with open("log_trigger.txt", "wr") as f:
-                subprocess.check_call(arguments, stderr=f)
-    except:
-        LOGGER.error('Could not populate after git push')
+        body = request.json
+        paths = []
+        added = body.get('added')
+        new = []
+        mod = []
+        for add in added:
+            if 'platform-metadata.json' in add:
+                paths.append('/'.join(add.split('/')[:-1]))
+                new.append('/'.join(add.split('/')[:-1]))
+        modified = body.get('modified')
+        for m in modified:
+            if 'platform-metadata.json' in m:
+                paths.append('/'.join(m.split('/')[:-1]))
+                mod.append('/'.join(m.split('/')[:-1]))
+        mf = messageFactory.MessageFactory()
+        mf.send_new_modified_platform_metadata(new, mod)
+        LOGGER.info('Forking the repo')
+        repo = repoutil.RepoUtil('https://github.com/YangModels/yang.git')
+        try:
+            LOGGER.info('Cloning repo to local directory {}'.format(repo.localdir))
+            repo.clone()
+            for path in paths:
+                arguments = ['python', repo.localdir + '/' +
+                             'tools/parseAndPopulate/populate.py', '--ip',
+                             'yangcatalog.org', '--api-ip', 'yangcatalog.org',
+                             '--dir', repo.localdir + '/' + path,
+                             '--result-html-dir', result_dir, '--save-file-dir',
+                             save_file_dir]
+                with open("log_trigger.txt", "wr") as f:
+                    subprocess.check_call(arguments, stderr=f)
+        except:
+            LOGGER.error('Could not populate after git push')
+            repo.remove()
+            return make_response(jsonify({'info': 'Success'}), 200)
         repo.remove()
-        return make_response(jsonify({'error': 'Server Error'}), 500)
-    repo.remove()
-    return make_response(jsonify({'inof': 'Success'}), 200)
+        return make_response(jsonify({'info': 'Success'}), 200)
+    except Exception as e:
+        LOGGER.error('Automated github webhook failure - {}'
+                     .format(e.message))
+        return make_response(jsonify({'info': 'Success'}), 200)
 
 
 @app.route('/load-cache', methods=['POST'])
@@ -1636,8 +1962,22 @@ def load_to_memory():
         return unauthorized
     if get_password(username) != hash_pw(request.authorization['password']):
         return unauthorized()
-    load(False)
+    load(True)
     return make_response(jsonify({'info': 'Success'}), 201)
+
+
+@app.route('/contributors', methods=['GET'])
+def get_organizations():
+    orgs = set()
+    with lock:
+        data = modules_data.get('module')
+    for mod in data:
+        if mod['organization'] != 'example' and mod['organization'] != 'missing element':
+            orgs.add(mod['organization'])
+    orgs = list(orgs)
+    resp = make_response(jsonify({'contributors': orgs}), 200)
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    return resp
 
 
 def load(on_start):

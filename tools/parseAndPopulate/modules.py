@@ -6,6 +6,7 @@ import sys
 import unicodedata
 from subprocess import PIPE
 
+import requests
 from click.exceptions import FileError
 
 import tools.statistics.statistics as stats
@@ -131,6 +132,9 @@ class Modules:
             self.document_name = None
             self.author_email = None
             self.reference = None
+            self.tree = None
+            self.expired = None
+            self.expiration_date = None
             self.module_classification = None
             self.compilation_status = None
             self.compilation_result = {}
@@ -212,12 +216,31 @@ class Modules:
             self.__resolve_contact()
             self.__resolve_description()
             self.__resolve_document_name_and_reference(document_name, reference)
+            self.__resolve_tree()
+            self.__resolve_expiration()
             self.__resolve_module_classification(module_classification)
             self.__resolve_working_group()
             self.__resolve_author_email(author_email)
             self.__resolve_maturity_level(maturity_level)
             self.__resolve_semver()
             self.__resolve_tree_type()
+
+    def __resolve_tree(self):
+        if self.module_type == 'module':
+            self.tree = 'services/tree/{}@{}.yang'.format(self.name,
+                                                          self.revision)
+
+    def __resolve_expiration(self):
+        if self.reference and 'datatracker.ietf.org' in self.reference:
+            ref = self.reference.split('/')[-1]
+            url = ('https://datatracker.ietf.org/api/v1/doc/document/'
+                   + ref + '/?format=json')
+            response = requests.get(url)
+            if response.status_code == 200:
+                data = json.loads(response.content)
+                if '/api/v1/doc/state/2/' in data['states']:
+                    self.expired = True
+                    self.expiration_date = data['expires']
 
     def __save_file(self, to):
         file_with_path = '{}{}@{}.yang'.format(to, self.name, self.revision)
@@ -461,7 +484,11 @@ class Modules:
                                 rows[x].split('+--ro ')[1].split(' ')[0].split(
                                     '?')[0]
 
-                            if leaf not in pyang_list_of_rows[x]:
+                            dataExist = False
+                            for y in range(0, len(pyang_list_of_rows)):
+                                if leaf in pyang_list_of_rows[y]:
+                                    dataExist = True
+                            if not dataExist:
                                 return False
                     return True
                 else:
@@ -989,9 +1016,17 @@ class Modules:
         if status == 'unknown':
             status = self.__get_module_status(self.jsons.xe1661)
         if status == 'unknown':
+            status = self.__get_module_status(self.jsons.xe1662)
+        if status == 'unknown':
+            status = self.__get_module_status(self.jsons.xe1671)
+        if status == 'unknown':
             status = self.__get_module_status(self.jsons.nx703f11)
         if status == 'unknown':
             status = self.__get_module_status(self.jsons.nx703f21)
+        if status == 'unknown':
+            status = self.__get_module_status(self.jsons.nx703f22)
+        if status == 'unknown':
+            status = self.__get_module_status(self.jsons.nx703f31)
         if status == 'unknown':
             status = self.__get_module_status(self.jsons.nx703i51)
         if status == 'unknown':
@@ -1000,6 +1035,8 @@ class Modules:
             status = self.__get_module_status(self.jsons.nx703i52)
         if status == 'unknown':
             status = self.__get_module_status(self.jsons.nx703i71)
+        if status == 'unknown':
+            status = self.__get_module_status(self.jsons.nx703i72)
         if status == 'unknown':
             status = self.__get_module_status(self.jsons.huawei8910)
         if status == 'unknown':
@@ -1098,6 +1135,12 @@ class Modules:
         res = self.__parse_res(self.jsons.nx703f11)
         if res != '':
             return res
+        res = self.__parse_res(self.jsons.nx703f22)
+        if res != '':
+            return res
+        res = self.__parse_res(self.jsons.nx703f31)
+        if res != '':
+            return res
         res = self.__parse_res(self.jsons.nx703i71)
         if res != '':
             return res
@@ -1123,6 +1166,9 @@ class Modules:
         if res != '':
             return res
         res = self.__parse_res(self.jsons.xe1661)
+        if res != '':
+            return res
+        res = self.__parse_res(self.jsons.xe1662)
         if res != '':
             return res
         res = self.__parse_res(self.jsons.xe1641)

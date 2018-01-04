@@ -182,8 +182,9 @@ class Capability:
                             self.repo = 'yang'
                             self.branch = 'master'
                             path = root + '/' + file_name
-                            schema = github_raw + self.owner + '/' + self.repo + '/' + self.branch + '/' + path.replace(
-                                '../', '')
+                            path = os.path.abspath(path).split('/yang/')[1]
+                            schema = (github_raw + self.owner + '/' + self.repo
+                                      + '/' + self.branch + '/' + path)
                             yang.parse_all(name,
                                            self.prepare.name_revision_organization,
                                            schema, self.to)
