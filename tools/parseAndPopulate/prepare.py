@@ -1,4 +1,3 @@
-
 import json
 
 import tools.utility.log as log
@@ -7,14 +6,11 @@ LOGGER = log.get_logger(__name__)
 
 
 class Prepare:
-    def __init__(self, file_name, html_result_dir, port, ip, protocol):
-        self.html_result_dir = html_result_dir
+    def __init__(self, file_name, yangcatalog_api_prefix):
         self.file_name = file_name
         self.name_revision_organization = set()
         self.yang_modules = {}
-        self.api_protocol = protocol
-        self.api_ip = ip
-        self.api_port = port
+        self.yangcatalog_api_prefix = yangcatalog_api_prefix
 
     def add_key_sdo_module(self, yang):
         key = '{}@{}/{}'.format(yang.name, yang.revision, yang.organization)
@@ -23,9 +19,8 @@ class Prepare:
             self.yang_modules[key].implementation.extend(yang.implementation)
         else:
             if yang.tree is not None:
-                yang.tree = '{}://{}:{}/{}'.format(self.api_protocol,
-                                                   self.api_ip, self.api_port,
-                                                   yang.tree)
+                yang.tree = '{}{}'.format(self.yangcatalog_api_prefix,
+                                          yang.tree)
 
             self.name_revision_organization.add(key)
             self.yang_modules[key] = yang
@@ -49,6 +44,8 @@ class Prepare:
                     key].module_classification,
                 'compilation-status': self.yang_modules[key].compilation_status,
                 'compilation-result': self.yang_modules[key].compilation_result,
+                'expires': self.yang_modules[key].expiration_date,
+                'expired': self.yang_modules[key].expired,
                 'prefix': self.yang_modules[key].prefix,
                 'yang-version': self.yang_modules[key].yang_version,
                 'description': self.yang_modules[key].description,

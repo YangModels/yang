@@ -115,9 +115,10 @@ if __name__ == "__main__":
                     repo.localdir + '/standard/ietf/RFCtemp'):
         for file_name in sdos:
             if '.yang' in file_name:
-                if os.path.exists( get_curr_dir(__file__) + '/../../standard/ietf/RFC/' + file_name):
-                    same = filecmp.cmp( get_curr_dir(__file__) + '/../../standard/ietf/RFC/' + file_name,
-                                       root + '/' + file_name)
+                if os.path.exists(repo.localdir + '/standard/ietf/RFC/'
+                                          + file_name):
+                    same = filecmp.cmp(repo.localdir + '/standard/ietf/RFC/'
+                                       + file_name, root + '/' + file_name)
                     if not same:
                         diff_files.append(file_name)
                 else:
