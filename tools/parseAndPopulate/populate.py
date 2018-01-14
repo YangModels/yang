@@ -67,6 +67,15 @@ if __name__ == "__main__":
     config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
     config.read(config_path)
+    is_uwsgi = config.get('General-Section', 'uwsgi')
+    separator = ':'
+    suffix = args.api_port
+    if is_uwsgi == 'True':
+        separator = '/'
+        suffix = 'api'
+    yangcatalog_api_prefix = '{}://{}{}{}/'.format(args.api_protocol,
+                                                   args.api_ip, separator,
+                                                   suffix)
     key = config.get('Receiver-Section', 'key')
     LOGGER.info('Starting the populate script')
     if args.api:
@@ -222,8 +231,7 @@ if __name__ == "__main__":
             # Be happy if deleted
             pass
         LOGGER.info('Sending request to reload cache')
-        url = (args.api_protocol + '://' + args.api_ip + ':' +
-               repr(args.api_port) + '/load-cache')
+        url = (yangcatalog_api_prefix + 'load-cache')
         response = requests.post(url, None,
                                  auth=(args.credentials[0],
                                         args.credentials[1]),
@@ -239,7 +247,7 @@ if __name__ == "__main__":
         new_modules = []
         for module in all_modules['module']:
             LOGGER.info('Searching semver for {}'.format(module['name']))
-            url = '{}://{}:{}/search/name/{}'.format(args.api_protocol, args.api_ip, args.api_port, module['name'])
+            url = '{}search/name/{}'.format(yangcatalog_api_prefix, module['name'])
             response = requests.get(url, auth=(args.credentials[0], args.credentials[1]),
                                     headers={'Accept': 'application/json'})
             if response.status_code == 404:
@@ -499,9 +507,9 @@ if __name__ == "__main__":
                     search = {'name': new_dep['name'], 'revision': new_dep['revision']}
                 else:
                     search = {'name': new_dep['name']}
-                response = requests.post(
-                    args.api_protocol + '://' + args.api_ip + ':' + repr(
-                        args.api_port) + '/search-filter', auth=(args.credentials[0], args.credentials[1]),
+                response = requests.post(yangcatalog_api_prefix
+                                         + 'search-filter',
+                                         auth=(args.credentials[0], args.credentials[1]),
                     json={'input': search})
                 if response.status_code == 200:
                     mods = json.loads(response.content)['yang-catalog:modules'][
@@ -516,7 +524,7 @@ if __name__ == "__main__":
                             m['dependents'].append(new)
                             new_modules.append(m)
 
-            response = requests.post(args.api_protocol + '://' + args.api_ip + ':' + repr(args.api_port) + '/search-filter',
+            response = requests.post(yangcatalog_api_prefix + 'search-filter',
                                      auth=(
                                      args.credentials[0], args.credentials[1]),
                           json={'input': {'dependencies': [{'name': name}]}})
@@ -578,8 +586,8 @@ if __name__ == "__main__":
         except OSError:
             # Be happy if deleted
             pass
-        url = (args.api_protocol + '://' + args.api_ip + ':' +
-               repr(args.api_port) + '/load-cache')
+        url = (yangcatalog_api_prefix + 'load-cache')
+        LOGGER.info('{}'.format(url))
         response = requests.post(url, None,
                                  auth=(args.credentials[0],
                                        args.credentials[1]))
@@ -587,6 +595,9 @@ if __name__ == "__main__":
             LOGGER.warning('Could not send a load-cache request')
         if args.notify_indexing:
             LOGGER.info('Sending files for indexing')
-            send_to_indexing('../parseAndPopulate/' + direc + '/prepare.json', args.credentials, args.ip, args.api_port,
-                             args.api_protocol, from_api=False, set_key=key, force_indexing=args.force_indexing)
+            send_to_indexing(yangcatalog_api_prefix,
+                             '../parseAndPopulate/' + direc + '/prepare.json',
+                             args.credentials, apiIp=args.api_ip,
+                             from_api=False, set_key=key,
+                             force_indexing=args.force_indexing)
         shutil.rmtree('../parseAndPopulate/' + direc)

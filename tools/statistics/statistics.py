@@ -126,7 +126,7 @@ def get_specifics(path_dir):
             continue
         if ',' in organization:
             organization = organization.replace(' ', '%20')
-            path = protocol + '://' + api_ip + ':' + api_port + '/search/name/' + name
+            path = yangcatalog_api_prefix + 'search/name/' + name
             module_exist = http_request(path, 'GET', '', credentials.split(' '), 'application/vnd.yang.data+json')
             if module_exist:
                 data = module_exist.read()
@@ -139,8 +139,8 @@ def get_specifics(path_dir):
                     num_in_catalog += 1
         else:
             organization = organization.replace(' ', '%20')
-            path = protocol + '://' + api_ip + ':' + api_port + '/search/modules/' + name + ',' + revision + ',' + \
-                   organization
+            path = yangcatalog_api_prefix + 'search/modules/' + name + ','\
+                   + revision + ',' + organization
             module_exist = http_request(path, 'GET', '', credentials.split(' '), 'application/vnd.yang.data+json')
             if module_exist:
                 data = module_exist.read()
@@ -244,14 +244,22 @@ if __name__ == '__main__':
     config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
     config.read(config_path)
-    protocol = config.get('Statistics-Section', 'protocol')
+    protocol = config.get('General-Section', 'protocol-api')
     api_ip = config.get('Statistics-Section', 'api-ip')
-    api_port = config.get('Statistics-Section', 'api-port')
-    credentials = config.get('Statistics-Section', 'credentials')
+    api_port = config.get('General-Section', 'api-port')
+    credentials = config.get('General-Section', 'credentials')
     move_to = config.get('Statistics-Section', 'file-location')
     auth = credentials.split(' ')
+    is_uwsgi = config.get('General-Section', 'uwsgi')
+    separator = ':'
+    suffix = api_port
+    if is_uwsgi == 'True':
+        separator = '/'
+        suffix = 'api'
+    yangcatalog_api_prefix = '{}://{}{}{}/'.format(protocol, api_ip,
+                                                   separator, suffix)
 
-    path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco'
+    path = yangcatalog_api_prefix + 'search/vendors/vendor/cisco'
     res = requests.get(path, auth=(auth[0], auth[1]),
                  headers={'Accept': 'application/json'})
     vendors_data = json.loads(res.content)
@@ -344,7 +352,7 @@ if __name__ == '__main__':
                 values.append('<i class="fa fa-times"></i>')
         nx_values.append(values)
 
-    path = protocol + '://' + api_ip + ':' + api_port + '/search/modules'
+    path = yangcatalog_api_prefix + 'search/modules'
     all_modules_data = (requests.get(path, auth=(auth[0], auth[1]),
                                      headers={'Accept': 'application/json'})
                         .content)

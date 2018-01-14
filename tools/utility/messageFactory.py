@@ -71,7 +71,8 @@ class MessageFactory:
                    'Files that are missing in yangModles repo: \n{} \n\n '
                    'Files that are different then in yangModels repo: \n{}'
                    .format(GREETINGS, new_files, diff_files))
-        to = ['bclaise@cisco.com', 'einarnn@cisco.com', 'jclarke@cisco.com']
+        to = ['bclaise@cisco.com', 'einarnn@cisco.com', 'jclarke@cisco.com',
+              'mirkovac@cisco.com']
 
         self.__post_to_spark(message)
         self.__post_to_email(message, to)
@@ -98,7 +99,7 @@ class MessageFactory:
         message = ("Files have been removed from yangcatalog. See attached"
                    " document")
         text = ("The following files has been removed from yangcatalog.org"
-                   " using api: ```\n{}\n```".format(removed_yang_files))
+                   " using api: \n{}\n".format(removed_yang_files))
         with open('./log.txt', 'w') as f:
             f.write(text)
         self.__post_to_spark(message, True, files=['./log.txt'])
@@ -109,7 +110,7 @@ class MessageFactory:
                    " document")
         text = ("The following files has been added to yangcatalog.org"
                    " using api as a new modules or old modules with new "
-                   "revision: ```\n{}\n```".format(added_yang_files))
+                   "revision: \n{}\n".format(added_yang_files))
         with open('./log.txt', 'w') as f:
             f.write(text)
         self.__post_to_spark(message, True, files=['./log.txt'])
@@ -124,8 +125,7 @@ class MessageFactory:
         text = ("There were new or modified platform metadata json files "
                    "added to yangModels-yang repository, that are currently"
                    "being processed in following paths:\n\n"
-                   "'''\n New json files: \n {} \n\n Modified json files:\n{}\n"
-                   "'''"
+                   "\n New json files: \n {} \n\n Modified json files:\n{}\n"
                    .format(new_files, modified_files))
         with open('./log.txt', 'w') as f:
             f.write(text)
