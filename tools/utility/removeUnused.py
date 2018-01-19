@@ -55,7 +55,7 @@ if __name__ == '__main__':
     dirs = os.listdir(args.remove_dir2)
     for dir in dirs:
         abs = os.path.abspath(args.remove_dir2 + '/' + dir)
-        if not abs.endswith('yangcatalog'):
+        if not abs.endswith('yangcat') and not abs.endswith('miott'):
             try:
                 shutil.rmtree(abs)
             except:
