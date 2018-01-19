@@ -1894,24 +1894,6 @@ def get_catalog():
                 :return response to the request with all the data
     """
     LOGGER.info('Searching for catalog data')
-    #response = 'work'
-    #try:
-    #    with open('./cache/catalog.json', 'r') as catalog:
-    #        catalog_data = json.load(catalog)
-    #except IOError:
-    #    LOGGER.warning('Cache file does not exist')
-    #    # Try to create a cache if not created yet and load data again
-    #    response = make_cache(credentials, response)
-    #    if response != 'work':
-    #        LOGGER.error('Could not load or create cache')
-    #        return jsonify({'error': response}, 500)
-    #    else:
-    #        try:
-    #            with open('./cache/catalog.json', 'r') as catalog:
-    #                catalog_data = json.load(catalog)
-    #        except:
-    #            LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
-    #            return not_found()
     data = catalog_data()
     if data is None:
         return not_found()
@@ -2055,7 +2037,9 @@ def load(on_change):
         initialized = uwsgi.cache_get('initialized', 'cache_chunks')
         LOGGER.debug('initialized {} on change {}'.format(initialized, on_change))
         if initialized is None or initialized == 'False' or on_change:
-            uwsgi.cache_clear()
+            uwsgi.cache_clear('cache_chunks')
+            uwsgi.cache_clear('main_cache')
+            uwsgi.cache_clear('cache_modules')
             uwsgi.cache_set('initialized', 'False', 0, 'cache_chunks')
             response = make_cache(credentials, response, is_uwsgi=is_uwsgi)
 
@@ -2079,7 +2063,7 @@ def load(on_change):
                     uwsgi.cache_set(key, repr(chunks), 0, 'cache_chunks')
                     for j in range(0, chunks, 1):
                         uwsgi.cache_set(key + '-{}'.format(j),
-                                        value[i * 20000: (i + 1) * 20000], 0,
+                                        value[j * 20000: (j + 1) * 20000], 0,
                                         'cache_modules')
 
             chunks = int(math.ceil(len(json.dumps(modules)) / float(64000)))

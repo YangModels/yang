@@ -241,6 +241,8 @@ class Modules:
                 if '/api/v1/doc/state/2/' in data['states']:
                     self.expired = True
                 self.expiration_date = data['expires']
+            else:
+                self.expired = 'not-applicable'
 
     def __save_file(self, to):
         file_with_path = '{}{}@{}.yang'.format(to, self.name, self.revision)

@@ -9,6 +9,8 @@ import urllib2
 # Make a http request on path with json_data
 from collections import OrderedDict
 
+import requests
+
 
 def http_request(path, method, json_data, credentials):
     try:
@@ -63,12 +65,15 @@ if __name__ == "__main__":
         file_save.close()
     else:
         if args.name_load:
-            with open(args.name_load) as f:
-                file_load = f
+            file_load = open(args.name_load)
         else:
             list_of_files = glob.glob('./cache/*')
             latest_file = max(list_of_files, key=os.path.getctime)
             file_load = open(latest_file, 'rw')
         body = json.load(file_load, object_pairs_hook=OrderedDict)
-        http_request(prefix + '/api/config/catalog', 'PUT', json.dumps(body), args.credentials)
+        base64string = base64.b64encode('%s:%s' % (args.credentials[0], args.credentials[1]))
+        response = requests.put(prefix + '/api/config/catalog', json.dumps(body), headers={
+            'Authorization': 'Basic ' + base64string,
+            'Content-type': 'application/vnd.yang.data+json',
+            'Accept': 'application/vnd.yang.data+json'})
         file_load.close()

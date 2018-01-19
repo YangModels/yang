@@ -32,6 +32,11 @@ def __resolve_expiration(reference, module, args):
                     update = True
                     module['expires'] = data['expires']
                     module['expired'] = False
+        else:
+            if module.get('expired') is None:
+                update = True
+                module['expired'] = 'not-applicable'
+                module['expires'] = None
         if update:
             url = 'http://yangcatalog.org:8008/api/config/catalog/modules/module/{},{},{}' \
                 .format(module['name'], module['revision'],
