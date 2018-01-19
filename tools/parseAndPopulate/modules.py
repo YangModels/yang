@@ -837,8 +837,6 @@ class Modules:
                 self.generated_from = 'not-applicable'
 
     def __resolve_compilation_status_and_result(self):
-        if self.name == 'ietf-inet-types':
-            pass
         self.compilation_status = self.__parse_status()
         if self.compilation_status != 'passed':
             self.compilation_result = self.__parse_result()
