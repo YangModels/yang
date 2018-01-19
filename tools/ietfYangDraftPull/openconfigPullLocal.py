@@ -34,7 +34,7 @@ if __name__ == "__main__":
     credentials = config.get('General-Section', 'credentials').split(' ')
     token = config.get('DraftPull-Section', 'yang-catalog-token')
     username = config.get('DraftPull-Section', 'username')
-    api_protocol = config.get('DraftPullLocal-Section', 'protocol-api')
+    api_protocol = config.get('General-Section', 'protocol-api')
     is_uwsgi = config.get('General-Section', 'uwsgi')
 
     separator = ':'

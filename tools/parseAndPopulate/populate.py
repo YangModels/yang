@@ -368,7 +368,7 @@ if __name__ == "__main__":
                     response = requests.get(
                         '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(args.protocol, args.ip, args.port,
                             mod['name'], mod['revision'], mod['organization']),
-                        auth=('admin', 'admin'), headers={'Accept': 'application/vnd.yang.data+json'})
+                        auth=(args.credentials[0], args.credentials[1]), headers={'Accept': 'application/vnd.yang.data+json'})
                     response = json.loads(response.content)['yang-catalog:module']
                     response['derived-semantic-version'] = '1.0.0'
                     new_modules.append(response)
@@ -389,7 +389,7 @@ if __name__ == "__main__":
                                     args.protocol, args.ip, args.port,
                                     mod['name'], mod['revision'],
                                     mod['organization']),
-                                auth=('admin', 'admin'), headers={
+                                auth=(args.credentials[0], args.credentials[1]), headers={
                                     'Accept': 'application/vnd.yang.data+json'})
                             response = json.loads(response.content)[
                                 'yang-catalog:module']
@@ -407,7 +407,8 @@ if __name__ == "__main__":
                                         args.protocol, args.ip, args.port,
                                         mod['name'], mod['revision'],
                                         mod['organization']),
-                                    auth=('admin', 'admin'), headers={
+                                    auth=(
+                                    args.credentials[0], args.credentials[1]), headers={
                                         'Accept': 'application/vnd.yang.data+json'})
                                 response = json.loads(response.content)[
                                     'yang-catalog:module']
@@ -453,7 +454,8 @@ if __name__ == "__main__":
                                             args.protocol, args.ip, args.port,
                                             mod['name'], mod['revision'],
                                             mod['organization']),
-                                        auth=('admin', 'admin'), headers={
+                                        auth=(args.credentials[0],
+                                              args.credentials[1]), headers={
                                             'Accept': 'application/vnd.yang.data+json'})
                                     response = json.loads(response.content)[
                                         'yang-catalog:module']
@@ -472,7 +474,8 @@ if __name__ == "__main__":
                                             args.protocol, args.ip, args.port,
                                             mod['name'], mod['revision'],
                                             mod['organization']),
-                                        auth=('admin', 'admin'), headers={
+                                        auth=(args.credentials[0],
+                                              args.credentials[1]), headers={
                                             'Accept': 'application/vnd.yang.data+json'})
                                     response = json.loads(response.content)[
                                         'yang-catalog:module']
@@ -490,7 +493,8 @@ if __name__ == "__main__":
                                         args.protocol, args.ip, args.port,
                                         mod['name'], mod['revision'],
                                         mod['organization']),
-                                    auth=('admin', 'admin'), headers={
+                                    auth=(
+                                    args.credentials[0], args.credentials[1]), headers={
                                         'Accept': 'application/vnd.yang.data+json'})
                                 response = json.loads(response.content)[
                                     'yang-catalog:module']

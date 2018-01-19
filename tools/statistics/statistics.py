@@ -234,6 +234,18 @@ def process_data(out, save_list, path, name):
     save_list.append(table_sdo)
 
 
+def solve_platforms(path, platform):
+    matches = []
+    for root, dirnames, filenames in os.walk(path):
+        for filename in fnmatch.filter(filenames, 'platform-metadata.json'):
+            matches.append(os.path.join(root, filename))
+    for match in matches:
+        with open(match) as f:
+            js_objs = json.load(f)['platforms']['platform']
+            for js_obj in js_objs:
+                platform.add(js_obj['name'])
+
+
 if __name__ == '__main__':
     LOGGER.info('Starting statistics')
     parser = argparse.ArgumentParser()
@@ -259,29 +271,21 @@ if __name__ == '__main__':
     yangcatalog_api_prefix = '{}://{}{}{}/'.format(protocol, api_ip,
                                                    separator, suffix)
 
-    path = yangcatalog_api_prefix + 'search/vendors/vendor/cisco'
-    res = requests.get(path, auth=(auth[0], auth[1]),
-                 headers={'Accept': 'application/json'})
-    vendors_data = json.loads(res.content)
-    xr = []
-    nx = []
-    xe = []
+    xr = set()
+    nx = set()
+    xe = set()
+
+    solve_platforms('../../vendor/cisco/xr', xr)
+    solve_platforms('../../vendor/cisco/xe', xe)
+    solve_platforms('../../vendor/cisco/nx', nx)
+
     xr_versions = sorted(next(os.walk(get_curr_dir(__file__) + '/../../vendor/cisco/xr'))[1])
     nx_versions = sorted(next(os.walk(get_curr_dir(__file__) + '/../../vendor/cisco/nx'))[1])
     xe_versions = sorted(next(os.walk(get_curr_dir(__file__) + '/../../vendor/cisco/xe'))[1])
     xr_values = []
     nx_values = []
     xe_values = []
-    for vendor in vendors_data['yang-catalog:vendor']['platforms']['platform']:
-        platform_name = vendor['name']
-        os_type = vendor['software-versions']['software-version'][0]['software-flavors']['software-flavor'][0]\
-            ['modules']['module'][0]['os-type']
-        if 'IOS-XR' == os_type:
-            xr.append(platform_name)
-        if 'IOS-XE' == os_type:
-            xe.append(platform_name)
-        if 'NX-OS' == os_type:
-            nx.append(platform_name)
+
     for version in xr_versions:
         j = None
         try:

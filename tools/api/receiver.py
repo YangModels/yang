@@ -233,8 +233,8 @@ def send_to_indexing(yc_api_prefix, modules_to_index, credentials, apiIp = None,
                         path = 'module does not exist'
                     post_body[module['name'] + '@' + module['revision'] + '/' + module['organization']] = path
         body_to_send = json.dumps({'modules-to-index': post_body}, indent=4)
-        #if len(post_body) > 0:
-        #    mf.send_added_new_yang_files(body_to_send)
+        if len(post_body) > 0 and not force_indexing:
+            mf.send_added_new_yang_files(body_to_send)
 
     try:
         set_key = key
@@ -243,11 +243,10 @@ def send_to_indexing(yc_api_prefix, modules_to_index, credentials, apiIp = None,
     LOGGER.info('Sending data for indexing with body {}'.format(body_to_send))
 
     try:
-        pass
-        #http_request('https://' + api_ip + '/yang-search/metadata-update.php',
-        #             'POST', body_to_send,
-        #             credentials, 'application/json',
-        #             indexing=create_signature(set_key, body_to_send))
+        http_request('https://' + api_ip + '/yang-search/metadata-update.php',
+                     'POST', body_to_send,
+                     credentials, 'application/json',
+                     indexing=create_signature(set_key, body_to_send))
     except urllib2.HTTPError as e:
         LOGGER.error('could not send data for indexing. Reason: {}'
                      .format(e.msg))
@@ -688,7 +687,7 @@ def on_request(ch, method, props, body):
                                     protocol, confd_ip, confdPort,
                                     mod['name'], mod['revision'],
                                     mod['organization']),
-                                auth=('admin', 'admin'), headers={
+                                auth=(credentials[0], credentials[1]), headers={
                                     'Accept': 'application/vnd.yang.data+json'})
                             response = json.loads(response.content)[
                                 'yang-catalog:module']
@@ -713,7 +712,7 @@ def on_request(ch, method, props, body):
                                             protocol, confd_ip, confdPort,
                                             mod['name'], mod['revision'],
                                             mod['organization']),
-                                        auth=('admin', 'admin'), headers={
+                                        auth=(credentials[0], credentials[1]), headers={
                                             'Accept': 'application/vnd.yang.data+json'})
                                     response = json.loads(response.content)[
                                         'yang-catalog:module']
@@ -735,7 +734,8 @@ def on_request(ch, method, props, body):
                                                 protocol, confd_ip, confdPort,
                                                 mod['name'], mod['revision'],
                                                 mod['organization']),
-                                            auth=('admin', 'admin'), headers={
+                                            auth=(
+                                            credentials[0], credentials[1]), headers={
                                                 'Accept': 'application/vnd.yang.data+json'})
                                         response = json.loads(response.content)[
                                             'yang-catalog:module']
@@ -791,7 +791,8 @@ def on_request(ch, method, props, body):
                                                     mod['name'],
                                                     mod['revision'],
                                                     mod['organization']),
-                                                auth=('admin', 'admin'),
+                                                auth=(
+                                                credentials[0], credentials[1]),
                                                 headers={
                                                     'Accept': 'application/vnd.yang.data+json'})
                                             response = \
@@ -816,7 +817,8 @@ def on_request(ch, method, props, body):
                                                     mod['name'],
                                                     mod['revision'],
                                                     mod['organization']),
-                                                auth=('admin', 'admin'),
+                                                auth=(
+                                                credentials[0], credentials[1]),
                                                 headers={
                                                     'Accept': 'application/vnd.yang.data+json'})
                                             response = \
@@ -839,7 +841,8 @@ def on_request(ch, method, props, body):
                                                 confdPort,
                                                 mod['name'], mod['revision'],
                                                 mod['organization']),
-                                            auth=('admin', 'admin'), headers={
+                                            auth=(
+                                            credentials[0], credentials[1]), headers={
                                                 'Accept': 'application/vnd.yang.data+json'})
                                         response = json.loads(response.content)[
                                             'yang-catalog:module']
