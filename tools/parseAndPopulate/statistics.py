@@ -43,31 +43,6 @@ class Statistics:
         Statistics.os[os_type].add(platform)
 
     @staticmethod
-    def dump():
-        for key in Statistics.useless_modules:
-            if len(Statistics.useless_modules[key]) > 0:
-                print('\nfiles that are extra in folder ' + key + ':')
-                print(', '.join([value.split('/')[-1] for value in Statistics.useless_modules[key]]))
-        print('\n')
-        for key in Statistics.missing_modules:
-            print('\nmissing modules in hello message ' + key + ':')
-            print(', '.join([value.split('/')[-1] for value in Statistics.missing_modules[key]]))
-        print('\n')
-        for key in Statistics.missing_submodules:
-            print('\nmissing submodules in hello message ' + key + ':')
-            print(', '.join([value.split('/')[-1] for value in Statistics.missing_submodules[key]]))
-        print('\n')
-        for key in Statistics.missing_revision:
-            print('\nmissing revision in module in hello message ' + key + ':')
-            print(', '.join([value.split('/')[-1] for value in Statistics.missing_revision[key]]))
-        print('\n')
-        for key in Statistics.missing_wrong_namespaces:
-            print('\nmissing or wrong namespace in module in hello message ' + key + ':')
-            for value in Statistics.missing_wrong_namespaces[key]:
-                print(str(value))
-        print('\n')
-
-    @staticmethod
     def add_unique(modules_revision):
         Statistics.unique_modules_per_vendor.update(set(modules_revision))
 

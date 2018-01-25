@@ -23,13 +23,17 @@ LOGGER = log.get_logger('receiver')
 
 
 # Make a http request on path with json_data
-def http_request(path, method, json_data, http_credentials, header, indexing=None, return_code=False):
+def http_request(path, method, json_data, http_credentials, header,
+                 indexing=None, return_code=False):
     """Create HTTP request
         Arguments:
-            :param indexing: (str) Whether there need to be added a X-YC-Signature.
+            :param indexing: (str) Whether there need to be added a
+             X-YC-Signature.
                 This is because of the verification with indexing script
-            :param header: (str) to set Content-type and Accept headers to this variable
-            :param http_credentials: (list) Basic authorization credentials - username, password
+            :param header: (str) to set Content-type and Accept headers to this
+             variable
+            :param http_credentials: (list) Basic authorization credentials -
+             username, password
                 respectively
             :param json_data: (dict) Body of the payload send via request 
             :param method: (str) Request method.
@@ -70,14 +74,12 @@ def process_sdo(arguments):
     """
     LOGGER.debug('Processing sdo')
     tree_created = True if arguments[-4] == 'True' else False
-    api_port = arguments[-1]
-    api_protocol = arguments[-2]
     arguments = arguments[:-4]
     direc = '/'.join(arguments[6].split('/')[0:3])
     arguments.append("--result-html-dir")
     arguments.append(result_dir)
     arguments.append('--api-port')
-    arguments.append(api_port)
+    arguments.append(repr(api_port))
     arguments.append('--api-protocol')
     arguments.append(api_protocol)
     arguments.append('--save-file-dir')
@@ -105,8 +107,10 @@ def process_sdo(arguments):
             global all_modules
             all_modules = json.load(f)
         if notify_indexing:
-            send_to_indexing(direc + '/prepare.json', [arguments[11], arguments[12]], arguments[9], api_port,
-                             api_protocol, True, force_indexing=False)
+            send_to_indexing(yangcatalog_api_prefix,
+                             direc + '/prepare.json', [arguments[11],
+                                                       arguments[12]],
+                             sdo_type=True, force_indexing=False)
 
     return __response_type[1]
 
@@ -124,22 +128,20 @@ def create_signature(secret_key, string):
     return hmac.hexdigest()
 
 
-def send_to_indexing(modules_to_index, credentials, confd_api_ip, api_port, api_protocol, sdo_type=False, delete=False,
-                     from_api=True, set_key=None, force_indexing=True,
-                     confd_protocol=None):
+def send_to_indexing(yc_api_prefix, modules_to_index, credentials, apiIp = None,
+                     sdo_type=False, delete=False, from_api=True, set_key=None,
+                     force_indexing=True):
     """ Sends the POST request which will activate indexing script for modules which will
     help to speed up process of searching. It will create a json body of all the modules
     containing module name and path where the module can be found if we are adding new
     modules. Other situation can be if we need to delete module. In this case we are sending
     list of modules that need to be deleted.
             Arguments:
+                :param yc_api_prefix: (str) prefix for sending request to api
                 :param modules_to_index: (json file) prepare.json file generated while parsing
                     all the modules. This file is used to iterate through all the modules.
                 :param credentials: (list) Basic authorization credentials - username, password
                     respectively.
-                :param confd_api_ip: (str) Confd and api ip address. It should be the same.
-                :param api_port: (int) Port to API.
-                :param api_protocol: (str) protocol of API.
                 :param sdo_type: (bool) Whether or not it is sdo that needs to be sent.
                 :param delete: (bool) Whether or not we are deleting module.
                 :param from_api: (bool) Whether or not api sent the request to index.
@@ -147,13 +149,16 @@ def send_to_indexing(modules_to_index, credentials, confd_api_ip, api_port, api_
                     is verified before indexing takes place.
                 :param force_indexing: (bool) Whether or not we should force indexing even if module exists in cache.
     """
+    global api_ip
+    if apiIp is not None:
+        api_ip = apiIp
     LOGGER.debug('Sending data for indexing')
     mf = messageFactory.MessageFactory()
     if delete:
         body_to_send = json.dumps({'modules-to-delete': modules_to_index},
                                   indent=4)
 
-        #mf.send_removed_yang_files(body_to_send)
+        mf.send_removed_yang_files(body_to_send)
         for mod in modules_to_index:
             name, revision_organization = mod.split('@')
             revision, organization = revision_organization.split('/')
@@ -161,8 +166,7 @@ def send_to_indexing(modules_to_index, credentials, confd_api_ip, api_port, api_
                                                          revision)
             data = {'input': {'dependents': [{'name': name}]}}
 
-            response = requests.post(api_protocol + '://' + confd_api_ip + ':' +
-                                     api_port + '/search-filter',
+            response = requests.post(yc_api_prefix + 'search-filter',
                                      auth=(credentials[0], credentials[1]),
                                      json={'input': data})
             if response.status_code == 201:
@@ -173,8 +177,8 @@ def send_to_indexing(modules_to_index, credentials, confd_api_ip, api_port, api_
                     m_org = mod['organization']
                     url = ('{}://{}:{}/api/config/catalog/modules/module/'
                            '{},{},{}/dependents/{}'.format(confd_protocol,
-                                                           confd_api_ip,
-                                                           api_port, m_name,
+                                                           confd_ip,
+                                                           confdPort, m_name,
                                                            m_rev, m_org, name))
                     requests.delete(url, auth=(credentials[0], credentials[1]),
                                     headers={'Content-Type': 'application/vnd.yang.data+json'})
@@ -191,12 +195,15 @@ def send_to_indexing(modules_to_index, credentials, confd_api_ip, api_port, api_
                 prefix = 'api/vendor/'
 
             for module in sdos_json['module']:
-                response = http_request('{}://{}:{}/search/modules/{},{},{}'.format(api_protocol, confd_api_ip,
-                                                                                    api_port, module['name'],
-                                                                                    module['revision'],
-                                                                                    module['organization']), 'GET',
+                response = http_request('{}search/modules/{},{},{}'
+                                        .format(yc_api_prefix,
+                                                module['name'],
+                                                module['revision'],
+                                                module['organization']), 'GET',
                                         '',
-                                        credentials, 'application/vnd.yang.data+json', return_code=True)
+                                        credentials,
+                                        'application/vnd.yang.data+json',
+                                        return_code=True)
                 code = response.code
                 if force_indexing or (code != 200 and code != 201 and code != 204):
                     if module.get('schema'):
@@ -207,13 +214,18 @@ def send_to_indexing(modules_to_index, credentials, confd_api_ip, api_port, api_
                     post_body[module['name'] + '@' + module['revision'] + '/' + module['organization']] = path
         else:
             for module in sdos_json['module']:
-                response = http_request('{}://{}:{}/search/modules/{},{},{}'.format(api_protocol, confd_api_ip,
-                                                                                    api_port, module['name'],
-                                                                                    module['revision'],
-                                                                                    module['organization']), 'GET', '',
-                                        credentials, 'application/vnd.yang.data+json', return_code=True)
+                response = http_request('{}search/modules/{},{},{}'
+                                        .format(yc_api_prefix,
+                                                module['name'],
+                                                module['revision'],
+                                                module['organization']), 'GET',
+                                        '',
+                                        credentials,
+                                        'application/vnd.yang.data+json',
+                                        return_code=True)
                 code = response.code
-                if force_indexing or (code != 200 and code != 201 and code != 204):
+                if force_indexing or (
+                            code != 200 and code != 201 and code != 204):
                     if module.get('schema'):
                         path = module['schema'].split('master')[1]
                         path = os.path.abspath(get_curr_dir(__file__) + '/../../' + path)
@@ -221,8 +233,8 @@ def send_to_indexing(modules_to_index, credentials, confd_api_ip, api_port, api_
                         path = 'module does not exist'
                     post_body[module['name'] + '@' + module['revision'] + '/' + module['organization']] = path
         body_to_send = json.dumps({'modules-to-index': post_body}, indent=4)
-        #if len(post_body) > 0:
-            #mf.send_added_new_yang_files(body_to_send)
+        if len(post_body) > 0 and not force_indexing:
+            mf.send_added_new_yang_files(body_to_send)
 
     try:
         set_key = key
@@ -231,30 +243,33 @@ def send_to_indexing(modules_to_index, credentials, confd_api_ip, api_port, api_
     LOGGER.info('Sending data for indexing with body {}'.format(body_to_send))
 
     try:
-        http_request('https://' + confd_api_ip + '/yang-search/metadata-update.php', 'POST', body_to_send,
-                     credentials, 'application/json', indexing=create_signature(set_key, body_to_send))
+        http_request('https://' + api_ip + '/yang-search/metadata-update.php',
+                     'POST', body_to_send,
+                     credentials, 'application/json',
+                     indexing=create_signature(set_key, body_to_send))
     except urllib2.HTTPError as e:
-        LOGGER.error('could not send data for indexing. Reason: {}'.format(e.msg))
+        LOGGER.error('could not send data for indexing. Reason: {}'
+                     .format(e.msg))
     except URLError as e:
-        LOGGER.error('could not send data for indexing. Reason: {}'.format(repr(e.message)))
+        LOGGER.error('could not send data for indexing. Reason: {}'
+                     .format(repr(e.message)))
 
 
 def process_vendor(arguments):
-    """Processes vendors. Calls populate script which calls script to parse all the modules
-    that are contained in the given hello message xml file or in ietf-yang-module xml file
-    which is one of the params. Populate script will also send the request to populate confd
-    on given ip and port. It will also copy all the modules to parent directory of this
-    project /api/sdo. It will also call indexing script to update searching.
+    """Processes vendors. Calls populate script which calls script to parse all
+    the modules that are contained in the given hello message xml file or in
+    ietf-yang-module xml file which is one of the params. Populate script will
+    also send the request to populate confd on given ip and port. It will also
+    copy all the modules to parent directory of this project /api/sdo.
+    It will also call indexing script to update searching.
             Arguments:
                 :param arguments: (list) list of arguments sent from api sender
-                :return (__response_type) one of the response types which is either
-                    'Failed' or 'Finished successfully' 
+                :return (__response_type) one of the response types which is
+                 either 'Failed' or 'Finished successfully' 
     """
     LOGGER.debug('Processing vendor')
     tree_created = True if arguments[-5] == 'True' else False
     integrity_file_location = arguments[-4]
-    api_port = arguments[-1]
-    api_protocol = arguments[-2]
 
     arguments = arguments[:-5]
     direc = '/'.join(arguments[5].split('/')[0:3])
@@ -286,8 +301,9 @@ def process_vendor(arguments):
             global all_modules
             all_modules = json.load(f)
         if notify_indexing:
-            send_to_indexing(direc + '/prepare.json', [arguments[9], arguments[10]], arguments[8], api_port,
-                             api_protocol)
+            send_to_indexing(yangcatalog_api_prefix,
+                             direc + '/prepare.json', [arguments[9],
+                                                       arguments[10]])
 
     integrity_file_name = datetime.utcnow().strftime("%Y-%m-%dT%H:%m:%S.%f")[:-3] + 'Z'
 
@@ -296,21 +312,18 @@ def process_vendor(arguments):
     return __response_type[1]
 
 
-def process_vendor_deletion(arguments, api_protocol, api_port):
+def process_vendor_deletion(arguments):
     """Deletes vendors. It calls the delete request to confd to delete all the module
     in vendor branch of the yang-catalog.yang module on given path. If the module was
     added by vendor and it doesn't contain any other implementations it will delete the 
     whole module in modules branch of the yang-catalog.yang module. It will also call
     indexing script to update searching.
             Arguments:
-                :param api_port: (int) Port where the API runs
-                :param api_protocol: (str) Whether API runs on http or https
                 :param arguments: (list) list of arguments sent from api sender
                 :return (__response_type) one of the response types which is either
                     'Failed' or 'Finished successfully' 
     """
     vendor, platform, software_version, software_flavor = arguments[0:4]
-    protocol, confd_ip, confdPort = arguments[4:7]
     credentials = arguments[7:9]
     path_to_delete = arguments[9]
 
@@ -321,7 +334,7 @@ def process_vendor_deletion(arguments, api_protocol, api_port):
     except IOError:
         LOGGER.warning('Cache file does not exist')
         # Try to create a cache if not created yet and load data again
-        response = make_cache(credentials, response, protocol, confd_ip, confdPort, api_protocol, api_port)
+        response = make_cache(credentials, response)
         if response != 'work':
             return response
         else:
@@ -343,7 +356,7 @@ def process_vendor_deletion(arguments, api_protocol, api_port):
 
     for mod in modules:
         try:
-            path = protocol + '://' + confd_ip + ':' + confdPort + '/api/config/catalog/modules/module/' \
+            path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' \
                    + mod
             modules_data = json.loads(http_request(path + '?deep', 'GET', '', credentials,
                                                    'application/vnd.yang.data+json').read())
@@ -369,19 +382,10 @@ def process_vendor_deletion(arguments, api_protocol, api_port):
                 else:
                     imp_key += ',' + imp['software-flavor']
 
-                #imp_key = imp['vendor'] + ',' + imp['platform'] + ',' + imp['software-version'] \
-                #          + ',' + imp['software-flavor']
-
                 url = path + '/implementations/implementation/' + imp_key
                 response = requests.delete(url, auth=(credentials[0], credentials[1]))
-                    #http_request(url,
-                    #             'DELETE', None, credentials, 'application/vnd.yang.data+json')
+
                 if response.status_code != 204:
-                    # In case that only some modules were deleted, send only those for indexing
-                    #if len(modules_that_succeeded) > 0:
-                    #    if notify_indexing:
-                    #        send_to_indexing(modules_that_succeeded, credentials, confd_ip, arguments[-1],
-                    #                         arguments[-2], delete=True)
                     LOGGER.error('Couldn\'t delete implementation of module on path {} because of error: {}'
                                  .format(path + '/implementations/implementation/' + imp_key, response.content))
                     continue
@@ -395,19 +399,13 @@ def process_vendor_deletion(arguments, api_protocol, api_port):
                     to_add = '{}@{}/{}'.format(name, revision, organization)
                     modules_that_succeeded.append(to_add)
                     if response.status_code != 204:
-                        # In case that only some modules were deleted, send only those for indexing
-                        #if len(modules_that_succeeded) > 0:
-                        #    if notify_indexing:
-                        #        send_to_indexing(modules_that_succeeded, credentials, confd_ip, arguments[-1],
-                        #                         arguments[-2], delete=True)
                         LOGGER.error('Could not delete module on path {} because of error: {}'.format(path, response.content))
                         continue
         except:
             LOGGER.error('Yang file {} doesn\'t exist although it should exist'.format(mod))
     if notify_indexing:
-        send_to_indexing(modules_that_succeeded, credentials, confd_ip,
-                         arguments[-1], arguments[-2], delete=True,
-                         confd_protocol=protocol)
+        send_to_indexing(yangcatalog_api_prefix, modules_that_succeeded,
+                         credentials, delete=True)
     return __response_type[1]
 
 
@@ -435,15 +433,10 @@ def iterate_in_depth(value, modules):
                 iterate_in_depth(val, modules)
 
 
-def make_cache(credentials, response, protocol, confd_ip, confd_port, api_protocol, api_port):
+def make_cache(credentials, response):
     """After we delete or add modules we need to reload all the modules to the file
     for qucker search. This module is then loaded to the memory.
             Arguments:
-                :param api_port: (int) Port where the API runs
-                :param api_protocol: (str) Whether API runs on http or https
-                :param confd_port: (int) Port where the confd runs
-                :param confd_ip: (str) Ip address where the confd runs
-                :param protocol: (str) Whether confd runs on http or https
                 :param response: (str) Contains string 'work' which will be sent back if 
                     everything went through fine
                 :param credentials: (list) Basic authorization credentials - username, password
@@ -451,22 +444,7 @@ def make_cache(credentials, response, protocol, confd_ip, confd_port, api_protoc
                 :return 'work' if everything went through fine otherwise send back the reason why
                     it failed.
     """
-    try:
-        try:
-            os.makedirs('./cache')
-        except OSError as e:
-            # be happy if someone already created the path
-            if e.errno != errno.EEXIST:
-                return __response_type[0] + '#split#Server error - could not create directory'
-
-        path = protocol + '://' + confd_ip + ':' + confd_port + '/api/config/catalog?deep'
-        with open('./cache/catalog.json', "w") as cache_file:
-            cache_file.write(http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read())
-    except:
-        e = sys.exc_info()[0]
-        LOGGER.error('Could not load json to cache. Error: {}'.format(e))
-        return __response_type[0] + '#split#Server error - downloading cache'
-    path = api_protocol + '://' + confd_ip + ':' + api_port + '/load-cache'
+    path = yangcatalog_api_prefix + 'load-cache'
     try:
         http_request(path, 'POST', '', credentials, 'application/vnd.yang.data+json').read()
     except:
@@ -477,27 +455,29 @@ def make_cache(credentials, response, protocol, confd_ip, confd_port, api_protoc
 
 
 def process_module_deletion(arguments):
-    """Deletes module. It calls the delete request to confd to delete module on given path.
-    This will delete whole module in modules branch of the yang-catalog.yang module.
-    It will also call indexing script to update searching.
+    """Deletes module. It calls the delete request to confd to delete module on
+    given path. This will delete whole module in modules branch of the
+    yang-catalog.yang module. It will also call indexing script to update
+    searching.
                 Arguments:
-                    :param arguments: (list) list of arguments sent from api sender
-                    :return (__response_type) one of the response types which is either
-                        'Failed' or 'Finished successfully' 
+                    :param arguments: (list) list of arguments sent from api
+                     sender
+                    :return (__response_type) one of the response types which
+                     is either 'Failed' or 'Finished successfully' 
     """
-    protocol = arguments[0]
     credentials = arguments[3:5]
     path_to_delete = arguments[5]
-    confd_ip = arguments[1]
 
     response = requests.delete(path_to_delete, auth=(credentials[0], credentials[1]))
     if response.status_code != 204:
-        LOGGER.error('Couldn\'t delete module on path {}. Error : {}'.format(path_to_delete, response.content))
+        LOGGER.error('Couldn\'t delete module on path {}. Error : {}'
+                     .format(path_to_delete, response.content))
         return __response_type[0] + '#split#' + response.content
     name, revision, organization = path_to_delete.split('/')[-1].split(',')
     if notify_indexing:
-        send_to_indexing(['{}@{}/{}'.format(name, revision, organization)], credentials, confd_ip, arguments[-1],
-                         arguments[-2], delete=True, confd_protocol=protocol)
+        send_to_indexing(yangcatalog_api_prefix,
+                         ['{}@{}/{}'.format(name, revision, organization)],
+                         credentials, delete=True)
     return __response_type[1]
 
 
@@ -516,15 +496,16 @@ def run_ietf():
 
 
 def on_request(ch, method, props, body):
-    """Function called when something was sent from API sender. This function will process
-    all the requests that would take too long to process for API. When the processing is 
-    done we will sent back the result of the request which can be either 'Failed' or
-    'Finished successfully' with corespondent correlation id. If the request 'Failed'
-    it will sent back also a reason why it failed.
+    """Function called when something was sent from API sender. This function
+    will process all the requests that would take too long to process for API.
+    When the processing is done we will sent back the result of the request
+    which can be either 'Failed' or 'Finished successfully' with corespondent
+    correlation id. If the request 'Failed' it will sent back also a reason why
+    it failed.
             Arguments:
-                :param body: (str) String of arguments that need to be processed separated
-                by '#'.
-        """
+                :param body: (str) String of arguments that need to be processed
+                separated by '#'.
+    """
     LOGGER.info('Received request with body {}'.format(body))
     if body == 'run_ietf':
         final_response = run_ietf()
@@ -536,45 +517,31 @@ def on_request(ch, method, props, body):
             if 'http' in arguments[0]:
                 final_response = process_module_deletion(arguments)
                 credentials = arguments[3:5]
-                protocol, confd_ip, confd_port = arguments[0:3]
-                api_protocol, api_port = arguments[-2:]
             else:
-                api_protocol, api_port = arguments[-2:]
-                final_response = process_vendor_deletion(arguments, api_protocol, api_port)
+                final_response = process_vendor_deletion(arguments)
                 credentials = arguments[7:9]
-                protocol, confd_ip, confd_port = arguments[4:7]
-
         elif '--sdo' in arguments[2]:
             final_response = process_sdo(arguments)
             credentials = arguments[11:13]
-            confd_ip = arguments[9]
-            confd_port = arguments[4]
-            protocol = arguments[-3]
-            api_protocol, api_port = arguments[-2:]
             direc = '/'.join(arguments[6].split('/')[0:3])
             shutil.rmtree(direc)
         else:
             final_response = process_vendor(arguments)
             credentials = arguments[10:12]
-            confd_ip = arguments[8]
-            confd_port = arguments[3]
-            protocol = arguments[-3]
-            api_protocol, api_port = arguments[-2:]
             direc = '/'.join(arguments[5].split('/')[0:3])
             shutil.rmtree(direc)
         if final_response.split('#split#')[0] == __response_type[1]:
-            final_response = make_cache(credentials, final_response, protocol, confd_ip, confd_port, api_protocol, api_port)
+            final_response = make_cache(credentials, final_response)
 
             if all_modules:
-                prefix = '{}://{}:{}'.format(protocol, confd_ip, confd_port)
+                prefix = '{}://{}:{}'.format(confd_protocol, confd_ip,
+                                             confdPort)
                 new_modules = []
                 for module in all_modules['module']:
                     LOGGER.info(
                         'Searching semver for {}'.format(module['name']))
-                    url = '{}://{}:{}/search/name/{}'.format(api_protocol,
-                                                             confd_ip,
-                                                             api_port,
-                                                             module['name'])
+                    url = '{}search/name/{}'.format(yangcatalog_api_prefix,
+                                                    module['name'])
                     response = requests.get(url, auth=(
                                             credentials[0], credentials[1]),
                                             headers={
@@ -642,12 +609,6 @@ def on_request(ch, method, props, body):
                                         'derived-semantic-version'] = upgraded_version
                                     new_modules.append(module)
                                     continue
-                                # if (modules[-2]['schema'] is None or
-                                #        modules[-1]['schema']):
-                                #    LOGGER.warning('Schema is missing {} or {}'.
-                                #                   format(modules[-2]['schema'],
-                                #                          modules[-1]['schema']))
-                                #    continue
                                 else:
                                     schema2 = '{}{}@{}.yang'.format(
                                         save_file_dir,
@@ -657,24 +618,6 @@ def on_request(ch, method, props, body):
                                         save_file_dir,
                                         modules[-1]['name'],
                                         modules[-1]['revision'])
-                                    # if (schema1.status_code == 404 or
-                                    #    schema2.status_code == 404):
-                                    #    LOGGER.warning('Schema not found {} or {}'.
-                                    #                   format(modules[-2]['schema'],
-                                    #                          modules[-1]['schema']))
-                                    #    continue
-                                # to_write_before = '{}/{}@{}.yang'.format(direc,
-                                #                                modules[-2]['name'],
-                                #                                modules[-2]['revision'])
-                                # to_write = '{}/{}@{}.yang'.format(direc,
-                                #                                       modules[-1][
-                                #                                           'name'],
-                                #                                       modules[-1][
-                                #                                           'revision'])
-                                # with open(to_write_before, 'w') as f:
-                                #    f.write(schema2)
-                                # with open(to_write, 'w+') as f:
-                                #    f.write(schema1.content)
                                 arguments = ['pyang', '-P', get_curr_dir(__file__) + '/../../.', '-p',
                                              get_curr_dir(__file__) + '/../../.',
                                              schema1, '--check-update-from',
@@ -741,10 +684,10 @@ def on_request(ch, method, props, body):
                             modules[0]['semver'] = '1.0.0'
                             response = requests.get(
                                 '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
-                                    protocol, confd_ip, confd_port,
+                                    protocol, confd_ip, confdPort,
                                     mod['name'], mod['revision'],
                                     mod['organization']),
-                                auth=('admin', 'admin'), headers={
+                                auth=(credentials[0], credentials[1]), headers={
                                     'Accept': 'application/vnd.yang.data+json'})
                             response = json.loads(response.content)[
                                 'yang-catalog:module']
@@ -766,10 +709,10 @@ def on_request(ch, method, props, body):
                                     modules[x]['semver'] = upgraded_version
                                     response = requests.get(
                                         '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
-                                            protocol, confd_ip, confd_port,
+                                            protocol, confd_ip, confdPort,
                                             mod['name'], mod['revision'],
                                             mod['organization']),
-                                        auth=('admin', 'admin'), headers={
+                                        auth=(credentials[0], credentials[1]), headers={
                                             'Accept': 'application/vnd.yang.data+json'})
                                     response = json.loads(response.content)[
                                         'yang-catalog:module']
@@ -788,11 +731,11 @@ def on_request(ch, method, props, body):
                                         modules[x]['semver'] = upgraded_version
                                         response = requests.get(
                                             '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
-                                                protocol, confd_ip,
-                                                confd_port,
+                                                protocol, confd_ip, confdPort,
                                                 mod['name'], mod['revision'],
                                                 mod['organization']),
-                                            auth=('admin', 'admin'), headers={
+                                            auth=(
+                                            credentials[0], credentials[1]), headers={
                                                 'Accept': 'application/vnd.yang.data+json'})
                                         response = json.loads(response.content)[
                                             'yang-catalog:module']
@@ -800,15 +743,6 @@ def on_request(ch, method, props, body):
                                             'derived-semantic-version'] = upgraded_version
                                         new_modules.append(response)
                                         continue
-                                    # if (modules[x]['schema'] is None or
-                                    #        modules[x-1]['schema']):
-                                    #    break
-                                    # if (modules[x]['schema'] is None or
-                                    #        modules[x-1]['schema']):
-                                    #    LOGGER.warning('Schema is missing {} or {}'.
-                                    #                   format(modules[x]['schema'],
-                                    #                          modules[x-1]['schema']))
-                                    #    continue
                                     else:
                                         schema2 = '{}{}@{}.yang'.format(
                                             save_file_dir,
@@ -818,25 +752,6 @@ def on_request(ch, method, props, body):
                                             save_file_dir,
                                             modules[x - 1]['name'],
                                             modules[x - 1]['revision'])
-                                        # if (schema1.status_code == 404 or
-                                        #            schema2.status_code == 404):
-                                        #    LOGGER.warning('Schema not found {} or {}'.
-                                        #                   format(modules[-2]['schema'],
-                                        #                          modules[-1][
-                                        #                              'schema']))
-                                        #    continue
-                                    # to_write = '{}/{}@{}.yang'.format(direc,
-                                    #                                modules[x]['name'],
-                                    #                                modules[x]['revision'])
-                                    # to_write_before = '{}/{}@{}.yang'.format(direc,
-                                    #                                       modules[x - 1][
-                                    #                                           'name'],
-                                    #                                       modules[x - 1][
-                                    #                                           'revision'])
-                                    # with open(to_write, 'w+') as f:
-                                    #    f.write(schema2.content)
-                                    # with open(to_write_before, 'w+') as f:
-                                    #    f.write(schema1.content)
                                     arguments = ['pyang', '-p', get_curr_dir(__file__) + '/../../.', '-P',
                                                  get_curr_dir(__file__) + '/../../.',
                                                  schema2,
@@ -872,11 +787,12 @@ def on_request(ch, method, props, body):
                                             response = requests.get(
                                                 '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
                                                     protocol, confd_ip,
-                                                    confd_port,
+                                                    confdPort,
                                                     mod['name'],
                                                     mod['revision'],
                                                     mod['organization']),
-                                                auth=('admin', 'admin'),
+                                                auth=(
+                                                credentials[0], credentials[1]),
                                                 headers={
                                                     'Accept': 'application/vnd.yang.data+json'})
                                             response = \
@@ -897,11 +813,12 @@ def on_request(ch, method, props, body):
                                             response = requests.get(
                                                 '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
                                                     protocol, confd_ip,
-                                                    confd_port,
+                                                    confdPort,
                                                     mod['name'],
                                                     mod['revision'],
                                                     mod['organization']),
-                                                auth=('admin', 'admin'),
+                                                auth=(
+                                                credentials[0], credentials[1]),
                                                 headers={
                                                     'Accept': 'application/vnd.yang.data+json'})
                                             response = \
@@ -921,10 +838,11 @@ def on_request(ch, method, props, body):
                                         response = requests.get(
                                             '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
                                                 protocol, confd_ip,
-                                                confd_port,
+                                                confdPort,
                                                 mod['name'], mod['revision'],
                                                 mod['organization']),
-                                            auth=('admin', 'admin'), headers={
+                                            auth=(
+                                            credentials[0], credentials[1]), headers={
                                                 'Accept': 'application/vnd.yang.data+json'})
                                         response = json.loads(response.content)[
                                             'yang-catalog:module']
@@ -942,9 +860,8 @@ def on_request(ch, method, props, body):
                                       'revision': new_dep['revision']}
                         else:
                             search = {'name': new_dep['name']}
-                        response = requests.post(
-                            api_protocol + '://' + confd_ip + ':' +
-                                api_port + '/search-filter',
+                        response = requests.post(yangcatalog_api_prefix
+                                                 + 'search-filter',
                             auth=(credentials[0], credentials[1]),
                             json={'input': search})
                         if response.status_code == 200:
@@ -961,9 +878,8 @@ def on_request(ch, method, props, body):
                                     m['dependents'].append(new)
                                     new_modules.append(m)
 
-                    response = requests.post(
-                        api_protocol + '://' + confd_ip + ':' +
-                            api_port + '/search-filter',
+                    response = requests.post(yangcatalog_api_prefix
+                                             + 'search-filter',
                         auth=(
                             credentials[0], credentials[1]),
                         json={'input': {'dependencies': [{'name': name}]}})
@@ -1008,11 +924,22 @@ def on_request(ch, method, props, body):
                                  json_modules_data, credentials,
                                  'application/vnd.yang.data+json')
 
-    ch.basic_publish(exchange='',
-                     routing_key=props.reply_to,
-                     properties=pika.BasicProperties(correlation_id=props.correlation_id),
-                     body=str(final_response))
-    ch.basic_ack(delivery_tag=method.delivery_tag)
+    LOGGER.info('Receiver is done with id - {} and message = {}'
+                .format(props.correlation_id, str(final_response)))
+
+    f = open('./correlation_ids', 'r')
+    lines = f.readlines()
+    f.close()
+    with open('./correlation_ids', 'w') as f:
+        for line in lines:
+            if props.correlation_id in line:
+                new_line = '{} -- {} - {}\n'.format(datetime.now()
+                                                    .ctime(),
+                                                    props.correlation_id,
+                                                    str(final_response))
+                f.write(new_line)
+            else:
+                f.write(line)
 
 
 if __name__ == '__main__':
@@ -1024,6 +951,20 @@ if __name__ == '__main__':
     config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
     config.read(config_path)
+    global confd_ip
+    confd_ip = config.get('General-Section', 'confd-ip')
+    global confdPort
+    confdPort = int(config.get('General-Section', 'confd-port'))
+    global protocol
+    protocol = config.get('General-Section', 'protocol-api')
+    global api_ip
+    api_ip = config.get('Receiver-Section', 'api-ip')
+    global api_port
+    api_port = int(config.get('General-Section', 'api-port'))
+    global api_protocol
+    api_protocol = config.get('General-Section', 'protocol-api')
+    global confd_protocol
+    confd_protocol = config.get('General-Section', 'protocol')
     global key
     key = config.get('Receiver-Section', 'key')
     global notify_indexing
@@ -1032,17 +973,28 @@ if __name__ == '__main__':
     result_dir = config.get('Receiver-Section', 'result-html-dir')
     global save_file_dir
     save_file_dir = config.get('Receiver-Section', 'save-file-dir')
+    global is_uwsgi
+    is_uwsgi = config.get('General-Section', 'uwsgi')
     if notify_indexing == 'True':
         notify_indexing = True
     else:
         notify_indexing = False
+    global yangcatalog_api_prefix
+    separator = ':'
+    suffix = api_port
+    if is_uwsgi == 'True':
+        separator = '/'
+        suffix = 'api'
+    yangcatalog_api_prefix = '{}://{}{}{}/'.format(api_protocol, api_ip,
+                                                   separator, suffix)
     __response_type = ['Failed', 'Finished successfully']
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host='127.0.0.1'))
+    connection = pika.BlockingConnection(pika.ConnectionParameters(
+        host='127.0.0.1', heartbeat_interval=0))
     channel = connection.channel()
     channel.queue_declare(queue='module_queue')
 
     channel.basic_qos(prefetch_count=1)
-    channel.basic_consume(on_request, queue='module_queue')
+    channel.basic_consume(on_request, queue='module_queue', no_ack=True)
 
     LOGGER.info('Awaiting RPC request')
     channel.start_consuming()

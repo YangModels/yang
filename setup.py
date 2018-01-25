@@ -9,6 +9,9 @@ setup(
     author='Miroslav Kovac',
     author_email='',
     description='',
-    install_requires=['jinja2', 'numpy', 'pyang', 'requests', 'travispy',
-                      'flask', 'Crypto', 'pika', 'ciscosparkapi']
+    install_requires=['jinja2', 'numpy', 'pyang', 'requests', 'pytest',
+                      'travispy', 'flask', 'Crypto', 'pika', 'ciscosparkapi',
+                      'urllib3', 'mysqlclient', 'pyOpenSSL', 'flask-httpauth',
+                      'gitpython'
+                      ]
 )

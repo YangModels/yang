@@ -12,20 +12,22 @@ import subprocess
 import sys
 import urllib2
 import uuid
-from _ctypes import sizeof
+from copy import deepcopy
 from datetime import datetime
 from threading import Lock
 from urllib2 import URLError
-
 import MySQLdb
 import jinja2
+import math
 import requests
-from OpenSSL.crypto import load_publickey, FILETYPE_PEM, X509, verify
-from flask import Flask, jsonify, abort, make_response, request, Response, redirect
-from flask_httpauth import HTTPBasicAuth
+import uwsgi as uwsgi
 
 import tools.utility.log as lo
 import yangSearch.index as index
+from OpenSSL.crypto import load_publickey, FILETYPE_PEM, X509, verify
+from flask import Flask, jsonify, abort, make_response, request, Response, \
+    redirect
+from flask_httpauth import HTTPBasicAuth
 from tools.api.sender import Sender
 from tools.utility import repoutil, yangParser, messageFactory
 from tools.utility.util import get_curr_dir
@@ -47,14 +49,9 @@ class MyFlask(Flask):
     def __init__(self, import_name):
         super(MyFlask, self).__init__(import_name)
         self.response = None
-        self.api_protocol = 'http'
-        self.local_ip = '127.0.0.1'
         self.ys_set = 'set'
 
     def process_response(self, response):
-        if ssl_key != '':
-            self.local_ip = 'yangcatalog.org'
-            self.api_protocol = 'https'
         self.response = response
         self.create_response_only_latest_revision()
         self.create_response_with_yangsuite_link()
@@ -128,17 +125,19 @@ class MyFlask(Flask):
                         'input': {
                             'name': dep['name'],
                             'revision': dep['revision']
-
                         }
                     })
-                    rp = requests.post('{}://{}:{}/search-filter'.format(
-                        self.api_protocol, self.local_ip, port), search_filter)
+                    rp = requests.post('{}/search-filter'.format(
+                        yangcatalog_api_prefix), search_filter,
+                        headers={
+                            'Content-type': 'application/json',
+                            'Accept': 'application/json'}
+                    )
                     mo = rp.json()['yang-catalog:modules']['module'][0]
                     self.get_dependencies(mo, mods, inset)
                 else:
-                    rp = requests.get('{}://{}:{}/search/name/{}'
-                                      .format(self.api_protocol,
-                                              self.local_ip, port,
+                    rp = requests.get('{}/search/name/{}'
+                                      .format(yangcatalog_api_prefix,
                                               dep['name']))
                     if rp.status_code == 404:
                         continue
@@ -158,7 +157,6 @@ class MyFlask(Flask):
                     self.get_dependencies(mo[latest], mods, inset)
 
     def create_response_with_yangsuite_link(self):
-
         if request.headers.environ.get('HTTP_YANGSUITE'):
             if 'true' != request.headers.environ['HTTP_YANGSUITE']:
                 return self.response
@@ -180,10 +178,10 @@ class MyFlask(Flask):
             modules = json_data.get('module')
         if modules:
             if len(modules) > 0:
-                ys_dir = get_curr_dir(__file__) + '/../../../yangsuite-users/'
-                ys_dir = os.path.abspath(ys_dir)
+                ys_dir = '/home/miott/ysuite/yangsuite/data/users/'
+
                 id = uuid.uuid4().hex
-                ys_dir += '/' + id + '/repositories/' + self.ys_set
+                ys_dir += id + '/repositories/' + modules[0]['name']
                 try:
                     os.makedirs(ys_dir)
                 except OSError as e:
@@ -210,9 +208,8 @@ class MyFlask(Flask):
                     shutil.copy(save_file_dir + '/' + mod, ys_dir)
                     modules.append([mod.split('@')[0], mod.split('@')[1]
                                    .replace('.yang', '')])
-                ys_dir = get_curr_dir(__file__) + '/../../../yangsuite-users/'
-                ys_dir = os.path.abspath(ys_dir)
-                ys_dir += '/' + id + '/yangsets'
+                ys_dir = '/home/miott/ysuite/yangsuite/data/users/'
+                ys_dir += id + '/yangsets'
                 try:
                     os.makedirs(ys_dir)
                 except OSError as e:
@@ -220,16 +217,15 @@ class MyFlask(Flask):
                     if e.errno != errno.EEXIST:
                         return 'Server error - could not create directory'
                 json_set = {'owner': id,
-                            'repository': id + '+' + self.ys_set,
-                            'setname': self.ys_set,
+                            'repository': id + '+' + defmod.split('@')[0],
+                            'setname': defmod.split('@')[0],
                             'defmod': defmod.split('@')[0],
                             'modules': modules}
 
-                with open(ys_dir + '/' + self.ys_set, 'w') as f:
+                with open(ys_dir + '/' + defmod.split('@')[0], 'w') as f:
                     f.write(json.dumps(json_set, indent=4))
                 json_data['yangsuite-url'] = (
-                    '{}://{}:{}/yangsuite/{}'.format(self.api_protocol, self.local_ip,
-                                                     port, id))
+                    '{}/yangsuite/{}'.format(yangcatalog_api_prefix, id))
                 self.response.data = json.dumps(json_data)
                 return self.response
             else:
@@ -238,7 +234,6 @@ class MyFlask(Flask):
             return self.response
 
 app = MyFlask(__name__)
-
 lock = Lock()
 
 NS_MAP = {
@@ -247,10 +242,9 @@ NS_MAP = {
     "http://openconfig.net/yang/": "openconfig",
     "http://tail-f.com/": "tail-f"
 }
-mod_lookup_table = {}
 
 
-def make_cache(credentials, response):
+def make_cache(credentials, response, is_uwsgi=True):
     """After we delete or add modules we need to reload all the modules to the file
     for quicker search. This module is then loaded to the memory.
             Arguments:
@@ -262,17 +256,18 @@ def make_cache(credentials, response):
                     why it failed.
     """
     try:
-        try:
-            os.makedirs('./cache')
-        except OSError as e:
-            # be happy if someone already created the path
-            if e.errno != errno.EEXIST:
-                return 'Server error - could not create directory'
-
         path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog?deep'
-        with open('./cache/catalog.json', "w") as cache_file:
-            data = http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read()
-            cache_file.write(data)
+        data = http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read()
+
+        if is_uwsgi == 'True':
+            chunks = int(math.ceil(len(data)/float(64000)))
+            for i in range(0, chunks, 1):
+                uwsgi.cache_set('data{}'.format(i), data[i*64000: (i+1)*64000],
+                                0, 'main_cache')
+            LOGGER.info('all {} chunks are set in uwsgi cache'.format(chunks))
+            uwsgi.cache_set('chunks-data', repr(chunks), 0, 'cache_chunks')
+        else:
+            return data
     except:
         e = sys.exc_info()[0]
         LOGGER.error('Could not load json to cache. Error: {}'.format(e))
@@ -377,8 +372,8 @@ def authorize_for_sdos(request, organizations_sent, organization_parsed):
 
 
 def authorize_for_vendors(request, body):
-    """Authorize sender whether he has rights to send data via API to confd. Checks if
-    sender has access on a given branch
+    """Authorize sender whether he has rights to send data via API to confd.
+       Checks if sender has access on a given branch
                 Arguments:
                     :param body: (str) json body of the request.
                     :param request: (request) Request sent to api.
@@ -440,7 +435,10 @@ def authorize_for_vendors(request, body):
 @app.route('/<path:path>', methods=['PUT', 'POST', 'GET', 'DELETE', 'PATCH'])
 def catch_all(path):
     """Catch all the rest api requests that are not supported"""
-    return make_response(jsonify({'error': 'Path "/{}" does not exist'.format(path)}), 400)
+    return make_response(jsonify(
+        {
+            'error': 'Path "/{}" does not exist'.format(path)
+        }), 400)
 
 
 def check_authorized(signature, payload):
@@ -462,9 +460,10 @@ def check_authorized(signature, payload):
 @app.route('/yangsuite/<id>', methods=['GET'])
 def yangsuite_redirect(id):
     local_ip = '127.0.0.1'
-    if ssl_key != '':
+    if is_uwsgi:
         local_ip = 'yangcatalog.org'
-    return redirect('http://{}:8000/ydk/aaa/{}'.format(local_ip, id))
+#    return redirect('http://{}:8000/ydk/aaa/{}'.format(local_ip, id))
+    return redirect('https://{}/yangsuite/aaa/{}'.format(local_ip, id))
 
 
 @auth.login_required
@@ -644,11 +643,6 @@ def delete_modules(name, revision, organization):
     path_to_delete = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' \
                      + name + ',' + revision + ',' + organization
 
-    api_protocol = 'http'
-    api_port = 5000
-    if ssl_key != '':
-        api_protocol = 'https'
-        api_port = 8443
     arguments = [protocol, confd_ip, repr(confdPort), credentials[0],
                  credentials[1], path_to_delete, 'DELETE', api_protocol, repr(api_port)]
     job_id = sender.send('#'.join(arguments))
@@ -728,11 +722,6 @@ def delete_vendor(value):
     if check_vendor and vendor != check_vendor:
         return unauthorized()
 
-    api_protocol = 'http'
-    api_port = 5000
-    if ssl_key != '':
-        api_protocol = 'https'
-        api_port = 8443
     arguments = [vendor, platform, software_version, software_flavor, protocol, confd_ip, repr(confdPort), credentials[0],
                  credentials[1], path_to_delete, 'DELETE', api_protocol, repr(api_port)]
     job_id = sender.send('#'.join(arguments))
@@ -763,7 +752,7 @@ def add_modules():
     with open('./prepare-sdo.json', "w") as plat:
         json.dump(body, plat)
     shutil.copy('./prepare-sdo.json', save_requests + '/sdo-'
-                + str(datetime.datetime.utcnow()).split('.')[0].replace(' ', '_') + '-UTC.json')
+                + str(datetime.utcnow()).split('.')[0].replace(' ', '_') + '-UTC.json')
     try:
         http_request(protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/modules/',
                      'DELETE', None, credentials, 'application/vnd.yang.collection+json')
@@ -874,14 +863,11 @@ def add_modules():
         shutil.move('./prepare-sdo.json', direc)
     for key in repo:
         repo[key].remove()
-    api_protocol = 'http'
-    api_port = 5000
-    if ssl_key != '':
-        api_protocol = 'https'
-        api_port = 8443
+
     LOGGER.debug('Sending a new job')
-    arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port", repr(confdPort), "--dir",
-                 direc + "/temp", "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1],
+    arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port",
+                 repr(confdPort), "--dir", direc + "/temp", "--api", "--ip",
+                 confd_ip, "--credentials", credentials[0], credentials[1],
                  repr(tree_created), protocol, api_protocol, repr(api_port)]
     job_id = sender.send('#'.join(arguments))
     LOGGER.info('job_id {}'.format(job_id))
@@ -913,7 +899,7 @@ def add_vendors():
     resolved_authorization = authorize_for_vendors(request, body)
     if 'passed' != resolved_authorization:
         return resolved_authorization
-    with open(save_requests + '/vendor-' + str(datetime.datetime.utcnow()).split('.')[0].replace(' ', '_') +
+    with open(save_requests + '/vendor-' + str(datetime.utcnow()).split('.')[0].replace(' ', '_') +
               '-UTC.json', "w") as plat:
         json.dump(body, plat)
 
@@ -984,14 +970,11 @@ def add_vendors():
 
     for key in repo:
         repo[key].remove()
-    api_protocol = 'http'
-    api_port = 5000
-    if ssl_key != '':
-        api_protocol = 'https'
-        api_port = 8443
-    arguments = ["python", "../parseAndPopulate/populate.py", "--port", repr(confdPort), "--dir", direc + "/temp",
-                 "--api", "--ip", confd_ip, "--credentials", credentials[0], credentials[1], repr(tree_created),
-                 integrity_file_location, protocol, api_protocol, repr(api_port)]
+    arguments = ["python", "../parseAndPopulate/populate.py", "--port",
+                 repr(confdPort), "--dir", direc + "/temp", "--api", "--ip",
+                 confd_ip, "--credentials", credentials[0], credentials[1],
+                 repr(tree_created), integrity_file_location, protocol,
+                 api_protocol, repr(api_port)]
     job_id = sender.send('#'.join(arguments))
     LOGGER.info('job_id {}'.format(job_id))
     return make_response(jsonify({'info': 'Verification successful', 'job-id': job_id}), 202)
@@ -1002,23 +985,16 @@ def index_search():
     """Search through the YANG keyword index for a given search pattern.
        The arguments are a payload specifying search options and filters.
     """
-
     if not request.json:
         abort(400)
 
     payload = request.json
     if 'search' not in payload:
         return make_response(jsonify({'error': 'You must specify a "search" argument'}), 400)
-    api_protocol = 'http'
-    api_port = 5000
-    if ssl_key != '':
-        api_protocol = 'https'
-        api_port = 8443
-    catalog_api_url = '{}://{}:{}'.format(api_protocol, confd_ip, api_port)
     try:
         search_res = index.do_search(json.dumps(payload))
         res = []
-        rest = Rester(catalog_api_url)
+        rest = Rester(yangcatalog_api_prefix)
         rejects = {}
         not_founds = {}
 
@@ -1100,7 +1076,7 @@ def search(value):
     for module_key in module_keys:
         if key == module_key:
             with lock:
-                data = modules_data.get('module')
+                data = modules_data().get('module')
             if data is None:
                 return not_found()
             passed_data = []
@@ -1168,8 +1144,30 @@ def search_recursive(output, module, leaf):
         output.add(meta_data)
 
 
-@app.route('/services/tree/<f1>@<r1>.yang')
+@app.route('/services/tree/<f1>@<r1>.yang', methods=['GET'])
 def create_tree(f1, r1):
+    try:
+        os.makedirs(get_curr_dir(__file__) + '/temp')
+    except OSError as e:
+        # be happy if someone already created the path
+        if e.errno != errno.EEXIST:
+            return 'Server error - could not create directory'
+    path_to_yang = '{}{}@{}.yang'.format(save_file_dir, f1, r1)
+    arguments = ['cat', path_to_yang]
+    pyang = subprocess.Popen(arguments,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+    stdout, stderr = pyang.communicate()
+    if stdout == '' and stderr != '':
+        return create_bootstrap_danger()
+    elif stdout != '' and stderr != '':
+        return create_bootstrap_warning(stdout)
+    else:
+        return '<html><body><pre>{}</pre></body></html>'.format(stdout)
+
+
+@app.route('/services/reference/<f1>@<r1>.yang', methods=['GET'])
+def create_reference(f1, r1):
     try:
         os.makedirs(get_curr_dir(__file__) + '/temp')
     except OSError as e:
@@ -1211,7 +1209,8 @@ def create_bootstrap_danger():
     return template
 
 
-@app.route('/services/file1=<f1>@<r1>/check-update-from/file2=<f2>@<r2>', methods=['GET'])
+@app.route('/services/file1=<f1>@<r1>/check-update-from/file2=<f2>@<r2>',
+           methods=['GET'])
 def create_update_from(f1, r1, f2, r2):
     try:
         os.makedirs(get_curr_dir(__file__) + '/temp')
@@ -1229,11 +1228,47 @@ def create_update_from(f1, r1, f2, r2):
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE)
     stdout, stderr = pyang.communicate()
-    return '<html><header><title>This is title</title></header><body><pre>{}</pre></body></html>'.format(stderr)
+    return '<html><body><pre>{}</pre></body></html>'.format(stderr)
 
 
-@app.route('/services/diff/file1=<f1>@<r1>/file2=<f2>@<r2>', methods=['GET'])
-def create_diff(f1, r1, f2, r2):
+@app.route('/services/diff-file/file1=<f1>@<r1>/file2=<f2>@<r2>',
+           methods=['GET'])
+def create_diff_file(f1, r1, f2, r2):
+    try:
+        os.makedirs(get_curr_dir(__file__) + '/temp')
+    except OSError as e:
+        # be happy if someone already created the path
+        if e.errno != errno.EEXIST:
+            return 'Server error - could not create directory'
+    schema1 = '{}{}@{}.yang'.format(save_file_dir, f1, r1)
+    schema2 = '{}{}@{}.yang'.format(save_file_dir, f2, r2)
+
+    arguments = ['cat', schema1]
+    cat = subprocess.Popen(arguments, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE)
+    stdout, stderr = cat.communicate()
+    file_name1 = 'schema1.txt'
+    with open('{}{}'.format(diff_file_dir, file_name1), 'w+') as f:
+        f.write('<pre>{}</pre>'.format(stdout))
+    arguments = ['cat', schema2]
+    cat = subprocess.Popen(arguments, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE)
+    stdout, stderr = cat.communicate()
+    file_name2 = 'schema2.txt'
+    with open('{}{}'.format(diff_file_dir, file_name2), 'w+') as f:
+        f.write('<pre>{}</pre>'.format(stdout))
+    tree1 = 'https://yangcatalog.org/compatibility/{}'.format(file_name1)
+    tree2 = 'https://yangcatalog.org/compatibility/{}'.format(file_name2)
+    diff_url = ('https://www.ietf.org/rfcdiff/rfcdiff.pyht?url1={}&url2={}'
+                .format(tree1, tree2))
+    response = requests.get(diff_url)
+    os.remove(diff_file_dir + '/' + file_name1)
+    os.remove(diff_file_dir + '/' + file_name2)
+    return '<html><body>{}</body></html>'.format(response.content)
+
+
+@app.route('/services/diff-tree/file1=<f1>@<r1>/file2=<f2>@<r2>', methods=['GET'])
+def create_diff_tree(f1, r1, f2, r2):
     try:
         os.makedirs(get_curr_dir(__file__) + '/temp')
     except OSError as e:
@@ -1261,18 +1296,59 @@ def create_diff(f1, r1, f2, r2):
         f.write('<pre>{}</pre>'.format(stdout))
     tree1 = 'https://yangcatalog.org/compatibility/{}'.format(file_name1)
     tree2 = 'https://yangcatalog.org/compatibility/{}'.format(file_name2)
-    url = 'https://www.ietf.org/rfcdiff/rfcdiff.pyht?url1={}&url2={}'.format(tree1, tree2)
-    response = requests.get(url)
+    diff_url = ('https://www.ietf.org/rfcdiff/rfcdiff.pyht?url1={}&url2={}'
+                .format(tree1, tree2))
+    response = requests.get(diff_url)
     os.remove(diff_file_dir + '/' + file_name1)
     os.remove(diff_file_dir + '/' + file_name2)
     return '<html><body>{}</body></html>'.format(response.content)
 
 
+@app.route('/get-common', methods=['POST'])
+def get_common():
+    body = request.json
+    if body is None:
+        return make_response(jsonify({'error': 'body of request is empty'}), 400)
+    if body.get('input') is None:
+        return make_response(jsonify
+                             ({'error':
+                                   'body of request need to start with input'}),
+                             400)
+    if body['input'].get('first') is None or body['input'].get('second') is None:
+        return make_response(jsonify
+                             ({'error':
+                                   'body of request need to contain first and '
+                                   'second container'}),
+                             400)
+    response_first = rpc_search({'input': body['input']['first']})
+    response_second = rpc_search({'input': body['input']['second']})
+
+    if response_first.status_code == 404 or response_second.status_code == 404:
+        return not_found()
+
+    data = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+        .decode(response_first.data)
+    modules_first = data['yang-catalog:modules']['module']
+    data = json.JSONDecoder(object_pairs_hook=collections.OrderedDict)\
+        .decode(response_second.data)
+    modules_second = data['yang-catalog:modules']['module']
+
+    output_modules_list = []
+    names = []
+    for mod_first in modules_first:
+        for mod_second in modules_second:
+            if mod_first['name'] == mod_second['name']:
+                if mod_first['name'] not in names:
+                    names.append(mod_first['name'])
+                    output_modules_list.append(mod_first)
+    if len(output_modules_list) == 0:
+        return not_found()
+    return Response(json.dumps({'output': output_modules_list}),
+                    mimetype='application/json')
+
+
 @app.route('/check-semantic-version', methods=['POST'])
 def check_semver():
-    api_protocol = 'http'
-    if ssl_key != '':
-        api_protocol = 'https'
     body = request.json
     if body is None:
         return make_response(jsonify({'error': 'body of request is empty'}), 400)
@@ -1284,8 +1360,8 @@ def check_semver():
     if body['input'].get('old') is None or body['input'].get('new') is None:
         return make_response(jsonify
                              ({'error':
-                                   'body of request need to contain new and old'
-                                   'container'}),
+                                   'body of request need to contain new'
+                                   ' and old container'}),
                              400)
     response_new = rpc_search({'input': body['input']['new']})
     response_old = rpc_search({'input': body['input']['old']})
@@ -1303,32 +1379,21 @@ def check_semver():
         name_new = None
         semver_new = None
         revision_new = None
-        schema_new = None
         status_new = None
         name_old = mod_old['name']
         revision_old = mod_old['revision']
         organization_old = mod_old['organization']
-        schema_old = mod_old.get('schema')
-        if schema_old is None:
-            continue
         status_old = mod_old['compilation-status']
         for mod_new in modules_new:
             name_new = mod_new['name']
             revision_new = mod_new['revision']
             organization_new = mod_new['organization']
-            schema_new = mod_new.get('schema')
             status_new = mod_new['compilation-status']
             if name_new == name_old and organization_new == organization_old:
                 if revision_old == revision_new:
                     break
                 semver_new = mod_new.get('derived-semantic-version')
                 break
-        if schema_new is None:
-            continue
-        if ip == '0.0.0.0':
-            local_ip = 'yangcatalog.org'
-        else:
-            local_ip = ip
         if semver_new:
             semver_old = mod_old.get('derived-semantic-version')
             if semver_old:
@@ -1341,15 +1406,16 @@ def check_semver():
                     elif status_new != 'passed' and status_old == 'passed':
                         reason = 'Newer module failed compilation'
                     else:
-                        file_name = ('{}://{}:{}/services/file1={}@{}/check-update-from/file2={}@{}'
-                                     .format(api_protocol, local_ip, port, name_new, revision_new, name_old,
+                        file_name = ('{}/services/file1={}@{}/check-update-from/file2={}@{}'
+                                     .format(yangcatalog_api_prefix, name_new,
+                                             revision_new, name_old,
                                              revision_old))
                         reason = ('pyang --check-update-from output: {}'.
                                   format(file_name))
 
                         diff = (
-                            '{}://{}:{}/services/diff/file1={}@{}/file2={}@{}'.
-                                format(api_protocol, local_ip, port, name_old,
+                            '{}/services/diff-tree/file1={}@{}/file2={}@{}'.
+                                format(yangcatalog_api_prefix, name_old,
                                        revision_old, name_new, revision_new))
 
                         output_mod['yang-module-pyang-tree-diff'] = diff
@@ -1361,8 +1427,9 @@ def check_semver():
                     output_mod['old-derived-semantic-version'] = semver_old
                     output_mod['new-derived-semantic-version'] = semver_new
                     output_mod['derived-semantic-version-results'] = reason
-                    diff = ('https://www.ietf.org/rfcdiff/rfcdiff.pyht?url1={}&url2={}'.
-                           format(schema_old, schema_new))
+                    diff = ('{}/services/diff-file/file1={}@{}/file2={}@{}'
+                            .format(yangcatalog_api_prefix, name_old,
+                                    revision_old, name_new, revision_new))
                     output_mod['yang-module-diff'] = diff
                     output_modules_list.append(output_mod)
     if len(output_modules_list) == 0:
@@ -1378,7 +1445,7 @@ def rpc_search(body=None):
     LOGGER.info('Searching and filtering modules based on RPC {}'
                 .format(json.dumps(body)))
     with lock:
-        data = modules_data['module']
+        data = modules_data()['module']
     body = body.get('input')
     if body:
         partial = body.get('partial')
@@ -1389,7 +1456,7 @@ def rpc_search(body=None):
             for module in data:
                 passed = True
                 if 'dependencies' in body:
-                    submodules = module.get('dependencies')
+                    submodules = deepcopy(module.get('dependencies'))
                     if submodules is None:
                         continue
                     for sub in body['dependencies']:
@@ -1421,7 +1488,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'dependents' in body:
-                    submodules = module.get('dependents')
+                    submodules = deepcopy(module.get('dependents'))
                     if submodules is None:
                         continue
                     for sub in body['dependents']:
@@ -1453,7 +1520,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'submodule' in body:
-                    submodules = module.get('submodule')
+                    submodules = deepcopy(module.get('submodule'))
                     if submodules is None:
                         continue
                     for sub in body['submodule']:
@@ -1485,7 +1552,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'implementations' in body:
-                    implementations = module.get('implementations')
+                    implementations = deepcopy(module.get('implementations'))
                     if implementations is None:
                         continue
                     passed = True
@@ -1564,7 +1631,7 @@ def rpc_search(body=None):
             for module in data:
                 passed = True
                 if 'dependencies' in body:
-                    submodules = module.get('dependencies')
+                    submodules = deepcopy(module.get('dependencies'))
                     if submodules is None:
                         continue
                     for sub in body['dependencies']:
@@ -1596,7 +1663,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'dependents' in body:
-                    submodules = module.get('dependents')
+                    submodules = deepcopy(module.get('dependents'))
                     if submodules is None:
                         continue
                     for sub in body['dependents']:
@@ -1628,7 +1695,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'submodule' in body:
-                    submodules = module.get('submodule')
+                    submodules = deepcopy(module.get('submodule'))
                     if submodules is None:
                         continue
                     for sub in body['submodule']:
@@ -1660,7 +1727,7 @@ def rpc_search(body=None):
                 if not passed:
                     continue
                 if 'implementations' in body:
-                    implementations = module.get('implementations')
+                    implementations = deepcopy(module.get('implementations'))
                     if implementations is None:
                         continue
                     passed = True
@@ -1784,15 +1851,19 @@ def search_module(name, revision, organization):
     with lock:
         LOGGER.info('Searching for module {}, {}, {}'.format(name, revision,
                                                              organization))
-        data = modules_data['module']
-        name = name.split('.yang')[0]
+        if uwsgi.cache_exists(name + '@' + revision + '/' + organization,
+                              'cache_chunks'):
+            chunks = uwsgi.cache_get(name + '@' + revision + '/' + organization,
+                                     'cache_chunks')
+            data = ''
+            for i in range(0, int(chunks), 1):
+                data += uwsgi.cache_get(name + '@' + revision + '/' +
+                                        organization + '-' + repr(i),
+                                        'cache_modules')
 
-        if name + '@' + revision + '/' + organization in mod_lookup_table:
-            LOGGER.info('Returning index {} for {}'.format(mod_lookup_table[name + '@' + revision + '/' + organization],
-                                                           name + '@' + revision + '/' + organization))
-            mod = data[mod_lookup_table[name + '@' + revision + '/' + organization]]
             return Response(json.dumps({
-                'module': [mod]
+                'module': [json.JSONDecoder(object_pairs_hook=collections.OrderedDict)\
+                    .decode(data)]
             }), mimetype='application/json')
         return not_found()
 
@@ -1804,7 +1875,7 @@ def get_modules():
     """
     with lock:
         LOGGER.info('Searching for modules')
-        return Response(json.dumps(modules_data), mimetype='application/json')
+        return Response(json.dumps(modules_data()), mimetype='application/json')
 
 
 @app.route('/search/vendors', methods=['GET'])
@@ -1814,7 +1885,7 @@ def get_vendors():
     """
     with lock:
         LOGGER.info('Searching for vendors')
-        return Response(json.dumps(vendors_data), mimetype='application/json')
+        return Response(json.dumps(vendors_data()), mimetype='application/json')
 
 
 @app.route('/search/catalog', methods=['GET'])
@@ -1823,25 +1894,11 @@ def get_catalog():
                 :return response to the request with all the data
     """
     LOGGER.info('Searching for catalog data')
-    response = 'work'
-    try:
-        with open('./cache/catalog.json', 'r') as catalog:
-            catalog_data = json.load(catalog)
-    except IOError:
-        LOGGER.warning('Cache file does not exist')
-        # Try to create a cache if not created yet and load data again
-        response = make_cache(credentials, response)
-        if response != 'work':
-            LOGGER.error('Could not load or create cache')
-            return jsonify({'error': response}, 500)
-        else:
-            try:
-                with open('./cache/catalog.json', 'r') as catalog:
-                    catalog_data = json.load(catalog)
-            except:
-                LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
-                return not_found()
-    return Response(json.dumps(catalog_data), mimetype='application/json')
+    data = catalog_data()
+    if data is None:
+        return not_found()
+    else:
+        return Response(json.dumps(data), mimetype='application/json')
 
 
 @app.route('/job/<job_id>', methods=['GET'])
@@ -1850,7 +1907,7 @@ def get_job(job_id):
                 :return response to the request with the job
     """
     LOGGER.info('Searching for job_id {}'.format(job_id))
-    result = sender.get(job_id)
+    result = sender.get_response(job_id)
     split = result.split('#split#')
 
     reason = None
@@ -1887,7 +1944,8 @@ def trigger_populate():
         LOGGER.info('Forking the repo')
         repo = repoutil.RepoUtil('https://github.com/YangModels/yang.git')
         try:
-            LOGGER.info('Cloning repo to local directory {}'.format(repo.localdir))
+            LOGGER.info('Cloning repo to local directory {}'
+                        .format(repo.localdir))
             repo.clone()
             for path in paths:
                 arguments = ['python', repo.localdir + '/' +
@@ -1905,8 +1963,7 @@ def trigger_populate():
         repo.remove()
         return make_response(jsonify({'info': 'Success'}), 200)
     except Exception as e:
-        LOGGER.error('Automated github webhook failure - {}'
-                     .format(e.message))
+        LOGGER.error('Automated github webhook failure - {}'.format(e.message))
         return make_response(jsonify({'info': 'Success'}), 200)
 
 
@@ -1921,58 +1978,117 @@ def load_to_memory():
         return unauthorized
     if get_password(username) != hash_pw(request.authorization['password']):
         return unauthorized()
-    load(False)
+    load(True)
     return make_response(jsonify({'info': 'Success'}), 201)
 
 
-def load(on_start):
+@app.route('/contributors', methods=['GET'])
+def get_organizations():
+    orgs = set()
+    with lock:
+        data = modules_data().get('module')
+    for mod in data:
+        if mod['organization'] != 'example' and mod['organization'] != 'missing element':
+            orgs.add(mod['organization'])
+    orgs = list(orgs)
+    resp = make_response(jsonify({'contributors': orgs}), 200)
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    return resp
+
+
+def modules_data():
+    chunks = int(uwsgi.cache_get('chunks-modules', 'cache_chunks'))
+    data = ''
+    for i in range(0, chunks, 1):
+        data += uwsgi.cache_get('modules-data{}'.format(i), 'main_cache')
+    json_data = \
+        json.JSONDecoder(object_pairs_hook=collections.OrderedDict).decode(data)
+    return json_data
+
+
+def vendors_data():
+    chunks = int(uwsgi.cache_get('chunks-vendor', 'cache_chunks'))
+    data = ''
+    for i in range(0, chunks, 1):
+        data += uwsgi.cache_get('vendors-data{}'.format(i), 'main_cache')
+    json_data = \
+        json.JSONDecoder(object_pairs_hook=collections.OrderedDict).decode(data)
+    return json_data
+
+
+def catalog_data():
+    chunks = int(uwsgi.cache_get('chunks-data', 'cache_chunks'))
+    if chunks == 0:
+        return None
+    data = ''
+    for i in range(0, chunks, 1):
+        data += uwsgi.cache_get('data{}'.format(i), 'main_cache')
+    json_data = \
+        json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+            .decode(data)
+    return json_data
+
+
+def load(on_change):
     """Load all the data populated to yang-catalog to memory saved in file in ./cache."""
     with lock:
-        if on_start:
-            LOGGER.info('Removing cache file and loading new one - this is done only when API is starting to get fresh'
-                        ' data')
-            try:
-                shutil.rmtree('./cache')
-            except:
-                # Be happy if it doesn't exist
-                pass
-        global modules_data
-        global vendors_data
-        global mod_lookup_table
         response = 'work'
-        modules_data = {}
-        vendors_data = {}
-        try:
-            with open('./cache/catalog.json', 'r') as catalog:
-                cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
-                    .decode(catalog.read())['yang-catalog:catalog']
-                modules_data = cat['modules']
-                if cat.get('vendors'):
-                    vendors_data = cat['vendors']
-                else:
-                    vendors_data = {}
-        except (IOError, ValueError):
-            LOGGER.warning('Cache file does not exist')
-            # Try to create a cache if not created yet and load data again
-            response = make_cache(credentials, response)
-            if response != 'work':
-                LOGGER.error('Could not load or create cache')
+        data = ''
+        initialized = uwsgi.cache_get('initialized', 'cache_chunks')
+        LOGGER.debug('initialized {} on change {}'.format(initialized, on_change))
+        if initialized is None or initialized == 'False' or on_change:
+            uwsgi.cache_clear('cache_chunks')
+            uwsgi.cache_clear('main_cache')
+            uwsgi.cache_clear('cache_modules')
+            uwsgi.cache_set('initialized', 'False', 0, 'cache_chunks')
+            response = make_cache(credentials, response, is_uwsgi=is_uwsgi)
+
+            chunks = int(uwsgi.cache_get('chunks-data', 'cache_chunks'))
+            for i in range(0, chunks, 1):
+                data += uwsgi.cache_get('data{}'.format(i), 'main_cache')
+            cat = \
+            json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+                .decode(data)['yang-catalog:catalog']
+            modules = cat['modules']
+            if cat.get('vendors'):
+                vendors = cat['vendors']
             else:
-                try:
-                    with open('./cache/catalog.json', 'r') as catalog:
-                        cat = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
-                            .decode(catalog.read())['yang-catalog:catalog']
-                        modules_data = cat['modules']
-                        if cat.get('vendors'):
-                            vendors_data = cat['vendors']
-                        else:
-                            vendors_data = {}
-                except:
-                    LOGGER.error('Unexpected error: {}'.format(sys.exc_info()[0]))
-        if len(modules_data) != 0:
-            for i, mod in enumerate(modules_data['module']):
-                mod_lookup_table[mod['name'] + '@' + mod['revision'] + '/' + mod['organization']] = i
-        LOGGER.info('Data loaded into memory successfully')
+                vendors = {}
+            if len(modules) != 0:
+                for i, mod in enumerate(modules['module']):
+                    key = mod['name'] + '@' + mod['revision'] + '/' + mod[
+                        'organization']
+                    value = json.dumps(mod)
+                    chunks = int(math.ceil(len(value) / float(20000)))
+                    uwsgi.cache_set(key, repr(chunks), 0, 'cache_chunks')
+                    for j in range(0, chunks, 1):
+                        uwsgi.cache_set(key + '-{}'.format(j),
+                                        value[j * 20000: (j + 1) * 20000], 0,
+                                        'cache_modules')
+
+            chunks = int(math.ceil(len(json.dumps(modules)) / float(64000)))
+            for i in range(0, chunks, 1):
+                uwsgi.cache_set('modules-data{}'.format(i),
+                                json.dumps(modules)[i * 64000: (i + 1) * 64000],
+                                0, 'main_cache')
+            LOGGER.info(
+                'all {} modules chunks are set in uwsgi cache'.format(chunks))
+            uwsgi.cache_set('chunks-modules', repr(chunks), 0, 'cache_chunks')
+
+            chunks = int(math.ceil(len(json.dumps(vendors)) / float(64000)))
+            for i in range(0, chunks, 1):
+                uwsgi.cache_set('vendors-data{}'.format(i),
+                                json.dumps(vendors)[i * 64000: (i + 1) * 64000],
+                                0, 'main_cache')
+            LOGGER.info(
+                'all {} vendors chunks are set in uwsgi cache'.format(chunks))
+            uwsgi.cache_set('chunks-vendor', repr(chunks), 0, 'cache_chunks')
+        if response != 'work':
+            LOGGER.error('Could not load or create cache')
+            sys.exit(500)
+        uwsgi.cache_update('initialized', 'True', 0, 'cache_chunks')
+
+        LOGGER.debug('Data loaded into memory successfully')
 
 
 def process(data, passed_data, value, module, split, count):
@@ -2047,9 +2163,10 @@ def unauthorized():
     return make_response(jsonify({'error': 'Unauthorized access'}), 401)
 
 
-if __name__ == '__main__':
+def runit(env, start_response):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config-path', type=str, default='../utility/config.ini',
+    parser.add_argument('--config-path', type=str,
+                        default='../utility/config.ini',
                         help='Set path to config file')
     LOGGER.info('Loading all configuration')
     args = parser.parse_args()
@@ -2069,13 +2186,13 @@ if __name__ == '__main__':
     global dbPass
     dbPass = config.get('API-Section', 'dbPassword')
     global credentials
-    credentials = config.get('API-Section', 'credentials').split(' ')
+    credentials = config.get('General-Section', 'credentials').split(' ')
     global confd_ip
-    confd_ip = config.get('API-Section', 'confd-ip')
+    confd_ip = config.get('General-Section', 'confd-ip')
     global confdPort
-    confdPort = int(config.get('API-Section', 'confd-port'))
+    confdPort = int(config.get('General-Section', 'confd-port'))
     global protocol
-    protocol = config.get('API-Section', 'protocol')
+    protocol = config.get('General-Section', 'protocol')
     global save_requests
     save_requests = config.get('API-Section', 'save-requests')
     global save_file_dir
@@ -2086,22 +2203,32 @@ if __name__ == '__main__':
     admin_token = config.get('API-Section', 'admin-token')
     global commit_msg_file
     commit_msg_file = config.get('API-Section', 'commit-dir')
-    ssl_context = None
     global integrity_file_location
-    integrity_file_location = config.get('API-Section', 'integrity-file-location')
+    integrity_file_location = config.get('API-Section',
+                                         'integrity-file-location')
     global diff_file_dir
     diff_file_dir = config.get('API-Section', 'save-diff-dir')
     global log
     ip = config.get('API-Section', 'ip')
-    port = int(config.get('API-Section', 'port'))
-    debug = config.get('API-Section', 'debug')
-    global ssl_key
-    ssl_key = config.get('API-Section', 'ssl-key')
-    cert = config.get('API-Section', 'ssl-cert')
+    global api_port
+    api_port = int(config.get('General-Section', 'api-port'))
     log = open('api_log_file.txt', 'w')
-    if cert:
-        ssl_context = (cert, ssl_key)
-    load(True)
-    LOGGER.info('Starting api')
-    app.run(host=ip, debug=debug, port=port, ssl_context=ssl_context,
-            threaded=True)
+    global api_protocol
+    api_protocol = config.get('General-Section', 'protocol-api')
+    global is_uwsgi
+    is_uwsgi = config.get('General-Section', 'uwsgi')
+    load(False)
+    global yangcatalog_api_prefix
+    separator = ':'
+    suffix = api_port
+    if is_uwsgi == 'True':
+        separator = '/'
+        suffix = 'api'
+    if ip == '0.0.0.0':
+        local_ip = 'yangcatalog.org'
+    else:
+        local_ip = ip
+    yangcatalog_api_prefix = '{}://{}{}{}/'.format(api_protocol, local_ip,
+                                                   separator, suffix)
+    LOGGER.debug('Starting api')
+    return app(env, start_response)

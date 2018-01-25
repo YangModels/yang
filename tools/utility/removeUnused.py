@@ -1,9 +1,10 @@
 import argparse
+import math
 import os
-
+import shutil
 import time
 
-import math
+import datetime
 
 import tools.utility.log as lo
 from tools.utility import messageFactory
@@ -15,6 +16,12 @@ if __name__ == '__main__':
     parser.add_argument('--remove-dir', type=str,
                         default='.',
                         help='Set path to config file')
+    parser.add_argument('--remove-dir2', type=str,
+                        default='.',
+                        help='Set path to yangsuite users')
+    parser.add_argument('--remove-dir3', type=str,
+                        default='/home/miroslav/yangsuite-users/',
+                        help='Set path to yangsuite saved users')
     parser.add_argument('--logs-path', type=str,
                         default='.',
                         help='Set path to config file')
@@ -45,4 +52,32 @@ if __name__ == '__main__':
         except OSError as e:
             mf.send_automated_procedure_failed('Remove unused diff files',
                                                e.message)
+    dirs = os.listdir(args.remove_dir2)
+    for dir in dirs:
+        abs = os.path.abspath(args.remove_dir2 + '/' + dir)
+        if not abs.endswith('yangcat') and not abs.endswith('miott'):
+            try:
+                shutil.rmtree(abs)
+            except:
+                pass
+    dirs = os.listdir(args.remove_dir3)
+    for dir in dirs:
+        abs = os.path.abspath(args.remove_dir3 + '/' + dir)
+        if not abs.endswith('yangcatalog'):
+            try:
+                shutil.rmtree(abs)
+            except:
+                pass
 
+    # removing correlation ids from file that are older than a day
+    f = open('./../api/correlation_ids', 'r')
+    lines = f.readlines()
+    f.close()
+    with open('./../api/correlation_ids', 'w') as f:
+        for line in lines:
+            line_datetime = line.split(' -')[0]
+            t = datetime.datetime.strptime(line_datetime,
+                                           "%a %b %d %H:%M:%S %Y")
+            diff = datetime.datetime.now() - t
+            if diff.days == 0:
+                f.write(line)

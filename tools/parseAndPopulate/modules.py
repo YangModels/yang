@@ -240,7 +240,9 @@ class Modules:
                 data = json.loads(response.content)
                 if '/api/v1/doc/state/2/' in data['states']:
                     self.expired = True
-                    self.expiration_date = data['expires']
+                self.expiration_date = data['expires']
+            else:
+                self.expired = 'not-applicable'
 
     def __save_file(self, to):
         file_with_path = '{}{}@{}.yang'.format(to, self.name, self.revision)
@@ -284,7 +286,8 @@ class Modules:
 
     def add_vendor_information(self, vendor, platform_data, software_version,
                                os_version, feature_set, os_type,
-                               confarmance_type, capability, netconf_version):
+                               confarmance_type, capability, netconf_version,
+                               integrity_checker, split):
         for data in platform_data:
             implementation = self.Implementations()
             implementation.vendor = vendor
@@ -309,10 +312,14 @@ class Modules:
                     devs = implementation.Deviations()
                     devs.name = name
                     yang_file = self.__find_file(name)
+
                     if yang_file is None:
                         devs.revision = '1970-01-01'
                     else:
                         try:
+                            s = yang_file.split('/')
+                            key = '/'.join(split[0:-1])
+                            integrity_checker.remove_one(key, s[-1])
                             devs.revision = yangParser.parse(os.path.abspath(yang_file)) \
                                 .search('revision')[0].arg
                         except:
@@ -484,7 +491,11 @@ class Modules:
                                 rows[x].split('+--ro ')[1].split(' ')[0].split(
                                     '?')[0]
 
-                            if leaf not in pyang_list_of_rows[x]:
+                            dataExist = False
+                            for y in range(0, len(pyang_list_of_rows)):
+                                if leaf in pyang_list_of_rows[y]:
+                                    dataExist = True
+                            if not dataExist:
                                 return False
                     return True
                 else:
@@ -826,8 +837,6 @@ class Modules:
                 self.generated_from = 'not-applicable'
 
     def __resolve_compilation_status_and_result(self):
-        if self.name == 'Cisco-IOS-XE-native':
-            pass
         self.compilation_status = self.__parse_status()
         if self.compilation_status != 'passed':
             self.compilation_result = self.__parse_result()
@@ -1107,6 +1116,9 @@ class Modules:
             return result
         except KeyError:
             pass
+        res = self.__parse_res(self.jsons.ietf_rfc_standard_json)
+        if res != '':
+            return res
         res = self.__parse_res(self.jsons.bbf_json)
         if res != '':
             return res
@@ -1177,9 +1189,6 @@ class Modules:
         if res != '':
             return res
         res = self.__parse_res(self.jsons.huawei8910)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.ietf_rfc_standard_json)
         if res != '':
             return res
         res = self.__parse_res(self.jsons.openconfig_json)
