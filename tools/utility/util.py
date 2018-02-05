@@ -6,11 +6,40 @@ import urllib2
 
 from numpy.f2py.auxfuncs import throw_error
 
+import tools.utility.log as lo
 from tools.utility import yangParser
+
+LOGGER = lo.get_logger('api')
 
 
 def get_curr_dir(f):
-    return os.path.dirname(os.path.realpath(f))
+    LOGGER.info('{}'.format(os.getcwd()))
+    return os.getcwd()
+
+
+def resolve_results(url):
+    failed = True
+    html = None
+    tries = 10
+    results = []
+    while failed:
+        try:
+            html = urllib2.urlopen(url).read()
+            failed = False
+        except:
+            tries -= 1
+            if tries == 0:
+                failed = False
+            pass
+    if tries == 0:
+        raise throw_error('Couldn`t open a json file from url: ' + url)
+    ths = html.split('<TH>')
+    for th in ths:
+        res = th.split('</TH>')[0]
+        if 'Compilation Result' in res:
+            results.append(res)
+
+    return results
 
 
 def load_json_from_url(url):

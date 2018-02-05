@@ -243,6 +243,8 @@ class Modules:
                 self.expiration_date = data['expires']
             else:
                 self.expired = 'not-applicable'
+        else:
+            self.expired = 'not-applicable'
 
     def __save_file(self, to):
         file_with_path = '{}{}@{}.yang'.format(to, self.name, self.revision)
@@ -838,7 +840,7 @@ class Modules:
 
     def __resolve_compilation_status_and_result(self):
         self.compilation_status = self.__parse_status()
-        if self.compilation_status != 'passed':
+        if self.compilation_status['status'] != 'passed':
             self.compilation_result = self.__parse_result()
             if (self.compilation_result['pyang'] == ''
                 and self.compilation_result['yanglint'] == ''
@@ -847,26 +849,24 @@ class Modules:
                 and self.organization == 'cisco'
                 and (self.generated_from == 'native'
                      or self.generated_from == 'mib')):
-                self.compilation_status = 'passed'
+                self.compilation_status['status'] = 'passed'
         else:
             self.compilation_result = {'pyang': '', 'pyang_lint': '',
                                        'confdrc': '', 'yumadump': '',
                                        'yanglint': ''}
         self.compilation_result = self.__create_compilation_result_file()
+        self.compilation_status = self.compilation_status['status']
 
     def __create_compilation_result_file(self):
-        if self.compilation_status == 'passed' \
+        if self.compilation_status['status'] == 'passed' \
                 and self.compilation_result['pyang_lint'] == '':
             return ''
         else:
             result = self.compilation_result
         result['name'] = self.name
         result['revision'] = self.revision
-        if self.organization == 'ietf':
-            result['switch'] = '--ietf'
-        else:
-            result['switch'] = '--lint'
-        context = {'result': result}
+        context = {'result': result,
+                   'ths': self.compilation_status['ths']}
         rendered_html = stats.render(
             '../parseAndPopulate/template/compilationStatusTemplate.html',
             context)
@@ -990,87 +990,90 @@ class Modules:
         LOGGER.debug('Parsing status of module {}'.format(self.__path))
 
         status = self.__get_module_status(self.jsons.ietf_draft_json, 3)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.ietf_rfc_standard_json)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.bbf_json)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.ieee_standard_json)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.ieee_experimental_json)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.xr611)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.xr612)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.xr613)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.xr621)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.xr622)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.xr631)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.xe1631)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.xe1632)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.xe1641)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.xe1651)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.xe1661)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.xe1662)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.xe1671)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.nx703f11)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.nx703f21)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.nx703f22)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.nx703f31)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.nx703i51)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.nx703i61)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.nx703i52)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.nx703i71)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.nx703i72)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.huawei8910)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.mef_experimental_json)
-        if status == 'unknown':
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.openconfig_json)
         return status
 
     def __get_module_status(self, files_json, index=0):
         # try to find in rfc without revision
+        status = {}
         try:
-            status = files_json[self.name + '.yang'][index]
-            if status == 'PASSED WITH WARNINGS':
-                status = 'passed-with-warnings'
-            status = status.lower()
+            status['status'] = files_json['json'][self.name + '.yang'][index]
+            if status['status'] == 'PASSED WITH WARNINGS':
+                status['status'] = 'passed-with-warnings'
+            status['status'] = status['status'].lower()
+            status['ths'] = files_json['ths']
             return status
         except:
             pass
         # try to find in draft with revision
         try:
-            status = files_json[self.name + '@' + self.revision + '.yang'][
+            status['status'] = files_json['json'][self.name + '@' + self.revision + '.yang'][
                 index]
-            if status == 'PASSED WITH WARNINGS':
-                status = 'passed-with-warnings'
-            status = status.lower()
+            if status['status'] == 'PASSED WITH WARNINGS':
+                status['status'] = 'passed-with-warnings'
+            status['status'] = status['status'].lower()
+            status['ths'] = files_json['ths']
             return status
         except:
             pass
-        return 'unknown'
+        return {'status': 'unknown', 'ths': self.jsons.ietf_rfc_standard_json['ths']}
 
     def __parse_result(self):
         LOGGER.debug(
@@ -1078,39 +1081,39 @@ class Modules:
         # try to find in draft without revision
         result = {}
         try:
-            result['pyang_lint'] = self.jsons.ietf_draft_json[self.name + '.yang'][4]
+            result['pyang_lint'] = self.jsons.ietf_draft_json['json'][self.name + '.yang'][4]
             result['pyang'] = \
-                self.jsons.ietf_draft_json[self.name + '.yang'][
+                self.jsons.ietf_draft_json['json'][self.name + '.yang'][
                     5]
-            result['confdrc'] = self.jsons.ietf_draft_json[self.name + '.yang'][
+            result['confdrc'] = self.jsons.ietf_draft_json['json'][self.name + '.yang'][
                 6]
             result['yumadump'] = \
-                self.jsons.ietf_draft_json[self.name + '.yang'][7]
+                self.jsons.ietf_draft_json['json'][self.name + '.yang'][7]
             result['yanglint'] = \
-                self.jsons.ietf_draft_json[self.name + '.yang'][8]
+                self.jsons.ietf_draft_json['json'][self.name + '.yang'][8]
             return result
         except KeyError:
             pass
         # try to find in draft with revision
         try:
             result['pyang_lint'] = \
-                self.jsons.ietf_draft_json[
+                self.jsons.ietf_draft_json['json'][
                     self.name + '@' + self.revision + '.yang'][
                     4]
             result['pyang'] = \
-                self.jsons.ietf_draft_json[
+                self.jsons.ietf_draft_json['json'][
                     self.name + '@' + self.revision + '.yang'][
                     5]
             result['confdrc'] = \
-                self.jsons.ietf_draft_json[
+                self.jsons.ietf_draft_json['json'][
                     self.name + '@' + self.revision + '.yang'][
                     6]
             result['yumadump'] = \
-                self.jsons.ietf_draft_json[
+                self.jsons.ietf_draft_json['json'][
                     self.name + '@' + self.revision + '.yang'][
                     7]
             result['yanglint'] = \
-                self.jsons.ietf_draft_json[
+                self.jsons.ietf_draft_json['json'][
                     self.name + '@' + self.revision + '.yang'][
                     8]
             return result
@@ -1200,26 +1203,26 @@ class Modules:
     def __parse_res(self, json_file):
         result = {}
         try:
-            result['pyang_lint'] = json_file[self.name + '.yang'][1]
-            result['pyang'] = json_file[self.name + '.yang'][2]
-            result['confdrc'] = json_file[self.name + '.yang'][3]
-            result['yumadump'] = json_file[self.name + '.yang'][4]
-            result['yanglint'] = json_file[self.name + '.yang'][5]
+            result['pyang_lint'] = json_file['json'][self.name + '.yang'][1]
+            result['pyang'] = json_file['json'][self.name + '.yang'][2]
+            result['confdrc'] = json_file['json'][self.name + '.yang'][3]
+            result['yumadump'] = json_file['json'][self.name + '.yang'][4]
+            result['yanglint'] = json_file['json'][self.name + '.yang'][5]
             return result
         except:
             pass
         # try to find in draft with revision
         try:
             result['pyang_lint'] = \
-                json_file[self.name + '@' + self.revision + '.yang'][1]
+                json_file['json'][self.name + '@' + self.revision + '.yang'][1]
             result['pyang'] = \
-                json_file[self.name + '@' + self.revision + '.yang'][2]
+                json_file['json'][self.name + '@' + self.revision + '.yang'][2]
             result['confdrc'] = \
-                json_file[self.name + '@' + self.revision + '.yang'][3]
+                json_file['json'][self.name + '@' + self.revision + '.yang'][3]
             result['yumadump'] = \
-                json_file[self.name + '@' + self.revision + '.yang'][4]
+                json_file['json'][self.name + '@' + self.revision + '.yang'][4]
             result['yanglint'] = \
-                json_file[self.name + '@' + self.revision + '.yang'][5]
+                json_file['json'][self.name + '@' + self.revision + '.yang'][5]
             return result
         except:
             pass
@@ -1231,12 +1234,12 @@ class Modules:
         # try to find in draft without revision
         try:
             doc_name = \
-                self.jsons.ietf_draft_json[self.name + '.yang'][0].split(
+                self.jsons.ietf_draft_json['json'][self.name + '.yang'][0].split(
                     '</a>')[
                     0].split(
                     '\">')[1]
             doc_source = \
-                self.jsons.ietf_draft_json[self.name + '.yang'][0].split(
+                self.jsons.ietf_draft_json['json'][self.name + '.yang'][0].split(
                     'a href=\"')[
                     1].split('\">')[0]
             return [doc_name, doc_source]
@@ -1245,11 +1248,11 @@ class Modules:
         # try to find in draft with revision
         try:
             doc_name = \
-                self.jsons.ietf_draft_json[
+                self.jsons.ietf_draft_json['json'][
                     self.name + '@' + self.revision + '.yang'][
                     0].split('</a>')[0].split('\">')[1]
             doc_source = \
-                self.jsons.ietf_draft_json[
+                self.jsons.ietf_draft_json['json'][
                     self.name + '@' + self.revision + '.yang'][
                     0].split('a href=\"')[1] \
                     .split('\">')[0]
@@ -1258,10 +1261,10 @@ class Modules:
             pass
             # try to find in rfc with revision
             try:
-                doc_name = self.jsons.ietf_rfc_json[
+                doc_name = self.jsons.ietf_rfc_json['json'][
                     self.name + '@' + self.revision + '.yang'].split('</a>')[
                     0].split('\">')[1]
-                doc_source = self.jsons.ietf_rfc_json[
+                doc_source = self.jsons.ietf_rfc_json['json'][
                     self.name + '@' + self.revision + '.yang'].split(
                     'a href=\"')[1] \
                     .split('\">')[0]
@@ -1270,11 +1273,11 @@ class Modules:
                 pass
             try:
                 doc_name = \
-                    self.jsons.ietf_rfc_json[self.name + '.yang'].split('</a>')[
+                    self.jsons.ietf_rfc_json['json'][self.name + '.yang'].split('</a>')[
                         0].split(
                         '\">')[1]
                 doc_source = \
-                    self.jsons.ietf_rfc_json[self.name + '.yang'].split(
+                    self.jsons.ietf_rfc_json['json'][self.name + '.yang'].split(
                         'a href=\"')[
                         1].split('\">')[0]
                 return [doc_name, doc_source]

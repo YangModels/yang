@@ -188,6 +188,7 @@ def send_to_indexing(yc_api_prefix, modules_to_index, credentials, apiIp = None,
         with open(modules_to_index, 'r') as f:
             sdos_json = json.load(f)
         post_body = {}
+        load_new_files_to_github = False
         if from_api:
             if sdo_type:
                 prefix = 'api/sdo/'
@@ -224,6 +225,9 @@ def send_to_indexing(yc_api_prefix, modules_to_index, credentials, apiIp = None,
                                         'application/vnd.yang.data+json',
                                         return_code=True)
                 code = response.code
+
+                if code != 200 and code != 201 and code != 204:
+                    load_new_files_to_github = True
                 if force_indexing or (
                             code != 200 and code != 201 and code != 204):
                     if module.get('schema'):
@@ -235,6 +239,11 @@ def send_to_indexing(yc_api_prefix, modules_to_index, credentials, apiIp = None,
         body_to_send = json.dumps({'modules-to-index': post_body}, indent=4)
         if len(post_body) > 0 and not force_indexing:
             mf.send_added_new_yang_files(body_to_send)
+        if load_new_files_to_github:
+            LOGGER.info('Starting a new process to populate github')
+            cmd = ['python', '../ietfYangDraftPull/draftPull.py']
+            proc = subprocess.Popen(cmd, close_fds=True)
+            LOGGER.info('Populating github with process {}'.format(proc))
 
     try:
         set_key = key
@@ -454,12 +463,13 @@ def make_cache(credentials, response):
     return response
 
 
-def process_module_deletion(arguments):
+def process_module_deletion(arguments, multiple=False):
     """Deletes module. It calls the delete request to confd to delete module on
     given path. This will delete whole module in modules branch of the
     yang-catalog.yang module. It will also call indexing script to update
     searching.
                 Arguments:
+                    :param multiple: (boolean) removing multiple modules at once
                     :param arguments: (list) list of arguments sent from api
                      sender
                     :return (__response_type) one of the response types which
@@ -467,17 +477,28 @@ def process_module_deletion(arguments):
     """
     credentials = arguments[3:5]
     path_to_delete = arguments[5]
-
-    response = requests.delete(path_to_delete, auth=(credentials[0], credentials[1]))
-    if response.status_code != 204:
-        LOGGER.error('Couldn\'t delete module on path {}. Error : {}'
-                     .format(path_to_delete, response.content))
-        return __response_type[0] + '#split#' + response.content
-    name, revision, organization = path_to_delete.split('/')[-1].split(',')
+    if multiple:
+        paths = []
+        modules = json.loads(path_to_delete)['modules']
+        for mod in modules:
+            paths.append(confd_protocol + '://' + confd_ip + ':' + repr(
+                confdPort) + '/api/config/catalog/modules/module/' \
+                         + mod['name'] + ',' + mod['revision'] + ',' + mod[
+                             'organization'])
+    else:
+        paths = [path_to_delete]
+    modules_to_index = []
+    for path in paths:
+        response = requests.delete(path, auth=(credentials[0], credentials[1]))
+        if response.status_code != 204:
+            LOGGER.error('Couldn\'t delete module on path {}. Error : {}'
+                         .format(path, response.content))
+            return __response_type[0] + '#split#' + response.content
+        name, revision, organization = path.split('/')[-1].split(',')
+        modules_to_index.append('{}@{}/{}'.format(name, revision, organization))
     if notify_indexing:
-        send_to_indexing(yangcatalog_api_prefix,
-                         ['{}@{}/{}'.format(name, revision, organization)],
-                         credentials, delete=True)
+        send_to_indexing(yangcatalog_api_prefix, modules_to_index, credentials,
+                         delete=True)
     return __response_type[1]
 
 
@@ -520,6 +541,9 @@ def on_request(ch, method, props, body):
             else:
                 final_response = process_vendor_deletion(arguments)
                 credentials = arguments[7:9]
+        elif arguments[-3] == 'DELETE_MULTIPLE':
+            final_response = process_module_deletion(arguments, True)
+            credentials = arguments[3:5]
         elif '--sdo' in arguments[2]:
             final_response = process_sdo(arguments)
             credentials = arguments[11:13]
