@@ -36,6 +36,8 @@ if __name__ == "__main__":
     username = config.get('DraftPull-Section', 'username')
     api_protocol = config.get('General-Section', 'protocol-api')
     is_uwsgi = config.get('General-Section', 'uwsgi')
+    config_name = config.get('General-Section', 'repo-config-name')
+    config_email = config.get('General-Section', 'repo-config-email')
 
     separator = ':'
     suffix = api_port
@@ -56,7 +58,7 @@ if __name__ == "__main__":
         'https://github.com/yang-catalog/public.git')
 
     LOGGER.info('Cloning repo to local directory {}'.format(repo.localdir))
-    repo.clone()
+    repo.clone(config_name, config_email)
 
     mods = []
 

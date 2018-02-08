@@ -17,8 +17,11 @@ from datetime import datetime
 from threading import Lock
 from urllib2 import URLError
 import MySQLdb
+import grp
 import jinja2
 import math
+
+import pwd
 import requests
 import uwsgi as uwsgi
 
@@ -28,6 +31,8 @@ from OpenSSL.crypto import load_publickey, FILETYPE_PEM, X509, verify
 from flask import Flask, jsonify, abort, make_response, request, Response, \
     redirect
 from flask_httpauth import HTTPBasicAuth
+
+from tools.api.prometheus.main import monitor
 from tools.api.sender import Sender
 from tools.utility import repoutil, yangParser, messageFactory
 from tools.utility.util import get_curr_dir
@@ -181,7 +186,7 @@ class MyFlask(Flask):
                 ys_dir = '/home/miott/ysuite/yangsuite/data/users/'
 
                 id = uuid.uuid4().hex
-                ys_dir += id + '/repositories/' + modules[0]['name']
+                ys_dir += id + '/repositories/' + modules[0]['name'].lower()
                 try:
                     os.makedirs(ys_dir)
                 except OSError as e:
@@ -200,6 +205,19 @@ class MyFlask(Flask):
                     mods.add(name)
                     inset.add(mod['name'])
                     self.get_dependencies(mod, mods, inset)
+                if (('openconfig-interfaces' in inset
+                    or 'ietf-interfaces' in inset)
+                    and 'iana-if-type' not in inset):
+                    resp = requests.get(
+                        'https://yangcatalog.org/api/search/name/iana-if-type?latest-revision=True',
+                        headers={
+                            'Content-type': 'application/json',
+                            'Accept': 'application/json'})
+                    name = '{}@{}.yang'.format(resp.json()[0]['name'],
+                                               resp.json()[0]['revision'])
+                    mods.add(name)
+                    inset.add(resp.json()[0]['name'])
+                    self.get_dependencies(resp.json()[0], mods, inset)
 
                 modules = []
                 for mod in mods:
@@ -222,8 +240,17 @@ class MyFlask(Flask):
                             'defmod': defmod.split('@')[0],
                             'modules': modules}
 
-                with open(ys_dir + '/' + defmod.split('@')[0], 'w') as f:
+                with open(ys_dir + '/' + defmod.split('@')[0].lower(), 'w') as f:
                     f.write(json.dumps(json_set, indent=4))
+                uid = pwd.getpwnam("miroslav").pw_uid
+                gid = grp.getgrnam("yang").gr_gid
+                path = '/home/miott/ysuite/yangsuite/data/users/' + id
+                for root, dirs, files in os.walk(path):
+                    for momo in dirs:
+                        os.chown(os.path.join(root, momo), uid, gid)
+                    for momo in files:
+                        os.chown(os.path.join(root, momo), uid, gid)
+                os.chown(path, uid, gid)
                 json_data['yangsuite-url'] = (
                     '{}/yangsuite/{}'.format(yangcatalog_api_prefix, id))
                 self.response.data = json.dumps(json_data)
@@ -234,6 +261,7 @@ class MyFlask(Flask):
             return self.response
 
 app = MyFlask(__name__)
+monitor(app)
 lock = Lock()
 
 NS_MAP = {
@@ -463,7 +491,7 @@ def yangsuite_redirect(id):
     if is_uwsgi:
         local_ip = 'yangcatalog.org'
 #    return redirect('http://{}:8000/ydk/aaa/{}'.format(local_ip, id))
-    return redirect('https://{}/yangsuite/aaa/{}'.format(local_ip, id))
+    return redirect('https://{}/yangsuite/ydk/aaa/{}'.format(local_ip, id))
 
 
 @auth.login_required
@@ -595,7 +623,7 @@ def check_local():
 
 @app.route('/modules/module/<name>,<revision>,<organization>', methods=['DELETE'])
 @auth.login_required
-def delete_modules(name, revision, organization):
+def delete_module(name, revision, organization):
     """Delete a specific module defined with name, revision and organization. This is
     not done right away but it will send a request to receiver which will work on deleting
     while this request will send a job_id of the request which user can use to see the job
@@ -645,6 +673,72 @@ def delete_modules(name, revision, organization):
 
     arguments = [protocol, confd_ip, repr(confdPort), credentials[0],
                  credentials[1], path_to_delete, 'DELETE', api_protocol, repr(api_port)]
+    job_id = sender.send('#'.join(arguments))
+
+    LOGGER.info('job_id {}'.format(job_id))
+    return make_response(jsonify({'info': 'Verification successful', 'job-id': job_id}), 202)
+
+
+@app.route('/modules', methods=['DELETE'])
+@auth.login_required
+def delete_modules():
+    """Delete a specific modules defined with name, revision and organization. This is
+    not done right away but it will send a request to receiver which will work on deleting
+    while this request will send a job_id of the request which user can use to see the job
+    process.
+            Arguments:
+                :return response to the request with job_id that user can use to
+                    see if the job is still on or Failed or Finished successfully
+    """
+    if not request.json:
+        abort(400)
+    username = request.authorization['username']
+    LOGGER.debug('Checking authorization for user {}'.format(username))
+    accessRigths = None
+    try:
+        db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
+        # prepare a cursor object using cursor() method
+        cursor = db.cursor()
+        # execute SQL query using execute() method.
+        cursor.execute("SELECT * FROM `users`")
+        data = cursor.fetchall()
+
+        for row in data:
+            if row[1] == username:
+                accessRigths = row[7]
+                break
+        db.close()
+    except MySQLdb.MySQLError as err:
+        LOGGER.error('Cannot connect to database. MySQL error: {}'.format(err))
+
+    rpc = request.json
+    if rpc.get('input'):
+        modules = rpc['input'].get('modules')
+    else:
+        return not_found()
+    for mod in modules:
+        try:
+            response = http_request(
+                protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + mod['name'] +
+                ',' + mod['revision'] + ',' + mod['organization'], 'GET', None, credentials, 'application/vnd.yang.data+json')
+            read = json.loads(response.read())
+
+            if read['yang-catalog:module'][
+                'organization'] != accessRigths and accessRigths != '/':
+                return unauthorized()
+
+            if read['yang-catalog:module'].get('implementations') is not None:
+                return make_response(jsonify(
+                    {'error': 'This module has reference in vendors branch'}),
+                                     400)
+        except urllib2.HTTPError as e:
+            return not_found()
+
+    path_to_delete = json.dumps(rpc['input'])
+
+    arguments = [protocol, confd_ip, repr(confdPort), credentials[0],
+                 credentials[1], path_to_delete, 'DELETE_MULTIPLE',
+                 api_protocol, repr(api_port)]
     job_id = sender.send('#'.join(arguments))
 
     LOGGER.info('job_id {}'.format(job_id))
@@ -800,7 +894,7 @@ def add_modules():
         LOGGER.debug('Cloning repository')
         if repo_url not in repo:
             repo[repo_url] = repoutil.RepoUtil(repo_url)
-            repo[repo_url].clone()
+            repo[repo_url].clone(config_name, config_email)
 
         for submodule in repo[repo_url].repo.submodules:
             submodule.update(init=True)
@@ -945,7 +1039,7 @@ def add_vendors():
 
         if repo_url not in repo:
             repo[repo_url] = repoutil.RepoUtil(repo_url)
-            repo[repo_url].clone()
+            repo[repo_url].clone(config_name, config_email)
 
         for submodule in repo[repo_url].repo.submodules:
             submodule.update(init=True)
@@ -1072,7 +1166,7 @@ def search(value):
     value = value.split('/')[-1]
     module_keys = ['ietf/ietf-wg', 'maturity-level', 'document-name', 'author-email', 'compilation-status', 'namespace',
                    'conformance-type', 'module-type', 'organization', 'yang-version', 'name', 'revision', 'tree-type',
-                   'belongs-to', 'generated-from']
+                   'belongs-to', 'generated-from', 'expires', 'expired']
     for module_key in module_keys:
         if key == module_key:
             with lock:
@@ -1153,7 +1247,7 @@ def create_tree(f1, r1):
         if e.errno != errno.EEXIST:
             return 'Server error - could not create directory'
     path_to_yang = '{}{}@{}.yang'.format(save_file_dir, f1, r1)
-    arguments = ['cat', path_to_yang]
+    arguments = ['pyang', '-p', save_file_dir, '-f', 'tree', path_to_yang]
     pyang = subprocess.Popen(arguments,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE)
@@ -1946,7 +2040,7 @@ def trigger_populate():
         try:
             LOGGER.info('Cloning repo to local directory {}'
                         .format(repo.localdir))
-            repo.clone()
+            repo.clone(config_name, config_email)
             for path in paths:
                 arguments = ['python', repo.localdir + '/' +
                              'tools/parseAndPopulate/populate.py', '--ip',
@@ -2217,6 +2311,10 @@ def runit(env, start_response):
     api_protocol = config.get('General-Section', 'protocol-api')
     global is_uwsgi
     is_uwsgi = config.get('General-Section', 'uwsgi')
+    global config_name
+    config_name = config.get('General-Section', 'repo-config-name')
+    global config_email
+    config_email = config.get('General-Section', 'repo-config-email')
     load(False)
     global yangcatalog_api_prefix
     separator = ':'

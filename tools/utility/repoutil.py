@@ -57,13 +57,17 @@ class RepoUtil(object):
 
         return owner
 
-    def clone(self):
+    def clone(self, config_user_name=None, config_user_email=None):
         """Clone the specified repository to a local temp directory. This
         method may generate a git.exec.GitCommandError if the
         repository does not exist
         """
         self.localdir = tempfile.mkdtemp()
         self.repo = Repo.clone_from(self.repourl, self.localdir)
+        if config_user_name:
+            config = self.repo.config_writer()
+            config.set_value('user', 'email', config_user_email)
+            config.set_value('user', 'name', config_user_name)
 
     def add_all_untracked(self):
         """Commit all untracked and modified files. This method shouldn't
@@ -86,6 +90,7 @@ class RepoUtil(object):
     def commit_all(self, message='RepoUtil Commit'):
         """Equivalent of git commit -a -m MESSAGE."""
         self.repo.git.commit(a=True, m=message)
+        self.repo.git
 
     def push(self):
         """Push repo to origin. Credential errors may happen here."""

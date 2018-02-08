@@ -325,7 +325,7 @@ if __name__ == '__main__':
             found = False
             for platform in j:
                 if (platform['name'] == value and
-                            platform['software-version'] == version):
+                            ''.join(platform['software-version'].split('.')) == version):
                     values.append('<i class="fa fa-check"></i>')
                     found = True
                     break
