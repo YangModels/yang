@@ -12,6 +12,9 @@ module ietf-yang-push {
   import ietf-datastores {
     prefix ds;
   }
+  import ietf-restconf   {
+    prefix rc;
+  }
 
   organization "IETF";
   contact
@@ -42,32 +45,11 @@ module ietf-yang-push {
   description
     "This module contains YANG specifications for YANG push.";
 
-  revision 2017-12-20 {
+  revision 2018-02-05 {
     description
       "Initial revision.";
     reference
-      "draft-ietf-netconf-yang-push-12";
-  }
-
- /*
-  * EXTENSIONS
-  */
-
-  extension notifiable-on-change {
-    argument "value";
-    description
-      "Indicates whether changes to the datastore node are reportable in
-      on-change subscriptions.
-
-      The statement MUST only be a substatement of the leaf, leaf-list,
-      container, list, anyxml, anydata  statements. Zero or One
-      notifiable-on-change statement is allowed per parent statement.
-      NO substatements are allowed.
-
-      The argument is a boolean value indicating whether on-change
-      notifications are supported. If notifiable-on-change is not
-      specified, the default is the same as the parent datastore node's
-      value. For top level datastore nodes the default value is false.";
+      "draft-ietf-netconf-yang-push-13";
   }
 
  /*
@@ -85,59 +67,110 @@ module ietf-yang-push {
   */
 
   /* Error type identities for datastore subscription  */
-  identity period-unsupported {
-    base sn:error;
+
+  identity resynch-subscription-error {
+     description
+      "Problem found while attempting to fulfill an
+      'resynch-subscription' rpc request. ";
+  }
+
+  identity cant-exclude {
+    base sn:establish-subscription-error;
     description
-      "Requested time period is too short. This can be for both
-       periodic and on-change dampening.";
+      "Unable to remove the set of 'excluded-changes'.  This means the
+      publisher is unable to restrict 'push-change-update's to just the
+      change types requested for this subscription.";
+  }
+
+  identity datastore-not-subscribable {
+    base sn:establish-subscription-error;
+    base sn:subscription-terminated-reason;
+    description
+      "This is not a subscribable datastore.";
+  }
+
+  identity no-such-subscription-resynch {
+    base resynch-subscription-error;
+    description
+     "Referenced subscription doesn't exist. This may be as a result of
+      a non-existent subscription ID, an ID which belongs to another
+      subscriber, or an ID for configured subscription.";
   }
 
   identity on-change-unsupported {
-    base sn:error;
+    base sn:establish-subscription-error;
     description
       "On-change is not supported for any objects which are selectable
       by this filter.";
   }
 
   identity on-change-synch-unsupported {
-    base sn:error;
+    base sn:establish-subscription-error;
     description
-      "Neither synch on start nor resynchonization are supported for
+      "Neither synch on start nor resynchronization are supported for
       this subscription.  This error will be used for two reasons. First
       if an 'establish-subscription' RPC doesn't include
       'no-synch-on-start', yet the publisher can't support sending a
-      'push update' for this subscription for reasons other that
-      'on-change-unsupported' or 'result-too-big'.  And second, if the
-      'resynch-subscription' RPC is invoked either for an existing
+      'push-update' for this subscription for reasons other than
+      'on-change-unsupported' or 'synchronization-size'.  And second, if
+      the 'resynch-subscription' RPC is invoked either for an existing
       periodic subscription, or for an on-change subscription which
       can't support resynchronization.";
   }
 
-  identity data-unavailable {
-    base sn:error;
+  identity period-unsupported {
+    base sn:establish-subscription-error;
+    base sn:modify-subscription-error;
+    base sn:subscription-suspended-reason;
     description
-      "Referenced datatree node or subtree doesn't exist, or read
-       access is not permitted.";
+      "Requested time period is too short. This can be for both
+       periodic and on-change subscriptions (with or without
+       dampening.)
+
+      Hints suggesting an acceptable period setting may be returned
+      as supplemental information in a corresponding RPC error
+      response, as applicable.";
   }
 
   identity result-too-big {
-    base sn:error;
+    base sn:establish-subscription-error;
+    base sn:modify-subscription-error;
+    base sn:subscription-suspended-reason;
     description
-      "Resulting periodic or on-change push updates may exceed a size
-      limit during normal conditions.";
+      "Periodic or on-change push update datatrees exceed a maximum
+      size limit.
+
+      Hints on a parameter setting that would result in a reasonable
+      size may be returned as supplemental information in a
+      corresponding RPC error response, as applicable.";
   }
 
   identity synchronization-size {
-    base sn:error;
+    base sn:establish-subscription-error;
+    base sn:modify-subscription-error;
+    base resynch-subscription-error;
+    base sn:subscription-suspended-reason;
     description
-      "The resulting synch-on-start or resynchronization would push a
-      datatree which exceeds size limit for a one-time update.";
+      "Synch-on-start or resynchronization datatree exceeds a maximum
+      size limit.
+
+      Hints on a parameter setting that would result in a reasonable
+      size may be returned as supplemental information in a
+      corresponding RPC error response, as applicable.";
   }
 
-  identity datastore-not-subscribable {
-    base sn:error;
+  identity unchanging-selection {
+    base sn:establish-subscription-error;
+    base sn:modify-subscription-error;
+    base sn:subscription-terminated-reason;
     description
-      "This is not a subscribable datastore.";
+      "Selection filter is unlikely to ever select datatree nodes.  This
+      means that based on the subscriber's current access rights, the
+      publisher recognizes that the selection filter is unlikely to ever
+      select datatree nodes which change. Examples for this might be
+      that node or subtree doesn't exist, read access is not permitted
+      for a receiver, or static objects that only change at reboot have
+      been chosen.";
   }
 
   /*
@@ -292,8 +325,6 @@ module ietf-yang-push {
        conditions that can be changed during the lifetime of the
        subscription.";
     choice update-trigger {
-      when "../yp:target/yp:datastore/yp:datastore";
-      mandatory true;
       description
         "Defines necessary conditions for sending an event record to
          the subscriber.";
@@ -390,22 +421,22 @@ module ietf-yang-push {
     }
   }
 
-  grouping update-error-hints {
+  grouping hints {
     description
-      "Allow return additional negotiation hints that apply
-       specifically to push updates.";
+      "Parameters associated with some error on for a subscription made
+      upon a datastore.";
     leaf period-hint {
       type yang:timeticks;
       description
         "Returned when the requested time period is too short. This
-         hint can assert an viable period for both periodic push
-         cadence and on-change dampening.";
+         hint can assert a viable period for either a periodic push
+         cadence or an on-change dampening interval.";
     }
-    leaf error-path {
+    leaf filter-failure-hint {
       type string;
-      description
-        "Reference to a YANG path which is associated with the error
-         being returned.";
+        description
+          "Information describing where and/or why a provided filter
+           was unsupportable for a subscription.";
     }
     leaf object-count-estimate {
       type uint32;
@@ -459,66 +490,114 @@ module ietf-yang-push {
           "Identifier of the subscription that is to be resynched.";
       }
     }
-    output {
-      leaf subscription-result {
-        type sn:subscription-result;
+  }
+
+  rc:yang-data resynch-subscription-error {
+    container resynch-subscription-error {
+      description
+        "If a 'resynch-subscription' RPC fails, the subscription is not
+        resynched and the RPC error response MUST indicate the reason
+        for this failure. This yang-data MAY be inserted as structured
+        data within a subscription's RPC error response to indicate the
+        failure reason.";
+      leaf reason {
+        type identityref {
+          base resynch-subscription-error;
+        }
         mandatory true;
         description
-          "Indicates whether the request for the subscription resynch
-          has been accepted, or why it has been denied.";
+          "Indicates the reason why the publisher has declined a request
+          for subscription resynchronization.";
       }
+      uses hints;
     }
   }
 
-  /*
-   * DATA NODES
-   */
-
   augment "/sn:establish-subscription/sn:input" {
-    when "sn:target/yp:datastore/yp:datastore";
     description
       "This augmentation adds additional subscription parameters that
       apply specifically to datastore updates to RPC input.";
     uses update-policy;
   }
+
   augment "/sn:establish-subscription/sn:input/sn:target" {
     description
       "This augmentation adds the datastore as a valid parameter object
       for the subscription to RPC input.  This provides a target for
       the filter.";
     case datastore {
-       uses datastore-criteria;
+      description
+        "Information specifying the parameters of an request for a
+        datastore subscription.";
+      uses datastore-criteria;
     }
   }
-  augment "/sn:establish-subscription/sn:output/"+
-    "sn:result/sn:no-success" {
-    description
-      "This augmentation adds datastore specific error info
-      and hints to RPC output.";
-    uses update-error-hints;
+
+  rc:yang-data establish-subscription-error-datastore {
+    container establish-subscription-error-datastore {
+      description
+        "If any 'establish-subscription' RPC parameters are
+        unsupportable against the datastore, a subscription is not
+        created and the RPC error response MUST indicate the reason why
+        the subscription failed to be created. This yang-data MAY be
+        inserted as structured data within a subscription's RPC error
+        response to indicate the failure reason.  This yang-data MUST be
+        inserted if hints are to be provided back to the subscriber.";
+      leaf reason {
+        type identityref {
+          base sn:establish-subscription-error;
+        }
+        description
+          "Indicates the reason why the subscription has failed to
+          be created to a targeted datastore.";
+      }
+      uses hints;
+    }
   }
+
   augment "/sn:modify-subscription/sn:input" {
     description
       "This augmentation adds additional subscription parameters
        specific to datastore updates.";
     uses update-policy-modifiable;
   }
+
   augment "/sn:modify-subscription/sn:input/sn:target" {
     description
       "This augmentation adds the datastore as a valid parameter object
       for the subscription to RPC input.  This provides a target for
       the filter.";
     case datastore {
-       uses selection-filter-objects;
+      description
+        "Information specifying the parameters of an request for a
+         datastore subscription.";
+      uses selection-filter-objects;
     }
   }
-  augment "/sn:modify-subscription/sn:output/"+
-    "sn:result/sn:no-success" {
-    description
-      "This augmentation adds push datastore error info and hints to
-      RPC output.";
-    uses update-error-hints;
+
+  rc:yang-data modify-subscription-error-datastore {
+    container modify-subscription-error-datastore {
+      description
+        "This yang-data MAY be provided as part of a subscription's RPC
+        error response when there is a failure of a
+        'modify-subscription' RPC which has been made against a
+        datastore.  This yang-data MUST be used if hints are to be
+        provides back to the subscriber.";
+      leaf reason {
+        type identityref {
+          base sn:modify-subscription-error;
+        }
+        description
+          "Indicates the reason why the subscription has failed to
+          be modified.";
+      }
+      uses hints;
+    }
   }
+
+  /*
+   * NOTIFICATIONS
+   */
 
   notification push-update {
     description
@@ -554,7 +633,6 @@ module ietf-yang-push {
          selection filter parameters applied.";
     }
   }
-
   notification push-change-update {
     if-feature "on-change";
     description
@@ -599,6 +677,7 @@ module ietf-yang-push {
        the notification that a subscription has started.";
     uses update-policy;
   }
+
   augment "/sn:subscription-started/sn:target" {
     description
       "This augmentation allows the datastore to be included as part
@@ -618,23 +697,6 @@ module ietf-yang-push {
     }
   }
 
-  augment "/sn:filters" {
-    description
-      "This augmentation allows the datastore to be included as part
-       of the selection filtering criteria for a subscription.";
-    list selection-filter {
-      key "identifier";
-      description
-        "A list of pre-positioned filters that can be applied
-         to datastore subscriptions.";
-      leaf identifier {
-        type sn:filter-id;
-        description
-          "An identifier to differentiate between selection filters.";
-      }
-      uses selection-filter-types;
-    }
-  }
   augment "/sn:subscription-modified" {
     description
       "This augmentation adds many datastore specific objects to
@@ -660,22 +722,29 @@ module ietf-yang-push {
     }
   }
 
-  augment "/sn:subscription-config/sn:subscription" {
+  /*
+   * DATA NODES
+   */
+
+  augment "/sn:filters" {
     description
-      "This augmentation adds many datastore specific objects
-      which can be configured as opposed to established via RPC.";
-    uses update-policy;
-  }
-  augment "/sn:subscription-config/sn:subscription/sn:target" {
-    description
-      "This augmentation adds the datastore to the selection filtering
-      criteria for a subscription.";
-    case datastore {
-       uses datastore-criteria;
+      "This augmentation allows the datastore to be included as part
+       of the selection filtering criteria for a subscription.";
+    list selection-filter {
+      key "identifier";
+      description
+        "A list of pre-positioned filters that can be applied
+         to datastore subscriptions.";
+      leaf identifier {
+        type sn:filter-id;
+        description
+          "An identifier to differentiate between selection filters.";
+      }
+      uses selection-filter-types;
     }
   }
+
   augment "/sn:subscriptions/sn:subscription" {
-    yp:notifiable-on-change true;
     description
       "This augmentation adds many datastore specific objects to a
        subscription.";
@@ -689,21 +758,4 @@ module ietf-yang-push {
        uses datastore-criteria;
     }
   }
-
-/* YANG Parser Pyang crashing on syntax below, due to fixed bug
-         https://github.com/mbj4668/pyang/issues/300
-
-  deviation "/sn:subscriptions/sn:subscription/sn:receivers/"
-             + "sn:receiver/sn:pushed-notifications" {
-    deviate add {
-      yp:notifiable-on-change false;
-    }
-  }
-  deviation "/sn:subscriptions/sn:subscription/sn:receivers/"
-             + "sn:receiver/sn:excluded-notifications" {
-    deviate add {
-      yp:notifiable-on-change false;
-    }
-  }
-YANG Parser Pyang crashing on syntax above */
 }
