@@ -110,7 +110,9 @@ class Capability:
                      'platform': self.platform})
             integrity_checker.add_platform('/'.join(self.split[:-2]), self.platform)
 
-        self.parsed_jsons = LoadFiles(self.split)
+        self.parsed_jsons = None
+        if not run_integrity:
+            self.parsed_jsons = LoadFiles(self.split)
 
     def initialize(self, impl):
         if impl['module-list-file']['path'] in self.hello_message_file:
@@ -281,7 +283,9 @@ class Capability:
                                             self.software_version,
                                             self.os_version, self.feature_set,
                                             self.os, conformance_type,
-                                            capabilities, netconf_version)
+                                            capabilities, netconf_version,
+                                            self.integrity_checker,
+                                            self.split)
                 if self.run_integrity:
                     yang.resolve_integrity(self.integrity_checker, self.split,
                                            self.os_version)
@@ -377,7 +381,9 @@ class Capability:
                                                 self.feature_set,
                                                 self.os, 'implement',
                                                 capabilities,
-                                                netconf_version)
+                                                netconf_version,
+                                                self.integrity_checker,
+                                                self.split)
                     if self.run_integrity:
                         yang.resolve_integrity(self.integrity_checker,
                                                self.split, self.os_version)
@@ -434,7 +440,9 @@ class Capability:
                                                 self.os_version,
                                                 self.feature_set, self.os,
                                                 conformance_type, capabilities,
-                                                netconf_version)
+                                                netconf_version,
+                                                self.integrity_checker,
+                                                self.split)
                     if self.run_integrity:
                         yang.resolve_integrity(self.integrity_checker,
                                                self.split, self.os_version)

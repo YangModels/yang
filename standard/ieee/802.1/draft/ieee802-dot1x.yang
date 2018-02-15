@@ -6,8 +6,8 @@ module ieee802-dot1x {
   import ieee802-types { prefix "ieee"; }
   import ietf-yang-types { prefix "yang"; }
   import ietf-interfaces { prefix "if"; }
-  import ietf-system { prefix "system"; }
-  import iana-if-type { prefix "ianaif"; }
+  import ietf-system { prefix "sys"; }
+  import iana-if-type { prefix "ianaift"; }
 
   organization
     "Institute of Electrical and Electronics Engineers";
@@ -39,7 +39,7 @@ module ieee802-dot1x {
     restarting) authentication exchanges and MKA operation, based on
     a data model described in a set of YANG modules.";
   
-  revision 2017-07-20 {
+  revision 2017-10-15 {
     description
       "Updates based upon comment resolution on draft
       D1.1 of P802.1Xck.";
@@ -115,7 +115,7 @@ module ieee802-dot1x {
 
   typedef pae-system-ref {
     type leafref {
-      path "/system:system/dot1x:pae-system/dot1x:name";
+      path "/sys:system/dot1x:pae-system/dot1x:name";
     }
     description
       "This type is used by data models that need to reference
@@ -318,12 +318,13 @@ module ieee802-dot1x {
 
   grouping nid-group {
     description
-      "The PAE NID Group configuration inforamtion.";
+      "The PAE NID Group configuration and operational inforamtion.";
     list pae-nid-group {
       key "nid";
       description
-        "A list that contains the configuration nodes for the network
-        announcement information for the Logon Process.";
+        "A list that contains the configuration and operational
+      	nodes for the network announcement information for the
+      	Logon Process.";
       leaf nid {
         type pae-nid;
         description
@@ -447,26 +448,10 @@ module ieee802-dot1x {
         reference
           "IEEE 802.1X-2010 Clause 10.1";
       }
-    }
-  }
-
-  grouping nid-group-state {
-    description
-      "The PAE NID Group state information.";
-    list pae-nid-group-state {
-      key "nid";
-      description
-        "A list that contains the operational state nodes for the
-        network announcement information for the Logon Process.";
-      leaf nid {
-        type pae-nid;
-        description
-          "Identification of the network or network service.";
-        reference
-          "IEEE 802.1X-2010 Clause 12.5";
-      }
+      
       leaf kmd {
         type pae-kmd;
+        config false;
         description
           "The Key Management Domain for the NID.";
         reference
@@ -542,14 +527,14 @@ module ieee802-dot1x {
    * Configuration objects used by 802.1X YANG module
    * ---------------------------------------------------
    */
-  augment "/system:system" {
+  augment "/sys:system" {
     description
       "Augment system with 802.1X PAE System specific configuration
       nodes.";
     container pae-system {
       description
         "Contains all 802.1X PAE System specific related
-        configuration.";
+        configuration and operational data.";
       leaf name {
         type string;
         description
@@ -608,19 +593,9 @@ module ieee802-dot1x {
         reference
           "IEEE 802.1X-2010 Clause 12.9.1";
       }
-    }
-  }
-
-  augment "/system:system-state" {
-    description
-      "Augment system-state model with 802.1X PAE System specific
-      operational state nodes.";
-    container pae-system {
-      description
-        "Contains all 802.1X specific operational state related
-        nodes.";
       leaf eapol-protocol-version {
         type uint32;
+        config false;
         description
           "The EAPOL protocol version for this system.";
         reference
@@ -628,6 +603,7 @@ module ieee802-dot1x {
       }
       leaf mka-version {
         type uint32;
+        config false;
         description
           "The MKA protocol version for this system.";
         reference
@@ -635,6 +611,7 @@ module ieee802-dot1x {
       }
       leaf-list pae {
         type if:interface-ref;
+        config false;
         description
           "List of PAE references.";
       }
@@ -645,39 +622,27 @@ module ieee802-dot1x {
    *  Port Authentication Entity (PAE) Nodes
    */
   augment "/if:interfaces/if:interface" {
-    when "if:type = 'ianaif:ethernetCsmacd' or
-          if:type = 'ianaif:ilan'" {
+    when "if:type = 'ianaift:ethernetCsmacd' or
+          if:type = 'ianaift:ilan' or
+          if:type = 'ianaift:macSecControlledIF' or
+          if:type = 'ianaift:ptm'" {
       description
-        "Applies to the Controlled Port of SecY or PAC shim.";
+        "Applies to the Controlled Port of SecY or PAC shim or
+      	Ethernet related Interface.";
     }
     description
-      "Augment interface model with PAE configuration nodes.";
+      "Augment interface model with PAE configuration and
+    	operational nodes.";
     reference
       "IEEE 802.1AE Clause 11.7 and IEEE 802.1X-2010 Clause 6.5 and
       Clause 13.3.2";
     container pae {
       description
-        "Contains PAE configuration related nodes.";
+        "Contains PAE configuration and operational related nodes.";
       leaf pae-system {
         type dot1x:pae-system-ref;
         description
           "The PAE system that this PAE is a member of.";
-      }
-      leaf port-type {
-      	type enumeration {
-          enum real-port {
-            description
-              "Real Port type.";
-          }
-          enum virtual-port {
-            description
-              "Virtual Port type.";
-          }
-        }
-        description
-          "The port type of the PAE.";
-        reference
-          "IEEE 802.1X-2010 Clause 12.9.2";
       }
       leaf vp-enable {
         when "../port-type = 'real-port' and
@@ -699,6 +664,150 @@ module ieee802-dot1x {
         description
           "Per port PAE feature capabilities.";
         uses port-capabilities;
+      }
+      
+      leaf port-name {
+        type if:interface-ref;
+        config false;
+        description
+          "Each PAE is uniquely identified by a port name.";
+        }
+      leaf port-number {
+        type pae-if-index;
+        config false;
+        description
+          "Each PAE is uniquely identified by a port number. The
+          port number used is unique amongst all port names for the
+          system, and directly or indirectly identifies the
+          Uncontrolled Port that supports the PAE. If the PAE has
+          been dynamically instantiated to support an existing or
+          potential virtual port, this portNumber, the
+          uncontrolledPortNumber and the controlledPortNumber are
+          allocated by the real ports PAE, and this portNumber is the
+          uncontrolledPortNumber. If the PAE supports a real port,
+          this portNumber is the commonPortNumber for the associated
+          PAC or SecY.";
+        reference
+          "IEEE 802.1X-2010 Clause 12.9.2";
+        }
+      leaf controlled-port-name {
+        type if:interface-ref;
+        config false;
+        description
+          "Each PAE is uniquely identified by a port name.";
+      }
+      leaf controlled-port-number {
+        type pae-if-index;
+        config false;
+        description
+          "The port for the associated PAC or SecYs Controlled
+          Port.";
+        reference
+          "IEEE 802.1X-2010 Clause 12.9.2";
+      }
+      leaf uncontrolled-port-name {
+        type if:interface-ref;
+        config false;
+        description
+          "The uncontrolled port name reference.";
+      }
+      leaf uncontrolled-port-number {
+        type pae-if-index;
+        config false;
+        description
+          "The port for the associated PAC or SecYs Uncontrolled
+          Port.";
+        reference
+          "IEEE 802.1X-2010 Clause 12.9.2";
+      }
+      leaf common-port-name {
+        type if:interface-ref;
+        config false;
+        description
+          "The common port name reference.";
+      }
+      leaf common-port-number {
+        type pae-if-index;
+        config false;
+        description
+          "The port for the associated PAC or SecYs Common Port. All
+          the virtual ports created for a given real port share the
+          same Common Port and commonPortNumber.";
+        reference
+          "IEEE 802.1X-2010 Clause 12.9.2";
+      }
+      leaf port-type {
+        type enumeration {
+          enum real-port {
+            description
+              "Real Port type.";
+          }
+          enum virtual-port {
+            description
+              "Virtual Port type.";
+          }
+        }
+        //config false;
+        description
+          "The port type of the PAE.";
+        reference
+          "IEEE 802.1X-2010 Clause 12.9.2";
+      }
+      container virtual-port {
+        when "../port-capabilities/virtual-ports = 'true'" {
+          description
+            "Applies when the virtual ports port capability is
+            supported.";
+        }
+        config false;
+        description
+          "Contains Virtual Port operational state information.";
+        leaf max {
+          when "../../port-type = 'real-port'" {
+            description
+              "Applies when Port is a Real Port.";
+          }
+          type uint32;
+          description
+            "The guaranteed maximum number of virtual ports.";
+          reference
+            "IEEE 802.1X-2010 Clause 12.9.2";
+        }
+        leaf current {
+          when "../../port-type = 'real-port'" {
+            description
+              "Applies when Port is a Real Port.";
+          }
+          type yang:gauge32;
+          description
+            "The current number of virtual ports.";
+          reference
+            "IEEE 802.1X-2010 Clause 12.9.2";
+        }
+        leaf start {
+          when "../../port-type = 'virtual-port'" {
+            description
+              "Applies when Port is a Virtual Port.";
+          }
+          type uint32;
+          description
+            "Set if the virtual port was created by receipt of an
+            EAPOL-Start frame.";
+          reference
+            "IEEE 802.1X-2010 Clause 12.9.7";
+        }
+        leaf peer-address {
+          when "../../port-type = 'virtual-port'" {
+            description
+              "Applies when Port is a Virtual Port.";
+          }
+          type ieee:mac-address;
+          description
+            "The source MAC Address of the EAPOL-Start (if vpStart is
+            set).";
+          reference
+            "IEEE 802.1X-2010 Clause 12.9.7";
+        }
       }
 
       container supplicant {
@@ -733,6 +842,57 @@ module ieee802-dot1x {
             unauthorized.";
           reference
             "IEEE 802.1X-2010 Clause 8.7";
+        }
+        
+        leaf enabled {
+          type boolean;
+          config false;
+          description
+            "Set by PACP if the PAE can provide authentication. Will
+            be FALSE if the Port is not enabled, if the functionality
+            provided by the PAE is not available, or not implemented,
+            or the control variable enable has been cleared by
+            management, e.g. because the application scenario
+            authenticates a user and there is no user logged on.";
+          reference
+            "IEEE 802.1X-2010 Clause 8.4";
+        }
+        leaf authenticate {
+          type boolean;
+          config false;
+          description
+            "Set by the PAE client to request authentication, and
+            allows reauthentication while set. Cleared by the client
+            to revoke authentication. To enable authentication the
+            client also needs to clear failed (if set).";
+          reference
+            "IEEE 802.1X-2010 Clause 8.4";
+        }
+        leaf authenticated {
+          type boolean;
+          config false;
+          description
+            "Set by PACP if the PAE is currently authenticated, and
+            cleared if the authentication fails or is revoked.";
+          reference
+            "IEEE 802.1X-2010 Clause 8.4";
+        }
+        leaf failed {
+          type boolean;
+          config false;
+          description
+            "Set by PACP if the authentication has failed or has been
+            terminated. The cause could be a Fail returned by EAP,
+            either immediately or following a reauthentication, an
+            excessive number of attempts to authenticate (either
+            immediately or upon reauthentication), or the client
+            deasserting authenticate. The PACP will clear
+            authenticated as well as setting failed. Any ongoing
+            authentication exchange will be terminated (by the state
+            machines) if enable becomes FALSE and enabled will be
+            cleared, but failed will not be set.";
+          reference
+            "IEEE 802.1X-2010 Clause 8.4";
         }
       }
 
@@ -785,6 +945,57 @@ module ieee802-dot1x {
           reference
             "IEEE 802.1X-2010 Clause 8.9";
         }
+        
+        leaf enabled {
+          type boolean;
+          config false;
+          description
+            "Set by PACP if the PAE can provide authentication. Will
+            be FALSE if the Port is not enabled, if the functionality
+            provided by the PAE is not available, or not implemented,
+            or the control variable enable has been cleared by
+            management, e.g. because the application scenario
+            authenticates a user and there is no user logged on.";
+          reference
+            "IEEE 802.1X-2010 Clause 8.4";
+        }
+        leaf authenticate {
+          type boolean;
+          config false;
+          description
+            "Set by the PAE client to request authentication, and
+            allows reauthentication while set. Cleared by the client
+            to revoke authentication. To enable authentication the
+            client also needs to clear failed (if set).";
+          reference
+            "IEEE 802.1X-2010 Clause 8.4";
+        }
+        leaf authenticated {
+          type boolean;
+          config false;
+          description
+            "Set by PACP if the PAE is currently authenticated, and
+            cleared if the authentication fails or is revoked.";
+          reference
+            "IEEE 802.1X-2010 Clause 8.4";
+        }
+        leaf failed {
+          type boolean;
+          config false;
+          description
+            "Set by PACP if the authentication has failed or has been
+            terminated. The cause could be a Fail returned by EAP,
+            either immediately or following a reauthentication, an
+            excessive number of attempts to authenticate (either
+            immediately or upon reauthentication), or the client
+            deasserting authenticate. The PACP will clear
+            authenticated as well as setting failed. Any ongoing
+            authentication exchange will be terminated (by the state
+            machines) if enable becomes FALSE and enabled will be
+            cleared, but failed will not be set.";
+          reference
+            "IEEE 802.1X-2010 Clause 8.4";
+        }
       }
 
       container kay {
@@ -806,7 +1017,8 @@ module ieee802-dot1x {
         }
         container actor {
           description
-            "Contains configuration nodes associated with the actor";
+            "Contains configuration and operational nodes 
+          	associated with the actor";
           leaf priority {
             type uint8;
             description
@@ -814,10 +1026,20 @@ module ieee802-dot1x {
             reference
               "IEEE 802.1X-2010 Clause 9.16";
           }
+          leaf sci {
+            type sci-list-entry;
+            config false;
+            description
+              "The SCI assigned by the system to the port (applies
+              to all the ports actors).";
+            reference
+              "IEEE 802.1X-2010 Clause 9.16";
+          }
         }
         container key-server {
           description
-            "Contains configuration nodes associated with the key
+            "Contains configuration and operational nodes
+          	associated with the key
             server.";
           leaf priority {
             type uint8;
@@ -825,6 +1047,17 @@ module ieee802-dot1x {
               "The Key Server Priority for the Key Server for the
               principal actor. Matches the actorPriority if the
               actor is the Key Server";
+            reference
+              "IEEE 802.1X-2010 Clause 9.16";
+          }
+          leaf sci {
+            type sci-list-entry;
+            config false;
+            description
+              "The SCI for Key Server for the principal actor. Null
+              if there is no principal actor, or that actor has no
+              live peers. Matches the actorSCI if the actor is the
+              Key Server.";
             reference
               "IEEE 802.1X-2010 Clause 9.16";
           }
@@ -864,6 +1097,7 @@ module ieee802-dot1x {
               "IEEE 802.1X-2010 Clause 9.16";
           }
         }
+        
         container macsec {
           when "../../port-capabilities/macsec = 'true'" {
             description
@@ -871,7 +1105,8 @@ module ieee802-dot1x {
               supported.";
           }
           description
-            "Contains configuration nodes associated with macsec.";
+            "Contains configuration and operational nodes
+          	associated with macsec.";
           leaf capable {
             type boolean;
             description
@@ -886,6 +1121,31 @@ module ieee802-dot1x {
             description
               "Set for the port and applicable to all actors, by
               management.";
+            reference
+              "IEEE 802.1X-2010 Clause 9.16";
+          }
+          
+          leaf protect {
+            type boolean;
+            config false;
+            description
+              "As used by the CP state machine, see 12.4.";
+            reference
+              "IEEE 802.1X-2010 Clause 9.16";
+          }
+          leaf validate {
+            type boolean;
+            config false;
+            description
+              "As used by the CP state machine, see 12.4.";
+            reference
+              "IEEE 802.1X-2010 Clause 9.16";
+          }
+          leaf replay-protect {
+            type boolean;
+            config false;
+            description
+              "As used by the CP state machine, see 12.4.";
             reference
               "IEEE 802.1X-2010 Clause 9.16";
           }
@@ -910,12 +1170,111 @@ module ieee802-dot1x {
           reference
             "IEEE 802.1X-2010 Clause 9.18";
         }
+        
+        leaf suspended-while {
+          type uint8;
+          config false;
+          description
+            "Read by management to determine if a suspension is in
+            progress and (when available) to discover the remaining
+            duration of that suspension";
+          reference
+            "IEEE 802.1X-2010 Clause 9.18";
+        }
+        leaf active {
+          type boolean;
+          config false;
+          description
+            "Set if there is at least one active actor, transmitting
+            MKPDUs.";
+          reference
+            "IEEE 802.1X-2010 Clause 9.16";
+        }
+        leaf authenticated {
+          type boolean;
+          config false;
+          description
+            "Set if the principal actor, i.e. the participant that
+            has the highest priority Key Server and one or more live
+            peers, has determined that Controlled Port communication
+            should proceed without MACsec.";
+          reference
+            "IEEE 802.1X-2010 Clause 9.16";
+        }
+        leaf secured {
+          type boolean;
+          config false;
+          description
+            "Set if the principal actor has determined that
+            communication should use MACsec.";
+          reference
+            "IEEE 802.1X-2010 Clause 9.16";
+        }
+        leaf failed {
+          type boolean;
+          config false;
+          description
+            "Cleared when authenticated or secured are set, set if
+            the latter are clear and MKA Life Time has elapsed since
+            an MKA participant was last created.";
+          reference
+            "IEEE 802.1X-2010 Clause 9.16";
+        }
+        container key-number {
+        	config false;
+          description
+            "Contains operation state nodes for Key Numbers.";
+          leaf tx {
+            type mak-kn;
+            description
+              "The Key Number assigned by the Key Server to the SAK
+              currently being used for transmission. Null if MACsec
+              is not being used.";
+            reference
+              "IEEE 802.1X-2010 Clause 9.16";
+          }
+          leaf rx {
+            type mak-kn;
+            description
+              "The Key Number assigned by the Key Server to the
+              oldest SAK currently being used for reception. The same
+              as txKN if a single SAK is currently in use (as will
+              most often be the case). Null if MACsec is not being
+              used.";
+            reference
+              "IEEE 802.1X-2010 Clause 9.16";
+          }
+        }
+        container association-number {
+        	config false;
+          description
+            "Contains operation state nodes for Association
+            Numbers.";
+          leaf tx {
+            type mak-an;
+            description
+              "The Association Number assigned by the Key Server for
+              use with txKN. Zero if MACsec is not in use.";
+            reference
+              "IEEE 802.1X-2010 Clause 9.16";
+          }
+          leaf rx {
+            type mak-an;
+            description
+              "The Association Number assigned by the Key Server for
+              use with rxKN. The same as txAN if a single SAK is
+              currently in use. Zero if MACsec is not in use.";
+            reference
+              "IEEE 802.1X-2010 Clause 9.16";
+          }
+        }
 
         list participants {
           key "participant";
           description
-            "Contains list of configuration nodes for each MKA
-            participant supported by the KaY MKA entity.";
+            "Contains list of configuration and operational nodes
+          	for each MKA participant supported by the KaY MKA
+          	entity.";
           leaf participant {
             type uint32;
             description
@@ -995,15 +1354,92 @@ module ieee802-dot1x {
             reference
               "IEEE 802.1X-2010 Clause 9.16";
           }
+          
+          container peers {
+          	config false;
+            description
+              "Contains operational state nodes associated with the
+              Peers.";
+            leaf-list live {
+              type sci-list-entry;
+                description
+                  "A list of the SCIs of the participants live
+                  peers.";
+                reference
+                  "IEEE 802.1X-2010 Clause 9.16";
+            }
+            leaf-list potential {
+              type sci-list-entry;
+              description
+                "A list of the SCIs of the participants potential
+                peers.";
+              reference
+                "IEEE 802.1X-2010 Clause 9.16";
+            }
+          }
+          leaf ckn {
+            type pae-ckn;
+            config false;
+            description
+              "The secure Connectivity Association Key Name for the
+              participant.";
+            reference
+              "IEEE 802.1X-2010 Clause 9.16";
+          }
+          leaf kmd {
+            type pae-kmd;
+            config false;
+            description
+              "The Key Management Domain for the participant.";
+            reference
+              "IEEE 802.1X-2010 Clause 9.16";
+          }
+          leaf nid {
+            type pae-nid;
+            config false;
+            description
+              "The NID for the participant.";
+            reference
+              "IEEE 802.1X-2010 Clause 9.16";
+          }
+          leaf auth-data {
+            type pae-auth-data;
+            config false;
+            description
+              "Authorization data associated with the secure
+              Connectivity Association Key.";
+            reference
+              "IEEE 802.1X-2010 Clause 9.16";
+          }
+          leaf principal {
+            type boolean;
+            config false;
+            description
+              "Set if the participant is currently the principal
+              actor.";
+            reference
+              "IEEE 802.1X-2010 Clause 9.16";
+          }
+          leaf dist-ckn {
+            type pae-ckn;
+            config false;
+            description
+              "The CKN for the last CAK distributed (either by the
+              actor or one of its partners). Null if this participant
+              has not been used to distribute a CAK.";
+            reference
+              "IEEE 802.1X-2010 Clause 9.16";
+          }
         }
       }
 
       container logon-nid {
         description
-          "Contains the configuration related NID information for the
-          Logon Process. The Logon Process may use Network
-          Identifiers (NIDs) to manage its use of authentication
-          credentials, cached CAKs, and announcements.";
+          "Contains the configuration and operational related NID
+        	information for the Logon Process. The Logon Process may
+        	use Network Identifiers (NIDs) to manage its use of
+        	authentication credentials, cached CAKs, and 
+        	announcements.";
         leaf selected {
           type pae-nid;
           description
@@ -1014,6 +1450,27 @@ module ieee802-dot1x {
             "IEEE 802.1X-2010 Clause 12.5";
         }
         uses nid-group;
+        
+        leaf connected {
+          type pae-nid;
+          config false;
+          description
+            "The NID associated with the current connectivity
+            (possibly unauthenticated) provided by the operation of
+            the CP state machine.";
+          reference
+            "IEEE 802.1X-2010 Clause 12.5";
+        }
+        leaf requested {
+          type pae-nid;
+          config false;
+          description
+            "The NID marked as Access requested in announcements, as
+            determined from EAPOL-Start frames. Defaults to the
+            selectedNID.";
+          reference
+            "IEEE 802.1X-2010 Clause 12.5";
+        }
       }
 
       container announcer {
@@ -1046,6 +1503,26 @@ module ieee802-dot1x {
               "Key into Announce list.";
           }
           uses nid-group;
+          
+          leaf nid {
+            type pae-nid;
+            config false;
+            description
+              "The NID information to identify a received network
+              announcement for the PAE.";
+            reference
+              "IEEE 802.1X-2010 Clause 10.4";
+          }
+          leaf access-status {
+            type pae-access-status;
+            config false;
+            description
+              "Access Status reflects connectivity as a result of
+              authentication attempts, and might be set directly by
+              the system or configured by AAA protocols.";
+            reference
+              "IEEE 802.1X-2010 Clause 10.4, Clause 12.5";
+          }
         }
       }
 
@@ -1056,8 +1533,8 @@ module ieee802-dot1x {
             supported.";
         }
         description
-          "Contains the configuration Listener node related
-          information.";
+          "Contains the configuration and operational Listener
+        	node related information.";
         leaf enable {
           type boolean;
           default "false";
@@ -1067,614 +1544,10 @@ module ieee802-dot1x {
           reference
             "IEEE 802.1X-2010 Clause 10.4";
         }
-      }
-
-      container logon-process {
-        description
-          "Contains configuration system level information for each
-          port to support the Logon Process(es) status information.";
-        leaf logon {
-          type boolean;
-          default "false";
-          description
-            "A boolean indicating if the logon-process is enabled or
-            not.";
-          reference
-            "IEEE 802.1X-2010 Clause 12.5";
-        }
-      }
-    }
-  }
-
-  augment "/if:interfaces-state/if:interface" {
-    when "if:type = 'ianaif:ethernetCsmacd' or
-          if:type = 'ianaif:ilan'" {
-      description
-        "Applies to the Controlled Port of SecY or PAC shim.";
-      }
-    description
-      "Augment interface-state model with PAE configuration nodes.";
-    reference
-      "IEEE 802.1AE Clause 11.7 and IEEE 802.1X-2010 Clause 6.5 and
-      Clause 13.3.2.";
-    container pae {
-      description
-        "Contains PAE operational state related nodes.";
-      leaf port-name {
-        type if:interface-ref;
-        description
-          "Each PAE is uniquely identified by a port name.";
-        }
-      leaf port-number {
-        type pae-if-index;
-        description
-          "Each PAE is uniquely identified by a port number. The
-          port number used is unique amongst all port names for the
-          system, and directly or indirectly identifies the
-          Uncontrolled Port that supports the PAE. If the PAE has
-          been dynamically instantiated to support an existing or
-          potential virtual port, this portNumber, the
-          uncontrolledPortNumber and the controlledPortNumber are
-          allocated by the real ports PAE, and this portNumber is the
-          uncontrolledPortNumber. If the PAE supports a real port,
-          this portNumber is the commonPortNumber for the associated
-          PAC or SecY.";
-        reference
-          "IEEE 802.1X-2010 Clause 12.9.2";
-        }
-      leaf controlled-port-name {
-        type if:interface-ref;
-        description
-          "Each PAE is uniquely identified by a port name.";
-      }
-      leaf controlled-port-number {
-        type pae-if-index;
-        description
-          "The port for the associated PAC or SecYs Controlled
-          Port.";
-        reference
-          "IEEE 802.1X-2010 Clause 12.9.2";
-      }
-      leaf uncontrolled-port-name {
-        type if:interface-ref;
-        description
-          "The uncontrolled port name reference.";
-      }
-      leaf uncontrolled-port-number {
-        type pae-if-index;
-        description
-          "The port for the associated PAC or SecYs Uncontrolled
-          Port.";
-        reference
-          "IEEE 802.1X-2010 Clause 12.9.2";
-      }
-      leaf common-port-name {
-        type if:interface-ref;
-        description
-          "The common port name reference.";
-      }
-      leaf common-port-number {
-        type pae-if-index;
-        description
-          "The port for the associated PAC or SecYs Common Port. All
-          the virtual ports created for a given real port share the
-          same Common Port and commonPortNumber.";
-        reference
-          "IEEE 802.1X-2010 Clause 12.9.2";
-      }
-      container port-capabilities {
-        description
-          "Per port PAE feature capabilities.";
-        uses port-capabilities;
-      }
-      leaf port-type {
-        type enumeration {
-          enum real-port {
-            description
-              "Real Port type.";
-          }
-          enum virtual-port {
-            description
-              "Virtual Port type.";
-          }
-        }
-        description
-          "The port type of the PAE.";
-        reference
-          "IEEE 802.1X-2010 Clause 12.9.2";
-      }
-      container virtual-port {
-        when "../port-capabilities/virtual-ports = 'true'" {
-          description
-            "Applies when the virtual ports port capability is
-            supported.";
-        }
-        description
-          "Contains Virtual Port operational state information.";
-        leaf max {
-          when "../../port-type = 'real-port'" {
-            description
-              "Applies when Port is a Real Port.";
-          }
-          type uint32;
-          description
-            "The guaranteed maximum number of virtual ports.";
-          reference
-            "IEEE 802.1X-2010 Clause 12.9.2";
-        }
-        leaf current {
-          when "../../port-type = 'real-port'" {
-            description
-              "Applies when Port is a Real Port.";
-          }
-          type yang:gauge32;
-          description
-            "The current number of virtual ports.";
-          reference
-            "IEEE 802.1X-2010 Clause 12.9.2";
-        }
-        leaf start {
-          when "../../port-type = 'virtual-port'" {
-            description
-              "Applies when Port is a Virtual Port.";
-          }
-          type uint32;
-          description
-            "Set if the virtual port was created by receipt of an
-            EAPOL-Start frame.";
-          reference
-            "IEEE 802.1X-2010 Clause 12.9.7";
-        }
-        leaf peer-address {
-          when "../../port-type = 'virtual-port'" {
-            description
-              "Applies when Port is a Virtual Port.";
-          }
-          type ieee:mac-address;
-          description
-            "The source MAC Address of the EAPOL-Start (if vpStart is
-            set).";
-          reference
-            "IEEE 802.1X-2010 Clause 12.9.7";
-        }
-      }
-
-      container supplicant {
-        // Suppplicant only applicable to RealPort types.
-        when "../port-type = 'real-port' and
-              ../port-capabilities/supp = 'true'" {
-          description
-            "Applies when Port is a Real Port and the Supplicant
-            port capability is supported.";
-        }
-        description
-          "Contains the operational state nodes for the Supplicant
-          PAE associated with each port.";
-        leaf enabled {
-          type boolean;
-          description
-            "Set by PACP if the PAE can provide authentication. Will
-            be FALSE if the Port is not enabled, if the functionality
-            provided by the PAE is not available, or not implemented,
-            or the control variable enable has been cleared by
-            management, e.g. because the application scenario
-            authenticates a user and there is no user logged on.";
-          reference
-            "IEEE 802.1X-2010 Clause 8.4";
-        }
-        leaf authenticate {
-          type boolean;
-          description
-            "Set by the PAE client to request authentication, and
-            allows reauthentication while set. Cleared by the client
-            to revoke authentication. To enable authentication the
-            client also needs to clear failed (if set).";
-          reference
-            "IEEE 802.1X-2010 Clause 8.4";
-        }
-        leaf authenticated {
-          type boolean;
-          description
-            "Set by PACP if the PAE is currently authenticated, and
-            cleared if the authentication fails or is revoked.";
-          reference
-            "IEEE 802.1X-2010 Clause 8.4";
-        }
-        leaf failed {
-          type boolean;
-          description
-            "Set by PACP if the authentication has failed or has been
-            terminated. The cause could be a Fail returned by EAP,
-            either immediately or following a reauthentication, an
-            excessive number of attempts to authenticate (either
-            immediately or upon reauthentication), or the client
-            deasserting authenticate. The PACP will clear
-            authenticated as well as setting failed. Any ongoing
-            authentication exchange will be terminated (by the state
-            machines) if enable becomes FALSE and enabled will be
-            cleared, but failed will not be set.";
-          reference
-            "IEEE 802.1X-2010 Clause 8.4";
-        }
-      }
-
-      container authenticator {
-        when "../port-capabilities/auth = 'true'" {
-          description
-            "Applies when the Authenticator port capability feature
-            is supported.";
-        }
-        description
-          "Contains operational state nodes for the Authenticator
-          PAE associated with each port.";
-        leaf enabled {
-          type boolean;
-          description
-            "Set by PACP if the PAE can provide authentication. Will
-            be FALSE if the Port is not enabled, if the functionality
-            provided by the PAE is not available, or not implemented,
-            or the control variable enable has been cleared by
-            management, e.g. because the application scenario
-            authenticates a user and there is no user logged on.";
-          reference
-            "IEEE 802.1X-2010 Clause 8.4";
-        }
-        leaf authenticate {
-          type boolean;
-          description
-            "Set by the PAE client to request authentication, and
-            allows reauthentication while set. Cleared by the client
-            to revoke authentication. To enable authentication the
-            client also needs to clear failed (if set).";
-          reference
-            "IEEE 802.1X-2010 Clause 8.4";
-        }
-        leaf authenticated {
-          type boolean;
-          description
-            "Set by PACP if the PAE is currently authenticated, and
-            cleared if the authentication fails or is revoked.";
-          reference
-            "IEEE 802.1X-2010 Clause 8.4";
-        }
-        leaf failed {
-          type boolean;
-          description
-            "Set by PACP if the authentication has failed or has been
-            terminated. The cause could be a Fail returned by EAP,
-            either immediately or following a reauthentication, an
-            excessive number of attempts to authenticate (either
-            immediately or upon reauthentication), or the client
-            deasserting authenticate. The PACP will clear
-            authenticated as well as setting failed. Any ongoing
-            authentication exchange will be terminated (by the state
-            machines) if enable becomes FALSE and enabled will be
-            cleared, but failed will not be set.";
-          reference
-            "IEEE 802.1X-2010 Clause 8.4";
-        }
-      }
-
-      container kay {
-        when "../port-capabilities/mka = 'true'" {
-          description
-            "Applies when the MKA port capability feature is
-            supported.";
-        }
-        description
-          "Contains operational state system level information for
-          each Interface supported by the KaY (Key Aggreement
-          Entity).";
-        container actor {
-          description
-            "Contains operational state nodes associated with the
-            actor";
-          leaf sci {
-            type sci-list-entry;
-            description
-              "The SCI assigned by the system to the port (applies
-              to all the ports actors).";
-            reference
-              "IEEE 802.1X-2010 Clause 9.16";
-          }
-        }
-        container key-server {
-          description
-            "Contains operational state nodes associated with the
-            key server.";
-          leaf sci {
-            type sci-list-entry;
-            description
-              "The SCI for Key Server for the principal actor. Null
-              if there is no principal actor, or that actor has no
-              live peers. Matches the actorSCI if the actor is the
-              Key Server.";
-            reference
-              "IEEE 802.1X-2010 Clause 9.16";
-          }
-        }
-        container macsec {
-          when "../../port-capabilities/macsec = 'true'" {
-            description
-              "Applies when the MACsec port capability feature is
-              supported.";
-          }
-          description
-            "Contains operational state nodes associated with
-            macsec.";
-          leaf protect {
-            type boolean;
-            description
-              "As used by the CP state machine, see 12.4.";
-            reference
-              "IEEE 802.1X-2010 Clause 9.16";
-          }
-          leaf validate {
-            type boolean;
-            description
-              "As used by the CP state machine, see 12.4.";
-            reference
-              "IEEE 802.1X-2010 Clause 9.16";
-          }
-          leaf replay-protect {
-            type boolean;
-            description
-              "As used by the CP state machine, see 12.4.";
-            reference
-              "IEEE 802.1X-2010 Clause 9.16";
-          }
-        }
-        leaf suspended-while {
-          type uint8;
-          description
-            "Read by management to determine if a suspension is in
-            progress and (when available) to discover the remaining
-            duration of that suspension";
-          reference
-            "IEEE 802.1X-2010 Clause 9.18";
-        }
-        leaf active {
-          type boolean;
-          description
-            "Set if there is at least one active actor, transmitting
-            MKPDUs.";
-          reference
-            "IEEE 802.1X-2010 Clause 9.16";
-        }
-        leaf authenticated {
-          type boolean;
-          description
-            "Set if the principal actor, i.e. the participant that
-            has the highest priority Key Server and one or more live
-            peers, has determined that Controlled Port communication
-            should proceed without MACsec.";
-          reference
-            "IEEE 802.1X-2010 Clause 9.16";
-        }
-        leaf secured {
-          type boolean;
-          description
-            "Set if the principal actor has determined that
-            communication should use MACsec.";
-          reference
-            "IEEE 802.1X-2010 Clause 9.16";
-        }
-        leaf failed {
-          type boolean;
-          description
-            "Cleared when authenticated or secured are set, set if
-            the latter are clear and MKA Life Time has elapsed since
-            an MKA participant was last created.";
-          reference
-            "IEEE 802.1X-2010 Clause 9.16";
-        }
-        container key-number {
-          description
-            "Contains operation state nodes for Key Numbers.";
-          leaf tx {
-            type mak-kn;
-            description
-              "The Key Number assigned by the Key Server to the SAK
-              currently being used for transmission. Null if MACsec
-              is not being used.";
-            reference
-              "IEEE 802.1X-2010 Clause 9.16";
-          }
-          leaf rx {
-            type mak-kn;
-            description
-              "The Key Number assigned by the Key Server to the
-              oldest SAK currently being used for reception. The same
-              as txKN if a single SAK is currently in use (as will
-              most often be the case). Null if MACsec is not being
-              used.";
-            reference
-              "IEEE 802.1X-2010 Clause 9.16";
-          }
-        }
-        container association-number {
-          description
-            "Contains operation state nodes for Association
-            Numbers.";
-          leaf tx {
-            type mak-an;
-            description
-              "The Association Number assigned by the Key Server for
-              use with txKN. Zero if MACsec is not in use.";
-            reference
-              "IEEE 802.1X-2010 Clause 9.16";
-          }
-          leaf rx {
-            type mak-an;
-            description
-              "The Association Number assigned by the Key Server for
-              use with rxKN. The same as txAN if a single SAK is
-              currently in use. Zero if MACsec is not in use.";
-            reference
-              "IEEE 802.1X-2010 Clause 9.16";
-          }
-        }
-
-        list participant {
-          key "participants";
-          description
-            "Contains list of operational state nodes for each MKA
-            participant supported by the KaY MKA entity.";
-          leaf participants {
-            type uint32;
-            description
-              "Index into Participants list.";
-          }
-          container peers {
-            description
-              "Contains operational state nodes associated with the
-              Peers.";
-            leaf-list live {
-              type sci-list-entry;
-                description
-                  "A list of the SCIs of the participants live
-                  peers.";
-                reference
-                  "IEEE 802.1X-2010 Clause 9.16";
-            }
-            leaf-list potential {
-              type sci-list-entry;
-              description
-                "A list of the SCIs of the participants potential
-                peers.";
-              reference
-                "IEEE 802.1X-2010 Clause 9.16";
-            }
-          }
-          leaf ckn {
-            type pae-ckn;
-            description
-              "The secure Connectivity Association Key Name for the
-              participant.";
-            reference
-              "IEEE 802.1X-2010 Clause 9.16";
-          }
-          leaf kmd {
-            type pae-kmd;
-            description
-              "The Key Management Domain for the participant.";
-            reference
-              "IEEE 802.1X-2010 Clause 9.16";
-          }
-          leaf nid {
-            type pae-nid;
-            description
-              "The NID for the participant.";
-            reference
-              "IEEE 802.1X-2010 Clause 9.16";
-          }
-          leaf auth-data {
-            type pae-auth-data;
-            description
-              "Authorization data associated with the secure
-              Connectivity Association Key.";
-            reference
-              "IEEE 802.1X-2010 Clause 9.16";
-          }
-          leaf principal {
-            type boolean;
-            description
-              "Set if the participant is currently the principal
-              actor.";
-            reference
-              "IEEE 802.1X-2010 Clause 9.16";
-          }
-          leaf dist-ckn {
-            type pae-ckn;
-            description
-              "The CKN for the last CAK distributed (either by the
-              actor or one of its partners). Null if this participant
-              has not been used to distribute a CAK.";
-            reference
-              "IEEE 802.1X-2010 Clause 9.16";
-          }
-        }
-      }
-
-      container logon-nid {
-        description
-          "Contains the operation state related NID information for
-          the Logon Process. The Logon Process may use Network
-          Identifiers (NIDs) to manage its use of authentication
-          credentials, cached CAKs, and announcements.";
-        leaf connected {
-          type pae-nid;
-          description
-            "The NID associated with the current connectivity
-            (possibly unauthenticated) provided by the operation of
-            the CP state machine.";
-          reference
-            "IEEE 802.1X-2010 Clause 12.5";
-        }
-        leaf requested {
-          type pae-nid;
-          description
-            "The NID marked as Access requested in announcements, as
-            determined from EAPOL-Start frames. Defaults to the
-            selectedNID.";
-          reference
-            "IEEE 802.1X-2010 Clause 12.5";
-        }
-        uses nid-group-state;
-      }
-
-      container announcer {
-        when "../port-capabilities/announcements = 'true'" {
-          description
-            "Applies when the Announcements port capability feature
-            is supported.";
-        }
-        description
-          "Contains the operational state related Announcer
-          information.";
-        list announce {
-          key "announces";
-          description
-            "Contains the operational state related status
-            information that the Announcers announce in the network
-            announcement of the PAE system.";
-          leaf announces {
-            type uint32;
-            description
-              "Key into Announce list.";
-          }
-          leaf nid {
-            type pae-nid;
-            description
-              "The NID information to identify a received network
-              announcement for the PAE.";
-            reference
-              "IEEE 802.1X-2010 Clause 10.4";
-          }
-          leaf access-status {
-            type pae-access-status;
-            description
-              "Access Status reflects connectivity as a result of
-              authentication attempts, and might be set directly by
-              the system or configured by AAA protocols.";
-            reference
-              "IEEE 802.1X-2010 Clause 10.4, Clause 12.5";
-          }
-          uses nid-group-state;
-        }
-      }
-
-      container listener {
-        when "../port-capabilities/listener = 'true'" {
-          description
-            "Applies when the Listener port capability feature is
-            supported.";
-        }
-        description
-          "Contains the operational state Listener node related
-          information.";
+        
         list announcement {
           key "announcements";
+          config false;
           description
             "A list containing the operational status information
             that the Listeners receive in the network announcement of
@@ -1767,10 +1640,11 @@ module ieee802-dot1x {
                 "Cipher Suite capability.";
             }
           }
-        }
+        }        
       }
-
+      
       container eapol-statistics {
+      	config false;
         description
           "Contains operational EAPOL statics.";
         leaf invalid-eapol-frame-rx {
@@ -1975,8 +1849,19 @@ module ieee802-dot1x {
 
       container logon-process {
         description
-          "Contains operational system level information for each
-          port to support the Logon Process(es) status information.";
+          "Contains configuration and operational system level
+        	information for each port to support the Logon Process(es)
+        	status information.";
+        leaf logon {
+          type boolean;
+          default "false";
+          description
+            "A boolean indicating if the logon-process is enabled or
+            not.";
+          reference
+            "IEEE 802.1X-2010 Clause 12.5";
+        }
+        
         leaf connect {
           type enumeration {
             enum pending {
@@ -2009,6 +1894,7 @@ module ieee802-dot1x {
                 Authenticated.";
             }
           }
+          config false;
           description
             "The Logon Process sets this variable to one of the
             above values.";
@@ -2017,6 +1903,7 @@ module ieee802-dot1x {
         }
         leaf port-valid {
           type boolean;
+          config false;
           description
             "Set if Controlled Port communication is secured as
             specified by the MACsec control macsecProtect.";
@@ -2025,6 +1912,7 @@ module ieee802-dot1x {
         }
         list session-statistics {
           key "session-id";
+          config false;
           description
             "Contains operational state nodes associated with the
             session statistics.";
@@ -2130,7 +2018,6 @@ module ieee802-dot1x {
       "Contains both configuration and operational state nodes
       associated with the PAE NID group.";
     uses nid-group;
-    uses nid-group-state;
   }
 
 }

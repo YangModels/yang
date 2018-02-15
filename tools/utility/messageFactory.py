@@ -46,6 +46,10 @@ class MessageFactory:
         else:
             self.__api.messages.create(self.__room.id, text=msg, files=files)
 
+        if files:
+            for f in files:
+                os.remove(f)
+
     def __post_to_email(self, message, to):
         if not isinstance(to, list):
             to = [to]
@@ -67,7 +71,8 @@ class MessageFactory:
                    'Files that are missing in yangModles repo: \n{} \n\n '
                    'Files that are different then in yangModels repo: \n{}'
                    .format(GREETINGS, new_files, diff_files))
-        to = ['bclaise@cisco.com', 'einarnn@cisco.com', 'jclarke@cisco.com']
+        to = ['bclaise@cisco.com', 'einarnn@cisco.com', 'jclarke@cisco.com',
+              'mirkovac@cisco.com']
 
         self.__post_to_spark(message)
         self.__post_to_email(message, to)
@@ -91,26 +96,37 @@ class MessageFactory:
 
     def send_removed_yang_files(self, removed_yang_files):
         LOGGER.info('Sending notification about removed yang modules')
-        message = ("The following files has been removed from yangcatalog.org"
-                   " using api: ```\n{}\n```".format(removed_yang_files))
-        self.__post_to_spark(message, True)
+        message = ("Files have been removed from yangcatalog. See attached"
+                   " document")
+        text = ("The following files has been removed from yangcatalog.org"
+                   " using api: \n{}\n".format(removed_yang_files))
+        with open('./log.txt', 'w') as f:
+            f.write(text)
+        self.__post_to_spark(message, True, files=['./log.txt'])
 
     def send_added_new_yang_files(self, added_yang_files):
         LOGGER.info('Sending notification about added yang modules')
-        message = ("The following files has been added to yangcatalog.org"
+        message = ("Files have been added to yangcatalog. See attached"
+                   " document")
+        text = ("The following files has been added to yangcatalog.org"
                    " using api as a new modules or old modules with new "
-                   "revision: ```\n{}\n```".format(added_yang_files))
-        self.__post_to_spark(message, True)
+                   "revision: \n{}\n".format(added_yang_files))
+        with open('./log.txt', 'w') as f:
+            f.write(text)
+        self.__post_to_spark(message, True, files=['./log.txt'])
 
     def send_new_modified_platform_metadata(self, new_files, modified_files):
         LOGGER.info(
             'Sending notification about new or modified platform metadata')
         new_files = '\n'.join(new_files)
         modified_files = '\n'.join(modified_files)
-        message = ("There were new or modified platform metadata json files "
+        message = ("Files have been modified in yangcatalog. See attached"
+                   " document")
+        text = ("There were new or modified platform metadata json files "
                    "added to yangModels-yang repository, that are currently"
                    "being processed in following paths:\n\n"
-                   "'''\n New json files: \n {} \n\n Modified json files:\n{}\n"
-                   "'''"
+                   "\n New json files: \n {} \n\n Modified json files:\n{}\n"
                    .format(new_files, modified_files))
-        self.__post_to_spark(message, True)
+        with open('./log.txt', 'w') as f:
+            f.write(text)
+        self.__post_to_spark(message, True, files=['./log.txt'])

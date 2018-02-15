@@ -36,7 +36,6 @@ def create_integrity():
     config.read('../utility/config.ini')
     path = config.get('Statistics-Section', 'file-location')
     integrity_file = open('{}/integrity.html'.format(path), 'w')
-    integrity.dump()
     integrity.dumps(integrity_file)
     integrity_file.close()
 
@@ -64,8 +63,23 @@ if __name__ == "__main__":
                         help='Set port where the api is started. Default -> 8443')
     parser.add_argument('--api-ip', default='yangcatalog.org', type=str,
                         help='Set ip address where the api is started. Default -> yangcatalog.org')
+    parser.add_argument('--config-path', type=str,
+                        default='../utility/config.ini',
+                        help='Set path to config file')
 
     args = parser.parse_args()
+    config_path = os.path.abspath('.') + '/' + args.config_path
+    config = ConfigParser.ConfigParser()
+    config.read(config_path)
+    is_uwsgi = config.get('General-Section', 'uwsgi')
+    separator = ':'
+    suffix = args.api_port
+    if is_uwsgi == 'True':
+        separator = '/'
+        suffix = 'api'
+    yangcatalog_api_prefix = '{}://{}{}{}/'.format(args.api_protocol,
+                                                   args.api_ip, separator,
+                                                   suffix)
     start = time.time()
     index = 1
     integrity = None
@@ -83,9 +97,7 @@ if __name__ == "__main__":
         search_dirs = stats_list[key]
         if key == 'sdo':
             sdo = True
-            prepare_sdo = prepare.Prepare("prepare", args.result_html_dir,
-                                          args.api_port, args.api_ip,
-                                          args.api_protocol)
+            prepare_sdo = prepare.Prepare("prepare", yangcatalog_api_prefix)
             for search_dir in search_dirs:
 
                 LOGGER.info('Found directory for sdo {}'.format(search_dir))
@@ -101,9 +113,7 @@ if __name__ == "__main__":
             prepare_sdo.dump_modules(args.json_dir)
         else:
             sdo = False
-            prepare_vendor = prepare.Prepare("prepare", args.result_html_dir,
-                                          args.api_port, args.api_ip,
-                                          args.api_protocol)
+            prepare_vendor = prepare.Prepare("prepare", yangcatalog_api_prefix)
             for search_dir in search_dirs:
                 patterns = ['*ietf-yang-library*.xml', '*capabilit*.xml']
                 for pattern in patterns:
@@ -131,6 +141,9 @@ if __name__ == "__main__":
                         if update:
                             integrity = statistics.Statistics(filename)
                             LOGGER.info('Found xml source {}'.format(filename))
+                            if args.run_integrity:
+                                prepare_vendor = prepare.Prepare("prepare",
+                                                                 yangcatalog_api_prefix)
                             capability = cap.Capability(filename, index,
                                                         prepare_vendor,
                                                         integrity, args.api,

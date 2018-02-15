@@ -126,7 +126,7 @@ def get_specifics(path_dir):
             continue
         if ',' in organization:
             organization = organization.replace(' ', '%20')
-            path = protocol + '://' + api_ip + ':' + api_port + '/search/name/' + name
+            path = yangcatalog_api_prefix + 'search/name/' + name
             module_exist = http_request(path, 'GET', '', credentials.split(' '), 'application/vnd.yang.data+json')
             if module_exist:
                 data = module_exist.read()
@@ -139,8 +139,8 @@ def get_specifics(path_dir):
                     num_in_catalog += 1
         else:
             organization = organization.replace(' ', '%20')
-            path = protocol + '://' + api_ip + ':' + api_port + '/search/modules/' + name + ',' + revision + ',' + \
-                   organization
+            path = yangcatalog_api_prefix + 'search/modules/' + name + ','\
+                   + revision + ',' + organization
             module_exist = http_request(path, 'GET', '', credentials.split(' '), 'application/vnd.yang.data+json')
             if module_exist:
                 data = module_exist.read()
@@ -234,6 +234,18 @@ def process_data(out, save_list, path, name):
     save_list.append(table_sdo)
 
 
+def solve_platforms(path, platform):
+    matches = []
+    for root, dirnames, filenames in os.walk(path):
+        for filename in fnmatch.filter(filenames, 'platform-metadata.json'):
+            matches.append(os.path.join(root, filename))
+    for match in matches:
+        with open(match) as f:
+            js_objs = json.load(f)['platforms']['platform']
+            for js_obj in js_objs:
+                platform.add(js_obj['name'])
+
+
 if __name__ == '__main__':
     LOGGER.info('Starting statistics')
     parser = argparse.ArgumentParser()
@@ -244,91 +256,107 @@ if __name__ == '__main__':
     config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
     config.read(config_path)
-    protocol = config.get('Statistics-Section', 'protocol')
+    protocol = config.get('General-Section', 'protocol-api')
     api_ip = config.get('Statistics-Section', 'api-ip')
-    api_port = config.get('Statistics-Section', 'api-port')
-    credentials = config.get('Statistics-Section', 'credentials')
+    api_port = config.get('General-Section', 'api-port')
+    credentials = config.get('General-Section', 'credentials')
     move_to = config.get('Statistics-Section', 'file-location')
     auth = credentials.split(' ')
+    is_uwsgi = config.get('General-Section', 'uwsgi')
+    separator = ':'
+    suffix = api_port
+    if is_uwsgi == 'True':
+        separator = '/'
+        suffix = 'api'
+    yangcatalog_api_prefix = '{}://{}{}{}/'.format(protocol, api_ip,
+                                                   separator, suffix)
 
-    path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco'
-    res = requests.get(path, auth=(auth[0], auth[1]),
-                 headers={'Accept': 'application/json'})
-    vendors_data = json.loads(res.content)
-    xr = []
-    nx = []
-    xe = []
+    xr = set()
+    nx = set()
+    xe = set()
+
+    solve_platforms('../../vendor/cisco/xr', xr)
+    solve_platforms('../../vendor/cisco/xe', xe)
+    solve_platforms('../../vendor/cisco/nx', nx)
+
     xr_versions = sorted(next(os.walk(get_curr_dir(__file__) + '/../../vendor/cisco/xr'))[1])
     nx_versions = sorted(next(os.walk(get_curr_dir(__file__) + '/../../vendor/cisco/nx'))[1])
     xe_versions = sorted(next(os.walk(get_curr_dir(__file__) + '/../../vendor/cisco/xe'))[1])
     xr_values = []
     nx_values = []
     xe_values = []
-    for vendor in vendors_data['yang-catalog:vendor']['platforms']['platform']:
-        platform_name = vendor['name']
-        os_type = vendor['software-versions']['software-version'][0]['software-flavors']['software-flavor'][0]\
-            ['modules']['module'][0]['os-type']
-        if 'IOS-XR' == os_type:
-            xr.append(platform_name)
-        if 'IOS-XE' == os_type:
-            xe.append(platform_name)
-        if 'NX-OS' == os_type:
-            nx.append(platform_name)
+
     for version in xr_versions:
+        j = None
+        try:
+            with open('../../vendor/cisco/xr/' + version + '/platform-metadata.json', 'r') as f:
+                j = json.load(f)
+                j = j['platforms']['platform']
+        except:
+            j = []
+
         values = [version]
         for value in xr:
             if version == '':
                 ver = ''
             else:
                 ver = '.'.join(version)
-            path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco/platforms/platform/'\
-                   + value + '/software-versions/software-version/' + ver
-            xr_data = requests.get(path, auth=(auth[0], auth[1]))
-            if xr_data:
-                values.append('<i class="fa fa-check"></i>')
-            else:
-                path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco/platforms/platform/' \
-                       + value + '/software-versions/software-version/' + version
-                xr_data = requests.get(path, auth=(auth[0], auth[1]))
-                if xr_data.status_code == 200:
+            found = False
+            for platform in j:
+                if (platform['name'] == value and
+                            platform['software-version'] == ver):
                     values.append('<i class="fa fa-check"></i>')
-                else:
-                    values.append('<i class="fa fa-times"></i>')
+                    found = True
+                    break
+            if not found:
+                values.append('<i class="fa fa-times"></i>')
         xr_values.append(values)
 
     for version in xe_versions:
+        j = None
+        try:
+            with open('../../vendor/cisco/xe/' + version + '/platform-metadata.json', 'r') as f:
+                j = json.load(f)
+                j = j['platforms']['platform']
+        except:
+            j = []
         values = [version]
         for value in xe:
-            path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco/platforms/platform/'\
-                   + value + '/software-versions/software-version/' + version
-            xe_data = requests.get(path, auth=(auth[0], auth[1]))
-            if xe_data.status_code == 200:
-                values.append('<i class="fa fa-check"></i>')
-            else:
+            found = False
+            for platform in j:
+                if (platform['name'] == value and
+                            ''.join(platform['software-version'].split('.')) == version):
+                    values.append('<i class="fa fa-check"></i>')
+                    found = True
+                    break
+            if not found:
                 values.append('<i class="fa fa-times"></i>')
         xe_values.append(values)
 
     for version in nx_versions:
+        j = None
+        try:
+            with open('../../vendor/cisco/nx/' + version + '/platform-metadata.json', 'r') as f:
+                j = json.load(f)
+                j = j['platforms']['platform']
+        except:
+            j = []
         values = [version]
         for value in nx:
-            path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco/platforms/platform/'\
-                   + value + '/software-versions/software-version/' + version
-            nx_data = requests.get(path, auth=(auth[0], auth[1]))
-            if nx_data.status_code == 200:
-                values.append('<i class="fa fa-check"></i>')
-            else:
-                ver = version.split('-')
-                ver = '{}({}){}({})'.format(ver[0], ver[1], ver[2], ver[3])
-                path = protocol + '://' + api_ip + ':' + api_port + '/search/vendors/vendor/cisco/platforms/platform/' \
-                       + value + '/software-versions/software-version/' + ver
-                nx_data = requests.get(path, auth=(auth[0], auth[1]))
-                if nx_data.status_code == 200:
+            ver = version.split('-')
+            ver = '{}({}){}({})'.format(ver[0], ver[1], ver[2], ver[3])
+            found = False
+            for platform in j:
+                if (platform['name'] == value and
+                            platform['software-version'] == ver):
                     values.append('<i class="fa fa-check"></i>')
-                else:
-                    values.append('<i class="fa fa-times"></i>')
+                    found = True
+                    break
+            if not found:
+                values.append('<i class="fa fa-times"></i>')
         nx_values.append(values)
 
-    path = protocol + '://' + api_ip + ':' + api_port + '/search/modules'
+    path = yangcatalog_api_prefix + 'search/modules'
     all_modules_data = (requests.get(path, auth=(auth[0], auth[1]),
                                      headers={'Accept': 'application/json'})
                         .content)

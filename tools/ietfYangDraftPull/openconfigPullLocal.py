@@ -30,11 +30,22 @@ if __name__ == "__main__":
     config = ConfigParser.ConfigParser()
     config.read(config_path)
     api_ip = config.get('DraftPullLocal-Section', 'api-ip')
-    api_port = config.get('DraftPullLocal-Section', 'api-port')
-    credentials = config.get('DraftPullLocal-Section', 'credentials').split(' ')
+    api_port = int(config.get('General-Section', 'api-port'))
+    credentials = config.get('General-Section', 'credentials').split(' ')
     token = config.get('DraftPull-Section', 'yang-catalog-token')
     username = config.get('DraftPull-Section', 'username')
-    api_protocol = config.get('DraftPullLocal-Section', 'protocol')
+    api_protocol = config.get('General-Section', 'protocol-api')
+    is_uwsgi = config.get('General-Section', 'uwsgi')
+    config_name = config.get('General-Section', 'repo-config-name')
+    config_email = config.get('General-Section', 'repo-config-email')
+
+    separator = ':'
+    suffix = api_port
+    if is_uwsgi == 'True':
+        separator = '/'
+        suffix = 'api'
+    yangcatalog_api_prefix = '{}://{}{}{}/'.format(api_protocol, api_ip,
+                                                   separator, suffix)
     github_credentials = ''
     if len(username) > 0:
         github_credentials = username + ':' + token + '@'
@@ -47,7 +58,7 @@ if __name__ == "__main__":
         'https://github.com/yang-catalog/public.git')
 
     LOGGER.info('Cloning repo to local directory {}'.format(repo.localdir))
-    repo.clone()
+    repo.clone(config_name, config_email)
 
     mods = []
 
@@ -74,6 +85,6 @@ if __name__ == "__main__":
     requests.delete(openconfig_models_url,
                     headers={'Authorization': 'token ' + token})
     repo.remove()
-    api_path = '{}://{}:{}/modules'.format(api_protocol, api_ip, api_port)
+    api_path = '{}modules'.format(yangcatalog_api_prefix)
     requests.post(api_path, output, auth=(credentials[0], credentials[1]),
                  headers={'Content-Type': 'application/json'})

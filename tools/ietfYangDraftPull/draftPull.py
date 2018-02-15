@@ -56,6 +56,8 @@ if __name__ == "__main__":
     token = config.get('DraftPull-Section', 'yang-catalog-token')
     username = config.get('DraftPull-Section', 'username')
     commit_dir = config.get('DraftPull-Section', 'commit-dir')
+    config_name = config.get('General-Section', 'repo-config-name')
+    config_email = config.get('General-Section', 'repo-config-email')
     github_credentials = ''
     if len(username) > 0:
         github_credentials = username + ':' + token + '@'
@@ -68,7 +70,7 @@ if __name__ == "__main__":
         'https://' + token + '@github.com/' + username + '/yang.git')
 
     LOGGER.info('Cloning repo to local directory {}'.format(repo.localdir))
-    repo.clone()
+    repo.clone(config_name, config_email)
     yang_models_url = 'https://api.github.com/repos/yang-catalog/yang'
     try:
         LOGGER.info('Activating Travis')
@@ -115,9 +117,10 @@ if __name__ == "__main__":
                     repo.localdir + '/standard/ietf/RFCtemp'):
         for file_name in sdos:
             if '.yang' in file_name:
-                if os.path.exists( get_curr_dir(__file__) + '/../../standard/ietf/RFC/' + file_name):
-                    same = filecmp.cmp( get_curr_dir(__file__) + '/../../standard/ietf/RFC/' + file_name,
-                                       root + '/' + file_name)
+                if os.path.exists(repo.localdir + '/standard/ietf/RFC/'
+                                          + file_name):
+                    same = filecmp.cmp(repo.localdir + '/standard/ietf/RFC/'
+                                       + file_name, root + '/' + file_name)
                     if not same:
                         diff_files.append(file_name)
                 else:
@@ -136,7 +139,7 @@ if __name__ == "__main__":
         yang_download_link = \
             ietf_draft_json[key][2].split('href="')[1].split('">Download')[0]
         try:
-            yang_raw = urllib2.urlopen(yang_download_link).read()
+            yang_raw = requests.get(yang_download_link).content
             yang_file.write(yang_raw)
         except:
             LOGGER.warning('{} - {}'.format(key, yang_download_link))

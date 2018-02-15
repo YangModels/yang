@@ -67,6 +67,15 @@ if __name__ == "__main__":
     config_path = os.path.abspath('.') + '/' + args.config_path
     config = ConfigParser.ConfigParser()
     config.read(config_path)
+    is_uwsgi = config.get('General-Section', 'uwsgi')
+    separator = ':'
+    suffix = args.api_port
+    if is_uwsgi == 'True':
+        separator = '/'
+        suffix = 'api'
+    yangcatalog_api_prefix = '{}://{}{}{}/'.format(args.api_protocol,
+                                                   args.api_ip, separator,
+                                                   suffix)
     key = config.get('Receiver-Section', 'key')
     LOGGER.info('Starting the populate script')
     if args.api:
@@ -146,7 +155,7 @@ if __name__ == "__main__":
                                               'Accept': 'application/vnd.yang.data+json',
                                               'Content-type': 'application/vnd.yang.data+json'})
                 if response.status_code < 200 or response.status_code > 299:
-                    LOGGER.error('Request with body on path {} failed with {}'
+                    LOGGER.error('Request with body {} on path {} failed with {}'
                                  .format(json_modules_data, url,
                                         response.content))
     rest = (len(modules_json) / 1000) * 1000
@@ -164,7 +173,7 @@ if __name__ == "__main__":
                                   'Accept': 'application/vnd.yang.data+json',
                                   'Content-type': 'application/vnd.yang.data+json'})
     if response.status_code < 200 or response.status_code > 299:
-        LOGGER.error('Request with body on path {} failed with {}'
+        LOGGER.error('Request with body {} on path {} failed with {}'
                      .format(json_modules_data, url,
                              response.content))
 
@@ -214,211 +223,99 @@ if __name__ == "__main__":
                              .format(json_implementations_data, url,
                                      response.content))
     if not args.api:
-        LOGGER.info('Removing temporary json data and cache data')
+        if not args.force_indexing:
+            LOGGER.info('Removing temporary json data and cache data')
 
-        try:
-            shutil.rmtree('../api/cache')
-        except OSError:
-            # Be happy if deleted
-            pass
-        LOGGER.info('Sending request to reload cache')
-        url = (args.api_protocol + '://' + args.api_ip + ':' +
-               repr(args.api_port) + '/load-cache')
-        response = requests.post(url, None,
-                                 auth=(args.credentials[0],
-                                        args.credentials[1]),
-                                 headers={
-                                     'Accept': 'application/vnd.yang.data+json',
-                                     'Content-type': 'application/vnd.yang.data+json'})
-        if response.status_code != 201:
-            LOGGER.warning('Could not send a load-cache request')
+            try:
+                shutil.rmtree('../api/cache')
+            except OSError:
+                # Be happy if deleted
+                pass
+            LOGGER.info('Sending request to reload cache')
+            url = (yangcatalog_api_prefix + 'load-cache')
+            response = requests.post(url, None,
+                                     auth=(args.credentials[0],
+                                            args.credentials[1]),
+                                     headers={
+                                         'Accept': 'application/vnd.yang.data+json',
+                                         'Content-type': 'application/vnd.yang.data+json'})
+            if response.status_code != 201:
+                LOGGER.warning('Could not send a load-cache request')
 
-        with open('../parseAndPopulate/' + direc + '/prepare.json', 'r') as f:
-            all_modules = json.load(f)
+            with open('../parseAndPopulate/' + direc + '/prepare.json', 'r') as f:
+                all_modules = json.load(f)
 
-        new_modules = []
-        for module in all_modules['module']:
-            LOGGER.info('Searching semver for {}'.format(module['name']))
-            url = '{}://{}:{}/search/name/{}'.format(args.api_protocol, args.api_ip, args.api_port, module['name'])
-            response = requests.get(url, auth=(args.credentials[0], args.credentials[1]),
-                                    headers={'Accept': 'application/json'})
-            if response.status_code == 404:
-                module['derived-semantic-version'] = '1.0.0'
-                new_modules.append(module)
-            else:
-                data = json.loads(response.content)
-                rev = module['revision'].split('-')
-                date = datetime(int(rev[0]), int(rev[1]), int(rev[2]))
-                module_temp = {}
-                module_temp['name'] = module['name']
-                module_temp['revision'] = module['revision']
-                module_temp['organization'] = module['organization']
-                module_temp['compilation'] = module['compilation-status']
-                module_temp['date'] = date
-                module_temp['schema'] = module['schema']
-                modules = [module_temp]
-                semver_exist = True
-                for mod in data['yang-catalog:modules']['module']:
-                    module_temp = {}
-                    revision = mod['revision']
-                    if revision == module['revision']:
-                        continue
-                    rev = revision.split('-')
-                    module_temp['revision'] = revision
-                    module_temp['date'] = datetime(int(rev[0]), int(rev[1]), int(rev[2]))
-                    module_temp['name'] = mod['name']
-                    module_temp['organization'] = mod['organization']
-                    module_temp['schema'] = mod.get('schema')
-                    module_temp['compilation'] = mod['compilation-status']
-                    module_temp['semver'] = mod.get('derived-semantic-version')
-                    if module_temp['semver'] is None:
-                        semver_exist = False
-                    modules.append(module_temp)
-
-                if len(modules) == 1:
+            new_modules = []
+            for module in all_modules['module']:
+                LOGGER.info('Searching semver for {}'.format(module['name']))
+                url = '{}search/name/{}'.format(yangcatalog_api_prefix, module['name'])
+                response = requests.get(url, auth=(args.credentials[0], args.credentials[1]),
+                                        headers={'Accept': 'application/json'})
+                if response.status_code == 404:
                     module['derived-semantic-version'] = '1.0.0'
                     new_modules.append(module)
-                    continue
-                modules = sorted(modules, key=lambda k: k['date'])
-                if modules[-1]['date'] == date and semver_exist:
-                    if modules[-1]['compilation'] != 'passed':
-                        versions = modules[-2]['semver'].split('.')
-                        ver = int(versions[0])
-                        ver += 1
-                        upgraded_version = '{}.{}.{}'.format(ver, 0, 0)
-                        module['derived-semantic-version'] = upgraded_version
+                else:
+                    data = json.loads(response.content)
+                    rev = module['revision'].split('-')
+                    date = datetime(int(rev[0]), int(rev[1]), int(rev[2]))
+                    module_temp = {}
+                    module_temp['name'] = module['name']
+                    module_temp['revision'] = module['revision']
+                    module_temp['organization'] = module['organization']
+                    module_temp['compilation'] = module['compilation-status']
+                    module_temp['date'] = date
+                    module_temp['schema'] = module['schema']
+                    modules = [module_temp]
+                    semver_exist = True
+                    for mod in data['yang-catalog:modules']['module']:
+                        module_temp = {}
+                        revision = mod['revision']
+                        if revision == module['revision']:
+                            continue
+                        rev = revision.split('-')
+                        module_temp['revision'] = revision
+                        module_temp['date'] = datetime(int(rev[0]), int(rev[1]), int(rev[2]))
+                        module_temp['name'] = mod['name']
+                        module_temp['organization'] = mod['organization']
+                        module_temp['schema'] = mod.get('schema')
+                        module_temp['compilation'] = mod['compilation-status']
+                        module_temp['semver'] = mod.get('derived-semantic-version')
+                        if module_temp['semver'] is None:
+                            semver_exist = False
+                        modules.append(module_temp)
+
+                    if len(modules) == 1:
+                        module['derived-semantic-version'] = '1.0.0'
                         new_modules.append(module)
-                    else:
-                        if modules[-2]['compilation'] != 'passed':
+                        continue
+                    modules = sorted(modules, key=lambda k: k['date'])
+                    if modules[-1]['date'] == date and semver_exist:
+                        if modules[-1]['compilation'] != 'passed':
                             versions = modules[-2]['semver'].split('.')
                             ver = int(versions[0])
                             ver += 1
                             upgraded_version = '{}.{}.{}'.format(ver, 0, 0)
                             module['derived-semantic-version'] = upgraded_version
                             new_modules.append(module)
-                            continue
                         else:
-                            schema2 = '{}{}@{}.yang'.format(args.save_file_dir,
-                                                            modules[-2]['name'],
-                                                            modules[-2]['revision'])
-                            schema1 = '{}{}@{}.yang'.format(args.save_file_dir,
-                                                            modules[-1]['name'],
-                                                            modules[-1]['revision'])
-                        arguments = ['pyang', '-P', get_curr_dir(__file__) + '/../../.', '-p', get_curr_dir(__file__) + '/../../.',
-                                     schema1, '--check-update-from',
-                                     schema2]
-                        pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
-                                                 stderr=subprocess.PIPE)
-                        stdout, stderr = pyang.communicate()
-                        if stderr == '':
-                            arguments = ["pyang", '-p', get_curr_dir(__file__) + '/../../.', "-f", "tree",
-                                         schema1]
-                            pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
-                                                     stderr=subprocess.PIPE)
-                            stdout, stderr = pyang.communicate()
-                            arguments = ["pyang", "-p", get_curr_dir(__file__) + "/../../.", "-f", "tree",
-                                         schema2]
-                            pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
-                                                     stderr=subprocess.PIPE)
-                            stdout2, stderr = pyang.communicate()
-                            if stdout == stdout2:
+                            if modules[-2]['compilation'] != 'passed':
                                 versions = modules[-2]['semver'].split('.')
-                                ver = int(versions[2])
-                                ver += 1
-                                upgraded_version = '{}.{}.{}'.format(versions[0],
-                                                                     versions[1],
-                                                                     ver)
-                                module[
-                                    'derived-semantic-version'] = upgraded_version
-                                new_modules.append(module)
-                                continue
-                            else:
-                                versions = modules[-2]['semver'].split('.')
-                                ver = int(versions[1])
-                                ver += 1
-                                upgraded_version = '{}.{}.{}'.format(versions[0],
-                                                                     ver, 0)
-                                module[
-                                    'derived-semantic-version'] = upgraded_version
-                                new_modules.append(module)
-                                continue
-                        else:
-                            versions = modules[-2]['semver'].split('.')
-                            ver = int(versions[0])
-                            ver += 1
-                            upgraded_version = '{}.{}.{}'.format(ver, 0, 0)
-                            module[
-                                'derived-semantic-version'] = upgraded_version
-                            new_modules.append(module)
-                            continue
-                else:
-                    mod = {}
-                    mod['name'] = modules[0]['name']
-                    mod['revision'] = modules[0]['revision']
-                    mod['organization'] = modules[0]['organization']
-                    modules[0]['semver'] = '1.0.0'
-                    response = requests.get(
-                        '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(args.protocol, args.ip, args.port,
-                            mod['name'], mod['revision'], mod['organization']),
-                        auth=('admin', 'admin'), headers={'Accept': 'application/vnd.yang.data+json'})
-                    response = json.loads(response.content)['yang-catalog:module']
-                    response['derived-semantic-version'] = '1.0.0'
-                    new_modules.append(response)
-
-                    for x in range(1, len(modules)):
-                        mod = {}
-                        mod['name'] = modules[x]['name']
-                        mod['revision'] = modules[x]['revision']
-                        mod['organization'] = modules[x]['organization']
-                        if modules[x]['compilation'] != 'passed':
-                            versions = modules[x - 1]['semver'].split('.')
-                            ver = int(versions[0])
-                            ver += 1
-                            upgraded_version = '{}.{}.{}'.format(ver, 0, 0)
-                            modules[x]['semver'] = upgraded_version
-                            response = requests.get(
-                                '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
-                                    args.protocol, args.ip, args.port,
-                                    mod['name'], mod['revision'],
-                                    mod['organization']),
-                                auth=('admin', 'admin'), headers={
-                                    'Accept': 'application/vnd.yang.data+json'})
-                            response = json.loads(response.content)[
-                                'yang-catalog:module']
-                            response['derived-semantic-version'] = upgraded_version
-                            new_modules.append(response)
-                        else:
-                            if modules[x - 1]['compilation'] != 'passed':
-                                versions = modules[x - 1]['semver'].split('.')
                                 ver = int(versions[0])
                                 ver += 1
                                 upgraded_version = '{}.{}.{}'.format(ver, 0, 0)
-                                modules[x]['semver'] = upgraded_version
-                                response = requests.get(
-                                    '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
-                                        args.protocol, args.ip, args.port,
-                                        mod['name'], mod['revision'],
-                                        mod['organization']),
-                                    auth=('admin', 'admin'), headers={
-                                        'Accept': 'application/vnd.yang.data+json'})
-                                response = json.loads(response.content)[
-                                    'yang-catalog:module']
-                                response[
-                                    'derived-semantic-version'] = upgraded_version
-                                new_modules.append(response)
+                                module['derived-semantic-version'] = upgraded_version
+                                new_modules.append(module)
                                 continue
                             else:
-                                schema2 = '{}{}@{}.yang'.format(
-                                    args.save_file_dir,
-                                    modules[x]['name'],
-                                    modules[x]['revision'])
-                                schema1 = '{}{}@{}.yang'.format(
-                                    args.save_file_dir,
-                                    modules[x - 1]['name'],
-                                    modules[x - 1]['revision'])
-                            arguments = ['pyang', '-p', get_curr_dir(__file__) + '/../../.', '-P', get_curr_dir(__file__) + '/../../.',
-                                         schema2,
-                                         '--check-update-from', schema1]
+                                schema2 = '{}{}@{}.yang'.format(args.save_file_dir,
+                                                                modules[-2]['name'],
+                                                                modules[-2]['revision'])
+                                schema1 = '{}{}@{}.yang'.format(args.save_file_dir,
+                                                                modules[-1]['name'],
+                                                                modules[-1]['revision'])
+                            arguments = ['pyang', '-P', get_curr_dir(__file__) + '/../../.', '-p', get_curr_dir(__file__) + '/../../.',
+                                         schema1, '--check-update-from',
+                                         schema2]
                             pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                                                      stderr=subprocess.PIPE)
                             stdout, stderr = pyang.communicate()
@@ -428,50 +325,61 @@ if __name__ == "__main__":
                                 pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                                                          stderr=subprocess.PIPE)
                                 stdout, stderr = pyang.communicate()
-                                arguments = ["pyang", '-p', get_curr_dir(__file__) + '/../../.', "-f", "tree",
+                                arguments = ["pyang", "-p", get_curr_dir(__file__) + "/../../.", "-f", "tree",
                                              schema2]
                                 pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                                                          stderr=subprocess.PIPE)
                                 stdout2, stderr = pyang.communicate()
                                 if stdout == stdout2:
-                                    versions = modules[x - 1]['semver'].split('.')
+                                    versions = modules[-2]['semver'].split('.')
                                     ver = int(versions[2])
                                     ver += 1
-                                    upgraded_version = '{}.{}.{}'.format(
-                                        versions[0], versions[1], ver)
-                                    modules[x]['semver'] = upgraded_version
-                                    response = requests.get(
-                                        '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
-                                            args.protocol, args.ip, args.port,
-                                            mod['name'], mod['revision'],
-                                            mod['organization']),
-                                        auth=('admin', 'admin'), headers={
-                                            'Accept': 'application/vnd.yang.data+json'})
-                                    response = json.loads(response.content)[
-                                        'yang-catalog:module']
-                                    response[
+                                    upgraded_version = '{}.{}.{}'.format(versions[0],
+                                                                         versions[1],
+                                                                         ver)
+                                    module[
                                         'derived-semantic-version'] = upgraded_version
-                                    new_modules.append(response)
+                                    new_modules.append(module)
+                                    continue
                                 else:
-                                    versions = modules[x - 1]['semver'].split('.')
+                                    versions = modules[-2]['semver'].split('.')
                                     ver = int(versions[1])
                                     ver += 1
-                                    upgraded_version = '{}.{}.{}'.format(
-                                        versions[0], ver, 0)
-                                    modules[x]['semver'] = upgraded_version
-                                    response = requests.get(
-                                        '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
-                                            args.protocol, args.ip, args.port,
-                                            mod['name'], mod['revision'],
-                                            mod['organization']),
-                                        auth=('admin', 'admin'), headers={
-                                            'Accept': 'application/vnd.yang.data+json'})
-                                    response = json.loads(response.content)[
-                                        'yang-catalog:module']
-                                    response[
+                                    upgraded_version = '{}.{}.{}'.format(versions[0],
+                                                                         ver, 0)
+                                    module[
                                         'derived-semantic-version'] = upgraded_version
-                                    new_modules.append(response)
+                                    new_modules.append(module)
+                                    continue
                             else:
+                                versions = modules[-2]['semver'].split('.')
+                                ver = int(versions[0])
+                                ver += 1
+                                upgraded_version = '{}.{}.{}'.format(ver, 0, 0)
+                                module[
+                                    'derived-semantic-version'] = upgraded_version
+                                new_modules.append(module)
+                                continue
+                    else:
+                        mod = {}
+                        mod['name'] = modules[0]['name']
+                        mod['revision'] = modules[0]['revision']
+                        mod['organization'] = modules[0]['organization']
+                        modules[0]['semver'] = '1.0.0'
+                        response = requests.get(
+                            '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(args.protocol, args.ip, args.port,
+                                mod['name'], mod['revision'], mod['organization']),
+                            auth=(args.credentials[0], args.credentials[1]), headers={'Accept': 'application/vnd.yang.data+json'})
+                        response = json.loads(response.content)['yang-catalog:module']
+                        response['derived-semantic-version'] = '1.0.0'
+                        new_modules.append(response)
+
+                        for x in range(1, len(modules)):
+                            mod = {}
+                            mod['name'] = modules[x]['name']
+                            mod['revision'] = modules[x]['revision']
+                            mod['organization'] = modules[x]['organization']
+                            if modules[x]['compilation'] != 'passed':
                                 versions = modules[x - 1]['semver'].split('.')
                                 ver = int(versions[0])
                                 ver += 1
@@ -482,70 +390,190 @@ if __name__ == "__main__":
                                         args.protocol, args.ip, args.port,
                                         mod['name'], mod['revision'],
                                         mod['organization']),
-                                    auth=('admin', 'admin'), headers={
+                                    auth=(args.credentials[0], args.credentials[1]), headers={
                                         'Accept': 'application/vnd.yang.data+json'})
                                 response = json.loads(response.content)[
                                     'yang-catalog:module']
-                                response[
-                                    'derived-semantic-version'] = upgraded_version
+                                response['derived-semantic-version'] = upgraded_version
                                 new_modules.append(response)
+                            else:
+                                if modules[x - 1]['compilation'] != 'passed':
+                                    versions = modules[x - 1]['semver'].split('.')
+                                    ver = int(versions[0])
+                                    ver += 1
+                                    upgraded_version = '{}.{}.{}'.format(ver, 0, 0)
+                                    modules[x]['semver'] = upgraded_version
+                                    response = requests.get(
+                                        '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
+                                            args.protocol, args.ip, args.port,
+                                            mod['name'], mod['revision'],
+                                            mod['organization']),
+                                        auth=(
+                                        args.credentials[0], args.credentials[1]), headers={
+                                            'Accept': 'application/vnd.yang.data+json'})
+                                    response = json.loads(response.content)[
+                                        'yang-catalog:module']
+                                    response[
+                                        'derived-semantic-version'] = upgraded_version
+                                    new_modules.append(response)
+                                    continue
+                                else:
+                                    schema2 = '{}{}@{}.yang'.format(
+                                        args.save_file_dir,
+                                        modules[x]['name'],
+                                        modules[x]['revision'])
+                                    schema1 = '{}{}@{}.yang'.format(
+                                        args.save_file_dir,
+                                        modules[x - 1]['name'],
+                                        modules[x - 1]['revision'])
+                                arguments = ['pyang', '-p', get_curr_dir(__file__) + '/../../.', '-P', get_curr_dir(__file__) + '/../../.',
+                                             schema2,
+                                             '--check-update-from', schema1]
+                                pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
+                                                         stderr=subprocess.PIPE)
+                                stdout, stderr = pyang.communicate()
+                                if stderr == '':
+                                    arguments = ["pyang", '-p', get_curr_dir(__file__) + '/../../.', "-f", "tree",
+                                                 schema1]
+                                    pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
+                                                             stderr=subprocess.PIPE)
+                                    stdout, stderr = pyang.communicate()
+                                    arguments = ["pyang", '-p', get_curr_dir(__file__) + '/../../.', "-f", "tree",
+                                                 schema2]
+                                    pyang = subprocess.Popen(arguments, stdout=subprocess.PIPE,
+                                                             stderr=subprocess.PIPE)
+                                    stdout2, stderr = pyang.communicate()
+                                    if stdout == stdout2:
+                                        versions = modules[x - 1]['semver'].split('.')
+                                        ver = int(versions[2])
+                                        ver += 1
+                                        upgraded_version = '{}.{}.{}'.format(
+                                            versions[0], versions[1], ver)
+                                        modules[x]['semver'] = upgraded_version
+                                        response = requests.get(
+                                            '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
+                                                args.protocol, args.ip, args.port,
+                                                mod['name'], mod['revision'],
+                                                mod['organization']),
+                                            auth=(args.credentials[0],
+                                                  args.credentials[1]), headers={
+                                                'Accept': 'application/vnd.yang.data+json'})
+                                        response = json.loads(response.content)[
+                                            'yang-catalog:module']
+                                        response[
+                                            'derived-semantic-version'] = upgraded_version
+                                        new_modules.append(response)
+                                    else:
+                                        versions = modules[x - 1]['semver'].split('.')
+                                        ver = int(versions[1])
+                                        ver += 1
+                                        upgraded_version = '{}.{}.{}'.format(
+                                            versions[0], ver, 0)
+                                        modules[x]['semver'] = upgraded_version
+                                        response = requests.get(
+                                            '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
+                                                args.protocol, args.ip, args.port,
+                                                mod['name'], mod['revision'],
+                                                mod['organization']),
+                                            auth=(args.credentials[0],
+                                                  args.credentials[1]), headers={
+                                                'Accept': 'application/vnd.yang.data+json'})
+                                        response = json.loads(response.content)[
+                                            'yang-catalog:module']
+                                        response[
+                                            'derived-semantic-version'] = upgraded_version
+                                        new_modules.append(response)
+                                else:
+                                    versions = modules[x - 1]['semver'].split('.')
+                                    ver = int(versions[0])
+                                    ver += 1
+                                    upgraded_version = '{}.{}.{}'.format(ver, 0, 0)
+                                    modules[x]['semver'] = upgraded_version
+                                    response = requests.get(
+                                        '{}://{}:{}/api/config/catalog/modules/module/{},{},{}'.format(
+                                            args.protocol, args.ip, args.port,
+                                            mod['name'], mod['revision'],
+                                            mod['organization']),
+                                        auth=(
+                                        args.credentials[0], args.credentials[1]), headers={
+                                            'Accept': 'application/vnd.yang.data+json'})
+                                    response = json.loads(response.content)[
+                                        'yang-catalog:module']
+                                    response[
+                                        'derived-semantic-version'] = upgraded_version
+                                    new_modules.append(response)
 
-        for mod in all_modules['module']:
-            name = mod['name']
-            revision = mod['revision']
-            new_dependencies = mod['dependencies']
-            for new_dep in new_dependencies:
-                if new_dep.get('revision'):
-                    search = {'name': new_dep['name'], 'revision': new_dep['revision']}
-                else:
-                    search = {'name': new_dep['name']}
-                response = requests.post(
-                    args.api_protocol + '://' + args.api_ip + ':' + repr(
-                        args.api_port) + '/search-filter', auth=(args.credentials[0], args.credentials[1]),
-                    json={'input': search})
+            for mod in all_modules['module']:
+                name = mod['name']
+                revision = mod['revision']
+                new_dependencies = mod['dependencies']
+                for new_dep in new_dependencies:
+                    if new_dep.get('revision'):
+                        search = {'name': new_dep['name'], 'revision': new_dep['revision']}
+                    else:
+                        search = {'name': new_dep['name']}
+                    response = requests.post(yangcatalog_api_prefix
+                                             + 'search-filter',
+                                             auth=(args.credentials[0], args.credentials[1]),
+                        json={'input': search})
+                    if response.status_code == 200:
+                        mods = json.loads(response.content)['yang-catalog:modules'][
+                            'module']
+                        for m in mods:
+                            if m.get('dependents') is None:
+                                m['dependents'] = []
+                            new = {'name': name,
+                                   'revision': revision,
+                                   'schema': mod['schema']}
+                            if new not in m['dependents']:
+                                m['dependents'].append(new)
+                                new_modules.append(m)
+
+                response = requests.post(yangcatalog_api_prefix + 'search-filter',
+                                         auth=(
+                                         args.credentials[0], args.credentials[1]),
+                              json={'input': {'dependencies': [{'name': name}]}})
                 if response.status_code == 200:
-                    mods = json.loads(response.content)['yang-catalog:modules'][
-                        'module']
+                    mods = json.loads(response.content)['yang-catalog:modules']['module']
+
+                    if mod.get('dependents')is None:
+                        mod['dependents'] = []
                     for m in mods:
-                        if m.get('dependents') is None:
-                            m['dependents'] = []
-                        new = {'name': name,
-                               'revision': revision,
-                               'schema': mod['schema']}
-                        if new not in m['dependents']:
-                            m['dependents'].append(new)
-                            new_modules.append(m)
-
-            response = requests.post(args.api_protocol + '://' + args.api_ip + ':' + repr(args.api_port) + '/search-filter',
-                                     auth=(
-                                     args.credentials[0], args.credentials[1]),
-                          json={'input': {'dependencies': [{'name': name}]}})
-            if response.status_code == 200:
-                mods = json.loads(response.content)['yang-catalog:modules']['module']
-
-                if mod.get('dependents')is None:
-                    mod['dependents'] = []
-                for m in mods:
-                    passed = False
-                    for dependency in m['dependencies']:
-                        if dependency['name'] == name:
-                            passed = True
-                            rev = dependency.get('revision')
-                            if rev:
-                                passed = False
-                                if rev == revision:
-                                    passed = True
-                    if passed:
-                        new = {'name': m['name'],
-                               'revision': m['revision'],
-                               'schema': m['schema']}
-                        if new not in mod['dependents']:
-                            mod['dependents'].append(new)
-                if len(mod['dependents']) > 0:
-                    new_modules.append(mod)
-        mod = len(new_modules) % 250
-        for x in range(0, len(new_modules) / 250):
-            json_modules_data = json.dumps({'modules': {'module': new_modules[x*250: (x*250)+250]}})
+                        passed = False
+                        for dependency in m['dependencies']:
+                            if dependency['name'] == name:
+                                passed = True
+                                rev = dependency.get('revision')
+                                if rev:
+                                    passed = False
+                                    if rev == revision:
+                                        passed = True
+                        if passed:
+                            new = {'name': m['name'],
+                                   'revision': m['revision'],
+                                   'schema': m['schema']}
+                            if new not in mod['dependents']:
+                                mod['dependents'].append(new)
+                    if len(mod['dependents']) > 0:
+                        new_modules.append(mod)
+            mod = len(new_modules) % 250
+            for x in range(0, len(new_modules) / 250):
+                json_modules_data = json.dumps({'modules': {'module': new_modules[x*250: (x*250)+250]}})
+                if '{"module": []}' not in json_modules_data:
+                    url = prefix + '/api/config/catalog/modules/'
+                    response = requests.patch(url, json_modules_data,
+                                              auth=(args.credentials[0],
+                                                    args.credentials[1]),
+                                              headers={
+                                                  'Accept': 'application/vnd.yang.data+json',
+                                                  'Content-type': 'application/vnd.yang.data+json'})
+                    if response.status_code < 200 or response.status_code > 299:
+                        LOGGER.error('Request with body on path {} failed with {}'.
+                                     format(json_modules_data, url,
+                                            response.content))
+            rest = (len(new_modules) / 250) * 250
+            json_modules_data = json.dumps(
+                {'modules': {'module': new_modules[rest: rest + mod]}})
             if '{"module": []}' not in json_modules_data:
                 url = prefix + '/api/config/catalog/modules/'
                 response = requests.patch(url, json_modules_data,
@@ -558,28 +586,13 @@ if __name__ == "__main__":
                     LOGGER.error('Request with body on path {} failed with {}'.
                                  format(json_modules_data, url,
                                         response.content))
-        rest = (len(new_modules) / 250) * 250
-        json_modules_data = json.dumps(
-            {'modules': {'module': new_modules[rest: rest + mod]}})
-        if '{"module": []}' not in json_modules_data:
-            url = prefix + '/api/config/catalog/modules/'
-            response = requests.patch(url, json_modules_data,
-                                      auth=(args.credentials[0],
-                                            args.credentials[1]),
-                                      headers={
-                                          'Accept': 'application/vnd.yang.data+json',
-                                          'Content-type': 'application/vnd.yang.data+json'})
-            if response.status_code < 200 or response.status_code > 299:
-                LOGGER.error('Request with body on path {} failed with {}'.
-                             format(json_modules_data, url,
-                                    response.content))
         try:
             shutil.rmtree('../api/cache')
         except OSError:
             # Be happy if deleted
             pass
-        url = (args.api_protocol + '://' + args.api_ip + ':' +
-               repr(args.api_port) + '/load-cache')
+        url = (yangcatalog_api_prefix + 'load-cache')
+        LOGGER.info('{}'.format(url))
         response = requests.post(url, None,
                                  auth=(args.credentials[0],
                                        args.credentials[1]))
@@ -587,6 +600,9 @@ if __name__ == "__main__":
             LOGGER.warning('Could not send a load-cache request')
         if args.notify_indexing:
             LOGGER.info('Sending files for indexing')
-            send_to_indexing('../parseAndPopulate/' + direc + '/prepare.json', args.credentials, args.ip, args.api_port,
-                             args.api_protocol, from_api=False, set_key=key, force_indexing=args.force_indexing)
+            send_to_indexing(yangcatalog_api_prefix,
+                             '../parseAndPopulate/' + direc + '/prepare.json',
+                             args.credentials, apiIp=args.api_ip,
+                             from_api=False, set_key=key,
+                             force_indexing=args.force_indexing)
         shutil.rmtree('../parseAndPopulate/' + direc)

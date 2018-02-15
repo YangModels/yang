@@ -80,7 +80,7 @@ def do_search(options):
             sql += ' OR '.join(queries)
             sql += ')'
 
-        sql += ' AND (mo.module = yi.module) GROUP BY yi.module, yi.revision'
+        sql += ' AND (mo.module = yi.module) GROUP BY yi.argument, yi.module, yi.revision'
         cur.execute(sql, qparams)
 
         results = []
