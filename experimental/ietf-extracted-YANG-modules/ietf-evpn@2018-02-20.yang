@@ -10,17 +10,43 @@ module ietf-evpn {
     prefix "yang";
   }
 
+  import ietf-routing-types {
+    prefix "rt-types";
+  }
+
+  import ietf-network-instance {
+    prefix "ni";
+  }
+
   import ietf-l2vpn {
     prefix "l2vpn";
   }
 
-  import ietf-routing-types {
-    prefix "rt-types";
+  import ietf-pseudowires {
+    prefix "pw";
   }
 
   organization  "ietf";
   contact       "ietf";
   description   "evpn";
+
+  revision "2018-02-20" {
+    description " - Incorporated ietf-network-instance model" +
+                "   on which ietf-l2vpn is now based " +
+                "";
+    reference   "";
+  }
+
+  revision "2017-10-21" {
+    description " - Modified the operational state augment " +
+                " - Renamed evpn-instances-state to evpn-instances" +
+                " - Added vpws-vlan-aware to an EVPN instance " +
+                " - Added a new augment to L2VPN to add EPVN " +
+                " - pseudowire for the case of EVPN VPWS " +
+                " - Added state change notification " +
+                "";
+    reference   "";
+  }
 
   revision "2017-03-13" {
     description " - Added an augment to base L2VPN model to " +
@@ -60,6 +86,28 @@ module ietf-evpn {
 
   feature evpn-pbb-params {
     description "EVPN's PBB parameters";
+  }
+
+  /* Identities */
+
+  identity evpn-notification-state {
+    description "The base identity on which EVPN notification " +
+                "states are based";
+  }
+
+  identity MAC-duplication-detected {
+    base "evpn-notification-state";
+    description "MAC duplication is detected";
+  }
+
+  identity mass-withdraw-received {
+    base "evpn-notification-state";
+    description "Mass withdraw received";
+  }
+
+  identity static-MAC-move-detected {
+    base "evpn-notification-state";
+    description "Static MAC move is detected";
   }
 
   /* Typedefs */
@@ -228,87 +276,14 @@ module ietf-evpn {
           description "Enable (TRUE) or disable (FALSE) " +
                       "flood unknown unicast suppression";
         }
-      }
-    }
-  }
-
-  container evpn-state {
-    description "EVPN operational state";
-    container evpn-instances-state {
-      config false;
-      description "evpn-instances-state";
-      list evpn-instance {
-        description "The state of an EVPN instance";
-        leaf name {
-          type string;
-          description "Name of EVPN instance";
-        }
-        leaf evi {
-          type uint32;
-          description "evi";
-        }
-        container pbb-parameters {
-          if-feature "evpn-pbb-params";
-          description "PBB parameters";
-          leaf source-bmac {
-            type yang:hex-string;
-            description "source-bmac";
-          }
-        }
-        container bgp-parameters {
-          description "BGP parameters";
-          container common {
-            description "BGP parameters common to all pseudowires";
-            list rd-rt {
-              if-feature evpn-bgp-params;
-              key "route-distinguisher";
-              leaf route-distinguisher {
-                type rt-types:route-distinguisher;
-                description "Route distinguisher";
-              }
-              uses rt-types:vpn-route-targets;
-              description "A list of route distinguishers and " +
-                          "corresponding VPN route targets";
-            }
-          }
-        }
-        leaf advertise-mac-suppression-enabled {
+        leaf vpws-vlan-aware {
           type boolean;
-          description "advertise-mac-suppression " +
-                      "is enabled (TRUE) " +
-                      "or disabled (FALSE)";
-        }
-        leaf arp-proxy-enabled {
-          type boolean;
-          description "arp-proxy is enabled (TRUE) " +
-                      "or disabled (FALSE)";
-        }
-        leaf arp-suppression-enabled {
-          type boolean;
-          description "arp-suppression is enabled (TRUE) " +
-                      "or disabled (FALSE)";
-        }
-        leaf nd-proxy-enabled {
-          type boolean;
-          description "nd-proxy is enabled (TRUE) " +
-                      "or disabled (FALSE)";
-        }
-        leaf nd-suppression-enabled {
-          type boolean;
-          description "nd-suppression is enabled (TRUE) " +
-                      "or disabled (FALSE)";
-        }
-        leaf underlay-multicast-enabled {
-          type boolean;
-          description "underlay-multicast is enabled (TRUE) " +
-                      "or disabled (FALSE)";
-        }
-        leaf flood-unknown-unicast-suppression-enabled {
-          type boolean;
-          description "flood-unknown-unicast-suppression is " +
-                      "enabled (TRUE) or disabled (FALSE)";
+          default false;
+          description "Enable (TRUE) or disable (FALSE) " +
+                      "VPWS VLAN aware";
         }
         container routes {
+          config false;
           description "routes";
           list ethernet-auto-discovery-route {
             uses route-rd-rt-grp;
@@ -417,6 +392,7 @@ module ietf-evpn {
           }
         }
         container statistics {
+          config false;
           description "Statistics";
           leaf tx-count {
             type uint32;
@@ -444,13 +420,13 @@ module ietf-evpn {
               type uint32;
               description "multicast receive count";
             }
-            leaf unicast-tx-count {
+            leaf unknown-unicast-tx-count {
               type uint32;
-              description "unicast transmission count";
+              description "unknown unicast transmission count";
             }
-            leaf unicast-rx-count {
+            leaf unknown-unicast-rx-count {
               type uint32;
-              description "unicast receive count";
+              description "unknown-unicast receive count";
             }
           }
         }
@@ -458,9 +434,28 @@ module ietf-evpn {
     }
   }
 
-  /* augments */  
-  augment "/l2vpn:l2vpn/l2vpn:l2vpn-instances" +
-          "/l2vpn:l2vpn-instance" {
+  /* augments */
+
+  augment "/pw:pseudowires/pw:pseudowire/pw:pw-type" {
+    description "Augment for an L2VPN instance to add EVPN VPWS " +
+                "pseudowire";
+    case evpn-pw {
+      container evpn-pw {
+        description "EVPN pseudowire";
+        leaf remote-id {
+          type uint32;
+          description "Remote pseudowire ID";
+        }
+        leaf local-id {
+          type uint32;
+          description "Local pseudowire ID";
+        }
+      }
+    }
+  }
+
+  augment "/ni:network-instances/ni:network-instance/ni:ni-type" +
+          "/l2vpn:l2vpn" {
     description "Augment for an L2VPN instance and EVPN association";
     leaf evpn-instance {
       type evpn-instance-ref;
@@ -468,12 +463,56 @@ module ietf-evpn {
     }
   }
 
-  augment "/l2vpn:l2vpn-state" {
-    description "Augment for an L2VPN instance's operational " +
-                "state of L2VPN and EVPN association";
+  augment "/ni:network-instances/ni:network-instance/ni:ni-type" +
+          "/l2vpn:l2vpn" {
+    when "l2vpn:type = 'l2vpn:vpls-instance-type'" {
+      description "Constraints only for VPLS pseudowires";
+    }
+    description "Augment for VPLS instance";
+    container vpls-contstraints {
+      must "not(boolean(/pw:pseudowires/pw:pseudowire" +
+           "                [pw:name = current()/../l2vpn:endpoint" +
+           "            /l2vpn:pw/l2vpn:name]" +
+           "            /evpn-pw/remote-id)) and " +
+           "not(boolean(/pw:pseudowires/pw:pseudowire" +
+           "                [pw:name = current()/../l2vpn:endpoint" +
+           "            /l2vpn:pw/l2vpn:name]" +
+           "            /evpn-pw/local-id)) and " +
+           "not(boolean(/pw:pseudowires/pw:pseudowire" +
+           "                [pw:name = current()/../l2vpn:endpoint" +
+           "            /l2vpn:primary-pw/l2vpn:name]" +
+           "            /evpn-pw/remote-id)) and " +
+           "not(boolean(/pw:pseudowires/pw:pseudowire" +
+           "                [pw:name = current()/../l2vpn:endpoint" +
+           "            /l2vpn:primary-pw/l2vpn:name]" +
+           "            /evpn-pw/local-id)) and " +
+           "not(boolean(/pw:pseudowires/pw:pseudowire" +
+           "                [pw:name = current()/../l2vpn:endpoint" +
+           "            /l2vpn:backup-pw/l2vpn:name]" +
+           "            /evpn-pw/remote-id)) and " +
+           "not(boolean(/pw:pseudowires/pw:pseudowire" +
+           "                [pw:name = current()/../l2vpn:endpoint" +
+           "            /l2vpn:backup-pw/l2vpn:name]" +
+           "            /evpn-pw/local-id))" {
+        description "A VPLS pseudowire must not be EVPN PW";
+      }
+      description "VPLS constraints";
+    }
+  }
+
+  /* Notifications */
+
+  notification evpn-state-change-notification {
+    description "EVPN state change notification";
     leaf evpn-instance {
-      type string;
-      description "Name of the associated EVPN instance";
+      type evpn-instance-ref;
+      description "Related EVPN instance";
+    }
+    leaf state {
+      type identityref {
+        base evpn-notification-state;
+      }
+      description "State change notification";
     }
   }
 }

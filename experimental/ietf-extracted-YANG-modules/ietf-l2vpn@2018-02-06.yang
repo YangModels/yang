@@ -14,6 +14,14 @@ module ietf-l2vpn {
     prefix "rt-types";
   }
 
+  import ietf-interfaces {
+    prefix "if";
+  }
+
+  import ietf-network-instance {
+    prefix "ni";
+  }
+
   import ietf-pseudowires {
     prefix "pw";
   }
@@ -21,6 +29,15 @@ module ietf-l2vpn {
   organization  "ietf";
   contact       "ietf";
   description   "l2vpn";
+
+  revision "2018-02-06" {
+    description "Eighth revision " +
+                "  - Incorporated ietf-network-instance model " +
+                "  - change the type of attachment circuit to " +
+                "    if:interface-ref " +
+                "";
+    reference   "";
+  }
 
   revision "2017-09-21" {
     description "Seventh revision " +
@@ -242,7 +259,6 @@ module ietf-l2vpn {
     base "l2vpn-signaling";
     description "Label Distribution Protocol (LDP) signaling";
   }
-
   identity bgp-signaling {
     base "l2vpn-signaling";
     description "Border Gateway Protocol (BGP) signaling";
@@ -291,7 +307,6 @@ module ietf-l2vpn {
     base "l2vpn-notification-state";
     description "MAC move limit is exceeded";
   }
-
   identity MAC-move-limit-exceeded-cleared {
     base "l2vpn-notification-state";
     description "MAC move limit exceeded is cleared";
@@ -360,16 +375,16 @@ module ietf-l2vpn {
   }
   typedef l2vpn-instance-name-ref {
     type leafref {
-      path "/l2vpn:l2vpn/l2vpn:instances" +
-           "/l2vpn:instance/l2vpn:name";
+      path "/ni:network-instances/ni:network-instance" +
+           "/ni:name";
     }
     description "l2vpn-instance-name-ref";
   }
 
   typedef l2vpn-instance-type-ref {
     type leafref {
-      path "/l2vpn:l2vpn/l2vpn:instances" +
-           "/l2vpn:instance/l2vpn:type";
+      path "/ni:network-instances/ni:network-instance" +
+           "/l2vpn:type";
     }
     description "l2vpn-instance-type-ref";
   }
@@ -397,34 +412,7 @@ module ietf-l2vpn {
   }
 
   /* groupings */
-/*
-  grouping one-l2vpn-endpoint-grp {
-    description "A grouping that identifies a single endpoint " +
-                "within a single L2VPN instance";
-    leaf l2vpn-instance-name {
-      type l2vpn-instance-name-ref;
-      description "The L2VPN instance name";
-    }
-    leaf l2vpn-instance-type {
-      type leafref {
-        path "/l2vpn:l2vpn/l2vpn:instances" +
-             "/l2vpn:instance" +
-                  "[l2vpn:name=current()/../l2vpn-instance-name]" +
-             "/l2vpn:type";
-      }
-      description "The L2VPN instance type";
-    }
-    leaf endpoint {
-      type leafref {
-        path "/l2vpn:l2vpn/l2vpn:instances" +
-             "/l2vpn:instance" +
-                  "[l2vpn:name=current()/../l2vpn-instance-name]" +
-                  "[l2vpn:type=current()/../l2vpn-instance-type]" +
-             "/l2vpn:endpoint/l2vpn:name";
-      }
-    }
-  }
-*/
+
   grouping pbb-parameters-grp {
     description "PBB parameters grouping";
     container pbb-parameters {
@@ -444,10 +432,9 @@ module ietf-l2vpn {
         case b-component {
           leaf bind-b-component-name {
             type l2vpn-instance-name-ref;
-            must "/l2vpn:l2vpn" +
-                 "/l2vpn:instances" +
-                 "/l2vpn:instance[l2vpn:name=current()]" +
-                 "/type = 'vpls-instance-type'" {
+            must "/ni:network-instances" +
+                 "/ni:network-instance[ni:name=current()]" +
+                 "/l2vpn:type = 'l2vpn:vpls-instance-type'" {
               description "A b-component must be an L2VPN instance " +
                           "of type vpls-instance-type";
             }
@@ -507,10 +494,6 @@ module ietf-l2vpn {
 
   grouping l2vpn-common-parameters-grp {
     description "L2VPN common parameters";
-    leaf name {
-      type string;
-      description "Name of L2VPN service instance";
-    }
     leaf type {
       type identityref {
         base l2vpn-instance-type;
@@ -661,7 +644,7 @@ module ietf-l2vpn {
   /* L2VPN YANG Model */
 
   container l2vpn {
-    description "l2vpn";
+    description "L2VPN specific data";
 
     container redundancy-group-templates {
       description "redundancy group templates";
@@ -675,235 +658,224 @@ module ietf-l2vpn {
         uses redundancy-group-properties-grp;
       }
     }
-    container instances {
-      description "A list of L2VPN instances";
-      list instance {
-        key "name type";
-        description "An L2VPN service instance";
-        uses l2vpn-common-parameters-grp;
-        container bgp-auto-discovery {
-          description "BGP auto-discovery parameters";
-          leaf route-distinguisher {
-            type rt-types:route-distinguisher;
-            description "BGP route distinguisher";
-          }
-          leaf vpn-id {
-            type string;
-            description "VPN ID";
-          }
-          uses rt-types:vpn-route-targets;
+  }
+
+  /* augments */
+
+  augment "/ni:network-instances/ni:network-instance/ni:ni-type" {
+    description
+      "Augmentation for L2VPN instance";
+    case l2vpn {
+      description "An L2VPN service instance";
+      uses l2vpn-common-parameters-grp;
+      container bgp-auto-discovery {
+        description "BGP auto-discovery parameters";
+        leaf route-distinguisher {
+          type rt-types:route-distinguisher;
+          description "BGP route distinguisher";
         }
-        container bgp-signaling {
-          when "../signaling-type = 'bgp-signaling'" {
-            description "Check signaling type: " +
-                        "Can only configure BGP signaling if " +
-                        "signaling type is BGP";
-          }
-          description "BGP signaling parameters";
-          uses bgp-signaling-parameters-grp;
+        leaf vpn-id {
+          type string;
+          description "VPN ID";
         }
-        list endpoint {
-          key "name";
-          description "An endpoint";
-          leaf name {
-            type string;
-            description "endpoint name";
+        uses rt-types:vpn-route-targets;
+      }
+      container bgp-signaling {
+        when "../signaling-type = 'bgp-signaling'" {
+          description "Check signaling type: " +
+                      "Can only configure BGP signaling if " +
+                      "signaling type is BGP";
+        }
+        description "BGP signaling parameters";
+        uses bgp-signaling-parameters-grp;
+      }
+      list endpoint {
+        key "name";
+        description "An endpoint";
+        leaf name {
+          type string;
+          description "endpoint name";
+        }
+        uses endpoint-grp {
+          augment "ac-or-pw-or-redundancy-grp/ac" {
+            description "Augment for attachment circuit(s) " +
+                        "as an endpoint";
+            list ac {
+              key "name";
+              leaf name {
+                type if:interface-ref;
+                description "Name of attachment circuit";
+              }
+              leaf state {
+                type operational-state-type;
+                config false;
+                description "attachment circuit up/down state";
+              }
+              description "An L2VPN instance's " +
+                          "attachment circuit list";
+            }
           }
-          uses endpoint-grp {
-            augment "ac-or-pw-or-redundancy-grp/ac" {
-              description "Augment for attachment circuit(s) " +
-                          "as an endpoint";
-              list ac {
-                key "name";
-                leaf name {
-                  type string;
-                  description "Name of attachment circuit.  " +
-                              "This field is intended to " +
-                              "reference standardized " +
-                              "layer-2 definitions.";
-                }
-                leaf state {
-                  type operational-state-type;
-                  config false;
-                  description "attachment circuit up/down state";
-                }
-                description "An L2VPN instance's " +
-                            "attachment circuit list";
-              }
-            }
-            augment "ac-or-pw-or-redundancy-grp/pw" {
-              description "Augment for pseudowire(s) as an endpoint";
-              list pw {
-                key "name";
-                leaf name {
-                  type pw:pseudowire-ref;
-                  must "(../../../type = " +
-                         " 'l2vpn:vpws-instance-type') or " +
-                         "(not(boolean(/pw:pseudowires" +
-                         "     /pw:pseudowire[pw:name = current()]" +
-                         "     /vccv-ability)) and " +
-                         " not(boolean(/pw:pseudowires" +
-                         "     /pw:pseudowire[pw:name = current()]" +
-                         "     /request-vlanid)) and " +
-                         " not(boolean(/pw:pseudowires" +
-                         "     /pw:pseudowire[pw:name = current()]" +
-                         "     /vlan-tpid)) and " +
-                         " not(boolean(/pw:pseudowires" +
-                         "     /pw:pseudowire[pw:name = current()]" +
-                         "     /ttl)))" {
-                      description "Only a VPWS PW has parameters " +
-                                  "vccv-ability, request-vlanid, " +
-                                  "vlan-tpid, and ttl";
-                    }
-                  description "Pseudowire name";
-                }
-                leaf state {
-                  type leafref {
-                    path "/pw:pseudowires" +
-                          "/pw:pseudowire[pw:name=current()/../name]" +
-                          "/pw:state";
+          augment "ac-or-pw-or-redundancy-grp/pw" {
+            description "Augment for pseudowire(s) as an endpoint";
+            list pw {
+              key "name";
+              leaf name {
+                type pw:pseudowire-ref;
+                must "(../../../type = " +
+                       " 'l2vpn:vpws-instance-type') or " +
+                       "(not(boolean(/pw:pseudowires" +
+                       "     /pw:pseudowire[pw:name = current()]" +
+                       "     /vccv-ability)) and " +
+                       " not(boolean(/pw:pseudowires" +
+                       "     /pw:pseudowire[pw:name = current()]" +
+                       "     /request-vlanid)) and " +
+                       " not(boolean(/pw:pseudowires" +
+                       "     /pw:pseudowire[pw:name = current()]" +
+                       "     /vlan-tpid)) and " +
+                       " not(boolean(/pw:pseudowires" +
+                       "     /pw:pseudowire[pw:name = current()]" +
+                       "     /ttl)))" {
+                    description "Only a VPWS PW has parameters " +
+                                "vccv-ability, request-vlanid, " +
+                                "vlan-tpid, and ttl";
                   }
-                  config false;
-                  description "Pseudowire state";
-                }
-                description "An L2VPN instance's pseudowire list";
+                description "Pseudowire name";
               }
-            }
-            augment "ac-or-pw-or-redundancy-grp/redundancy-grp/" +
-                    "primary/primary-ac" {
-              description "Augment for primary-ac";
-              container primary-ac {
-                description "Primary AC";
-                leaf name {
-                  type string;
-                  description "Name of attachment circuit.  " +
-                              "This field is intended to " +
-                              "reference standardized " +
-                              "layer-2 definitions.";
-                }
-                leaf state {
-                  type operational-state-type;
-                  config false;
-                  description "attachment circuit up/down state";
-                }
-              }
-            }
-            augment "ac-or-pw-or-redundancy-grp/redundancy-grp/" +
-                    "primary/primary-pw" {
-              description "Augment for primary-pw";
-              list primary-pw {
-                key "name";
-                leaf name {
-                  type pw:pseudowire-ref;
-                  must "(../../../type = " +
-                         " 'l2vpn:vpws-instance-type') or " +
-                         "(not(boolean(/pw:pseudowires" +
-                         "     /pw:pseudowire[pw:name = current()]" +
-                         "     /vccv-ability)) and " +
-                         " not(boolean(/pw:pseudowires" +
-                         "     /pw:pseudowire[pw:name = current()]" +
-                         "     /request-vlanid)) and " +
-                         " not(boolean(/pw:pseudowires" +
-                         "     /pw:pseudowire[pw:name = current()]" +
-                         "     /vlan-tpid)) and " +
-                         " not(boolean(/pw:pseudowires" +
-                         "     /pw:pseudowire[pw:name = current()]" +
-                         "     /ttl)))" {
-                      description "Only a VPWS PW has parameters " +
-                                  "vccv-ability, request-vlanid, " +
-                                  "vlan-tpid, and ttl";
-                    }
-                  description "Pseudowire name";
-                }
-                leaf state {
-                  type leafref {
-                    path "/pw:pseudowires" +
-                          "/pw:pseudowire[pw:name=current()/../name]" +
-                          "/pw:state";
-                  }
-                  config false;
-                  description "Pseudowire state";
-                }
-                description "An L2VPN instance's pseudowire list";
-              }
-            }
-            augment "ac-or-pw-or-redundancy-grp/redundancy-grp/" +
-                    "backup/backup-ac" {
-              description "Augment for backup-ac";
-              container backup-ac {
-                description "Backup AC";
-                leaf name {
-                  type string;
-                  description "Name of attachment circuit.  " +
-                              "This field is intended to " +
-                              "reference standardized " +
-                              "layer-2 definitions.";
-                }
-                leaf state {
-                  type operational-state-type;
-                  config false;
-                  description "attachment circuit up/down state";
-                }
-              }
-            }
-            augment "ac-or-pw-or-redundancy-grp/redundancy-grp/" +
-                    "backup/backup-pw" {
-              description "Augment for backup-pw";
-              list backup-pw {
-                key "name";
-                leaf name {
-                  type pw:pseudowire-ref;
-                  must "(../../../type = " +
-                         " 'l2vpn:vpws-instance-type') or " +
-                         "(not(boolean(/pw:pseudowires" +
-                         "     /pw:pseudowire[pw:name = current()]" +
-                         "     /vccv-ability)) and " +
-                         " not(boolean(/pw:pseudowires" +
-                         "     /pw:pseudowire[pw:name = current()]" +
-                         "     /request-vlanid)) and " +
-                         " not(boolean(/pw:pseudowires" +
-                         "     /pw:pseudowire[pw:name = current()]" +
-                         "     /vlan-tpid)) and " +
-                         " not(boolean(/pw:pseudowires" +
-                         "     /pw:pseudowire[pw:name = current()]" +
-                         "     /ttl)))" {
-                      description "Only a VPWS PW has parameters " +
-                                  "vccv-ability, request-vlanid, " +
-                                  "vlan-tpid, and ttl";
-                    }
-                  description "Pseudowire name";
-                }
-                leaf state {
-                  type leafref {
-                    path "/pw:pseudowires" +
-                          "/pw:pseudowire[pw:name=current()/../name]" +
-                          "/pw:state";
-                  }
-                  config false;
-                  description "Pseudowire state";
-                }
-                description "A list of backup pseudowires";
-              }
-            }
-            augment "ac-or-pw-or-redundancy-grp/redundancy-grp" {
-              description "Augment for redundancy group properties";
-              leaf template {
+              leaf state {
                 type leafref {
-                  path "/l2vpn/redundancy-group-templates" +
-                       "/redundancy-group-template/name";
+                  path "/pw:pseudowires" +
+                       "/pw:pseudowire[pw:name=current()/../name]" +
+                       "/pw:state";
                 }
-                description "Reference a redundancy group " +
-                            "properties template";
+                config false;
+                description "Pseudowire state";
               }
-              uses redundancy-group-properties-grp;
+              description "An L2VPN instance's pseudowire list";
             }
+          }
+          augment "ac-or-pw-or-redundancy-grp/redundancy-grp/" +
+                  "primary/primary-ac" {
+            description "Augment for primary-ac";
+            container primary-ac {
+              description "Primary AC";
+              leaf name {
+                type if:interface-ref;
+                description "Name of attachment circuit";
+              }
+              leaf state {
+                type operational-state-type;
+                config false;
+                description "attachment circuit up/down state";
+              }
+            }
+          }
+          augment "ac-or-pw-or-redundancy-grp/redundancy-grp/" +
+                  "primary/primary-pw" {
+            description "Augment for primary-pw";
+            list primary-pw {
+              key "name";
+              leaf name {
+                type pw:pseudowire-ref;
+                must "(../../../type = " +
+                       " 'l2vpn:vpws-instance-type') or " +
+                       "(not(boolean(/pw:pseudowires" +
+                       "     /pw:pseudowire[pw:name = current()]" +
+                       "     /vccv-ability)) and " +
+                       " not(boolean(/pw:pseudowires" +
+                       "     /pw:pseudowire[pw:name = current()]" +
+                       "     /request-vlanid)) and " +
+                       " not(boolean(/pw:pseudowires" +
+                       "     /pw:pseudowire[pw:name = current()]" +
+                       "     /vlan-tpid)) and " +
+                       " not(boolean(/pw:pseudowires" +
+                       "     /pw:pseudowire[pw:name = current()]" +
+                       "     /ttl)))" {
+                    description "Only a VPWS PW has parameters " +
+                                "vccv-ability, request-vlanid, " +
+                                "vlan-tpid, and ttl";
+                  }
+                description "Pseudowire name";
+              }
+              leaf state {
+                type leafref {
+                  path "/pw:pseudowires" +
+                       "/pw:pseudowire[pw:name=current()/../name]" +
+                       "/pw:state";
+                }
+                config false;
+                description "Pseudowire state";
+              }
+              description "An L2VPN instance's pseudowire list";
+            }
+          }
+          augment "ac-or-pw-or-redundancy-grp/redundancy-grp/" +
+                  "backup/backup-ac" {
+            description "Augment for backup-ac";
+            container backup-ac {
+              description "Backup AC";
+              leaf name {
+                type if:interface-ref;
+                description "Name of attachment circuit";
+              }
+              leaf state {
+                type operational-state-type;
+                config false;
+                description "attachment circuit up/down state";
+              }
+            }
+          }
+          augment "ac-or-pw-or-redundancy-grp/redundancy-grp/" +
+                  "backup/backup-pw" {
+            description "Augment for backup-pw";
+            list backup-pw {
+              key "name";
+              leaf name {
+                type pw:pseudowire-ref;
+                must "(../../../type = " +
+                       " 'l2vpn:vpws-instance-type') or " +
+                       "(not(boolean(/pw:pseudowires" +
+                       "     /pw:pseudowire[pw:name = current()]" +
+                       "     /vccv-ability)) and " +
+                       " not(boolean(/pw:pseudowires" +
+                       "     /pw:pseudowire[pw:name = current()]" +
+                       "     /request-vlanid)) and " +
+                       " not(boolean(/pw:pseudowires" +
+                       "     /pw:pseudowire[pw:name = current()]" +
+                       "     /vlan-tpid)) and " +
+                       " not(boolean(/pw:pseudowires" +
+                       "     /pw:pseudowire[pw:name = current()]" +
+                       "     /ttl)))" {
+                    description "Only a VPWS PW has parameters " +
+                                "vccv-ability, request-vlanid, " +
+                                "vlan-tpid, and ttl";
+                  }
+                description "Pseudowire name";
+              }
+              leaf state {
+                type leafref {
+                  path "/pw:pseudowires" +
+                       "/pw:pseudowire[pw:name=current()/../name]" +
+                       "/pw:state";
+                }
+                config false;
+                description "Pseudowire state";
+              }
+              description "A list of backup pseudowires";
+            }
+          }
+          augment "ac-or-pw-or-redundancy-grp/redundancy-grp" {
+            description "Augment for redundancy group properties";
+            leaf template {
+              type redundancy-group-template-ref;
+              description "Reference a redundancy group " +
+                          "properties template";
+            }
+            uses redundancy-group-properties-grp;
           }
         }
       }
     }
   }
-
-  /* augments */
 
   augment "/pw:pseudowires/pw:pseudowire" {
     description "Augment for peudowire parameters for " +
@@ -948,8 +920,9 @@ module ietf-l2vpn {
     }
   }
 
-  augment "/l2vpn/instances/instance" {
-    when "type = 'l2vpn:vpws-instance-type'" {
+  augment "/ni:network-instances/ni:network-instance/ni:ni-type" +
+          "/l2vpn:l2vpn" {
+    when "l2vpn:type = 'l2vpn:vpws-instance-type'" {
       description "Constraints only for VPWS pseudowires";
     }
     description "Augment for VPWS instance";
@@ -967,16 +940,18 @@ module ietf-l2vpn {
     }
   }
 
-  augment "/l2vpn/instances/instance" {
-    when "type = 'l2vpn:vpls-instance-type'" {
+  augment "/ni:network-instances/ni:network-instance/ni:ni-type" +
+          "/l2vpn:l2vpn" {
+    when "l2vpn:type = 'l2vpn:vpls-instance-type'" {
       description "Parameters specifically for a VPLS instance";
     }
     description "Augment for parameters for a VPLS instance";
     uses pbb-parameters-grp;
   }
 
-  augment "/l2vpn/instances/instance/endpoint" {
-    when "../type = 'l2vpn:vpls-instance-type'" {
+  augment "/ni:network-instances/ni:network-instance/ni:ni-type" +
+          "/l2vpn:l2vpn/l2vpn:endpoint" {
+    when "../l2vpn:type = 'l2vpn:vpls-instance-type'" {
       description "Endpoint parameter specifically for " +
                   "a VPLS instance";
     }
@@ -987,10 +962,12 @@ module ietf-l2vpn {
     }
   }
 
-  augment "/l2vpn/instances/instance/endpoint" +
-          "/ac-or-pw-or-redundancy-grp/redundancy-grp" +
-          "/backup/backup-pw/backup-pw" {
-    when "../../type = 'l2vpn:vpls-instance-type'" {
+  augment "/ni:network-instances/ni:network-instance/ni:ni-type" +
+          "/l2vpn:l2vpn/l2vpn:endpoint" +
+          "/l2vpn:ac-or-pw-or-redundancy-grp" +
+          "/l2vpn:redundancy-grp/l2vpn:backup" +
+          "/l2vpn:backup-pw/l2vpn:backup-pw" {
+    when "../../l2vpn:type = 'l2vpn:vpls-instance-type'" {
       description "Backup pseudowire parameter specifically for " +
                   "a VPLS instance";
     }
@@ -1012,19 +989,18 @@ module ietf-l2vpn {
     }
     leaf l2vpn-instance-type {
       type leafref {
-        path "/l2vpn:l2vpn/l2vpn:instances" +
-             "/l2vpn:instance" +
-                  "[l2vpn:name=current()/../l2vpn-instance-name]" +
+        path "/ni:network-instances" +
+             "/ni:network-instance" +
+                  "[ni:name=current()/../l2vpn-instance-name]" +
              "/l2vpn:type";
       }
       description "The L2VPN instance type";
     }
     leaf endpoint {
       type leafref {
-        path "/l2vpn:l2vpn/l2vpn:instances" +
-             "/l2vpn:instance" +
-                  "[l2vpn:name=current()/../l2vpn-instance-name]" +
-                  "[l2vpn:type=current()/../l2vpn-instance-type]" +
+        path "/ni:network-instances" +
+             "/ni:network-instance" +
+                  "[ni:name=current()/../l2vpn-instance-name]" +
              "/l2vpn:endpoint/l2vpn:name";
       }
       description "The endpoint";
@@ -1035,10 +1011,12 @@ module ietf-l2vpn {
                     "as an endpoint";
         leaf ac {
           type leafref {
-            path "/l2vpn/instances/instance" +
-                    "[name=current()/../l2vpn-instance-name]" +
-                    "[type=current()/../l2vpn-instance-type]" +
-                 "/endpoint[name=current()/../endpoint]/ac/name";
+            path "/ni:network-instances" +
+                 "/ni:network-instance" +
+                    "[ni:name=current()/../l2vpn-instance-name]" +
+                 "/l2vpn:endpoint" +
+                    "[l2vpn:name=current()/../endpoint]" +
+                 "/l2vpn:ac/l2vpn:name";
           }
           description "Related attachment circuit";
         }
@@ -1047,10 +1025,11 @@ module ietf-l2vpn {
         description "Augment for pseudowire(s) as an endpoint";
         leaf pw {
           type leafref {
-            path "/l2vpn/instances/instance" +
-                    "[name=current()/../l2vpn-instance-name]" +
-                    "[type=current()/../l2vpn-instance-type]" +
-                 "/endpoint[name=current()/../endpoint]/pw/name";
+            path "/ni:network-instances" +
+                 "/ni:network-instance" +
+                    "[ni:name=current()/../l2vpn-instance-name]" +
+                 "/l2vpn:endpoint[l2vpn:name=current()/../endpoint]" +
+                 "/l2vpn:pw/l2vpn:name";
           }
           description "Related pseudowire";
         }
@@ -1060,10 +1039,12 @@ module ietf-l2vpn {
         description "Augment for primary-ac";
         leaf primary-ac {
           type leafref {
-            path "/l2vpn/instances/instance" +
-                    "[name=current()/../l2vpn-instance-name]" +
-                    "[type=current()/../l2vpn-instance-type]" +
-                 "/endpoint[name=current()/../endpoint]/primary-ac/name";
+            path "/ni:network-instances" +
+                 "/ni:network-instance" +
+                    "[ni:name=current()/../l2vpn-instance-name]" +
+                 "/l2vpn:endpoint" +
+                    "[l2vpn:name=current()/../endpoint]" +
+                 "/l2vpn:primary-ac/l2vpn:name";
           }
           description "Related primary attachment circuit";
         }
@@ -1073,10 +1054,12 @@ module ietf-l2vpn {
         description "Augment for primary-pw";
         leaf primary-pw {
           type leafref {
-            path "/l2vpn/instances/instance" +
-                    "[name=current()/../l2vpn-instance-name]" +
-                    "[type=current()/../l2vpn-instance-type]" +
-                 "/endpoint[name=current()/../endpoint]/primary-pw/name";
+            path "/ni:network-instances" +
+                 "/ni:network-instance" +
+                    "[ni:name=current()/../l2vpn-instance-name]" +
+                 "/l2vpn:endpoint" +
+                    "[l2vpn:name=current()/../endpoint]" +
+                 "/l2vpn:primary-pw/l2vpn:name";
           }
           description "Related primary pseudowire";
         }
@@ -1086,10 +1069,12 @@ module ietf-l2vpn {
         description "Augment for backup-ac";
         leaf backup-ac {
           type leafref {
-            path "/l2vpn/instances/instance" +
-                    "[name=current()/../l2vpn-instance-name]" +
-                    "[type=current()/../l2vpn-instance-type]" +
-                 "/endpoint[name=current()/../endpoint]/backup-ac/name";
+            path "/ni:network-instances" +
+                 "/ni:network-instance" +
+                    "[ni:name=current()/../l2vpn-instance-name]" +
+                 "/l2vpn:endpoint" +
+                    "[l2vpn:name=current()/../endpoint]" +
+                 "/l2vpn:backup-ac/l2vpn:name";
           }
           description "Related backup attachment circuit";
         }
@@ -1099,10 +1084,12 @@ module ietf-l2vpn {
         description "Augment for backup-pw";
         leaf backup-pw {
           type leafref {
-            path "/l2vpn/instances/instance" +
-                    "[name=current()/../l2vpn-instance-name]" +
-                    "[type=current()/../l2vpn-instance-type]" +
-                 "/endpoint[name=current()/../endpoint]/backup-pw/name";
+            path "/ni:network-instances" +
+                 "/ni:network-instance" +
+                    "[ni:name=current()/../l2vpn-instance-name]" +
+                 "/l2vpn:endpoint" +
+                    "[l2vpn:name=current()/../endpoint]" +
+                 "/l2vpn:backup-pw/l2vpn:name";
           }
           description "Related backup pseudowire";
         }

@@ -51,7 +51,7 @@ module ietf-te {
     "YANG data module for TE configuration,
     state, RPC and notifications.";
 
-  revision "2017-10-29" {
+  revision "2018-02-19" {
     description "Latest update to TE generic YANG module.";
     reference "TBA";
   }
@@ -63,6 +63,22 @@ module ietf-te {
     description
       "This type is used by data models that need to reference
        configured TE tunnel.";
+  }
+
+  typedef path-ref {
+    type union {
+      type leafref {
+        path "/te:te/te:tunnels/te:tunnel/" +
+              "te:p2p-primary-paths/te:p2p-primary-path/te:name";
+      }
+      type leafref {
+        path "/te:te/te:tunnels/te:tunnel/" +
+             "te:p2p-secondary-paths/te:p2p-secondary-path/te:name";
+      }
+    }
+    description
+      "This type is used by data models that need to reference
+       configured primary or secondary path of a TE tunnel.";
   }
 
   typedef tunnel-p2mp-ref {
@@ -89,7 +105,7 @@ module ietf-te {
         description
           "List of explicit route objects to always exclude
            from path computation";
-        uses te-types:explicit-route-hop_config;
+        uses te-types:explicit-route-hop;
       }
       list route-object-include-exclude {
         key index;
@@ -102,7 +118,7 @@ module ietf-te {
           }
           description "Explicit-route usage.";
         }
-        uses te-types:explicit-route-hop_config;
+        uses te-types:explicit-route-hop;
       }
     }
   }
@@ -386,7 +402,7 @@ module ietf-te {
     }
   }
 
-  grouping computed-path-properties_state {
+  grouping path-properties_state {
     description "Computed path properties grouping";
     leaf metric-type {
       type identityref {
@@ -400,9 +416,9 @@ module ietf-te {
     }
   }
 
-  grouping computed-path-properties {
+  grouping path-properties {
     description "TE computed path properties grouping";
-    container computed-path-properties {
+    container path-properties {
       description "The TE path computed properties";
       list path-metric {
         key metric-type;
@@ -417,12 +433,12 @@ module ietf-te {
           config false;
           description
             "Configuration applied parameters and state";
-          uses computed-path-properties_state;
+          uses path-properties_state;
         }
       }
       uses path-affinities_state;
       uses path-srlgs_state;
-      container path-computed-route-objects {
+      container path-route-objects {
         description
           "Container for the list of computed route objects
            as returned by the computation engine";
@@ -441,7 +457,7 @@ module ietf-te {
             config false;
             description
               "Configuration applied parameters and state";
-            uses te-types:explicit-route-hop_config;
+            uses te-types:explicit-route-hop;
           }
         }
       }
@@ -451,7 +467,9 @@ module ietf-te {
 
   grouping p2p-path-properties_state {
     description "TE per path state parameters";
-    uses computed-path-properties;
+    uses path-properties {
+      description "The TE path computed properties";
+    }
     container lsps {
       description "TE LSPs container";
       list lsp {
@@ -460,8 +478,11 @@ module ietf-te {
           "extended-tunnel-id";
         description "List of LSPs associated with the tunnel.";
         uses lsp-properties_state;
-        uses shared-resources-tunnels;
+        uses shared-resources-tunnels_state;
         uses lsp-record-route-information_state;
+        uses path-properties {
+          description "The TE path actual properties";
+        }
       }
     }
   }
@@ -705,6 +726,32 @@ module ietf-te {
         "The state of the APS state machine controlling which
          tunnels is using the resources of the protecting LSP.";
     }
+    leaf protection-group-ingress-node-id {
+      type te-types:te-node-id;
+      description
+        "Indicates the te-node-id of the protection group
+        ingress node when the APS state represents an extenal
+        command (LoP, SF, MS) applied to it or a WTR timer
+        running on it. If the external command is not applied to
+        the ingress node or the WTR timer is not running on it,
+        this attribute is not specified. If value 0.0.0.0 is used
+        when the te-node-id of the protection group ingress node is
+        unknown (e.g., because the ingress node is outside the scope
+        of control of the server)";
+    }
+    leaf protection-group-egress-node-id {
+      type te-types:te-node-id;
+      description
+        "Indicates the te-node-id of the protection group egress node
+        when the APS state represents an extenal command (LoP, SF,
+        MS) applied to it or a WTR timer running on it. If the
+        external command is not applied to the ingress node or
+        the WTR timer is not running on it, this attribute is not
+        specified. If value 0.0.0.0 is used when the te-node-id of
+        the protection group ingress node is unknown (e.g., because
+        the ingress node is outside the scope of control of the
+        server)";
+    }
   }
 
   grouping protection-restoration-params_config {
@@ -742,6 +789,19 @@ module ietf-te {
         units seconds;
         description
          "Time to wait before attempting LSP reversion";
+      }
+      leaf aps-signal-id {
+        type uint8 {
+          range "1..255";
+        }
+        description
+          "The APS signal number used to reference the traffic of this
+           tunnel. The default value for normal traffic is 1.
+           The default value for extra-traffic is 255. If not specified,
+           non-default values can be assigned by the server,
+           if and only if, the server controls both endpoints.";
+        reference
+          "ITU-T G.808.1";
       }
     }
     container restoration {
@@ -788,36 +848,6 @@ module ietf-te {
         units seconds;
         description
          "Time to wait before attempting LSP reversion";
-      }
-    }
-  }
-
-  grouping protection-external-commands {
-    description
-      "Path protection external commands grouping";
-    container protection-external-commands {
-      description
-        "Path protection external commands grouping";
-      leaf lockout-of-protection {
-        type boolean;
-        description
-          "A LoP command is applied locally.";
-        reference
-          "ITU-T G.808; RFC 4427.";
-      }
-      leaf manual-switch {
-        type boolean;
-        description
-          "A MS command is applied locally.";
-        reference
-          "ITU-T G.808; RFC 4427.";
-      }
-      leaf forced-switch {
-        type boolean;
-        description
-          "A FS command is applied locally.";
-        reference
-          "ITU-T G.808; RFC 4427.";
       }
     }
   }
@@ -1126,6 +1156,17 @@ module ietf-te {
     }
   }
 
+  grouping shared-resources-tunnels_state {
+    description
+      "The specific tunnel that is using the shared secondary path
+       resources";
+    leaf lsp-shared-resources-tunnel {
+      type te:tunnel-ref;
+      description
+        "Reference to the tunnel that sharing secondary path
+        resources with this tunnel";
+    }
+  }
   grouping shared-resources-tunnels {
     description
       "Set of tunnels that share secondary path resources with
@@ -1165,7 +1206,7 @@ module ietf-te {
       }
     }
   }
-  grouping protection-actions {
+  grouping tunnel-protection-actions {
     description
       "Protection external command actions";
     action protection-external-commands {
@@ -1177,15 +1218,60 @@ module ietf-te {
           description
             "Protection external command";
         }
-        leaf tunnel-using-lsp-resources {
+        leaf protection-group-ingress-node-id {
+          type te-types:te-node-id;
+          description
+            "Indicates the te-node-id of the protection group
+             ingress node when the extenal command has to be
+             applied to it. If the external command is not applied
+             to the ingress node, this attribute is not specified.";
+        }
+        leaf protection-group-egress-node-id {
+          type te-types:te-node-id;
+          description
+            "Indicates the te-node-id of the protection group egress
+             node when the extenal command has to be applied to it.
+             If the external command is not applied to the egress node,
+             This attribute is not specified.";
+        }
+        leaf path-ref {
+          type path-ref;
+          description
+            "Indicates to which path the external command applies to.";
+        }
+        leaf traffic-type {
+          type enumeration {
+            enum normal-traffic {
+              description
+                "The manual-switch or forced-switch command applies to
+                 the normal traffic (this Tunnel).";
+            }
+            enum null-traffic {
+              description
+                "The manual-switch or forced-switch command applies to
+                 the null traffic.";
+            }
+            enum extra-traffic {
+              description
+                "The manual-switch or forced-switch command applies to
+                 the extra traffic (the extra-traffic Tunnel sharing
+                 protection bandwidth with this Tunnel).";
+            }
+          }
+          description
+            "Indicates whether the manual-switch or forced-switch
+             commands applies to the normal traffic, the null traffic
+             or the extra-traffic.";
+          reference
+            "ITU-T G.808, RFC 4427";
+        }
+        leaf extra-traffic-tunnel-ref {
           type te:tunnel-ref;
           description
-            "The tunnel which this external command applies.
-             It can be either a normal traffic tunnel or an
-             extra-traffic tunnel. It is not specified if the
-             external command does not apply to a specific tunnel
-             (e.g., a clear command) or if it applies to the Null
-             signal (e.g., forced switch to null).";
+            "In case there are multiple extra-traffic tunnels sharing
+             protection bandwidth with this Tunnel (m:n protection),
+             represents which extra-traffic Tunnel the manual-switch or
+             forced-switch to extra-traffic command applies to.";
         }
       }
     }
@@ -1352,7 +1438,7 @@ module ietf-te {
               }
               description "An explicit-route hop action.";
             }
-            uses te-types:explicit-route-hop_config;
+            uses te-types:explicit-route-hop;
           }
         }
       }
@@ -1489,6 +1575,7 @@ module ietf-te {
         description "P2P TE tunnels list.";
         uses tunnel-p2p-properties;
         uses tunnel-actions;
+        uses tunnel-protection-actions;
       }
       list tunnel-p2mp {
         key "name";
@@ -1613,8 +1700,6 @@ module ietf-te {
     /* TE LSPs State Data */
     uses lsps-state-grouping;
 
-    /* Protection actions */
-    uses protection-actions;
   }
 
   /* TE Global RPCs/execution Data */
@@ -1679,7 +1764,6 @@ module ietf-te {
     description
       "Notification messages for Global TE.";
   }
-
   /* TE Tunnel Notification Data */
   notification tunnels-notif {
     description
