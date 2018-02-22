@@ -14,14 +14,48 @@ module ietf-ethernet-segment {
     prefix "rt-types";
   }
 
+  import ietf-interfaces {
+    prefix "if";
+  }
+
+  import ietf-pseudowires {
+    prefix "pw";
+  }
+
   organization  "ietf";
   contact       "ietf";
   description   "ethernet segment";
 
-  revision "2017-03-13" {
+  revision "2018-02-20" {
+    description " - Change the type of attachment circuit to " +
+                "   if:interface-ref " +
+                "";
+    reference   "";
+  }
+
+  revision "2017-10-21" {
+    description " - Updated ethernet segment's AC/PW members to " +
+                "   accommodate more than one AC or more than one " +
+                "   PW " +
+                " - Added the new preference based DF election " +
+                "   method " +
+                " - Referenced pseudowires in the new " +
+                "   ietf-pseudowires.yang model " +
+                " - Moved model to NMDA style specified in " +
+                "   draft-dsdt-nmda-guidelines-01.txt " +
+                "";
+    reference   "";
+  }
+
+  revision "2017-03-08" {
     description " - Updated to use BGP parameters from " +
                 "   ietf-routing-types.yang instead of from " +
                 "   ietf-evpn.yang " +
+                " - Updated ethernet segment's AC/PW members to " +
+                "   accommodate more than one AC or more than one " +
+                "   PW " +
+                " - Added the new preference based DF election " +
+                "   method " +
                 "";
     reference   "";
   }
@@ -57,7 +91,6 @@ module ietf-ethernet-segment {
   }
 
   /* Typedefs */
-
   typedef status-type {
     type enumeration {
       enum up {
@@ -70,10 +103,29 @@ module ietf-ethernet-segment {
     description "status type";
   }
 
+  typedef df-election-method-type {
+    type enumeration {
+      enum default {
+        value 0;
+        description "The default DF election method";
+      }
+      enum highest-random-weight {
+        value 1;
+        description "The highest random weight (HRW) method";
+        reference "draft-mohanty-bess-evpn-df-election";
+      }
+      enum preference {
+        value 2;
+        description "The preference based method";
+        reference "draft-rabadan-bess-evpn-pref-df";
+      }
+    }
+    description "The DF election method type";
+  }
+
   /* EVPN Ethernet Segment YANG Model */
 
   container ethernet-segments {
-
     description "ethernet-segment";
     list ethernet-segment {
       key "name";
@@ -81,22 +133,35 @@ module ietf-ethernet-segment {
         type string;
         description "Name of the ethernet segment";
       }
+      leaf service-type {
+        type string;
+        config false;
+        description "service-type";
+      }
+      leaf status {
+        type status-type;
+        config false;
+        description "Ethernet segment status";
+      }
       choice ac-or-pw {
         description "ac-or-pw";
         case ac {
-          leaf ac {
-            type string;
-            description "Eventual reference to standard " +
-                        "attachment circuit definition";
+          leaf-list ac {
+            type if:interface-ref;
+            description "Name of attachment circuit";
           }
         }
         case pw {
-          leaf pw {
-            type string;
-            description "Eventual reference to standard " +
-                        "pseudowire definition";
+          leaf-list pw {
+            type pw:pseudowire-ref;
+            description "Reference to a pseudowire";
           }
         }
+      }
+      leaf interface-status {
+        type status-type;
+        config false;
+        description "interface status";
       }
       leaf ethernet-segment-identifier {
         type uint32;
@@ -145,15 +210,26 @@ module ietf-ethernet-segment {
       }
       container df-election {
         description "df-election";
-        choice df-election-method {
-          description "Choice of df election method";
-          case highest-random-weight {
-            leaf hrw {
-              type boolean;
-              description "Enable (TRUE) or disable (FALSE) " +
-                          "highest random weight";
-            }
+        leaf df-election-method {
+          type df-election-method-type;
+          description "The DF election method";
+        }
+        leaf preference {
+          when "../df-election-method = 'preference'" {
+            description "The preference value is only applicable " +
+                        "to the preference based method";
           }
+          type uint16;
+          description "The DF preference";
+        }
+        leaf revertive {
+          when "../df-election-method = 'preference'" {
+            description "The revertive value is only applicable " +
+                        "to the preference method";
+          }
+          type boolean;
+          default true;
+          description "The 'preempt' or 'revertive' behavior";
         }
         leaf election-wait-time {
           type uint32;
@@ -165,101 +241,13 @@ module ietf-ethernet-segment {
         default false;
         description "Enable (true) or disable (false) ead-evi-route";
       }
-      description "An ethernet segment";
-    }
-  }
-
-  container ethernet-segments-state {
-    config false;
-    description "Ethernet segmet operational state";
-    list ethernet-segment-state {
-      key "name";
-      leaf name {
-        type string;
-        description "Name of the ethernet segment";
-      }
-      leaf service-type {
-        type string;
-        description "service-type";
-      }
-      leaf status {
-        type status-type;
-        description "Ethernet segment status";
-      }
-      choice ac-or-pw {
-        description "ac-or-pw";
-        case ac {
-          leaf ac {
-            type string;
-            description "Name of attachment circuit";
-          }
-        }
-        case pw {
-          leaf pw {
-            type string;
-            description "Name of pseudowire";
-          }
-        }
-      }
-      leaf interface-status {
-        type status-type;
-        description "interface status";
-      }
-      leaf ethernet-segment-identifier {
-        type uint32;
-        description "Ethernet segment identifier (esi)";
-      }
-      leaf active-mode {
-        type string;
-        description "Single-active-mode/all-active-mode";
-      }
-      container pbb-parameters {
-        if-feature "ethernet-segment-pbb-params";
-        description "PBB configuration";
-        leaf backbone-src-mac {
-          type yang:mac-address;
-          description "backbone-src-mac, only if this is a PBB";
-        }
-      }
-      container bgp-parameters {
-        description "BGP parameters";
-        container common {
-          description "BGP parameters common to all pseudowires";
-          list rd-rt {
-            if-feature ethernet-segment-bgp-params;
-            key "route-distinguisher";
-            leaf route-distinguisher {
-              type rt-types:route-distinguisher;
-              description "Route distinguisher";
-            }
-            uses rt-types:vpn-route-targets;
-            description "A list of route distinghishers and " +
-                        "corresponding route targets";
-          }
-        }
-      }
-      container df-election {
-        description "df-election";
-        leaf hrw-enabled {
-          type boolean;
-          description "hrw-enabled is enabled (TRUE) " +
-                      "or disabled (FALSE)";
-        }
-        leaf election-wait-time {
-          type uint32;
-          description "election-wait-time";
-        }
-      }
-      leaf ead-evi-route-enabled {
-        type boolean;
-        description "ead-evi-route is enabled (TRUE) " +
-                    "or disabled (FALSE)";
-      }
       leaf esi-label {
         type string;
+        config false;
         description "esi-label";
       }
       list member {
+        config false;
         leaf ip-address {
           type inet:ip-address;
           description "ip-address";
@@ -267,6 +255,7 @@ module ietf-ethernet-segment {
         description "member of the ethernet segment";
       }
       list df {
+        config false;
         leaf service-identifier {
           type uint32;
           description "service-identifier";
