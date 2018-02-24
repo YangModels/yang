@@ -1,8 +1,6 @@
 module ietf-nat {
   yang-version 1.1;
   namespace "urn:ietf:params:xml:ns:yang:ietf-nat";
-
-  //namespace to be assigned by IANA
   prefix "nat";
 
   import ietf-inet-types { prefix inet; }
@@ -19,12 +17,12 @@ module ietf-nat {
 
      Editor:  Mohamed Boucadair
               <mailto:mohamed.boucadair@orange.com>
-
      Editor:  Senthil Sivakumar
               <mailto:ssenthil@cisco.com>
 
      Editor:  Christian Jacquenet
               <mailto:christian.jacquenet@orange.com>
+
      Editor:  Suresh Vinapamula
               <mailto:sureshk@juniper.net>
 
@@ -36,8 +34,9 @@ module ietf-nat {
 
      NAT44, Network Address and Protocol Translation from IPv6
      Clients to IPv4 Servers (NAT64), Customer-side transLATor (CLAT),
-     Stateless IP/ICMP Translation (SIIT), and Explicit Address Mappings
-     for Stateless IP/ICMP Translation (SIIT EAM) are covered.
+     Stateless IP/ICMP Translation (SIIT), Explicit Address Mappings
+     for Stateless IP/ICMP Translation (SIIT EAM), IPv6 Network
+     Prefix Translation (NPTv6), and Destination NAT are covered.
 
      Copyright (c) 2018 IETF Trust and the persons identified as
      authors of the code.  All rights reserved.
@@ -52,12 +51,12 @@ module ietf-nat {
      This version of this YANG module is part of RFC XXXX; see
      the RFC itself for full legal notices.";
 
-  revision 2018-02-06 {
+  revision 2018-02-23 {
     description
       "Initial revision.";
     reference
       "RFC XXXX: A YANG Module for Network Address Translation
-                (NAT)";
+                 (NAT) and Network Prefix Translation (NPT)";
   }
 
   /*
@@ -162,6 +161,13 @@ module ietf-nat {
      "RFC 7757: Explicit Address Mappings for Stateless IP/ICMP
                 Translation";
   }
+  feature nptv6 {
+    description
+      "NPTv6 is a stateless transport-agnostic IPv6-to-IPv6
+       prefix translation.";
+    reference
+      "RFC 6296: IPv6-to-IPv6 Network Prefix Translation";
+  }
 
   /*
    * Identities
@@ -231,6 +237,14 @@ module ietf-nat {
                 Translation";
   }
 
+  identity nptv6 {
+    base nat:nat-type;
+    description
+      "Identity for NPTv6 support.";
+    reference
+      "RFC 6296: IPv6-to-IPv6 Network Prefix Translation";
+  }
+
  /*
   * Grouping
   */
@@ -239,12 +253,12 @@ module ietf-nat {
     description
       "Individual port or a range of ports.
        When only start-port-number is present,
-       it represents a single port.";
+       it represents a single port number.";
 
     leaf start-port-number {
       type inet:port-number;
       description
-        "Begining of the port range.";
+        "Beginning of the port range.";
       reference
         "Section 3.2.9 of RFC 8045.";
     }
@@ -361,6 +375,7 @@ module ietf-nat {
           description
             "This mapping is created implicitly as a side effect
              of processing a packet that requires a new mapping.";
+
         }
 
         enum "dynamic-explicit" {
@@ -482,7 +497,6 @@ module ietf-nat {
          TCP is completed) or the duration for maintaining
          an explicit mapping alive. The mapping entry will be
          removed by the NAT instance once this lifetime is expired.
-
          When reported in a get operation, the lifetime indicates
          the remaining validity lifetime.
 
@@ -793,6 +807,7 @@ module ietf-nat {
               "The NAT instance is able to associate a mapping with
                a layer-2 identifier.";
           }
+
           enum "dslite"  {
             description
               "The NAT instance is able to associate a mapping with
@@ -818,7 +833,6 @@ module ietf-nat {
       list nat-pass-through {
         if-feature "basic-nat44 or napt44 or dst-nat";
         key id;
-
         description
          "IP prefix NAT pass through.";
 
@@ -925,6 +939,41 @@ module ietf-nat {
                "RFC 6877: 464XLAT: Combination of Stateful and Stateless
                           Translation";
            }
+         }
+       }
+
+       list nptv6-prefixes {
+         if-feature nptv6;
+         key internal-ipv6-prefix ;
+         description
+           "Provides one or a list of (internal IPv6 prefix,
+            external IPv6 prefix) required for NPTv6.
+
+            In its simplest form, NPTv6 interconnects two network
+            links, one of which is an 'internal' network link
+            attached to a leaf network within a single
+            administrative domain and the other of which is an
+            'external' network with connectivity to the global
+            Internet.";
+          reference
+            "RFC 6296: IPv6-to-IPv6 Network Prefix Translation";
+
+          leaf internal-ipv6-prefix {
+            type inet:ipv6-prefix;
+            mandatory true;
+            description
+              "An IPv6 prefix used by an internal interface of NPTv6.";
+            reference
+              "RFC 6296: IPv6-to-IPv6 Network Prefix Translation";
+         }
+
+         leaf external-ipv6-prefix {
+           type inet:ipv6-prefix;
+            mandatory true;
+           description
+             "An IPv6 prefix used by the external interface of NPTv6.";
+           reference
+             "RFC 6296: IPv6-to-IPv6 Network Prefix Translation";
          }
        }
 
@@ -1552,7 +1601,6 @@ module ietf-nat {
 
                  Ports in the hold down pool are not reassigned
                  until hold-down-timeout expires.
-
                  The length of time and the maximum
                  number of ports in this state must be
                  configurable by the administrator.
@@ -1705,6 +1753,7 @@ module ietf-nat {
             }
           }
         }
+
         container mapping-limits {
           if-feature "napt44 or nat64";
           description
@@ -1723,7 +1772,7 @@ module ietf-nat {
                           Network Address Translators (NATs)";
           }
 
-          leaf limit-address-mapings {
+          leaf limit-address-mappings {
             type uint32;
             description
               "Maximum number of address mappings that can be
@@ -1753,6 +1802,7 @@ module ietf-nat {
           list limit-per-protocol {
             if-feature "napt44 or nat64 or dst-nat";
             key protocol-id;
+
             description
               "Configure limits per transport protocol";
 
@@ -1801,6 +1851,7 @@ module ietf-nat {
               "Rate-limit the number of new mappings and sessions
                per instance.";
           }
+
           list limit-per-protocol {
             if-feature "napt44 or nat64";
             key protocol-id;
@@ -1901,6 +1952,8 @@ module ietf-nat {
         }
 
         container mapping-table {
+          if-feature "basic-nat44 or napt44 " +
+               "or nat64 or clat or dst-nat";
           description
             "NAT mapping table. Applicable for functions which maintain
              static and/or dynamic mappings, such as NAT44, Destination
@@ -1932,7 +1985,6 @@ module ietf-nat {
           container traffic-statistics {
             description
               "Generic traffic statistics.";
-
             leaf sent-packets {
               type yang:zero-based-counter64;
               description
@@ -1945,6 +1997,7 @@ module ietf-nat {
               description
                 "Counter for sent traffic in bytes.";
             }
+
             leaf rcvd-packets {
               type yang:zero-based-counter64;
               description
@@ -2028,7 +2081,6 @@ module ietf-nat {
                 "Counter of dropped packets because a port limit
                  is reached, in bytes.";
             }
-
             leaf dropped-port-packets {
               if-feature "napt44 or nat64";
               type yang:zero-based-counter64;
@@ -2081,6 +2133,8 @@ module ietf-nat {
             }
 
             leaf total-address-mappings {
+              if-feature "basic-nat44 or napt44 " +
+               "or nat64 or clat or dst-nat";
               type yang:gauge32;
               description
                 "Total number of address mappings present at a given
@@ -2267,7 +2321,6 @@ module ietf-nat {
       description
         "Pool Identifier.";
     }
-
     leaf notify-pool-threshold {
       type percent;
       mandatory true;
