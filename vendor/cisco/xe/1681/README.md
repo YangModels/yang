@@ -63,7 +63,7 @@ NETCONF capability Statment: [cat9300-netconf-capability.xml](cat9300-netconf-ca
 * Cisco-IOS-XE-vlan-oper.yang
 * Cisco-IOS-XE-vrrp-oper.yang
 
-#### Common Models Added
+#### Openconfig Models Added
 
 * openconfig-aaa.yang
 * openconfig-aaa-types.yang
@@ -87,19 +87,22 @@ NETCONF capability Statment: [cat9300-netconf-capability.xml](cat9300-netconf-ca
 * openconfig-transport-line-common.yang
 * openconfig-transport-types.yang
 
-#### Other Models Added
+##### Deviations
 
 * Cisco-XE-openconfig-bgp-policy-deviation.yang
 * Cisco-XE-openconfig-bgp-deviation.yang
-* Cisco-XE-openconfig-rib-bgp-ext.yang
 * Cisco-XE-openconfig-spanning-tree-deviation.yang
-* Cisco-XE-openconfig-spanning-tree-ext.yang
-* Cisco-XE-openconfig-vlan-ext.yang
-* Cisco-XE-openconfig-platform-ext.yang
 * Cisco-XE-openconfig-openflow-deviation.yang
-* Cisco-XE-ietf-yang-push-ext.yang
 * Cisco-XE-ietf-event-notifications-deviation.yang
 * Cisco-XE-ietf-yang-push-deviation.yang
+
+#### Other Models Added
+
+* cisco-xe-openconfig-rib-bgp-ext.yang
+* cisco-xe-openconfig-spanning-tree-ext.yang
+* cisco-xe-openconfig-vlan-ext.yang
+* cisco-xe-openconfig-platform-ext.yang
+* cisco-xe-ietf-yang-push-ext.yang
 
 #### Native Models Modified 
 

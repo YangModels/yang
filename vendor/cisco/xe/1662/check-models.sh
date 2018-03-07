@@ -16,7 +16,7 @@ EGREP=`command -v egrep`
 GREP=`command -v grep`
 PYANG=`command -v pyang`
 CHECK_BC=""
-PYANG_FLAGS="-p ../../../../standard/ietf/RFC"
+PYANG_FLAGS="--lax-quote-checks -p ."
 
 trap ctrl_c INT
 
@@ -72,12 +72,14 @@ echo Checking all models with "--lint" flag
 compile_yang() {
     m=$1
     echo "pyang $FLAGS $m" 
-    pyang $FLAGS $m 2>&1 | \
+    YANG_INSTALL="." pyang $FLAGS $m 2>&1 | \
 	grep -v "warning: RFC 6087" | \
 	grep -v "error: RFC 6087: 4.2" | \
+	grep -v "error: RFC 6087: 4.6" | \
 	grep -v "error: RFC 6087: 4.7" | \
 	grep -v "error: RFC 6087: 4.11,4.12" | \
 	grep -v "error: RFC 6087: 4.12" | \
+	grep -v "error: circular dependency for type" | \
 	grep -v "not in canonical order" | \
 	grep -v "warning: locally scoped grouping" | \
 	egrep -v "warning: imported module\s[a-zA-Z0-9\-]+\snot used"
