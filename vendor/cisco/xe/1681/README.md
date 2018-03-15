@@ -1,41 +1,47 @@
 ## YANG Models and Platform Capabilities for Cisco IOS XE 16.8.1
 
-This directory contains the [MIBS](MIBS) subdirectory and YANG models supported by IOS XE 16.8.1:
+This directory contains the YANG models supported by IOS XE 16.8.1:
 
-* Models unique to IOS XE platforms
+* IOS XE platform models
+* IETF, OpenConfig and tail-f models (and deviations)
 * MIB-based models generated using the algorithms in [RFC 6643](https://tools.ietf.org/html/rfc6643)
-* IETF, OpenConfig and tail-f models (and deviations) 
 
-The schemas here may also be retrieved from devices running IOS XE 16.8.1 by using the NETCONF "get-schema" RPC as detailed in [RFC 6022](https://tools.ietf.org/html/rfc6022) Section 3.1. For RESTCONF we can do a "get" on the schema leaf of ietf-yang-library.yang model, which provides the list of URL's from which the schemas can be dowloaded. Models listed in this repository are supported by following IOS XE platforms:
+The schemas may be retrieved from devices using the NETCONF "get-schema" RPC as detailed in [RFC 6022](https://tools.ietf.org/html/rfc6022) Section 3.1. Schemas may also be retrieved using RESTCONF "get" on ietf-yang-library.yang model schema leaf, which provides the list of URL's from which the schemas can be downloaded. Models listed in this repository are supported by following IOS XE platforms:
 
 * ASR1000
 * CSR1000V/ISRv
-* ISR4000
+* ISR11xx and ISR4000
 * ASR900, RSP2/RSP3, ASR920 and NCS4200
 * Catalyst 3650 and 3850
-* Catalyst 9300, 9500 and 9400
+* Catalyst 9300, 9400 and 9500
 
 Model content may differ based on platform capability. As a convenience, copies of the platform "hello" messages are also provided:
 #### ASR1000
-NETCONF capability Statement: [asr1k-netconf-capability.xml](asr1k-netconf-capability.xml)
+Capability Statement: [asr1k-netconf-capability.xml](asr1k-netconf-capability.xml)
 #### CSR1000
-NETCONF capability Statement: [csr1k-netconf-capability.xml](csr1k-netconf-capability.xml)
-#### ISR4000
-NETCONF capability Statement: [isr4k-netconf-capability.xml](isr4k-netconf-capability.xml)
+Capability Statement: [csr1k-netconf-capability.xml](csr1k-netconf-capability.xml)
+#### ISR11xx and ISR4000
+Capability Statement: [isr4k-netconf-capability.xml](isr4k-netconf-capability.xml)
+Capability Statement: [isr1100-netconf-capability.xml](isr1100-netconf-capability.xml)
 #### ASR900, ASR920, RSP2/RSP3 and NCS4200
-NETCONF capability Statement: [asr920-netconf-capability.xml](asr920-netconf-capability.xml)
+Capability Statement: [asr920-netconf-capability.xml](asr920-netconf-capability.xml)
 #### Catalyst 3650 and 3850
-NETCONF capability Statement: [cat3k-netconf-capability.xml](cat3k-netconf-capability.xml)
-#### Catalyst 9300, 9500 and 9400
-NETCONF capability Statment: [cat9300-netconf-capability.xml](cat9300-netconf-capability.xml)
+Capability Statement: [cat3k-netconf-capability.xml](cat3k-netconf-capability.xml)
+#### Catalyst 9300, 9400 and 9500
+Capability Statement: [cat9300-netconf-capability.xml](cat9300-netconf-capability.xml)
+Capability Statement: [cat9400-netconf-capability.xml](cat9400-netconf-capability.xml)
+Capability Statement: [cat9500-netconf-capability.xml](cat9500-netconf-capability.xml)
 
-### Major Namespace And Model Changes In 16.8.1
+### 16.8.1 Errata
+
+Please note that the following models, while advertised by Cat9400, are not actually supported.
+
+* openconfig-platform.yang
+* openconfig-platform-types.yang
+
+### Major Namespace and Model Changes In 16.8.1
 
 16.8.1 model changes include the addition of IETF models, new native models and existing native model updates.
-
-#### IETF Models Added
-
-* ietf-netconf-acm.yang
 
 #### Native Models Added
 
@@ -62,47 +68,6 @@ NETCONF capability Statment: [cat9300-netconf-capability.xml](cat9300-netconf-ca
 * Cisco-IOS-XE-tcam-oper.yang
 * Cisco-IOS-XE-vlan-oper.yang
 * Cisco-IOS-XE-vrrp-oper.yang
-
-#### Openconfig Models Added
-
-* openconfig-aaa.yang
-* openconfig-aaa-types.yang
-* openconfig-bgp.yang
-* openconfig-bgp-policy.yang
-* openconfig-bgp-types.yang
-* openconfig-lacp.yang
-* openconfig-lldp.yang
-* openconfig-lldp-types.yang
-* openconfig-openflow-types.yang
-* openconfig-openflow.yang
-* openconfig-rib-bgp.yang
-* openconfig-rib-bgp-ext.yang
-* openconfig-rib-bgp-types.yang
-* openconfig-system.yang
-* openconfig-system-logging.yang
-* openconfig-system-terminal.yang
-* openconfig-procmon.yang
-* openconfig-spanning-tree.yang
-* openconfig-spanning-tree-types.yang
-* openconfig-transport-line-common.yang
-* openconfig-transport-types.yang
-
-##### Deviations
-
-* Cisco-XE-openconfig-bgp-policy-deviation.yang
-* Cisco-XE-openconfig-bgp-deviation.yang
-* Cisco-XE-openconfig-spanning-tree-deviation.yang
-* Cisco-XE-openconfig-openflow-deviation.yang
-* Cisco-XE-ietf-event-notifications-deviation.yang
-* Cisco-XE-ietf-yang-push-deviation.yang
-
-#### Other Models Added
-
-* cisco-xe-openconfig-rib-bgp-ext.yang
-* cisco-xe-openconfig-spanning-tree-ext.yang
-* cisco-xe-openconfig-vlan-ext.yang
-* cisco-xe-openconfig-platform-ext.yang
-* cisco-xe-ietf-yang-push-ext.yang
 
 #### Native Models Modified 
 
@@ -184,6 +149,56 @@ NETCONF capability Statment: [cat9300-netconf-capability.xml](cat9300-netconf-ca
 * Cisco-IOS-XE-wccp.yang
 * Cisco-IOS-XE-template.yang
 * Cisco-IOS-XE-zone.yang
+
+#### IETF Models Added
+
+* ietf-netconf-acm.yang
+
+#### Openconfig Models Added
+
+* openconfig-aaa.yang
+* openconfig-rib-bgp-ext.yang
+* openconfig-rib-bgp-types.yang
+* openconfig-system.yang
+* openconfig-system-logging.yang
+* openconfig-system-terminal.yang
+* openconfig-procmon.yang
+* openconfig-spanning-tree.yang
+* openconfig-spanning-tree-types.yang
+* openconfig-transport-line-common.yang
+* openconfig-transport-types.yang
+
+#### OpenConfig Models Modified
+
+* openconfig-acl.yang
+* openconfig-packet-match.yang
+* openconfig-if-ethernet.yang
+* openconfig-network-instance.yang
+* openconfig-extensions.yang
+* openconfig-types.yang
+* openconfig-packet-match-types.yang
+* openconfig-inet-types.yang
+* openconfig-yang-types.yang
+* openconfig-vlan.yang
+* openconfig-platform.yang
+* openconfig-platform-types.yang
+
+##### OpenConfig Deviations Added
+
+* Cisco-XE-openconfig-bgp-policy-deviation.yang
+* Cisco-XE-openconfig-bgp-deviation.yang
+* Cisco-XE-openconfig-spanning-tree-deviation.yang
+* Cisco-XE-openconfig-openflow-deviation.yang
+* Cisco-XE-ietf-event-notifications-deviation.yang
+* Cisco-XE-ietf-yang-push-deviation.yang
+
+#### OpenConfig Extensions Added
+
+* cisco-xe-openconfig-rib-bgp-ext.yang
+* cisco-xe-openconfig-spanning-tree-ext.yang
+* cisco-xe-openconfig-vlan-ext.yang
+* cisco-xe-openconfig-platform-ext.yang
+* cisco-xe-ietf-yang-push-ext.yang
 
 #### Models Requiring Operational Data manager (ODM) configuration
 
