@@ -20,16 +20,19 @@ Model content may differ based on platform capability. As a convenience, copies 
 Capability Statement: [asr1k-netconf-capability.xml](asr1k-netconf-capability.xml)
 #### CSR1000
 Capability Statement: [csr1k-netconf-capability.xml](csr1k-netconf-capability.xml)
-#### ISR11xx and ISR4000
-Capability Statement: [isr4k-netconf-capability.xml](isr4k-netconf-capability.xml)
+#### ISR11xx
 Capability Statement: [isr1100-netconf-capability.xml](isr1100-netconf-capability.xml)
+#### ISR4000
+Capability Statement: [isr4k-netconf-capability.xml](isr4k-netconf-capability.xml)
 #### ASR900, ASR920, RSP2/RSP3 and NCS4200
 Capability Statement: [asr920-netconf-capability.xml](asr920-netconf-capability.xml)
 #### Catalyst 3650 and 3850
 Capability Statement: [cat3k-netconf-capability.xml](cat3k-netconf-capability.xml)
-#### Catalyst 9300, 9400 and 9500
+#### Catalyst 9300
 Capability Statement: [cat9300-netconf-capability.xml](cat9300-netconf-capability.xml)
+#### Catalyst 9400
 Capability Statement: [cat9400-netconf-capability.xml](cat9400-netconf-capability.xml)
+#### Catalyst 9500
 Capability Statement: [cat9500-netconf-capability.xml](cat9500-netconf-capability.xml)
 
 ### 16.8.1 Errata
@@ -183,7 +186,7 @@ Please note that the following models, while advertised by Cat9400, are not actu
 * openconfig-platform.yang
 * openconfig-platform-types.yang
 
-##### OpenConfig Deviations Added
+#### OpenConfig Deviations Added
 
 * Cisco-XE-openconfig-bgp-policy-deviation.yang
 * Cisco-XE-openconfig-bgp-deviation.yang
