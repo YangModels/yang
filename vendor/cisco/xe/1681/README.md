@@ -2,29 +2,29 @@
 
 This directory contains the YANG models supported by IOS XE 16.8.1:
 
-* IOS XE platform models
+* IOS XE native models
 * IETF, OpenConfig and tail-f models (and deviations)
 * MIB-based models generated using the algorithms in [RFC 6643](https://tools.ietf.org/html/rfc6643)
 
 The schemas may be retrieved from devices using the NETCONF "get-schema" RPC as detailed in [RFC 6022](https://tools.ietf.org/html/rfc6022) Section 3.1. Schemas may also be retrieved using RESTCONF "get" on ietf-yang-library.yang model schema leaf, which provides the list of URL's from which the schemas can be downloaded. Models listed in this repository are supported by following IOS XE platforms:
 
-* ASR1000
-* CSR1000V/ISRv
-* ISR11xx and ISR4000
-* ASR900, RSP2/RSP3, ASR920 and NCS4200
+* ASR 1000
+* CSR 1000v/ISRv
+* ISR 1000 and ISR 4000
+* ASR900 RSP2/RSP3, ASR920 and NCS4200
 * Catalyst 3650 and 3850
 * Catalyst 9300, 9400 and 9500
 
 Model content may differ based on platform capability. As a convenience, copies of the platform "hello" messages are also provided:
-#### ASR1000
+#### ASR 1000
 Capability Statement: [asr1k-netconf-capability.xml](asr1k-netconf-capability.xml)
-#### CSR1000
+#### CSR 1000v
 Capability Statement: [csr1k-netconf-capability.xml](csr1k-netconf-capability.xml)
-#### ISR11xx
-Capability Statement: [isr1100-netconf-capability.xml](isr1100-netconf-capability.xml)
-#### ISR4000
+#### ISR 1000
+Capability Statement: [isr1k-netconf-capability.xml](isr1k-netconf-capability.xml)
+#### ISR 4000
 Capability Statement: [isr4k-netconf-capability.xml](isr4k-netconf-capability.xml)
-#### ASR900, ASR920, RSP2/RSP3 and NCS4200
+#### ASR900 RSP2/RSP3, ASR920 and NCS4200
 Capability Statement: [asr920-netconf-capability.xml](asr920-netconf-capability.xml)
 #### Catalyst 3650 and 3850
 Capability Statement: [cat3k-netconf-capability.xml](cat3k-netconf-capability.xml)
@@ -202,13 +202,6 @@ Please note that the following models, while advertised by Cat9400, are not actu
 * cisco-xe-openconfig-vlan-ext.yang
 * cisco-xe-openconfig-platform-ext.yang
 * cisco-xe-ietf-yang-push-ext.yang
-
-#### Models Requiring Operational Data manager (ODM) configuration
-
-* Cisco-IOS-XE-mpls-fwd-oper.yang
-* Cisco-IOS-XE-mpls-ldp.yang
-* cisco-bridge-domain.yang
-* common-mpls-static.yang
 	 
 ### Compliance With "pyang --lint"
 
@@ -217,7 +210,3 @@ Some models are not fully compliant with all IETF guidelines as exemplified by r
 ### Revision Statements
 
 Revision statements embedded in the YANG files **should** accurately reflect whether or not a new revision has been introduced.
-
-## Platform Differences
-
-Each supported platform advertises NETCONF capabilities during NETCONF session establishment.
