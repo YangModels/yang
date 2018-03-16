@@ -1,0 +1,268 @@
+module tailf-common-query {
+  namespace "http://tail-f.com/ns/common/query";
+  prefix tfcq;
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+
+  organization "Tail-f Systems";
+
+  description
+    "Common groupings for the Query API.  These groupings
+     are used by protocol-specific modules; currently one for
+     NETCONF (tailf-netconf-query) and one for REST
+    (tailf-rest-query).
+
+     The Query API has four functions:  'start-query',
+     'fetch-query-result', 'reset-query', and 'stop-query'.
+
+     'start-query' is used to start a new query.  It returns
+     a query handle, before the system has started to evaluate
+     the query.  The query-handle is used in the other
+     functions.
+
+     'fetch-query-result' is repeatedly used to get chunks of the
+     result of the query.
+
+     'reset-query' is optionally used to restart the query, possibly
+     from a new offset in the result.
+
+     'stop-query' cleans up the resources associated with the query.
+
+     This module defines the input and output parameters to these
+     functions as groupings.  The protocol-specific modules that use
+     these groupings encapsulate them in protocol-specifc operations.";
+
+  revision 2017-04-27 {
+    description
+      "Released as part of ConfD-6.4.1 / NCS-4.4.1.
+
+       Added 'timeout' as parameter for start-query and reset-query.";
+  }
+
+  revision 2015-03-19 {
+    description
+      "Released as part of ConfD-5.4 / NCS-3.4.
+
+       Added 'inline' as a type for query results.";
+  }
+
+  revision 2014-11-13 {
+    description
+      "Initial revision.";
+  }
+
+  grouping start-query-parameters {
+    description
+      "The following parameters are used to start a query.
+
+       On a high level, the query is evaluated as:
+
+         foreach <expr> select <exprs> [sort-by <exprs>]
+
+       Each expression is an XPath 1.0 expression.
+
+       The 'foreach' expression returns a set of nodes, e.g., all
+       interfaces that are enabled.  This node-set is optionally
+       sorted according to the 'sort-by' expressions.  From the
+       (sorted) node-set, each 'select' expression is evaluated, and
+       all these results are returned from the query.";
+
+    leaf foreach {
+      type yang:xpath1.0;
+      mandatory true;
+      description
+        "An XPath 1.0 expression that returns a node set.  For each
+         node in this node set, a 'result' entry is constructed.  For
+         each such node all 'select/expression's are evaluated, and
+         stored in 'result/select'.  The resulting entries are
+         returned from the 'fetch-query-result' function.
+
+         When this XPath expression is evaluated, the context node is the
+         root node of the requested data store.";
+    }
+    list select {
+      description
+        "A list of expressions that define what to return from each
+         node in the node set returned by the 'foreach' expression.";
+
+      leaf label {
+        type string;
+        description
+          "Optional label which is copied as is to the 'result' list;
+           can be used for easy labeling of the returned node(s).";
+      }
+      leaf expression {
+        type yang:xpath1.0;
+        mandatory true;
+        description
+          "Declare what node(s) you want to retrieve.
+
+           This XPath expression is evaluated once for every node in
+           the node set returned by the 'foreach' expression.  That node
+           is the inital context node when this expression is evaluated.";
+      }
+      leaf-list result-type {
+        type enumeration {
+          enum string {
+            description
+              "Return the result of evaluating the expression as if it
+               was surrounded by a call to the xpath function string().";
+            tailf:code-name result_type_string;
+          }
+          enum path {
+            description
+              "If the result is a node set, return the path to the
+               first node in the node set as an instance-identifier.
+
+               If the result is not a node set, nothing is returned
+               for this expression.";
+            tailf:code-name result_type_path;
+          }
+          enum leaf-value {
+            description
+              "If the result is a node set, return the value of the
+               first node in the node set, if the first node is a leaf.
+               Otherwise, nothing is returned for this expression.";
+            tailf:code-name result_type_leaf_value;
+          }
+          enum inline {
+            description
+              "The result is returned inline, i.e., a deep structure
+               of XML (or other API dependent format, e.g., JSON)";
+            tailf:code-name result_type_inline;
+          }
+        }
+        ordered-by user;
+        min-elements 1;
+        description
+          "Controls how the result of the select expression is returned
+           in 'fetch-query-result'.";
+      }
+    }
+    leaf-list sort-by {
+      type yang:xpath1.0;
+      ordered-by user;
+      description
+        "It is possible to sort the result using an ordered list of
+         XPath expressions.
+
+         For each node in the node set returned by 'foreach', all
+         'sort-by' expressions are evaluated, in order, with the node
+         from the 'foreach' evaluation as context node, and the result
+         is stored in a tuple.  Thus, this tuple has as many elements
+         as entries in the 'sort-by' leaf list.
+
+         Each expression should return a node set where the first
+         node should be a leaf.  The value of this leaf is used in
+         the tuple.  If the expression returns something else, the
+         value in the tuple is undefined.
+
+         When the 'result' list is fetched, is is sorted according to
+         the associated tuple.";
+    }
+    leaf limit {
+      type uint32 {
+        range "1..max";
+      }
+      description
+        "The maximum number of 'result' entries to return in each
+         call to 'fetch-query-result'.
+
+         If this parameter is not given, all entries are returned.";
+    }
+    leaf offset {
+      type uint32 {
+        range "1..max";
+      }
+      default 1;
+    }
+    leaf timeout {
+      type uint32 {
+        range "1..max";
+      }
+      description
+        "The maximum time (in seconds) before a query times out. Resets every
+        new request, i.e. subsequent function calls starts a new timeout
+        timer.";
+      default 600;
+    }
+  }
+
+  grouping query-handle {
+    description
+      "This parameter is returned from 'start-query', and used
+       as input parameter to the other functions.";
+
+    leaf query-handle {
+      type uint32;
+    }
+  }
+
+  grouping query-result {
+    description
+      "These parameters are returned from the 'fetch-query-result'
+       function.";
+
+    list result {
+      description
+        "There will be one result for each node in the node set
+         produced by evaluating the 'foreach' expression.";
+
+      list select {
+        leaf label {
+          type string;
+          description
+            "Present if the label was given in the input select
+             entry.";
+        }
+        choice select-result {
+          case path-value {
+            leaf path {
+              type instance-identifier;
+            }
+            leaf value {
+              type string;
+            }
+          }
+          case inline {
+            anyxml data {
+              description
+                "A deep structure of XML (or other API dependent
+                 format, e.g., JSON)";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  grouping reset-query-parameters {
+    description
+      "Input parameters to the 'reset-query' function.";
+
+    uses query-handle;
+    leaf offset {
+      type uint32 {
+        range "1..max";
+      }
+      default 1;
+    }
+    leaf timeout {
+      type uint32 {
+        range "1..max";
+      }
+      description
+        "The maximum time (in seconds) before a query times out. Resets every
+        new request, i.e. subsequent function calls starts a new timeout
+        timer.";
+      default 600;
+    }
+  }
+
+}

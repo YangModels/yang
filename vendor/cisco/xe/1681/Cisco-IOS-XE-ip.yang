@@ -1,0 +1,2074 @@
+submodule Cisco-IOS-XE-ip {
+  belongs-to Cisco-IOS-XE-native {
+    prefix ios;
+  }
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+
+  import Cisco-IOS-XE-types {
+    prefix ios-types;
+  }
+
+  import Cisco-IOS-XE-interface-common {
+    prefix ios-ifc;
+  }
+
+  organization
+    "Cisco Systems, Inc.";
+
+  contact
+    "Cisco Systems, Inc.
+     Customer Service
+
+     Postal: 170 W Tasman Drive
+     San Jose, CA 95134
+
+     Tel: +1 1800 553-NETS
+
+     E-mail: cs-yang@cisco.com";
+
+  description
+    "Cisco XE Native IP Yang Model.
+     Copyright (c) 2016-2017 by Cisco Systems, Inc.
+     All rights reserved.";
+
+  // =========================================================================
+  // REVISION
+  // =========================================================================
+  revision 2017-10-25 {
+    description
+      "Support ip host and ip host vrf with multiple ipv4/ipv6 address";
+  }
+
+  revision 2017-08-28 {
+    description
+      "Extend modeling for multicast";
+  }
+
+   revision 2017-07-24 {
+     description
+       "Add ip ssh server peruser session limit";
+   }
+
+   revision 2017-06-29 {
+     description
+       "This revision fixes the compiling warning in ip route";
+   }
+ 
+   revision 2017-06-27 {
+     description
+       "Add maxstartups to ssh-server";
+   }
+
+   revision 2017-05-17 {
+    description
+      "This revision fixes the problem in ip route";
+  }
+
+  revision 2017-04-10 {
+    description
+      "This revision fixes the problem where CDB not updated when configuring
+      through CLI for ip routing protocol purge interface";
+  }
+
+  revision 2017-03-14 {
+    description
+      "This revision fixes the problem where interface Loopback joining with
+      its name in display";
+  }
+
+  revision 2017-03-02 {
+    description
+      "This revision enhances NED model for IWAN 3.0.2 Ph 1 - Misc Config:
+       - adds config-ip-ssh-algorithm-grouping grouping.
+       - adds vrf list node under host node";
+  }
+  
+  revision 2017-02-23 {
+    description
+      "This revision adds support for IP explicit-path";
+  }
+
+  revision 2017-02-07 {
+    description
+      "Initial revision";
+  }
+
+  // Router Distinguisher
+  typedef rd-type {
+    type string {
+      pattern "(\\d*(.\\d*)*)?:(\\d*(.\\d*)*)?";
+    }
+  }
+
+  typedef mdt-data-list-type {
+    type union {
+      type uint16 {
+        range "100..199";
+      }
+      type uint16 {
+        range "2000..2699";
+      }
+      type string {
+        pattern "[a-fA-F].*";
+      }
+    }
+  }
+
+  typedef vpn-id-type {
+    type string {
+      pattern "[0-9a-fA-F][0-9a-fA-F]?[0-9a-fA-F]?:[0-9a-fA-F][0-9a-fA-F]?[0-9a-fA-F]?[0-9a-fA-F]?";
+    }
+  }
+
+  grouping vrf-route-target-grouping {
+    list export {
+      description
+        "Export Target-VPN community";
+      key "asn-ip";
+      leaf asn-ip {
+        type ios-types:asn-ip-type;
+      }
+    }
+    list import {
+      description
+        "Import Target-VPN community";
+      key "asn-ip";
+      leaf asn-ip {
+        type ios-types:asn-ip-type;
+      }
+    }
+  }
+
+  grouping vrf-maximum-grouping {
+    container maximum {
+      description
+        "Maximum number of routes allowed in this routing table";
+      presence "Maximum number of routes allowed in this routing table";
+      leaf routes {
+        description
+          "Maximum number of routes allowed in this routing table";
+        type uint32 {
+          range "1..4294967295";
+        }
+      }
+      choice maximum-choice {
+        mandatory true;
+        case threshold-case {
+          leaf threshold {
+            description
+              "Threshold";
+            type uint16 {
+              range "1..100";
+            }
+          }
+          leaf reinstall {
+            description
+              "Reinstall previous rejected route due to over maximum route limit";
+            type uint16 {
+              range "1..100";
+            }
+          }
+        }
+        case warning-case {
+          leaf warning-only {
+            description
+              "Only give a warning message if is limit exceeded";
+            type empty;
+          }
+        }
+      }
+    }
+  }
+
+  grouping vrf-loopback-grouping {
+    leaf Loopback {
+      description
+        "Loopback interface number";
+      type uint32 {
+        range "0..2147483647";
+      }
+    }
+  }
+  grouping config-vrf-definition-grouping {
+    container vrf { 
+      description
+        "VRF commands";
+      // vrf definition *
+      list definition {
+        description
+          "VRF definition mode";
+        key "name";
+        leaf name {
+          description
+            "WORD;;VRF name";
+          type string;
+        }
+        // vrf definition * / description
+        leaf description {
+          description
+            "VRF specific description";
+          type string {
+            length "1..244";
+          }
+        }
+        // vrf definition * / rd
+        leaf rd {
+          description
+            "Specify Route Distinguisher";
+          type union {
+            type string {
+              pattern "[0-9]+:[0-9]+";
+            }
+            type inet:ipv4-address;
+            type ios-types:asn-ip-type;
+          }
+        }
+        // vrf definition * / address-family
+        container address-family {
+          description
+            "Enter Address Family command mode";
+          // vrf definition * / address-family ipv4
+          container ipv4 {
+            description
+              "Address family";
+            presence "true";
+            container export {
+              description
+                "VRF export";
+              leaf map {
+                description
+                  "WORD;;Route-map reference";
+                type string;
+              }
+            }
+
+            // vrf definition */ address-family ipv4 / maximum;
+            uses vrf-maximum-grouping;
+
+            //  inter-as-hybrid      Inter AS hybrid mode
+            //  maximum              Set a limit
+            // vrf definition * / address-family ipv4 mdt
+            container mdt {
+              description
+                "Backbone Multicast Distribution Tree";
+              container default {
+                description
+                  "The default group";
+                leaf address {
+                  type inet:ipv4-address;
+                }
+                container mpls {
+                  description
+                    "MPLS tunnel options";
+                  leaf mldp {
+                    description
+                      "Use a MLDP LSP to create the default MDT";
+                    type inet:ipv4-address;
+                  }
+                }
+              }
+              container auto-discovery {
+                description
+                  "BGP auto-discovery for MVPN";
+                leaf pim {
+                  description
+                    "BGP auto-discovery for PIM";
+                  type empty;
+                }
+              }
+              container data {
+                description
+                  "MDT data trees";
+                list multicast {
+                  key "address wildcard";
+                  leaf address {
+                    type inet:ipv4-address;
+                  }
+                  leaf wildcard {
+                    type inet:ipv4-address;
+                  }
+                }
+                leaf list {
+                  description
+                    "Access-list";
+                  type ios-types:ext-acl-type;
+                }
+                // mpls     MPLS tunnel options
+                leaf threshold {
+                  description
+                    "MDT switching threshold";
+                  type uint32;
+                }
+              }
+              leaf log-reuse {
+                description
+                  "Event logging for data MDT reuse";
+                type empty;
+              }
+              leaf mtu {
+                description
+                  "The MTU";
+                type uint16 {
+                  range "576..18010";
+                }
+              }
+              container overlay {
+                description
+                  "MDT Overlay Protocol";
+                leaf use-bgp {
+                  description
+                    "Use BGP for Overlay Signaling";
+                  type empty;
+                }
+              }
+              leaf-list preference {
+                description
+                  "MDT preference (default pim mldp)";
+                type enumeration {
+                  enum "mldp";
+                  enum "pim";
+                }
+              }
+            }
+            //  route-replicate      Replicate (import) routes..
+            // ..from another topology (and another VRF)
+            container route-target {
+              description
+                "Specify Target VPN Extended Communities";
+              uses vrf-route-target-grouping;
+            }
+            //  bgp                  Commands pertaining to BGP
+            container bgp {
+              description
+                "Commands pertaining to BGP";
+              container next-hop {
+                description
+                  "Next-hop for the routes of a VRF in the backbone";
+		uses vrf-loopback-grouping;
+              }
+            }
+            //  import               VRF import
+            container import {
+              description
+                "VRF import";
+              leaf  map {
+                description
+                  "Route-map based VRF import";
+                type string;
+              }
+            }
+            //  snmp                 Modify snmp parameters
+          }
+          // vrf definition * / address-family ipv6
+          container ipv6 {
+            description
+              "Address family";
+            presence "true";
+            //  exit-address-family  Exit from vrf
+            //                       address-family configuration submode
+            //  export               VRF export
+            //  inter-as-hybrid      Inter AS hybrid mode
+            //  maximum              Set a limit
+            // vrf definition * / address-family ipv6 mdt
+            container mdt {
+              description
+                "Backbone Multicast Distribution Tree";
+              leaf mtu {
+                description
+                  "The MTU";
+                type uint16 {
+                  range "576..18010";
+                }
+              }
+            }
+            //  route-target         Specify Target VPN Extended Communities
+            container route-target {
+              description
+                "Specify Target VPN Extended Communities";
+              uses vrf-route-target-grouping;
+            }
+            //  bgp                  Commands pertaining to BGP
+            container bgp {
+              description
+                "Commands pertaining to BGP";
+              container next-hop {
+                description
+                  "Next-hop for the routes of a VRF in the backbone";
+                choice ipv4-ipv6 {
+                  container ipv4 {
+                    description
+                      "Use ipv4 address of the Loopback";
+		    uses vrf-loopback-grouping;
+                  }
+                  container ipv6 {
+                    description
+                      "Use ipv6 address of the Loopback";
+		    uses vrf-loopback-grouping;
+                  }
+                }
+              }
+            }
+            //  import               VRF import
+            container import {
+              description
+                "VRF import";
+              leaf  map {
+                description
+                  "Route-map based VRF import";
+                type string;
+              }
+            }
+            //  snmp                 Modify snmp parameters
+          }
+        }
+        // vrf definition * / route-target
+        container route-target {
+          description
+            "Specify Target VPN Extended Communities";
+          uses vrf-route-target-grouping;
+        }
+        //  vnet            Virtual NETworking configuration
+        // vrf definition * / vpn
+        container vpn {
+          description
+            "Configure VPN ID as specified in rfc2685";
+          leaf id {
+            description
+              "Configure VPN ID in rfc2685 format";
+            type vpn-id-type;
+          }
+        }
+      }
+      // list "list" {
+      //   key id;
+      // }
+      //  selection    selection criteria
+      //  upgrade-cli  upgrade cli
+    }
+  }
+
+  grouping password-grouping {
+    container password-container {
+      leaf encryption {
+        type uint8 {
+          range "0..7";
+        }
+      }
+      leaf password {
+        type string {
+          pattern "([1-680-9a-zA-Z].*)|(0.+)|(7.+)";
+          //length "1..80";
+        }
+      }
+    }
+  }
+
+  grouping ip-route-dhcp-only-options-grouping {
+    leaf dhcp {
+      description
+        "Default Gateway obtained from DHCP";
+      type empty;
+    }
+    leaf metric {
+      type uint8 {
+        range "1..255";
+      }
+    }
+  }
+  grouping ip-route-options-grouping {
+    leaf dhcp {
+      description
+        "Default Gateway obtained from DHCP";
+      type empty;
+    }
+    leaf metric {
+      type uint8 {
+        range "1..255";
+      }
+    }
+    leaf global {
+      description
+        "Next hop address is global";
+      type empty;
+    }
+    leaf name {
+      description
+        "Specify name of the next hop";
+      type string;
+    }
+    leaf permanent {
+      description
+        "permanent route";
+      type empty;
+    }
+    leaf multicast {
+      description
+        "multicast route";
+      type empty;
+    }
+    leaf tag {
+      description
+        "Set tag for this route";
+      type uint32 {
+        range "1..4294967295";
+      }
+    }
+    leaf track {
+      description
+        "Install route depending on tracked item";
+      type uint16 {
+        range "1..1000";
+      }
+    }
+  }
+
+  grouping ip-route-grouping {
+    list ip-route-interface-forwarding-list {
+      key "prefix mask";
+      leaf prefix {
+        type inet:ipv4-address;
+      }
+      leaf mask {
+        type inet:ipv4-address;
+      }
+      uses ip-route-dhcp-only-options-grouping;
+      list fwd-list {
+        key fwd;
+        leaf fwd {
+            type union {
+               type enumeration {
+                  enum "Null0" {
+                  }
+               }
+               type inet:ipv4-address;
+               type string;
+            }
+        }
+        list interface-next-hop {
+          key ip-address;
+          leaf ip-address {
+             type inet:ipv4-address;
+          }
+          uses ip-route-options-grouping;
+        }
+        uses ip-route-options-grouping;
+      }
+    }
+  }
+
+  grouping ip-exp-path-mode-cfg-grouping {
+    // ip explicit-path * / index
+    list index {
+      description
+        "Specify the next entry index to add, edit (or delete): <1..65535>";
+      key "idx";
+      leaf idx {
+        type uint32 {
+          range "1..65535";
+        }
+      }
+      choice ip-exp-path-option {
+        container next-address {
+          description
+            "Specify the next address in the path";
+          leaf loose {
+            description
+              "Target IPv4 address is loose";
+            type empty;
+          }
+          leaf ipv4 {
+            description
+              "Target IPv4 address (strict)";
+            type inet:ipv4-address;
+          }
+        }
+        leaf next-label {
+          description
+            "Specify the next MPLS label in the path: <0..1048575>";
+          type uint32 {
+            range "0..1048575";
+          }
+        }
+        leaf exclude-address {
+          description
+            "Exclude an address from subsequent partial path segments";
+          type inet:ipv4-address;
+        }
+        leaf exclude-srlg {
+          description
+            "Specify an address to get SRLGs from for exclusion";
+          type inet:ipv4-address;
+        }
+      }
+    }
+  }
+
+  grouping config-ip-ssh-algorithm-grouping {
+    container algorithm {
+      description 
+        "Configure different algorithms used in SSH";
+      container encryption {
+        description 
+          "Encryption algorithms advertised to other party";
+        leaf aes128-ctr {
+          description
+            "AES with 128-bit key in CTR mode";
+          type empty;
+        }
+        leaf aes192-ctr {
+          description
+            "AEC with 192-bit key in CTR mode";
+          type empty;
+        }
+        leaf aes256-ctr {
+          description
+            "AEC with 256-bit key in CTR mode";
+          type empty;
+        }
+      }  
+    }    
+  }
+
+  grouping config-ip-grouping {
+    container ip {
+      description
+        "Global IP configuration subcommands";
+      // ip mroute
+      // @mount Cisco-IOS-XE-multicast.yang
+
+      //ip admission
+      container admission { 
+        description
+          "Network Admission Control (NAC)";
+        container watch-list {
+          description
+            "Watch-list";
+          leaf expiry-time {
+            description
+              "Configure expiry time for watch-list entries";
+            type uint16{
+              range "0..35791";
+            }
+          }
+        }
+        container name {
+          description
+            "Specify an Authentication Proxy Rule";
+          container webauth {
+            description "help";
+            container proxy {
+              description
+                "Authentication Proxy Protocol";
+              leaf http {
+                description
+                  "HTTP Protocol";
+                type empty;
+              }
+            }
+          }
+        }
+      }
+
+      //ip radius
+      //@ mount Cisco-IOS-XE-aaa
+
+      //ip arp
+      container arp { 
+        description
+          "IP ARP global configuration";
+        container incomplete {
+          description "Fine-tune the ARP Retry parameters";
+          leaf entries {
+            description "Specify the number of IP addresses to resolve";
+            type uint32 {
+              range "1..2147483647";
+            }
+          }
+        }
+        container inspection {
+          description
+            "Arp Inspection configuration";
+          list filter {
+            description "Specify ARP acl to be applied";
+            key arpacl ;
+            leaf arpacl {
+              type string;
+            }
+            list vlan {
+              description "Vlans to apply the filter";
+              key vlan-range;
+              leaf vlan-range{
+                type string;
+              }
+              leaf static {
+                description "Apply the ACL statically";
+                type empty;
+              }
+            }
+          }
+          container validate {
+            description "Validate addresses";
+            leaf src-mac {
+              description "Validate source MAC address";
+              type empty;
+            }
+            leaf dst-mac {
+              description "Validate destination MAC address";
+              type empty;
+            }
+            leaf ip {
+              description "Validate IP addresses";
+              type empty;
+            }
+            container allow{
+              leaf zeros{
+                description "Allow 0.0.0.0 sender IP address";
+                type empty;
+              }
+            }
+          }
+          container log-buffer {
+            description
+              "Log Buffer Configuration";
+            leaf entries {
+              description
+                "Number of entries for log buffer";
+              type uint16 {
+                range "0..1024";
+              }
+            }
+            container logs {
+              description
+                "Number of logs per interval";
+              leaf entries {
+                description
+                  "Number of entries for log buffer";
+                type uint16 {
+                  range "0..1024";
+                }
+              }
+              leaf interval {
+                description
+                  "Interval for controlling logging rate";
+                type uint32 {
+                  range "0..86400";
+                }
+              }
+            }
+          }
+          leaf vlan {
+            description
+              "Enable/Disable ARP Inspection on vlans";
+            type string;
+          }
+        }
+        // ip arp proxy
+        container proxy {
+          description
+            "Gratuitous ARP control";
+          leaf disable {
+            description
+              "Disable proxy ARP on all interfaces";
+            type empty;
+          }
+        }
+      }
+
+      //ip domain-list
+      container domain-list { 
+        description
+          "Domain name to complete unqualified host names";
+        leaf domain-name {
+          type string;
+        }
+        container vrf {
+          description
+            "Specify VRF";
+          leaf vrf-name {
+            type string;
+          }
+          leaf domain-name {
+            type string;
+          }
+        }
+      }
+
+      //ip finger
+      container finger { 
+        description
+          "finger server";
+        presence "true";
+      }
+
+      // @mount Cisco-IOS-XE-icmp
+
+      //ip rcmd
+      container rcmd { 
+        description
+          "Rcmd commands";
+        leaf rcp-enable {
+          description
+            "Enable server side of RCP";
+          type empty;
+        }
+        leaf rsh-enable {
+          description
+            "Enable server side of RSh";
+          type empty;
+        }
+      }
+
+      // ip subnet-zero
+      leaf subnet-zero { 
+        description
+          "Allow 'subnet zero' subnets";
+        type boolean;
+      }
+
+      // ip bgp-community
+      container bgp-community {
+        description
+          "format for BGP community";
+        leaf new-format {
+          description
+            "select aa:nn format for BGP community";
+          type empty;
+        }
+      }
+
+      //ip host-routing
+      leaf host-routing { 
+        description
+          "Enable host-based routing (proxy ARP and redirect)";
+        type empty;
+      }
+
+      //@mount Cisco-IOS-XE-msdp
+
+      // ip vrf *
+      list vrf { 
+        description
+          "Configure an IP VPN Routing/Forwarding instance";
+        key "name";
+        leaf name {
+          description
+            "WORD;;VPN Routing/Forwarding instance name";
+          type string;
+        }
+        // ip vrf * / bgp
+        container bgp {
+          description
+            "Commands pertaining to BGP";
+          container next-hop {
+            description
+              "Next-hop for the routes of a VRF in the backbone";
+            leaf Loopback {
+              description
+                "Loopback interface number";
+              type uint32 {
+                range "0..2147483647";
+              }
+            }
+          }
+        }
+        // ip vrf * / context
+        leaf context {
+          description
+            "Associate SNMP context with this vrf";
+          type string;
+        }
+        leaf description {
+          description
+            "VRF specific description";
+          type string {
+            length "1..244";
+          }
+        }
+        // ip vrf * / rd
+        leaf rd {
+          description
+            "Specify Route Distinguisher";
+          type rd-type;
+        }
+        // ip vrf * / export
+        container export {
+          description
+            "VRF export";
+                leaf map {
+                 description
+                   "Route-map based VRF export";
+                 type string;  
+               }
+               container ipv4 {
+                 description
+                   "Address family based VRF export";
+                 leaf ipv4-type {
+                   type enumeration {
+                     enum "unicast" {
+                     }
+                     enum "multicast" { 
+                     }
+                   }
+                 }
+                 choice map-choice {
+                   case upper-limit-case { 
+                     leaf upper-limit {
+                       type uint32 {
+                         range "1..2147483647";
+                       }
+                     }
+                     leaf map {
+                       description
+                       "Route-map based VRF export";
+                       type string;
+                     }
+                   } 
+                   case map-only-case {
+                     leaf map-only {
+                       description
+                       "Route-map based VRF export";
+                       type string;
+                     }
+                   }
+                 } 
+               }
+             }
+
+        // ip vrf * / import
+        container import {
+          // NOTE: needs special treatment when talking to backend
+          // broken in real c7200 CLI
+          description
+            "VRF import";
+          choice import-choice {
+            leaf map {
+              description
+                "Route-map based VRF import";
+              type string;
+            }
+            container ipv4 {
+              description
+                "Address family based VRF import";
+              leaf ipv4-type {
+                type enumeration {
+                  enum "unicast" {
+                  }
+                  enum "multicast" {
+                  }
+                }
+              }
+              leaf upper-limit {
+                type uint32 {
+                  range "1..2147483647";
+                }
+              }
+              leaf map {
+                description
+                  "Route-map based VRF import";
+                type string;
+              }
+            }
+          }
+        }
+        // ip vrf * / maximum
+        uses vrf-maximum-grouping;
+
+        // ip vrf * / mdt
+        container mdt {
+          description
+            "Backbone Multicast Distribution Tree";
+          presence "Backbone Multicast Distribution Tree";
+          leaf default {
+            description
+              "The default group";
+            type inet:ipv4-address;
+          }
+          leaf log-reuse {
+            description
+              "Event logging for data MDT reuse";
+            type empty;
+          }
+          container data {
+            description
+              "MDT data group range";
+            leaf mulicast-address {
+              type inet:ipv4-address;
+            }
+            leaf wildcard-bits {
+              type inet:ipv4-address;
+            }
+            choice mdt-data-choice {
+              case mdt-data-threshold {
+                leaf threshold {
+                  description
+                    "MDT switching threshold";
+                  type uint32 {
+                    range "1..4294967";
+                  }
+                }
+                leaf threshold-list {
+                  description
+                    "Access-list";
+                  type mdt-data-list-type;
+                }
+              }
+              case mdt-data-list {
+                leaf list {
+                  description
+                    "Access-list";
+                  type mdt-data-list-type;
+                }
+              }
+            }
+          }
+        }
+        // ip vrf * / route-target
+        list route-target {
+          description
+            "Specify Target VPN Extended Communities";
+          key "direction target";
+          // NOTE: the Cisco CLI does not require you to give
+          // the direction, it will default to 'export' if not
+          // given.
+          leaf direction {
+            type enumeration {
+              enum "both";
+              enum "export" {
+              }
+              enum "import" {
+              }
+            }
+          }
+          leaf target {
+            type rd-type;
+          }
+        }
+        // ip vrf * / vpn
+        container vpn {
+          description
+            "Configure VPN ID as specified in rfc2685";
+          leaf id {
+            description
+              "Configure VPN ID in rfc2685 format";
+            type vpn-id-type;
+          }
+        }
+      }
+
+      // ip multicast-routing
+      // @mount Cisco-IOS-XE-multicast
+
+      // ip as-path
+      container as-path { 
+        description
+          "BGP autonomous system path filter";
+        //@mount cisco-ios-native-community-list
+      }
+
+      // ip local
+      container local {
+        description
+          "Specify local options";
+        // ip local pool *
+        list pool {
+          description
+            "IP Local address pool lists";
+          key "id";
+          leaf id {
+            type union {
+              type string;
+              type enumeration {
+                enum "default";
+              }
+            }
+          }
+          leaf start {
+            type inet:ipv4-address;
+          }
+          leaf last {
+            type inet:ipv4-address;
+          }
+          leaf group {
+            description
+              "Create ip local pool group";
+            type string;
+          }
+        }
+      }
+
+      // ip cef
+      container cef {
+        description
+          "Cisco Express Forwarding";
+        presence "true";
+      }
+
+      // ip classless
+      leaf classless { 
+        description
+          "Follow classless routing forwarding rules";
+        type empty;
+      }
+
+      // ip domain
+      container domain { 
+        description
+          "IP DNS Resolver";
+        container list {
+          description
+            "Domain name to complete unqualified host names";
+          leaf domain-name {
+            type string;
+          }
+          container vrf {
+            description
+              "Specify VRF";
+            leaf vrf-name {
+              type string;
+            }
+            leaf domain-name {
+              type string;
+            }
+          }
+        }
+        // ip domain lookup
+        leaf lookup {
+          description
+            "Enable IP Domain Name System hostname translation";
+          type boolean;
+        }
+        container lookup-settings {
+          container lookup {
+            description
+              "Enable IP Domain Name System hostname translation";
+            leaf nsap {
+              description
+                "Enable IP DNS queries for CLNS NSAP addresses";
+              type empty;
+            }
+            container source-interface {
+              description
+                "Specify source interface for DNS resolver";
+              uses ios-ifc:interface-grouping;
+            }
+          }
+          leaf name {
+            description
+              "Define the default domain name";
+            type string;
+          }
+        }
+        // ip domain name
+        leaf name {
+          description
+            "Define the default domain name";
+          type string;
+        }
+      }
+      // ip domain-lookup
+      container domain-lookup-conf { 
+        leaf domain-lookup {
+          type boolean;
+        }
+      }
+      container domain-lookup { 
+        description
+          "Enable IP Domain Name System hostname translation";
+        presence "true";
+        leaf nsap {
+          description
+            "Enable IP DNS queries for CLNS NSAP addresses";
+          type empty;
+        }
+        container source-interface {
+          description
+            "Specify source interface for DNS resolver";
+          uses ios-ifc:interface-grouping;
+        }
+      }
+      // ip domain-name
+      leaf domain-name { 
+        description
+          "Define the default domain name";
+        type string;
+      }
+      // ip dns
+      container dns { 
+        description
+          "Configure DNS server for a zone";
+        container server {
+          description
+            "Enable DNS server";
+          presence "true";
+        }
+      }
+
+      // ip default-gateway
+      leaf default-gateway { 
+        description
+          "Specify default gateway (if not routing IP)";
+        type inet:ipv4-address;
+      }
+
+      // ip dhcp
+      container dhcp {
+        description
+          "Configure DHCP server and relay parameters";
+      }
+
+      // ip flow-cache
+      //@ mount Cisco-IOS-XE-flow 
+
+      //ip flow-export
+      //@ mount Cisco-IOS-XE-flow
+
+      // ip forward-protocol
+      container forward-protocol { 
+        description
+          "Controls forwarding of physical and directed IP broadcasts";
+        choice protocol-choice {
+          leaf protocol {
+            type enumeration {
+              enum "nd";
+              enum "sdns";
+              enum "turbo-flood";
+            }
+          }
+          container spanning-tree {
+            description
+              "Use transparent bridging to flood UDP broadcasts";
+            presence "true";
+            leaf any-local-broadcast {
+              description
+                "Accept any local broadcast when flooding";
+              type empty;
+            }
+          }
+          container udp {
+            description
+              "Packets to a specific UDP port";
+            leaf biff {
+              description
+                "Biff (mail notification, comsat, 512)";
+              type boolean;
+            }
+            leaf bootpc {
+              description
+                "Bootstrap Protocol (BOOTP) client (68)";
+              type boolean;
+            }
+            leaf bootps {
+              description
+                "Bootstrap Protocol (BOOTP) server (67)";
+              type boolean;
+            }
+            leaf discard {
+              description
+                "Discard (9)";
+              type boolean;
+            }
+            leaf dnsix {
+              description
+                "DNSIX security protocol auditing (195)";
+              type boolean;
+            }
+            leaf domain {
+              description
+                "Domain Name Service (DNS, 53)";
+              type boolean;
+            }
+            leaf echo {
+              description
+                "Echo (7)";
+              type boolean;
+            }
+            leaf isakmp {
+              description
+                "Internet Security Association and Key Management Protocol(500)";
+              type boolean;
+            }
+            leaf mobile-ip {
+              description
+                "Mobile IP registration (434)";
+              type boolean;
+            }
+            leaf nameserver {
+              description
+                "IEN116 name service (obsolete, 42)";
+              type boolean;
+            }
+            leaf netbios-dgm {
+              description
+                "NetBios datagram service (138)";
+              type boolean;
+            }
+            leaf netbios-ns {
+              description
+                "NetBios name service (137)";
+              type boolean;
+            }
+            leaf netbios-ss {
+              description
+                "NetBios session service (139)";
+              type boolean;
+            }
+            leaf non500-isakmp {
+              description
+                "Internet Security Association and Key Management Protocol(4500)";
+              type boolean;
+            }
+            leaf ntp {
+              description
+                "Network Time Protocol (123)";
+              type boolean;
+            }
+            leaf pim-auto-rp {
+              description
+                "PIM Auto-RP (496)";
+              type boolean;
+            }
+            leaf rip {
+              description
+                "Routing Information Protocol (router, in.routed, 520)";
+              type boolean;
+            }
+            leaf snmp {
+              description
+                "Simple Network Management Protocol (161)";
+              type boolean;
+            }
+            leaf snmptrap {
+              description
+                "SNMP Traps (162)";
+              type boolean;
+            }
+            leaf sunrpc  {
+              description
+                "Sun Remote Procedure Call (111)";
+              type boolean;
+            }
+            leaf syslog  {
+              description
+                "System Logger (514)";
+              type boolean;
+            }
+            leaf tacacs  {
+              description
+                "TAC Access Control System (49)";
+              type boolean;
+            }
+            leaf talk {
+              description
+                "Talk (517)";
+              type boolean;
+            }
+            leaf tftp {
+              description
+                "Trivial File Transfer Protocol (69)";
+              type boolean;
+            }
+            leaf time {
+              description
+                "Time (37)";
+              type boolean;
+            }
+            leaf who  {
+              description
+                "Who service (rwho, 513)";
+              type boolean;
+            }
+            leaf xdmcp {
+              description
+                "X Display Manager Control Protocol (177)";
+              type boolean;
+            }
+          }
+        }
+      }
+// <no> ip gratuitous-arps
+      container gratuitous-arps-conf {
+        leaf gratuitous-arps {
+          type boolean;
+        }
+      }
+      // ip ftp
+      container ftp { 
+        description
+          "FTP configuration commands";
+        container source-interface {
+          description
+            "Specify interface for source address in FTP connections";
+          uses ios-ifc:interface-grouping;
+        }
+        leaf passive {
+          description
+            "Connect using passive mode";
+          type empty;
+        }
+        container password {
+          description
+            "Specify password for FTP connections;";
+          uses password-grouping;
+        }
+        leaf username {
+          description
+            "Specify username for FTP connections";
+          type string;
+        }
+      }
+
+      // ip telnet
+      container telnet {
+        description
+          "Specify telnet options";
+        leaf source-interface {
+          description
+            "Specify source interface";
+          type string;
+        }
+      }
+
+      // ip host
+      container host { 
+        description
+          "Add an entry to the ip hostname table";
+        list host-list {
+          key "name";
+          leaf name {
+            description "Name of host";   
+            type string;
+          }
+          leaf-list ip-list {
+            description "Host IP address";
+            type inet:ip-address;
+          }
+        }  
+        list vrf {
+          description "Specify VRF";
+          key "vrf-name";
+          leaf vrf-name {
+            description "VRF name";
+            type string;
+          }
+          list host-name {
+            description "Name of host";
+            key "host-name";
+            leaf host-name {
+              description "Name of host";
+              type string;
+            }
+            leaf-list ip-list {
+              description "Host IP address";
+              type inet:ip-address;
+            }
+          }      
+        }
+      }
+
+      //@mount Cisco-IOS-XE-http
+
+      //@mount Cisco-IOS-XE-igmp
+
+      //ip multicast
+      container multicast { 
+        description
+          "Global IP Multicast Commands";
+        //@ mount Cisco-IOS-XE-mcast
+      }
+
+      // ip nat
+      //@ mount Cisco-IOS-XE-nat
+
+      // ip name-server
+      container name-server { 
+        leaf-list no-vrf {
+          type union {
+            type inet:ipv4-address;
+            type inet:ipv6-address;
+          }
+        }
+        list vrf {
+          description "";
+          key "word";
+          leaf word {
+            type string;
+          }
+          leaf server-ip {
+            type union {
+              type inet:ipv4-address;
+              type inet:ipv6-address;
+            }
+          }
+        }
+      }
+
+      // ip pim
+      container pim { 
+        description
+          "PIM global commands";
+        //@ mount Cisco-IOS-XE-mcast
+      }
+
+      // ip prefix-list
+      container prefix-list {
+        description
+          "Build a prefix list";
+        // ip prefix-list *
+        list prefixes {
+          key "name";
+          leaf name {
+            type string {
+              pattern "([^s].*)|(s[^e].*)|(se[^q].*)(seq[^u].*)|(sequ[^e].*)|(seque[^n].*)|(sequen[^c].*)|(sequenc[^e].*)|(sequence[^\\-].*)|(sequence\\-[^n].*)|(sequence\\-n[^u].*)|(sequence\\-nu[^m].*)|(sequence\\-num[^b].*)|(sequence\\-numb[^e].*)|(sequence\\-numbe[^r].*)|(sequence\\-number..*)";
+            }
+          }
+          // ip prefix-list * description
+          leaf description {
+            description
+              "Prefix-list specific description";
+            type string {
+              length "1..80";
+            }
+          }
+          // ip prefix-list * permit
+          container permit {
+            description
+              "Specify packets to forward";
+            list permit-list {
+              key "prefix";
+              leaf prefix {
+                type inet:ipv4-prefix;
+              }
+              leaf ge {
+                description
+                  "Minimum prefix length to be matched";
+                type uint8 {
+                  range "1..32";
+                }
+              }
+              leaf le {
+                description
+                  "Maximum prefix length to be matched";
+                type uint8 {
+                  range "1..32";
+                }
+              }
+            }
+          }
+          // ip prefix-list * deny
+          container deny {
+            description
+              "Specify packets to reject";
+            list deny-list {
+              key "prefix";
+              leaf prefix {
+                type inet:ipv4-prefix;
+              }
+              leaf ge {
+                description
+                  "Minimum prefix length to be matched";
+                type uint8 {
+                  range "1..32";
+                }
+              }
+              leaf le {
+                description
+                  "Maximum prefix length to be matched";
+                type uint8 {
+                  range "1..32";
+                }
+              }
+            }
+          }
+          // ip prefix-list * seq *
+          list seq {
+            // NOTE: the seq element is not actually mandatory
+            // in the Cisco CLI. If it isn't give
+            description
+              "sequence number of an entry";
+            key "no";
+            leaf no {
+              type uint32 {
+                range "1..4294967294";
+              }
+            }
+            // ip prefix-list * seq * deny
+            container deny {
+              description
+                "Specify packets to reject";
+              leaf ip {
+                type inet:ipv4-prefix;
+              }
+              leaf ge {
+                description
+                  "Minimum prefix length to be matched";
+                type uint8 {
+                  range "1..32";
+                }
+              }
+              leaf le {
+                description
+                  "Maximum prefix length to be matched";
+                type uint8 {
+                  range "1..32";
+                }
+              }
+            }
+            // ip prefix-list * seq * permit
+            container permit {
+              description
+                "Specify packets to forward";
+              leaf ip {
+                type inet:ipv4-prefix;
+              }
+              leaf ge {
+                description
+                  "Minimum prefix length to be matched";
+                type uint8 {
+                  range "1..32";
+                }
+              }
+              leaf le {
+                description
+                  "Maximum prefix length to be matched";
+                type uint8 {
+                  range "1..32";
+                }
+              }
+            }
+          }
+        }
+        // ip prefix-list sequence-number
+        leaf sequence-number {
+          description
+            "Include/exclude sequence numbers in NVGEN";
+          type empty;
+        }
+      }
+
+      // ip route
+      container route { 
+        description
+          "Establish static routes";
+        uses ip-route-grouping;
+        // ip route profile
+        leaf profile {
+          description
+            "Enable IP routing table profile";
+          type empty;
+        }
+        // ip route static
+        container static {
+          description
+            "Allow static routes";
+          leaf adjust-time {
+            description
+              "Time period for adjusting static routes";
+            type uint8 {
+              range "1..60";
+            }
+          }
+          container bfd {
+            description
+              "BFD tracked";
+            leaf interface {
+              type string;
+            }
+            leaf gateway-ip {
+              type inet:ipv4-address;
+            }
+          }
+          container install-routes-recurse-via-nexthop {
+            description 
+              "installing recursive route next hop";
+            leaf vrf {
+              description
+                "Configure static route for a VPN Routing/Forwarding instance";
+              type string;
+            }
+          }
+          leaf inter-vrf {
+            description
+              "Across VRF interfaces";
+            type empty;
+          }
+        }
+        // ip route vrf *
+        list vrf {
+          description
+            "Configure static route for a VPN Routing/Forwarding instance";
+          key "name";
+          leaf name {
+            type string;
+          }
+          uses ip-route-grouping;
+        }
+      }
+
+      // ip routing
+      container routing { 
+        description
+          "Enable IP routing";
+        presence "true"; 
+        container protocol {
+          description
+            "IP routing protocol";
+          container purge {
+            description
+              "routes purge";
+            leaf interface {
+              description
+                "Perform IP routing protocol routes purge on link failures";
+              type boolean;
+            }
+          }
+        }
+      }
+
+      // ip explicit-path name *
+      container explicit-path {
+        description
+          "Configure explicit-path";
+        list identifier {
+          description
+            "Specify explicit path by number: <1..65535>";
+          key "pnum";
+          leaf pnum {
+            type uint16 {
+              range "1..65535";
+            }
+          }
+          leaf mode {
+            type enumeration {
+              enum "enable";
+              enum "disable";
+            }
+          }
+          uses ip-exp-path-mode-cfg-grouping;
+        }
+        list name {
+          description
+            "Specify explicit path by name";
+          key "pname";
+          leaf pname {
+            type string;
+          }
+          leaf mode {
+            type enumeration {
+              enum "enable";
+              enum "disable";
+            }
+          }
+          uses ip-exp-path-mode-cfg-grouping;
+        }
+      }
+
+      // ip rsvp
+      // @mount Cisco-IOS-XE-rsvp
+
+      // ip scp
+      container scp { 
+        description
+          "Scp commands";
+        container server {
+          description
+            "Configure SCP server-side functionality";
+          leaf enable {
+            description
+              "Enable server side of SCP";
+            type empty;
+          }
+        }
+      }
+
+      //ip spd
+      container spd { //45456
+        description
+          "spd";
+        leaf mode {
+          type enumeration {
+            enum "aggressive";
+          }
+        }
+        container queue {
+          description
+            "queue";
+          leaf max-threshold {
+            description "Max threshold";
+            type uint16 {
+              range "0..65535";
+            }
+          }
+          leaf min-threshold {
+            description "Min threshold";
+            must ". < ../max-threshold" {
+              error-message "min-threshold must be less than max-threshold";
+            }
+            type uint16 {
+              range "0..65535";
+            }
+          }
+        }
+      }
+
+      // ip bootp
+      container bootp { 
+        description
+          "Config BOOTP services";
+        leaf server {
+          description
+            "Enable BOOTP server";
+          type boolean;
+        }
+      }
+
+      // ip source-route
+      leaf source-route { 
+        description
+          "Process packets with source routing header options";
+        type boolean;
+      }
+
+      // ip ssh
+      container ssh { 
+        description
+          "Configure ssh options";
+        leaf authentication-retries {
+          description
+            "Specify number of authentication retries";
+          type uint8 {
+            range "0..5";
+          }
+        }
+        // ip ssh client
+        container client {
+          description
+            "Configuration for client";
+          uses config-ip-ssh-algorithm-grouping;
+        }    
+        leaf dscp {
+          description
+            "IP DSCP value for SSH traffic";
+          type uint8 {
+            range "0..63";
+          }
+        }
+        container logging {
+          description
+            "Configure logging for SSH";
+          leaf events {
+            description
+              "Log SSH events";
+            type empty;
+          }
+        }
+        container pubkey-chain {
+          description
+            "Configure public key-chain parameters";
+          list username {
+            max-elements "10";
+            key "name";
+            leaf name {
+              type string;
+            }
+            list key-hash {
+              max-elements "2";
+              key "key-type key-hash-value";
+              leaf key-type {
+                type enumeration {
+                  enum "ssh-rsa";
+                }
+              }
+              leaf key-hash-value {
+                type string;
+              }
+            }
+          }
+        }
+        leaf precedence {
+          description
+            "IP Precedence value for SSH traffic";
+          type uint8 {
+            range "0..7";
+          }
+        }
+        container rsa {
+          description
+            "Configure RSA keypair name for SSH";
+          leaf keypair-name {
+            description
+              "keypair-name";
+            type string;
+          }
+        } 
+        // ip ssh server
+        container server {
+          description 
+            "Configuration for server";
+          uses config-ip-ssh-algorithm-grouping;
+          container peruser {
+             description
+               "Per User configs";
+             container session {
+               description
+                 "Per User Session";
+               leaf limit {
+                 description
+                   "Per User Session Limit";
+                 type uint8 {
+                   range "1..16";
+                 }
+               }
+             }
+           }
+        }    
+        //  source-interface Specify interface for source address in
+        // ip ssh source-interface
+        leaf source-interface {
+          description
+            "Specify interface for source address in SSH connections";
+          type string;
+        }
+        //  SSH connections
+        leaf time-out {
+          description
+            "Specify SSH time-out interval";
+          type uint8 {
+            range "1..120";
+          }
+        }
+        leaf version {
+          description
+            "Specify protocol version supported";
+          type uint8 {
+            range "1..2";
+          }
+        }
+         leaf maxstartups {
+           description
+             "Maximum number of server sessions";
+           type uint8 {
+             range "2..128";
+           }
+         }
+
+        list port {
+          description
+            "Starting (or only) Port number to listen on";
+          key port-no;
+          leaf port-no {
+            description
+              "Starting Port number";
+            type uint16{
+              range "2000..10000";
+            }
+          }
+          leaf low-rotary {
+            description
+              "Starting (or only) rotary group number";
+            type uint8 {
+              range "1..127";
+            }
+          }
+          leaf high-rotary {
+            description
+              "Starting (or only) rotary group number";
+            type uint8 {
+              range "1..127";
+            }
+          }
+        }
+      }
+
+      //ip tacacs
+      //@ mount Cisco-IOS-XE-aaa
+
+      // ip tcp
+      container tcp { 
+        description
+          "Global TCP parameters";
+        container path-mtu-discovery {
+          description
+            "Enable path-MTU discovery on new TCP connections";
+          presence "true";
+          leaf age-timer {
+            description
+              "Set PMTU aging timer";
+            type union {
+              type enumeration {
+                enum "infinite";
+              }
+              type uint8 {
+                range "10..30";
+              }
+            }
+          }
+        }
+        leaf selective-ack {
+          description "Enable TCP selective-ACK";
+          type empty;
+        }
+        leaf synwait-time {
+          description "Set time to wait on new TCP connections";
+          type uint16 {
+            range "5..300";
+          }
+        }
+        leaf timestamp {
+          description "Enable TCP timestamp option";
+          type empty;
+        }
+        leaf window-size {
+          description "TCP window size";
+          type uint32 {
+            range "0..1073741823";
+          }
+        }
+      }
+
+      // ip tftp
+      container tftp { 
+        description
+          "tftp configuration commands";
+        container boot-interface {
+          description
+            "Force interface to use for TFTP booting";
+          uses ios-ifc:interface-grouping;
+        }
+        container source-interface {
+          description
+            "Specify interface for source address in TFTP connections";
+          uses ios-ifc:interface-grouping;
+        }
+        leaf blocksize {
+          description
+            "Specify TFTP client blocksize";
+          type uint16 {
+            range "512..8192";
+          }
+        }
+      }
+
+      container access-list { 
+        description
+          "IOS Named access list";
+      }
+
+      // ip device
+      container device {
+        description
+          "Device tracking";
+        //@mount Cisco-IOS-XE-device-tracking.yang
+      }
+
+      //@ mount Cisco-IOS-XE-nbar
+
+      //@ mount Cisco-IOS-XE-wccp
+
+      //@ mount Cisco-IOS-XE-sla
+    }
+  }
+}

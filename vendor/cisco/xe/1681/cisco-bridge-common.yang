@@ -1,0 +1,552 @@
+module cisco-bridge-common {
+  namespace "urn:cisco:params:xml:ns:yang:cisco-bridge-common";
+  prefix cbridge;
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  organization "Cisco Systems, Inc.";
+  contact
+    "Cisco Systems, Inc.
+     Customer Service
+
+     Postal: 170 W Tasman Drive
+     San Jose, CA 95134
+
+     Tel: +1 1800 553-NETS
+
+     E-mail: cs-yang@cisco.com";
+  description
+    "This module contains a collection of Cisco specific YANG type
+     definitions for Layer 2 Bridging.
+
+     Terms and Acronyms
+       BD : Bridge Domain
+
+       DAI : Dynamic ARP Inspection
+
+       DHCP : Dynamic Host Configuration Protocol
+
+       IGMP :  Internet Group Management Protocol
+
+       IPSG : IP Source Guard
+
+       MLD : Multicast Listener Discovery
+     ";
+
+  revision 2016-12-14 {
+    description
+      "Remove cisco govern extension";
+  }
+
+  revision 2014-09-25 {
+    description
+      "Proposed";
+    reference "TODO";
+  }
+
+  feature configurable-bd-mac-aging-types {
+    description
+      "This feature represents the ability to configure MAC aging
+       parameters.";
+  }
+
+  feature configurable-bd-mac-limit-max {
+    description
+       "This feature represents the ability to configure MAC limit
+        threshold on bridge-domains.";
+  }
+
+  feature configurable-bd-mac-limit-actions {
+    description
+      "This feature represents the ability to configure actions for
+       mac-limit violation event.";
+  }
+
+  feature configurable-bd-mac-limit-notif {
+    description
+      "This feature represents the ability to configure notification
+       for mac-limit violation event.";
+  }
+
+  feature configurable-bd-flooding-control {
+    description
+      "This feature represents the ability to configure flooding
+       control parameters.";
+  }
+
+  typedef eth-traffic-class {
+    type enumeration {
+      enum broadcast {
+        description
+          "Ethernet frames with destination mac-address 
+           eqaul to FFFF.FFFF.FFFF";
+      }
+      enum multicast {
+        description
+          "Ethernet frame with destination MAC address not equal
+           to the broadcast address, but with the multicast bit set
+           to 1.";
+      }
+      enum unknown-unicast {
+        description
+          "Ethernet frames with with a packet destination MAC
+           address not yet learned.";
+      }
+    }
+    description
+      "Traffic class for layer 2 ethernet transport";
+  }
+
+  typedef mac-aging-type {
+    type enumeration {
+      enum inactivity {
+        description
+          "Dynamically learnt MAC entries are aged out after
+           configured aging time only if no data traffic is 
+           detected during aging period.";
+      }
+      enum absolute {
+        description
+          "Dynamically learnt MAC entries are aged out after 
+           configured aging time.";
+      }
+    }
+    description
+      "MAC aging mechanism.";
+  }
+
+  /* MAC limit */
+  typedef mac-limit-action {
+    type enumeration {
+      enum none {
+        description
+          "No action";
+      }
+      enum flood {
+        description
+          "Stop mac learning and flood unknown unicast traffic.";
+      }
+      enum drop {
+        description
+          "Stop mac learning and drop unknown unicast traffic.";
+      }
+      enum shutdown {
+        description
+          "Bring down operational status of the interface.";
+      }
+    }
+    description
+      "Actions to be taken once mac limit threshold is exceeded.";
+  }
+
+  typedef mac-secure-action {
+    type enumeration {
+      enum none {
+        description
+          "Forward the violating packet and allow the MAC to be
+           relearned.";
+      }
+      enum restrict {
+        description
+          "Drop violating packet.";
+      }
+      enum shutdown {
+        description
+          "Force shutdown the violating bridge port.";
+      }
+    }
+    description
+      "Actions to be taken upon mac secure violation.";
+  }
+
+  identity mac-limit-notification-type {
+    description
+      "Notification mechanism to use when mac limit threshold is
+       exceeded.";
+  }
+
+  identity notif-none {
+    base mac-limit-notification-type;
+    description
+      "Disable notification";
+  }
+
+  identity notif-snmp-trap {
+    base mac-limit-notification-type;
+    description
+      "Generate SNMP trap";
+  }
+
+  identity notif-syslog {
+    base mac-limit-notification-type;
+    description
+      "Generate syslog";
+  }
+
+  identity notif-syslog-and-snmp-trap {
+    base mac-limit-notification-type;
+    description
+      "Generate both syslog and SNMP trap";
+  }
+
+  grouping mac-learning-config {
+    description
+      "When a frame arrives on a bridge port (for example,
+       pseudowire or attachment circuit) and the source MAC address
+       is unknown to the receiving PE router, the source MAC address
+       is associated with the pseudowire or attachment circuit.
+       Outbound frames to the MAC address are forwarded to the
+       appropriate pseudowire or attachment circuit.
+
+       This grouping defines MAC learning configurations for bridge
+       domain and its members.";
+
+    leaf learning-enabled {
+      type boolean;
+      default true;
+      description
+        "Enable disable mac learning";
+       reference
+         "CLI xr: mac learning disable";
+    }
+
+    container limit {
+      description "MAC table learning limit.";
+
+      leaf maximum {
+        if-feature configurable-bd-mac-limit-max;
+        type uint32;
+        description
+          "Maximum number of mac addresses that can be learnt";
+      }
+
+      leaf action {
+        if-feature configurable-bd-mac-limit-actions;
+        type mac-limit-action;
+        description 
+          "MAC limit violation actions.";
+        reference
+          "CLI xr: mac limit action { flood | no-flood | shutdown }";
+      }
+
+      leaf notification {
+        if-feature configurable-bd-mac-limit-notif;
+        type identityref {
+          base mac-limit-notification-type;
+        }
+        description
+          "MAC limit violation notifications.";
+        reference
+          "CLI xr: mac limit notification { none | both | trap }";
+      }
+    }
+  }
+
+  grouping mac-flooding-config {
+    description
+      "Ethernet services require that frames that are sent to
+       broadcast addresses and to unknown destination addresses be
+       flooded to all ports. To obtain flooding within VPLS broadcast
+       models, all unknown unicast, broadcast, and multicast frames
+       are flooded over the corresponding pseudowires and to all
+       attachment circuits. Therefore, a PE must replicate packets
+       across both attachment circuits and pseudowires.
+
+       This grouping defines flooding configurations for bridge
+       domain and its members.";
+    container flooding {
+      description
+        "Flooding configurations.";
+      reference
+        "CLI xr: flooding [unknown-unicast] disabled";
+      leaf disabled {
+        type empty;
+        description
+          "Disable flooding";
+      }
+
+      leaf disabled-unknown-unicast {
+        type empty;
+        description
+          "Disable unknown unicast flooding";
+      }
+    }
+  }
+  
+  grouping mac-flooding-state {
+    description
+      "This grouping defines flooding operational state for bridge
+       domain and its members.";
+    container flooding {
+      description
+        "Flooding operational status";
+      list status {
+        key "traffic-class";
+        description
+          "A collection of storm control threshold configuration
+           entries.";
+        leaf traffic-class {
+          type eth-traffic-class;
+          description
+            "This leaf identifies a ethernet traffic type.";
+        }
+        
+        leaf enabled {
+          type boolean;
+          description
+            "This leaf indicates if flooding is enabled for
+             corresponding traffic class";
+        }
+      }
+    }
+  }
+
+  grouping mac-aging-config {
+    description
+      "A MAC address in the MAC table is considered valid only for
+       the duration of the MAC address aging time. When the time
+       expires, the relevant MAC entries are repopulated. When the
+       MAC aging time is configured only under a bridge domain, all
+       the pseudowires and attachment circuits in the bridge domain
+       use that configured MAC aging time.
+
+       A bridge forwards, floods, or drops packets based on the
+       bridge table. The bridge table maintains both static entries
+       and dynamic entries. Static entries are entered by the network
+       manager or by the bridge itself. Dynamic entries are entered
+       by the bridge learning process. A dynamic entry is
+       automatically removed after a specified length of aging time,
+       from the time the entry was created or last updated.
+
+       This grouping defines MAC aging configurations for bridge
+       domain and its members.";
+    container aging {
+      description
+        "MAC aging configurations.";
+      leaf time {
+        type uint32;
+        units "seconds";
+        default "300";
+        description
+          "The timeout period in seconds for aging out
+           dynamically learned forwarding information";
+        reference
+          "CLI: mac aging time <seconds>";
+      }
+
+      leaf type {
+        if-feature configurable-bd-mac-aging-types;
+        type mac-aging-type;
+        description
+          "MAC aging type.";
+        reference
+          "CLI xr: mac aging type absolute";
+      }
+    }
+  }
+
+  grouping mac-event-action-config {
+    description
+      "This grouping defines configuration of events that affects
+       MAC table";
+    container port-down {
+      description
+        "Port down event";
+      reference
+        "CLI xr: mac port-down flush";
+      leaf flush {
+        type boolean;
+        default "true";
+        description
+          "Enable/Disable mac table flush when port moves to down
+           state.";
+      }
+    }
+  }
+
+  grouping mac-secure-config {
+    description
+      "This grouping defines MAC secure configuration.";
+    container secure {
+      description
+        "MAC secure parameters.";
+      leaf action {
+        type mac-secure-action;
+        default "restrict";
+        description
+          "MAC secure action for violating packets.";
+        reference
+          "CLI xr: mac secure action {none | shutdown}";
+      }
+
+      leaf logging {
+        type boolean;
+        default "false";
+        description
+          "Enable/Disable logging.";
+        reference
+          "CLI xr: mac secure logging";
+      }
+    }
+  }
+
+  grouping static-mac-list-config {
+    description
+      "Static mac address list grouping.";
+    container static {
+      description
+        "Static mac address list parameters.";
+      list mac-addresses {
+        key "mac-addr";
+        description
+          "MAC address entry.";
+
+        leaf mac-addr {
+          type yang:mac-address;
+          description
+            "Static MAC address.";
+        }
+
+        leaf drop {
+          type boolean;
+          mandatory true;
+          description
+            "Drop packet.";
+        }
+      }
+    }
+  }
+
+  grouping dynamic-arp-inspection-config {
+    description
+      "Dynamic ARP Inspection (DAI) is a method of providing
+       protection against address resolution protocol (ARP)
+       spoofing attacks. It intercepts, logs, and discards ARP
+       packets with invalid IP-to-MAC address bindings. This
+       capability protects the network from certain
+       man-in-the-middle attacks.
+
+       This grouping defines Dynamic ARP inspection configuration
+       parameters";
+    container dynamic-arp-inspection {
+      description
+        "Dynamic ARP Inspection (DAI) configurations.";
+
+      container address-validation {
+        presence
+          "Existence of this container indicates that address
+           validation is enabled.";
+        description
+          "Enable address validation.";
+
+        leaf dst-mac {
+          type empty;
+          description
+            "Match Destination MAC Address";
+        }
+
+        leaf src-mac {
+          type empty;
+          description
+            "Match Source MAC Address";
+        }
+
+        leaf ipv4 {
+          type empty;
+          description
+            "Match IPv4 Address";
+        }
+      }
+
+      leaf logging {
+        type boolean;
+        description
+          "Enable DAI logging";
+      }
+
+      reference
+        "CLI xr: dynamic-arp-inspection [<address-validation |
+                 logging>]";
+    }
+  }
+
+  grouping ip-source-guard-config {
+    description
+      "IP source guard (IPSG) is a security feature that filters
+       traffic based on the DHCP snooping binding database and on
+       manually configured IP source bindings in order to restrict
+       IP traffic on non-routed Layer 2 interfaces.
+
+       The IPSG feature provides source IP address filtering on a
+       Layer 2 port, to prevent a malicious hosts from manipulating
+       a legitimate host by assuming the legitimate host's IP
+       address. This feature uses dynamic DHCP snooping and static IP
+       source binding to match IP addresses to hosts.
+
+       This grouping defines IP source guard configuration
+       parameters.";
+
+    container ip-source-guard {
+      description
+        "IP source guard (IPSG) configurations.";
+      leaf logging {
+        type boolean;
+        default "false";
+        description
+          "Enable IPSG logging";
+      }
+
+      reference
+        "CLI xr: ip-source-guard [logging]";
+    }
+  }
+
+  grouping snooping-profile-config {
+    description
+      "This grouping defines snooping profile configuration for
+       Internet Group Management Protocol (IGMP), Multicast Listener
+       Discovery (MLD) and Dynamic Host Configuration Protocol
+       (DHCP)";
+
+    container igmp-snooping {
+      description
+        "Enable IGMP snooping.";
+      leaf profile-name {
+        type string;
+        mandatory true;
+        description
+          "IGMP snooping profile name";
+        reference
+          "CLI xr: igmp snooping { disable | profile <name> }";
+      }
+    }
+
+    container mld-snooping {
+      description
+        "Enable MLD snooping";
+      leaf profile-name {
+        type string;
+        mandatory true;
+        description
+          "MLD snooping profile name.";
+        reference
+          "CLI xr: mld snooping profile <name>";
+      }
+    }
+
+    container dhcp-ipv4-snooping {
+      description
+        "Enable DHCP IPv4 snooping.";
+      leaf profile-name {
+        type string;
+        mandatory true;
+        description
+          "DHCPv4 snooping profile name";
+        reference
+          "CLI xr: dhcp ipv4 snooping profile <name>";
+      }
+    }
+  }
+}
