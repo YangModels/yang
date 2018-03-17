@@ -17,11 +17,9 @@ from tools.utility.util import get_curr_dir
 LOGGER = log.get_logger('draftPullLocal')
 
 def get_latest_revision(f):
-    module = yangParser.parse(f)
-    if module.i_latest_revision is not None:
-        return module.i_latest_revision
+    stmt = yangParser.parse(f)
 
-    rev = module.search_one('revision')
+    rev = stmt.search_one('revision')
     if rev is None:
         return None
 
@@ -55,11 +53,10 @@ def check_name_no_revision_exist(directory):
                 revision = basename.split('@')[1].split('.')[0]
                 exists = os.path.exists(directory + yang_file_name)
                 if exists:
-                    parsed_yang = yangParser.parse(os.path.abspath(directory + yang_file_name))
-                    compared_revision = get_latest_revision(s.path.abspath(directory + yang_file_name))
+                    compared_revision = get_latest_revision(os.path.abspath(directory + yang_file_name))
                     if compared_revision is None:
                         continue
-                    if revision == comapred_revision:
+                    if revision == compared_revision:
                         os.remove(directory + yang_file_name)
 
 
@@ -80,7 +77,12 @@ def check_early_revisions(directory):
                     year = int(revision.split('-')[0])
                     month = int(revision.split('-')[1])
                     day = int(revision.split('-')[2])
-                    revisions.append(datetime(year, month, day))
+                    try:
+                        revisions.append(datetime(year, month, day))
+                    except Exception:
+                        LOGGER.error('Failed to process revision for {}: (rev: {})'.format(f2, revision))
+        if len(revisions) == 0:
+            return
         latest = revisions.index(max(revisions))
         files_to_delete.remove(files_to_delete[latest])
         for fi in files_to_delete:
