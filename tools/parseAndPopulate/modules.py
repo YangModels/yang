@@ -643,7 +643,7 @@ class Modules:
         else:
             try:
                 maturity_level = \
-                    self.jsons.ietf_draft_json[self.name + '.yang'][0].split(
+                    self.jsons.ietf_draft_json['json'][self.name + '.yang'][0].split(
                         '</a>')[
                         0].split('\">')[1].split('-')[1]
                 if 'ietf' in maturity_level:
@@ -657,7 +657,7 @@ class Modules:
             # try to find in draft with revision
             try:
                 maturity_level = \
-                    self.jsons.ietf_draft_json[
+                    self.jsons.ietf_draft_json['json'][
                         self.name + '@' + self.revision + '.yang'][0].split(
                         '</a>')[0].split('\">')[1].split(
                         '-')[1]
@@ -671,14 +671,14 @@ class Modules:
                 pass
             # try to find in rfc with revision
             try:
-                maturity_level = self.jsons.ietf_rfc_json[
+                maturity_level = self.jsons.ietf_rfc_json['json'][
                     self.name + '@' + self.revision + '.yang']
                 self.maturity_level = 'ratified'
                 return
             except KeyError:
                 pass
             try:
-                maturity_level = self.jsons.ietf_rfc_json[self.name + '.yang']
+                maturity_level = self.jsons.ietf_rfc_json['json'][self.name + '.yang']
                 self.maturity_level = 'ratified'
                 return
             except KeyError:
@@ -691,7 +691,7 @@ class Modules:
         else:
             try:
                 email = \
-                    self.jsons.ietf_draft_json[self.name + '.yang'][1].split(
+                    self.jsons.ietf_draft_json['json'][self.name + '.yang'][1].split(
                         '\">Email')[0].split('mailto:')[1]
                 self.author_email = email
                 return
@@ -700,7 +700,7 @@ class Modules:
             # try to find in draft with revision
             try:
                 email = \
-                    self.jsons.ietf_draft_json[
+                    self.jsons.ietf_draft_json['json'][
                         self.name + '@' + self.revision + '.yang'][1].split(
                         '\">Email')[0].split('mailto:')[1]
                 self.author_email = email
@@ -709,7 +709,7 @@ class Modules:
                 pass
             try:
                 email = \
-                    self.jsons.ietf_draft_example_json[self.name + '.yang'][
+                    self.jsons.ietf_draft_example_json['json'][self.name + '.yang'][
                         1].split(
                         '\">Email')[0].split('mailto:')[1]
                 self.author_email = email
@@ -719,7 +719,7 @@ class Modules:
             # try to find in draft with revision
             try:
                 email = \
-                    self.jsons.ietf_draft_example_json[
+                    self.jsons.ietf_draft_example_json['json'][
                         self.name + '@' + self.revision + '.yang'][1].split(
                         '\">Email')[0].split('mailto:')[1]
                 self.author_email = email
@@ -732,7 +732,7 @@ class Modules:
         if self.organization == 'ietf':
             try:
                 self.ietf_wg = \
-                    self.jsons.ietf_draft_json[self.name + '.yang'][0].split(
+                    self.jsons.ietf_draft_json['json'][self.name + '.yang'][0].split(
                         '</a>')[
                         0].split('\">')[1].split('-')[2]
                 return
@@ -741,7 +741,7 @@ class Modules:
             # try to find in draft with revision
             try:
                 self.ietf_wg = \
-                    self.jsons.ietf_draft_json[
+                    self.jsons.ietf_draft_json['json'][
                         self.name + '@' + self.revision + '.yang'][
                         0].split('</a>')[0].split('\">')[1].split('-')[2]
                 return
