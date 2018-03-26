@@ -1012,13 +1012,25 @@ if __name__ == '__main__':
     yangcatalog_api_prefix = '{}://{}{}{}/'.format(api_protocol, api_ip,
                                                    separator, suffix)
     __response_type = ['Failed', 'Finished successfully']
-    connection = pika.BlockingConnection(pika.ConnectionParameters(
-        host='127.0.0.1', heartbeat_interval=0))
-    channel = connection.channel()
-    channel.queue_declare(queue='module_queue')
+    while True:
+        connection = pika.BlockingConnection(pika.ConnectionParameters(
+            host='127.0.0.1', heartbeat_interval=0))
+        channel = connection.channel()
+        channel.queue_declare(queue='module_queue')
 
-    channel.basic_qos(prefetch_count=1)
-    channel.basic_consume(on_request, queue='module_queue', no_ack=True)
+        channel.basic_qos(prefetch_count=1)
+        channel.basic_consume(on_request, queue='module_queue', no_ack=True)
 
-    LOGGER.info('Awaiting RPC request')
-    channel.start_consuming()
+        LOGGER.info('Awaiting RPC request')
+        try:
+            channel.start_consuming()
+        except Exception as e:
+            LOGGER.error('Exception: {}'.format(e))
+            try:
+                channel.close()
+            except Exception:
+                pass
+            try:
+                connection.close()
+            except Exception:
+                pass
