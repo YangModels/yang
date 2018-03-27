@@ -1,0 +1,504 @@
+module ciena-mef-mac-management {
+   namespace "urn:ciena:params:xml:ns:yang:ciena-pn:ciena-mef-mac-management";
+   prefix "mef-mac-management";
+
+   import ciena-mef-logical-port {
+      prefix "mef-logical-port";
+   }
+
+   import ciena-mef-fp {
+      prefix "mef-fp";
+   }
+
+   import ciena-mef-fd {
+      prefix "mef-fd";
+   }
+
+   import ietf-yang-types {
+      prefix "yt";
+   }
+
+   import ciena-types {
+      prefix ciena;
+   }
+
+   organization
+      "Ciena Corporation";
+
+   contact
+      "Web URL: http://www.ciena.com/
+       E-mail:  yang@ciena.com
+       Postal:  7035 Ridge Road
+                Hanover, Maryland 21076
+                U.S.A.
+       Phone:   +1 800-921-1144
+       Fax:     +1 410-694-5750";
+
+   description
+      "This YANG module defines Ciena's configuration of
+       the L2 Forwarding Databases (FDB), MAC-Tables, MAC Address Management";
+
+   revision "2017-10-23" {
+      description
+         "Added missed references and descriptions";
+      reference
+         "RFC 6020: YANG - A Data Modeling Language for
+          the Network Configuration Protocol (NETCONF).
+          No specific reference; standard not available.";
+   }
+
+   revision "2017-07-28" {
+      description 
+         "Initial version";
+      reference
+         "RFC 6020: YANG - A Data Modeling Language for
+          the Network Configuration Protocol (NETCONF).
+          No specific reference; standard not available.";
+   }
+
+   /*
+    * typedefs
+    */
+   typedef fd-ref {
+      type leafref {
+         path "/mef-fd:fds/mef-fd:fd/mef-fd:name";
+      }
+     description
+        "This type is used by the data models that need to reference
+         configured fd";
+   }
+
+   typedef fdb-ref {
+      type leafref {
+         path "/mef-mac-management:fdbs/mef-mac-management:fdb/mef-mac-management:name";
+      }
+     description
+        "This type is used by the data models that need to reference
+         configured fdb";
+   }
+
+   /*
+    * Type definition
+    */
+   identity mac-refresh-algorithm {
+      description
+         "Algorithm to refresh dynamic-mac entries.";
+   }
+
+   identity  sa-hit-refresh {
+       base mac-refresh-algorithm;
+       description
+          "With this algorithm, dynamic-mac entries are refreshed based on a MAC-SA match.";
+   }
+
+   identity sa-da-hit-refresh {
+      base mac-refresh-algorithm;
+      description
+         "With this algorithm, dynamic-mac entries are refreshed based on a MAC-DA or MAC-SA match.";
+   }
+
+   /*
+    * Features
+    */
+
+   /*
+    * Configuration data nodes
+    */
+   container mac-management {
+      description
+         "MAC aging configuration.";
+
+      leaf mac-aging {
+         type ciena:admin-state;
+         default enabled;
+         description
+            "Configuration Control of MAC-Aging.";
+      }
+
+      leaf mac-aging-timeout {
+         type uint32;
+         units seconds;
+         default 300;
+         description
+            "The number of seconds of inactivity to determine when a given dynamic mac-entry in an
+             FDB ages out and is removed from the FDB.";
+      }
+
+      leaf dynamic-mac-refresh-algorithm
+      {
+         type identityref {
+            base mac-refresh-algorithm;
+         }
+         description
+            "Algorithm selection to refresh dynamic-mac entries.";
+      }
+
+      choice  mac-maximum-table-size {
+         description
+            "Maximum size of the MAC table.";
+
+         case size {
+            leaf size {
+               type uint32;
+               description
+                  "The maximum number of mac-entries allowed.";
+            }
+         }
+
+         case maximum {
+            leaf maximum {
+               type empty;
+               description
+                  "The maximum number of mac-entries is determined by underlying forwarding-plane.";
+            }
+         }
+      }
+   }
+
+   container fdbs {
+      description
+         "Forwarding databases configuration parameters.";
+
+      list fdb {
+         key "name";
+
+         description
+            "The list of configured l2 forwarding databases.";
+
+         leaf name {
+            type string;
+            description
+               "An administratively assigned string, which may be used to identify the l2 forwarding database.
+                Typically this may be the name of the forwarding-domain when there is an FDB per forwarding-domain (IVL case).";
+         }
+            
+         leaf description {
+            type string;
+            description
+               "This is string used to describe the l2 Forwarding Database.";
+         }
+            
+         leaf mac-learning {
+            type ciena:admin-state;
+            description
+               "Configuration Control of MAC-Learning-Enable per-FDB. Separately there may be configuration
+                control of MAC-Learning-Enable at a more granular level (e.g. per FD, per-Flow-Point etc).";
+         }
+      }
+   }
+
+   container static-macs {
+      description
+         "Static MACs configuration parameters.";
+
+      list mac-entry {
+         key "mac-address fdb";
+
+         description
+            "The list of configured static mac entries. The destination-interface indirectly determines the
+             fdb that the static mac-entry belongs to.";
+
+         leaf mac-address {
+            type yt:mac-address;
+            description
+               "The mac-address for this static-mac entry.";
+         }
+
+         leaf mac-address-mask {
+            type yt:mac-address;
+            description
+               "An optional mac-address mask for this static-mac entry.";
+         }
+
+         leaf fdb {
+            type mef-mac-management:fdb-ref;
+            description
+               "Reference to fdb name, based on the static-mac to be added.";
+         }
+
+         choice destination-interface {
+            description
+               "Selection of destination interface as flow point or logical port.";
+
+            case flow-point {
+               leaf flow-point {
+                  type mef-fp:fp-ref;
+                  description
+                     "Reference to a flow point.";
+               }
+            }
+
+            case logical-port {
+               leaf logical-port {
+                  type mef-logical-port:logical-port-ref;
+                  description
+                     "Reference to a logical port.";
+               }
+            }
+         }
+
+         leaf filter-action {
+            type enumeration {
+               enum allow {
+                  description
+                     "Allow frames that matches to this instance.";
+               }
+               enum drop {
+                  description
+                     "Drop frames that matches to this instance.";
+               }
+            }
+            description
+               "Take action on frames which matches to this instance.";
+         }
+      }
+   }
+
+   container mac-access-controls {
+      description
+         "This is a container which holds configuration data for mac access control.";
+
+      list mac-access-control {
+         key "logical-port";
+         description
+            "The list of mac-access-controls configured.";
+
+         leaf logical-port {
+            type mef-logical-port:logical-port-ref;
+            description
+               "The list of mac-access-controls configured.";
+         }
+
+         choice mac-learn-limit {
+            description
+               "MAC learn limit on / off selection.";
+
+            case on {
+               leaf maximum-dynamic-macs {
+                  type uint64;
+                  description
+                     "The count of dynamic mac entries beyond which mac-learning will not be allowed to occur for this scope";
+               }
+
+               leaf forward-unlearned {
+                  type boolean;
+                  description
+                     "Setting true, forward frames containing unlearned SMAC addresses when 
+                      MAC learn limit has been reached on a logical port.
+                      Setting false, drop frames containing unlearned SMAC addresses when 
+                      MAC learn limit has been reached on a logical port.";
+               }
+            }
+
+            case off {
+               leaf mac-learn-limit-off {
+                  type empty;
+                  description
+                     "MAC learn limit set to off.";
+               }
+            }
+         }
+      }
+   }
+
+   /*
+    * Oper State data nodes
+    */
+   container fdbs-state {
+      config false;
+
+      description 
+         "FDB operational data for all L2 Forwarding-Databases (MAC-Tables).";
+
+      list fdb {
+         key "name";
+         description
+            "The operational data for this L2 Forwarding Database.";
+
+         leaf name {
+            type string;
+            description
+               "A string that identifies the L2 Forwarding Database.";
+         }
+
+         leaf mac-learn-count {
+            type uint64;
+            description
+               "Current count of mac entries in the fdb";
+         }
+         
+         leaf mac-max-learn-count {
+            type uint64;
+            description
+               "Maximum count of mac entries allowed in the fdb";
+         }
+
+         list mac-entry {
+            key "mac-address";
+            description
+               "The list of mac entries in the fdb.";
+
+            leaf mac-address {
+               type yt:mac-address;
+               description
+                  "The mac-address for this mac entry.";
+            }
+
+            leaf mac-address-mask {
+               type yt:mac-address;
+               description
+                  "An optional mac-address mask for this mac entry.";
+            }
+
+            choice destination-interface {
+               description
+                  "Destination interface selection.";
+
+               case flow-point {
+                  leaf flow-point {
+                     type mef-fp:fp-ref;
+                     description
+                        "Reference to a flow point..";
+                  }
+               }
+
+               case logical-port {
+                  leaf logical-port {
+                     type mef-logical-port:logical-port-ref;
+                     description
+                        "Reference to a logical port.";
+                  }
+               }
+            }
+
+            leaf mac-learn-type {
+               type enumeration {
+                  enum dynamic {
+                     description
+                        "Dynamic learned MAC.";
+                  }
+                  enum static {
+                     description
+                        "Static learned MAC.";
+                  }
+               }
+               description
+                  "Dynamic learned MAC or static MAC.";
+            }
+         }
+      }
+   }
+
+   container mac-access-controls-state {
+      config false;
+
+      description
+         "This is a container which holds mac access control operational state data.";
+
+      list mac-access-control {
+         key "logical-port";
+         description
+            "The list of mac-access-controls configured.";
+
+         leaf logical-port {
+            type mef-logical-port:logical-port-ref;
+            description
+               "Reference to a logical port.";
+         }
+
+         leaf mac-dynamic-access-count {
+            type uint64;
+            description
+               "The current count of dynamic mac entries for this scope";
+         }
+
+         leaf high-water-mark {
+            type uint64;
+            description
+               "High water mark of dynamically learned MAC entries";
+         }
+
+         leaf is-threshold-reached {
+            type boolean;
+            description
+               "Mac learn limit threshold reached or not, true means yes and false means no";
+         }
+      }
+   }
+
+   /*
+    * RPC.
+    */
+   rpc dynamic-mac-flush {
+      description
+         "Flush dynamic MAC-entries from FDB(s) at a given scope.";
+
+      input {
+         choice flush-scope {
+            description
+               "Flush mac address learned on FD or FP or logical port or all.";
+
+            case forwarding-domain {
+               leaf forwarding-domain {
+                  type fd-ref;
+                  description
+                     "Flush all dynamic mac-entries learned against the specified forwarding-domain.";
+               }
+            }
+
+            case flow-point {
+               leaf flow-point {
+                  type mef-fp:fp-ref;
+                  description
+                     "Flush all dynamic mac-entries learned against the specified flow-point.";
+               }
+            }
+
+            case logical-port {
+               leaf logical-port {
+                  type mef-logical-port:logical-port-ref;
+                  description
+                     "Flush all dynamic mac-entries learned against the specified logical-port.";
+               }
+            }
+
+            case all {
+               leaf all {
+                  type empty;
+                  description
+                     "Flush all dynamic mac-entries learned on the device as a whole.";
+               }
+            }
+         }
+      }
+      output {
+         leaf status {
+            type string;
+            description
+               "Status of MAC flush operation.";
+         }
+      }  
+   }
+
+   rpc service-access-control-state-clear {
+      description
+         "Clear the service access control state data.";
+
+      input {
+         leaf logical-port {
+            type mef-logical-port:logical-port-ref;
+            description
+               "The logical port name to clear the state data.";
+         }
+      }
+      output {
+         leaf status {
+            type string;
+            description
+               "Status of the clear state operation.";
+         }
+      }
+   }
+}
+
+
