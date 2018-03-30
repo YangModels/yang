@@ -26,7 +26,7 @@ However, when new versions of the native models are released, the [```check-mode
 $ ./check-models.sh -b 631
 ```
 
-The script will check basic compilation using pyang (some open modules will be reported missing unless you include them on your pyang module path) and then run backwards compatibility checks against the model in the ```../612``` directory. Directories other that 612 may be specified.
+The script will check basic compilation using pyang (some open modules will be reported missing unless you include them on your pyang module path) and then run backwards compatibility checks against the model in the ```../631``` directory. Directories other than 631 may be specified.
 
 ### Cross-Platform Compatibility Issues
 
