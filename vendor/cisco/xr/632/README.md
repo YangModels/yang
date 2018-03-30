@@ -4,7 +4,7 @@ The YANG files in this directory detail the native YANG models and deviations su
 
 ### OpenConfig and IETF Model Inclusion
 
-For ease of reference, the IOS-XR 6.3.2 models in this directory also include copies of the revisions of OpoenConfig and IETF model files used by IOS-XR 6.3.2. It should be noted that compilation of the OpenConfig models using the [check-models.sh](check-models.sh) script will result in errors being listed. Cisco has chosen **not** to modify these models to allow error-free compilation.
+For ease of reference, the IOS-XR 6.3.2 models in this directory also include copies of the revisions of OpenConfig and IETF model files used by IOS-XR 6.3.2. It should be noted that compilation of the OpenConfig models using the [check-models.sh](check-models.sh) script will result in errors being listed. Cisco has chosen **not** to modify these models to allow error-free compilation.
 
 
 ### Compliance With "pyang --lint"
@@ -18,7 +18,7 @@ From IOS-XR 5.3.2 and onwards, the revision statements embedded in the YANG file
 
 ### Backwards Compatibility Issues
 
-It should be noted that some of the modules released in IOX-XR 6.3.2 may break the backwards compatibility guidelines defined in RFC 6020 when compared to the same modules released in IOS-XR 6.3.2. This is because the "native" YANG modules for IOS-XR are generated from internal schema files that are an integral part of the implementation, and, as such, these can change in ways that break backwards compatibility per RFC 6020 guidelines when new features are introduced or when bugs are fixed. Thus, while we rigorously review the changes that impact the external YANG schema, Cisco cannot guarantee full backwards compatibility of these modules across releases.
+It should be noted that some of the modules released in IOS-XR 6.3.2 may break the backwards compatibility guidelines defined in RFC 6020 when compared to the same modules released in IOS-XR 6.3.2. This is because the "native" YANG modules for IOS-XR are generated from internal schema files that are an integral part of the implementation, and, as such, these can change in ways that break backwards compatibility per RFC 6020 guidelines when new features are introduced or when bugs are fixed. Thus, while we rigorously review the changes that impact the external YANG schema, Cisco cannot guarantee full backwards compatibility of these modules across releases.
 
 However, when new versions of the native models are released, the [```check-models.sh```](check-models.sh) script, in conjunction with pyang, can be used to determine what technically incompatible changes may have occurred. Please run ```check.sh``` from this directory with pyang 1.5 or greater on your path thus:
 
