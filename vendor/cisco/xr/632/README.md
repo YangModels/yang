@@ -31,3 +31,4 @@ The script will check basic compilation using pyang (some open modules will be r
 ### Cross-Platform Compatibility Issues
 
 Unfortunately, IOS-XR 6.3.2 has some issues with small number of native models that have illegal variations in definition across platforms. The details of the models impacted and the issues can be found in [this document](MODEL-ISSUES.md)
+
