@@ -21,7 +21,7 @@ checkDir () {
     exit_status=""
     cwd=`pwd`
     cd $1
-    to_process=`grep -L submodule *-cfg.yang *-oper.yang`
+    to_process=`grep -L submodule *-cfg.yang *-oper.yang *-sysadmin-*.yang`
     for f in $to_process; do
 	if [ "$debug" -eq "1" ]; then
 	    echo Checking $f...
