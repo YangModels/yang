@@ -12,7 +12,7 @@
 #
 platform_dir="vendor/cisco/xr"
 to_check="602 613 622 632"
-debug=0
+debug=1
 
 checkDir () {
     if [ "$debug" -eq "1" ]; then
@@ -21,7 +21,7 @@ checkDir () {
     exit_status=""
     cwd=`pwd`
     cd $1
-    to_process=`grep -L submodule *-cfg.yang *-oper.yang`
+    to_process=`grep -L submodule *-cfg.yang *-oper.yang *-sysadmin-*.yang`
     for f in $to_process; do
 	if [ "$debug" -eq "1" ]; then
 	    echo Checking $f...
