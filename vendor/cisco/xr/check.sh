@@ -12,7 +12,7 @@
 #
 platform_dir="vendor/cisco/xr"
 to_check="602 613 622 632"
-debug=1
+debug=0
 
 checkDir () {
     if [ "$debug" -eq "1" ]; then
