@@ -11,7 +11,7 @@
 # should be removed.
 #
 platform_dir="vendor/cisco/xr"
-to_check="602 613 622 632"
+to_check="602 613 622 632 641"
 debug=0
 
 checkDir () {
@@ -21,7 +21,7 @@ checkDir () {
     exit_status=""
     cwd=`pwd`
     cd $1
-    to_process=`grep -L submodule *-cfg.yang *-oper.yang *-sysadmin-*.yang`
+    to_process=`grep -L submodule Cisco-IOS-XR-*-cfg.yang Cisco-IOS-XR-*-oper.yang Cisco-IOS-XR-*-sysadmin-*.yang`
     for f in $to_process; do
 	if [ "$debug" -eq "1" ]; then
 	    echo Checking $f...
