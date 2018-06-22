@@ -51,22 +51,25 @@ show_help () {
     echo Options for check-models.sh:
     printf "\n"
     printf "  -h       Show this help\n"
+    printf "  -b <ver> Check backwards compatibility\n"
     printf "\n"
 }
 
 OPTIND=1
-while getopts "h" opt; do
+while getopts "hb:" opt; do
     case "$opt" in
     h|\?)
         show_help
 	exit 0
 	;;
+    b)  CHECK_BC="$OPTARG"
+	    ;;
     esac
 done
 
 #
 # Run pyang over all the yang modules, ignoring certain errors and
-# warnings.
+# warnings. Only if we haven't been asked to do the BC check
 #
 echo Checking all models with "--lint" flag
 compile_yang() {
@@ -85,14 +88,45 @@ compile_yang() {
 	egrep -v "warning: imported module\s[a-zA-Z0-9\-]+\snot used"
 }
 
-FLAGS="$PYANG_FLAGS --lint"
-for m in *.yang
-do
-    compile_yang $m
-done
+if [ -z "$CHECK_BC" ]; then
 
-FLAGS="$PYANG_FLAGS:MIBS"
-for m in MIBS/*.yang
-do
-    compile_yang $m
-done
+    FLAGS="$PYANG_FLAGS --lint"
+    for m in *.yang
+    do
+        compile_yang $m
+    done
+
+    FLAGS="$PYANG_FLAGS:MIBS"
+    for m in MIBS/*.yang
+    do
+        compile_yang $m
+    done
+
+else
+
+    version=`pyang --version | awk '{print $NF}'`
+    if ! awk -v ver="$version" 'BEGIN { if (ver < 1.5) exit 1; }'; then
+        printf 'ERROR: pyang version 1.5 or higher required\n'
+        exit 1
+    fi
+    UPDATE_FROM_PATH=../$CHECK_BC
+    echo Comparing all models that also exist in ../$CHECK_BC AND that have
+    echo changed since version that version with "--check-update-from" flag:
+    echo
+    for m in *.yang
+    do
+        VER_FROM="../$CHECK_BC/$m"
+        if [ -e "$VER_FROM" ]
+        then
+    	DIFF=`diff $VER_FROM $m`
+    	if [ ! -z "$DIFF" ]
+    	then
+    	    pyang $PYANG_FLAGS \
+    		--check-update-from $VER_FROM \
+    		--check-update-from-path $UPDATE_FROM_PATH \
+    		$m
+    	fi
+        fi
+    done
+
+fi
