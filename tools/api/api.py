@@ -262,7 +262,8 @@ class MyFlask(Flask):
 
 app = MyFlask(__name__)
 monitor(app)
-lock = Lock()
+lock_uwsgi_cache1 = Lock()
+lock_uwsgi_cache2 = Lock()
 
 NS_MAP = {
     "http://cisco.com/": "cisco",
@@ -272,7 +273,7 @@ NS_MAP = {
 }
 
 
-def make_cache(credentials, response, is_uwsgi=True):
+def make_cache(credentials, response, cache_chunks, main_cache, is_uwsgi=True):
     """After we delete or add modules we need to reload all the modules to the file
     for quicker search. This module is then loaded to the memory.
             Arguments:
@@ -291,9 +292,9 @@ def make_cache(credentials, response, is_uwsgi=True):
             chunks = int(math.ceil(len(data)/float(64000)))
             for i in range(0, chunks, 1):
                 uwsgi.cache_set('data{}'.format(i), data[i*64000: (i+1)*64000],
-                                0, 'main_cache')
+                                0, main_cache)
             LOGGER.info('all {} chunks are set in uwsgi cache'.format(chunks))
-            uwsgi.cache_set('chunks-data', repr(chunks), 0, 'cache_chunks')
+            uwsgi.cache_set('chunks-data', repr(chunks), 0, cache_chunks)
         else:
             return data
     except:
@@ -1169,8 +1170,9 @@ def search(value):
                    'belongs-to', 'generated-from', 'expires', 'expired']
     for module_key in module_keys:
         if key == module_key:
-            with lock:
-                data = modules_data().get('module')
+            active_cache = get_active_cache()
+            with active_cache[0]:
+                data = modules_data(active_cache[1]).get('module')
             if data is None:
                 return not_found()
             passed_data = []
@@ -1538,8 +1540,9 @@ def rpc_search(body=None):
         body = request.json
     LOGGER.info('Searching and filtering modules based on RPC {}'
                 .format(json.dumps(body)))
-    with lock:
-        data = modules_data()['module']
+    active_cache = get_active_cache()
+    with active_cache[0]:
+        data = modules_data(active_cache[1])['module']
     body = body.get('input')
     if body:
         partial = body.get('partial')
@@ -1942,18 +1945,19 @@ def search_module(name, revision, organization):
                 :return response to the request with job_id that user can use to
                     see if the job is still on or Failed or Finished successfully
     """
-    with lock:
+    active_cache = get_active_cache()
+    with active_cache[0]:
         LOGGER.info('Searching for module {}, {}, {}'.format(name, revision,
                                                              organization))
         if uwsgi.cache_exists(name + '@' + revision + '/' + organization,
-                              'cache_chunks'):
+                              'cache_chunks{}'.format(active_cache[1])):
             chunks = uwsgi.cache_get(name + '@' + revision + '/' + organization,
-                                     'cache_chunks')
+                                     'cache_chunks{}'.format(active_cache[1]))
             data = ''
             for i in range(0, int(chunks), 1):
                 data += uwsgi.cache_get(name + '@' + revision + '/' +
                                         organization + '-' + repr(i),
-                                        'cache_modules')
+                                        'cache_modules{}'.format(active_cache[1]))
 
             return Response(json.dumps({
                 'module': [json.JSONDecoder(object_pairs_hook=collections.OrderedDict)\
@@ -1967,9 +1971,10 @@ def get_modules():
     """Search for a all the modules populated in confd
             :return response to the request with all the modules
     """
-    with lock:
+    active_cache = get_active_cache()
+    with active_cache[0]:
         LOGGER.info('Searching for modules')
-        return Response(json.dumps(modules_data()), mimetype='application/json')
+        return Response(json.dumps(modules_data(active_cache[1])), mimetype='application/json')
 
 
 @app.route('/search/vendors', methods=['GET'])
@@ -1977,9 +1982,10 @@ def get_vendors():
     """Search for a all the vendors populated in confd
             :return response to the request with all the vendors
     """
-    with lock:
+    active_cache = get_active_cache()
+    with active_cache[0]:
         LOGGER.info('Searching for vendors')
-        return Response(json.dumps(vendors_data()), mimetype='application/json')
+        return Response(json.dumps(vendors_data(active_cache[1])), mimetype='application/json')
 
 
 @app.route('/search/catalog', methods=['GET'])
@@ -1988,7 +1994,9 @@ def get_catalog():
                 :return response to the request with all the data
     """
     LOGGER.info('Searching for catalog data')
-    data = catalog_data()
+    active_cache = get_active_cache()
+    with active_cache[0]:
+        data = catalog_data(active_cache[1])
     if data is None:
         return not_found()
     else:
@@ -2079,8 +2087,9 @@ def load_to_memory():
 @app.route('/contributors', methods=['GET'])
 def get_organizations():
     orgs = set()
-    with lock:
-        data = modules_data().get('module')
+    active_cache = get_active_cache()
+    with active_cache[0]:
+        data = modules_data(active_cache[1]).get('module')
     for mod in data:
         if mod['organization'] != 'example' and mod['organization'] != 'missing element':
             orgs.add(mod['organization'])
@@ -2090,99 +2099,142 @@ def get_organizations():
     return resp
 
 
-def modules_data():
-    chunks = int(uwsgi.cache_get('chunks-modules', 'cache_chunks'))
+def modules_data(which_cache):
+    chunks = int(uwsgi.cache_get('chunks-modules', 'cache_chunks{}'.format(which_cache)))
     data = ''
     for i in range(0, chunks, 1):
-        data += uwsgi.cache_get('modules-data{}'.format(i), 'main_cache')
+        data += uwsgi.cache_get('modules-data{}'.format(i), 'main_cache{}'.format(which_cache))
     json_data = \
         json.JSONDecoder(object_pairs_hook=collections.OrderedDict).decode(data)
     return json_data
 
 
-def vendors_data():
-    chunks = int(uwsgi.cache_get('chunks-vendor', 'cache_chunks'))
+def vendors_data(which_cache):
+    chunks = int(uwsgi.cache_get('chunks-vendor', 'cache_chunks{}'.format(which_cache)))
     data = ''
     for i in range(0, chunks, 1):
-        data += uwsgi.cache_get('vendors-data{}'.format(i), 'main_cache')
+        data += uwsgi.cache_get('vendors-data{}'.format(i), 'main_cache{}'.format(which_cache))
     json_data = \
         json.JSONDecoder(object_pairs_hook=collections.OrderedDict).decode(data)
     return json_data
 
 
-def catalog_data():
-    chunks = int(uwsgi.cache_get('chunks-data', 'cache_chunks'))
+def catalog_data(which_cache):
+    chunks = int(uwsgi.cache_get('chunks-data', 'cache_chunks{}'.format(which_cache)))
     if chunks == 0:
         return None
     data = ''
     for i in range(0, chunks, 1):
-        data += uwsgi.cache_get('data{}'.format(i), 'main_cache')
+        data += uwsgi.cache_get('data{}'.format(i), 'main_cache{}'.format(which_cache))
     json_data = \
         json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
             .decode(data)
     return json_data
 
 
+def get_active_cache():
+    active_cache = uwsgi.cache_get('active_cache', 'cache_chunks1')
+    if active_cache is None:
+        return None
+    else:
+        if active_cache == '1':
+            return lock_uwsgi_cache1, '1'
+        else:
+            return lock_uwsgi_cache2, '2'
+
+
 def load(on_change):
     """Load all the data populated to yang-catalog to memory saved in file in ./cache."""
-    with lock:
-        response = 'work'
-        data = ''
-        initialized = uwsgi.cache_get('initialized', 'cache_chunks')
-        LOGGER.debug('initialized {} on change {}'.format(initialized, on_change))
-        if initialized is None or initialized == 'False' or on_change:
-            uwsgi.cache_clear('cache_chunks')
-            uwsgi.cache_clear('main_cache')
-            uwsgi.cache_clear('cache_modules')
-            uwsgi.cache_set('initialized', 'False', 0, 'cache_chunks')
-            response = make_cache(credentials, response, is_uwsgi=is_uwsgi)
+    active_cache = get_active_cache()
+    if active_cache is None or on_change:
+        # We should get here only if application was started for the first time (active_cache is None)
+        # or if we need to reload cache (on_change == True)
+        with lock_uwsgi_cache1:
+            LOGGER.info('Loading cache 1')
+            load_uwsgi_cache('cache_chunks1', 'main_cache1', 'cache_modules1', on_change)
+            # reset active cache back to 1 since we are done with populating cache 1
+            uwsgi.cache_update('active_cache', '1', 0, 'cache_chunks1')
+        LOGGER.info('Loading cache 2')
+        with lock_uwsgi_cache2:
+            load_uwsgi_cache('cache_chunks2', 'main_cache2', 'cache_modules2', on_change)
+        LOGGER.info('Both caches are loaded')
+    else:
+        # if we need to get some data from api
+        if active_cache[1] == '1':
+            # From cache 1
+            with lock_uwsgi_cache1:
+                load_uwsgi_cache('cache_chunks1', 'main_cache1', 'cache_modules1', on_change)
+                # reset active cache back to 1 since we are done with populating cache 1
+                uwsgi.cache_update('active_cache', '1', 0, 'cache_chunks1')
+                LOGGER.info('Using cache 1')
+        else:
+            with lock_uwsgi_cache2:
+                initialized = uwsgi.cache_get('initialized', 'cache_chunks2')
+                LOGGER.debug('initialized {} on change {}'.format(initialized, on_change))
+                if initialized is not None and initialized == 'True':
+                    load_uwsgi_cache('cache_chunks2', 'main_cache2', 'cache_modules2', on_change)
+                    LOGGER.info('Using cache 2')
 
-            chunks = int(uwsgi.cache_get('chunks-data', 'cache_chunks'))
-            for i in range(0, chunks, 1):
-                data += uwsgi.cache_get('data{}'.format(i), 'main_cache')
-            cat = \
+
+def load_uwsgi_cache(cache_chunks, main_cache, cache_modules, on_change):
+    response = 'work'
+    data = ''
+    initialized = uwsgi.cache_get('initialized', cache_chunks)
+    LOGGER.debug('initialized {} on change {}'.format(initialized, on_change))
+    if initialized is None or initialized == 'False' or on_change:
+        uwsgi.cache_clear(cache_chunks)
+        uwsgi.cache_clear(main_cache)
+        uwsgi.cache_clear(cache_modules)
+        if cache_chunks == 'cache_chunks1':
+            # set active cache to 2 until we work on cache 1
+            uwsgi.cache_set('active_cache', '2', 0, 'cache_chunks1')
+        uwsgi.cache_set('initialized', 'False', 0, cache_chunks)
+        response = make_cache(credentials, response, cache_chunks, main_cache, is_uwsgi=is_uwsgi)
+
+        chunks = int(uwsgi.cache_get('chunks-data', cache_chunks))
+        for i in range(0, chunks, 1):
+            data += uwsgi.cache_get('data{}'.format(i), main_cache)
+        cat = \
             json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
                 .decode(data)['yang-catalog:catalog']
-            modules = cat['modules']
-            if cat.get('vendors'):
-                vendors = cat['vendors']
-            else:
-                vendors = {}
-            if len(modules) != 0:
-                for i, mod in enumerate(modules['module']):
-                    key = mod['name'] + '@' + mod['revision'] + '/' + mod[
-                        'organization']
-                    value = json.dumps(mod)
-                    chunks = int(math.ceil(len(value) / float(20000)))
-                    uwsgi.cache_set(key, repr(chunks), 0, 'cache_chunks')
-                    for j in range(0, chunks, 1):
-                        uwsgi.cache_set(key + '-{}'.format(j),
-                                        value[j * 20000: (j + 1) * 20000], 0,
-                                        'cache_modules')
+        modules = cat['modules']
+        if cat.get('vendors'):
+            vendors = cat['vendors']
+        else:
+            vendors = {}
+        if len(modules) != 0:
+            for i, mod in enumerate(modules['module']):
+                key = mod['name'] + '@' + mod['revision'] + '/' + mod[
+                    'organization']
+                value = json.dumps(mod)
+                chunks = int(math.ceil(len(value) / float(20000)))
+                uwsgi.cache_set(key, repr(chunks), 0, cache_chunks)
+                for j in range(0, chunks, 1):
+                    uwsgi.cache_set(key + '-{}'.format(j),
+                                    value[j * 20000: (j + 1) * 20000], 0,
+                                    cache_modules)
 
-            chunks = int(math.ceil(len(json.dumps(modules)) / float(64000)))
-            for i in range(0, chunks, 1):
-                uwsgi.cache_set('modules-data{}'.format(i),
-                                json.dumps(modules)[i * 64000: (i + 1) * 64000],
-                                0, 'main_cache')
-            LOGGER.info(
-                'all {} modules chunks are set in uwsgi cache'.format(chunks))
-            uwsgi.cache_set('chunks-modules', repr(chunks), 0, 'cache_chunks')
+        chunks = int(math.ceil(len(json.dumps(modules)) / float(64000)))
+        for i in range(0, chunks, 1):
+            uwsgi.cache_set('modules-data{}'.format(i),
+                            json.dumps(modules)[i * 64000: (i + 1) * 64000],
+                            0, main_cache)
+        LOGGER.info(
+            'all {} modules chunks are set in uwsgi cache'.format(chunks))
+        uwsgi.cache_set('chunks-modules', repr(chunks), 0, cache_chunks)
 
-            chunks = int(math.ceil(len(json.dumps(vendors)) / float(64000)))
-            for i in range(0, chunks, 1):
-                uwsgi.cache_set('vendors-data{}'.format(i),
-                                json.dumps(vendors)[i * 64000: (i + 1) * 64000],
-                                0, 'main_cache')
-            LOGGER.info(
-                'all {} vendors chunks are set in uwsgi cache'.format(chunks))
-            uwsgi.cache_set('chunks-vendor', repr(chunks), 0, 'cache_chunks')
-        if response != 'work':
-            LOGGER.error('Could not load or create cache')
-            sys.exit(500)
-        uwsgi.cache_update('initialized', 'True', 0, 'cache_chunks')
-
-        LOGGER.debug('Data loaded into memory successfully')
+        chunks = int(math.ceil(len(json.dumps(vendors)) / float(64000)))
+        for i in range(0, chunks, 1):
+            uwsgi.cache_set('vendors-data{}'.format(i),
+                            json.dumps(vendors)[i * 64000: (i + 1) * 64000],
+                            0, main_cache)
+        LOGGER.info(
+            'all {} vendors chunks are set in uwsgi cache'.format(chunks))
+        uwsgi.cache_set('chunks-vendor', repr(chunks), 0, cache_chunks)
+    if response != 'work':
+        LOGGER.error('Could not load or create cache')
+        sys.exit(500)
+    uwsgi.cache_update('initialized', 'True', 0, cache_chunks)
 
 
 def process(data, passed_data, value, module, split, count):

@@ -19,6 +19,7 @@ def resolve_revision(yang_file):
         revision = '1970-01-01'
     return revision
 
+
 if __name__ == "__main__":
     LOGGER.info('Starting Cron job openconfig pull request local')
     parser = argparse.ArgumentParser()
@@ -50,15 +51,13 @@ if __name__ == "__main__":
     if len(username) > 0:
         github_credentials = username + ':' + token + '@'
 
-    LOGGER.info('Loading all files from http://www.claise.be/IETFYANGDraft.json')
     LOGGER.info('Forking repository')
     reponse = requests.post(
         'https://' + github_credentials + 'api.github.com/repos/openconfig/public/forks')
-    repo = repoutil.RepoUtil(
-        'https://github.com/yang-catalog/public.git')
+    repo = repoutil.RepoUtil('https://' + token + '@github.com/' + username + '/public.git')
 
-    LOGGER.info('Cloning repo to local directory {}'.format(repo.localdir))
     repo.clone(config_name, config_email)
+    LOGGER.info('Repository cloned to local directory {}'.format(repo.localdir))
 
     mods = []
 
