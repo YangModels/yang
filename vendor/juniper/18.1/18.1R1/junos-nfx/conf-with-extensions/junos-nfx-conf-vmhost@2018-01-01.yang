@@ -1,0 +1,424 @@
+/*
+ * Copyright (c) 2018 Juniper Networks, Inc.
+ * All rights reserved.
+ */
+ module junos-nfx-conf-vmhost {
+   namespace "http://yang.juniper.net/junos-nfx/conf/vmhost";
+
+   prefix jc-vmhost;
+
+   import junos-common-ddl-extensions {
+     prefix junos;
+   }
+
+   import junos-common-types {
+     prefix jt;
+   }
+
+   import junos-nfx-conf-root {
+     prefix jc;
+   }
+
+   organization "Juniper Networks, Inc.";
+
+   contact "yang-support@juniper.net";
+
+   description "Junos vmhost configuration module";
+
+   revision 2018-01-01 {
+     description "Junos: 18.1R1.9";
+   }
+
+   augment /jc:configuration {
+     uses vmhost-group;
+   }
+   augment /jc:configuration/jc:groups {
+     uses vmhost-group;
+   }
+   grouping vmhost-group {
+     container vmhost {
+       description "Vmhost configuration";
+       uses apply-advanced;
+       leaf no-auto-recovery {
+         description "Disable Guest auto recovery by the host";
+         type empty;
+       }
+       container management-if {
+         presence "enable management-if";
+         description "Configuration for the host's side management interface";
+         uses apply-advanced;
+         leaf link-mode {
+           description "Link operational mode";
+           default "automatic";
+           type enumeration {
+             enum "automatic" {
+               description "Automatically negotiate duplex";
+               junos:must "(\"vmhost management-if speed automatic\")";
+               junos:must-message "speed should be configured as auto";
+             }
+             enum "half-duplex" {
+               description "Half-duplex operation";
+               junos:must "((\"vmhost management-if speed 10m\" || \"vmhost management-if speed 100m\"))";
+               junos:must-message "speed should be 10Mbps or 100Mbps";
+             }
+             enum "full-duplex" {
+               description "Full-duplex operation";
+               junos:must "((\"vmhost management-if speed 10m\" || (\"vmhost management-if speed 100m\" || \"vmhost management-if speed 1g\")))";
+               junos:must-message "speed should be 10Mbps, 100Mbps or 1Gbps";
+             }
+           }
+         }
+         leaf speed {
+           description "Link speed";
+           default "automatic";
+           type enumeration {
+             enum "automatic" {
+               description "Automatically negotiate speed";
+               junos:must "(\"vmhost management-if link-mode automatic\")";
+               junos:must-message "link-mode should be configured as auto";
+             }
+             enum "10m" {
+               description "10Mbps operation";
+               junos:must "((\"vmhost management-if link-mode half-duplex\" || \"vmhost management-if link-mode full-duplex\"))";
+               junos:must-message "link-mode should be half or full-duplex";
+             }
+             enum "100m" {
+               description "100Mbps operation";
+               junos:must "((\"vmhost management-if link-mode half-duplex\" || \"vmhost management-if link-mode full-duplex\"))";
+               junos:must-message "link-mode should be half or full-duplex";
+             }
+             enum "1g" {
+               description "1Gbps operation";
+               junos:must "(\"vmhost management-if link-mode full-duplex\")";
+               junos:must-message "link-mode should be configured as full";
+             }
+           }
+         }
+         leaf disable {
+           description "Administratively disable the management port";
+           type empty;
+         }
+       }
+       leaf internal-ip-network {
+         description "Internal Liveliness Bridge Interface address/destination prefix";
+         type jt:ipv4prefix;
+       }
+       container virtualization-options {
+         description "Virtualization options configuration";
+         uses apply-advanced;
+         list interfaces {
+           key name;
+           ordered-by user;
+           description "Virtual interfaces configuration";
+           leaf name {
+             description "Virtual Interface name";
+             type string {
+               junos:posix-pattern "^(ge-0/0/([0-9]|(1[0-8]?)))$|^((ge-1/0/([1-9])))$";
+               junos:pattern-message "virtual interface name not allowed";
+             }
+           }
+           uses apply-advanced;
+           container mapping {
+             description "Peer configuration";
+             uses apply-advanced;
+             choice mapping-choice {
+               case case_1 {
+                 leaf interface {
+                   description "Set heth peer interface";
+                   junos:must "(unique \"vmhost virtualization-options interfaces <*> mapping interface $$\")";
+                   junos:must-message "Duplicate peer interface configured";
+                   type string {
+                     junos:posix-pattern "^(heth-[0-1]-([0-9]))$";
+                     junos:pattern-message "invalid virtual heth interface name";
+                   }
+                 }
+               }
+               case case_2 {
+                 leaf vlan {
+                   description "Name of custom vlan";
+                   junos:must "(\"vmhost vlans $$ vlan-id none\")";
+                   junos:must-message "Custom vlan must be configured under vmhost vlans stanza";
+                   type string;
+                 }
+               }
+             }
+           }
+         }
+       }
+       container vlans {
+         description "VLAN configuration";
+         uses apply-advanced;
+         list vlan {
+           key name;
+           description "Virtual LAN";
+           uses vlan-types;
+         }
+       }
+       container forwarding-options {
+         description "Configure options to control packet forwarding";
+         uses apply-advanced;
+         list analyzer {
+           key name;
+           description "Analyzer options";
+           leaf name {
+             description "Analyzer name";
+             type string;
+           }
+           uses apply-advanced;
+           container input {
+             junos:must "(\".. output\")";
+             junos:must-message "output port must be specified";
+             description "Port to monitor";
+             uses apply-advanced;
+             container ingress {
+               description "Ports to monitor incoming traffic";
+               uses analyzer-input-port-type;
+             }
+             container egress {
+               description "Ports to monitor outgoing traffic";
+               uses analyzer-input-port-type;
+             }
+           }
+           container output {
+             description "Outgoing port for mirrored packets";
+             junos:must "(\".. input\")";
+             junos:must-message "input port must be specified";
+             uses analyzer-output-port-type;
+             junos:must "(\".. input\")";
+             junos:must-message "input port must be specified";
+           }
+         }
+       }
+       container cross-connect {
+         description "Cross connect configuration";
+         uses apply-advanced;
+         list pcc {
+           key name;
+           uses cross-connect-type;
+         }
+       }
+     }
+   }
+   grouping analyzer-input-port-type {
+     uses apply-advanced;
+     list virtual-network-function {
+       key name;
+       ordered-by user;
+       description "Virtual network function";
+       leaf name {
+         description "Virtual network function name";
+         junos:must "(\"virtual-network-functions $$\")";
+         junos:must-message "Specified VNF doesn't exist";
+         junos:must "(\".. interface\")";
+         junos:must-message "vnf interface name must be specified";
+         type string;
+       }
+       uses apply-advanced;
+       list interface {
+         key name;
+         ordered-by user;
+         description "Virtual network function interface";
+         leaf name {
+           description "Virtual network function interface name";
+           type string {
+             junos:posix-pattern "^eth[0-9]$";
+             junos:pattern-message "Only eth0 to eth9 interface is supported";
+           }
+         }
+         uses apply-advanced;
+       }
+     }
+   }
+   grouping analyzer-output-port-type {
+     uses apply-advanced;
+     leaf virtual-network-function {
+       description "Virtual network function name";
+       junos:must "(\"virtual-network-functions $$\")";
+       junos:must-message "Specified VNF doesn't exist";
+       junos:must "(\".. interface\")";
+       junos:must-message "vnf interface name must be specified";
+       type string;
+     }
+     leaf interface {
+       description "Virtual network function interface name";
+       junos:must "(\".. virtual-network-function\")";
+       junos:must-message "virtual-network-function must be specified";
+       type string {
+         junos:posix-pattern "^eth[0-9]$";
+         junos:pattern-message "Only eth0 to eth9 interface is supported";
+       }
+     }
+   }
+   grouping apply-advanced {
+     description "Apply advanced configuration logic";
+     leaf-list apply-groups {
+       ordered-by user;
+       description "Groups from which to inherit configuration data";
+       type string;
+     }
+     leaf-list apply-groups-except {
+       ordered-by user;
+       description "Don't inherit configuration data from these groups";
+       type string;
+     }
+     list apply-macro {
+       key name;
+       ordered-by user;
+       description "Macro and parameters for commit script expansion";
+       uses apply-macro-type;
+     }
+   }
+   grouping apply-macro-type {
+     description "Macro data for commit-script expansion";
+     leaf name {
+       description "Name of the macro to be expanded";
+       type string;
+     }
+     list data {
+       key name;
+       uses macro-data-type;
+     }
+   }
+   grouping cross-connect-type {
+     description "Bidirectional switch between interfaces";
+     leaf name {
+       description "Name of interface switch";
+       type string;
+     }
+     uses apply-advanced;
+     list virtual-interface {
+       key name;
+       ordered-by user;
+       description "Set virtual interface as switch port";
+       leaf name {
+         description "Virtual interface name";
+         type string {
+           junos:posix-pattern "^(hsxe0)$|^(hsxe1)|^((ge-1/0/([0-9])))$";
+           junos:pattern-message "Only hsxe(0/1) and ge-1/0/* interfaces are allowed";
+         }
+       }
+       uses apply-advanced;
+       leaf vlan-id {
+         description "IEEE 802.1q VLAN identifier for VLAN";
+         type string;
+       }
+     }
+     list virtual-network-function {
+       key name;
+       ordered-by user;
+       description "Set virtual interface as switch port";
+       leaf name {
+         description "Virtual network function name";
+         junos:must "(\".. interface\")";
+         junos:must-message "interface name must be specified for this vnf";
+         type string;
+       }
+       uses apply-advanced;
+       leaf interface {
+         description "Virtual network function interfaces";
+         type string;
+       }
+       leaf vlan-id {
+         description "IEEE 802.1q VLAN identifier for VLAN";
+         type string;
+       }
+     }
+   }
+   grouping macro-data-type {
+     leaf name {
+       description "Keyword part of the keyword-value pair";
+       type string;
+     }
+     leaf value {
+       description "Value part of the keyword-value pair";
+       type string;
+     }
+   }
+   grouping vlan-types {
+     description "Virtual LAN";
+     leaf name {
+       description "VLAN name";
+       junos:must "((\".. vlan-id\" || \".. vlan-id-list\"))";
+       junos:must-message "vlan-id/vlan-id-list must be configure";
+       junos:must "(((!(\"vlans ${vlan} isolated-vlan\") && (!(\"vlans ${vlan} community-vlans\") && !(\"vlans ${vlan} private-vlan\"))) || !(\"vlans ${vlan} forwarding-options filter output\")))";
+       junos:must-message "Configuring Egress VACL is not supported on PVLAN";
+       type string {
+         length "2 .. 64";
+       }
+     }
+     uses apply-advanced;
+     leaf vlan-id {
+       description "IEEE 802.1q VLAN identifier for VLAN";
+       type string;
+     }
+     leaf description {
+       description "Text description of VLANs";
+       type string {
+         junos:posix-pattern "^.{1,255}$";
+         junos:pattern-message "Must be a string of 255 characters or less";
+       }
+     }
+     choice vlan-identifier-choice {
+       case case_1 {
+       }
+     }
+     list interface {
+       key name;
+       ordered-by user;
+       description "Interface name for this VLAN";
+       leaf name {
+         junos:must "(!(((\".. .. switch-options interface-mac-limit\" || \".. .. switch-options interface $$ interface-mac-limit\") && (\".. .. .. .. switch-options interface-mac-limit\" || \".. .. .. .. switch-options interface $$ interface-mac-limit\"))))";
+         junos:must-message "Interface mac limit should not be configured at both IFL and VLAN level for sub interfaces";
+         junos:must "(!(\".. .. .. .. switch-options interface $$ interface-mac-limit packet-action shutdown\"))";
+         junos:must-message "Interface mac limit should not be configured with packet action shutdown for sub interfaces";
+         junos:must "((!(\"interfaces $$-IFL family\") || \"interfaces $$-IFL family ethernet-switching\"))";
+         junos:must-message "only family bridge can be configured on this interface";
+         junos:must "((!((\"interfaces $$ vlan-id-list\" || \"interfaces $$ vlan-tags inner-list\")) || !((\".. .. vlan-id\" || \".. .. vlan-tags\"))))";
+         junos:must-message "interface with vlan-id-list/inner-list cannot be added to a vlan with a vlan-id/vlan-tags configured";
+         junos:must "(!((\"interfaces $$-IFL family ethernet-switching interface-mode\" || \"interfaces $$-IFL family ethernet-switching vlan members\")))";
+         junos:must-message "Interface with 'interface-mode' config is not allowed under vlans";
+         junos:must "(!(\".. .. .. interfaces $$\"))";
+         junos:must-message "This interface is already defined at the routing-instance level";
+         junos:must "((\"interfaces $$-IFL\" || !(\".. .. .. .. protocols evpn encapsulation\")))";
+         junos:must-message "Interface not defined; Interface must be defined for configuring under VLAN for protocols evpn";
+         junos:must "(((\".. .. vlan-id all\" && \"interfaces $$-IFL input-vlan-map pop\") || ((\".. .. vlan-id inner-all\" && \"interfaces $$-IFL input-vlan-map\") || (!((\".. .. vlan-id\" || \".. .. vlan-tags\")) || !((\"interfaces $$-IFL input-vlan-map\" || \"interfaces $$-IFL output-vlan-map\"))))))";
+         junos:must-message "interface with input/output vlan-maps cannot be added to a routing-instance with a vlan-id/vlan-tags configured";
+         junos:must "((!(\"interfaces $$-IFL vlan-tags inner-range\") || (\".. .. vlan-id all\" || \".. .. vlan-id inner-all\")))";
+         junos:must-message "vlan-tags inner-range is specified for this logical interface; 'vlan-id all' or 'vlan-id inner-all' should also be enabled";
+         junos:must "((!(\"interfaces $$-IFL vlan-id-range\") || \".. .. vlan-id all\"))";
+         junos:must-message "vlan-id-range is specified for this logical interface; 'vlan-id all' should also be enabled";
+         junos:must "((!(\"interfaces $$-IFL vlan-id-list\") || !((\"interfaces $$-IFL input-vlan-map swap\" || \"interfaces $$-IFL input-vlan-map pop\"))))";
+         junos:must-message "interface with vlan-id-list and input-vlan-map swap/pop is not supported";
+         junos:must "((!(\"interfaces $$-IFL vlan-id\") || !((\".. .. vlan-tags\" || \".. .. vlan-id-list\"))))";
+         junos:must-message "interface with vlan-id cannot be added to vlan with vlan-tags/vlan-id-list configured";
+         junos:must "((!(\"interfaces $$-IFL vlan-id-list\") || !((\".. .. vlan-id\" || (\".. .. vlan-tags\" || \".. .. vlan-id-list\")))))";
+         junos:must-message "interface with vlan-id-list cannot be added to a vlan with a vlan-id/vlan-tags/vlan-id-list configured";
+         type string;
+       }
+       uses apply-advanced;
+     }
+     container forwarding-options {
+       description "Forwarding options configuration";
+       uses juniper-ethernet-switching-forwarding-options;
+     }
+   }
+   grouping juniper-ethernet-switching-forwarding-options {
+     uses apply-advanced;
+     container filter {
+       description "Filtering for ethernet switching forwarding table";
+       uses apply-advanced;
+       leaf input {
+         description "Name of input filter to apply for forwarded packets";
+         type string;
+       }
+     }
+     container flood {
+       description "Filtering for ethernet switching flood table";
+       uses apply-advanced;
+       leaf input {
+         description "Name of input filter to apply for ethernet switching flood packets";
+         type string;
+       }
+     }
+   }
+ }
