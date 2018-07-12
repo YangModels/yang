@@ -1,0 +1,543 @@
+/*
+ * Copyright (c) 2018 Juniper Networks, Inc.
+ * All rights reserved.
+ */
+ module junos-nfx-conf-virtual-network-functions {
+   namespace "http://yang.juniper.net/junos-nfx/conf/virtual-network-functions";
+
+   prefix jc-virtual-network-functions;
+
+   import junos-common-ddl-extensions {
+     prefix junos;
+   }
+
+   import junos-common-types {
+     prefix jt;
+   }
+
+   import junos-nfx-conf-root {
+     prefix jc;
+   }
+
+   organization "Juniper Networks, Inc.";
+
+   contact "yang-support@juniper.net";
+
+   description "Junos virtual-network-functions configuration module";
+
+   revision 2018-01-01 {
+     description "Junos: 18.2R1.9";
+   }
+
+   augment /jc:configuration {
+     uses virtual-network-functions-group;
+   }
+   augment /jc:configuration/jc:groups {
+     uses virtual-network-functions-group;
+   }
+   grouping virtual-network-functions-group {
+     list virtual-network-functions {
+       key name;
+       ordered-by user;
+       description "Virtual network functions configuration";
+       leaf name {
+         description "VNF name";
+         type string;
+       }
+       uses apply-advanced;
+       container type {
+         description "VNF type";
+         uses apply-advanced;
+         leaf vnf_type {
+           description "VNF type";
+           type enumeration {
+             enum "virtual-machine" {
+               description "Virtual Machine";
+             }
+           }
+         }
+       }
+       container image {
+         junos:must "(!(\".. init-descriptor\"))";
+         junos:must-message "Image and init-descriptor are mutually exclusive. Both configuration at a time is not allowed";
+         description "Image file path";
+         uses apply-advanced;
+         leaf file-path {
+           description "File path";
+           type string {
+             length "1 .. 256";
+           }
+         }
+         leaf image-type {
+           description "Image type";
+           default "qcow2";
+           type enumeration {
+             enum "qcow2" {
+               description "Qcow2 image format";
+             }
+             enum "raw" {
+               description "Raw image format";
+             }
+           }
+         }
+         leaf bus-type {
+           description "Bus type";
+           default "virtio";
+           type enumeration {
+             enum "virtio" {
+               description "Virtio";
+             }
+             enum "ide" {
+               description "Ide";
+             }
+           }
+         }
+         leaf driver-cache {
+           description "Driver cache mode";
+           type enumeration {
+             enum "none" {
+               description "Cache type none";
+             }
+             enum "writethrough" {
+               description "Cache type writethrough";
+             }
+             enum "writeback" {
+               description "Cache type writeback";
+             }
+             enum "directsync" {
+               description "Cache type directsync";
+             }
+             enum "unsafe" {
+               description "Cache type unsafe";
+             }
+             enum "default-cache" {
+               description "Cache type default";
+             }
+           }
+         }
+       }
+       container init-descriptor {
+         junos:must "(!(\".. image\"))";
+         junos:must-message "Image and init-descriptor are mutually exclusive. Both configuration at a time is not allowed";
+         description "Initialization Descriptor file path";
+         uses apply-advanced;
+         leaf file-path {
+           description "File path";
+           type string {
+             length "1 .. 256";
+           }
+         }
+       }
+       container uuid {
+         description "VNF UUID";
+         uses apply-advanced;
+         leaf vnf_uuid {
+           description "UUID string";
+           type string {
+             junos:posix-pattern "^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$";
+             junos:pattern-message "Must be a valid UUID string";
+           }
+         }
+       }
+       container virtual-cpu {
+         description "Virtual cpu configuration";
+         uses apply-advanced;
+         list vcpu-number {
+           key name;
+           uses vcpu_set;
+         }
+         leaf count {
+           description "Number of virtual CPUs";
+           type union {
+             type uint32;
+             type string {
+               pattern "<.*>|$.*";
+             }
+           }
+         }
+         container features {
+           description "Features";
+           uses apply-advanced;
+           leaf hardware-virtualization {
+             description "Hardware Virtualization";
+             type empty;
+           }
+         }
+       }
+       leaf no-default-interfaces {
+         description "Do not autoprovision any interfaces to VNF";
+         type empty;
+       }
+       list interfaces {
+         key name;
+         ordered-by user;
+         description "Interfaces configuration";
+         leaf name {
+           description "Interface name";
+           type string;
+         }
+         uses apply-advanced;
+         leaf description {
+           description "Text description of interface";
+           type string;
+         }
+         leaf mac-address {
+           description "Mac-address for the VNF interface";
+           type jt:mac-addr;
+         }
+         leaf mtu {
+           description "The Maximum Transfer Unit size in bytes";
+           default "1500";
+           junos:must "(!(\".. analyzer\"))";
+           junos:must-message "MTU is not configurable on analyzer interface";
+           type enumeration {
+             enum "1500" {
+               description "Set 1500 as mtu";
+             }
+             enum "2048" {
+               description "Set 2048 as mtu";
+             }
+           }
+         }
+         leaf pci-address {
+           description "Target PCI address for the VNF interface";
+           junos:must "(unique \".. .. interfaces <*> pci-address $$\")";
+           junos:must-message "Target pci-address should be unique for each VNF interface";
+           type string {
+             junos:posix-pattern "^0000:00:[0-9a-f]{2}[.:][0-7]$";
+             junos:pattern-message "Must be a valid target pci-address string in 0000:00:<slot>.[0-7] format";
+           }
+         }
+         leaf management {
+           description "VNF interface management configuration";
+           junos:must "(\".. .. no-default-interfaces\")";
+           junos:must-message "Management can be configured only if no-default-interfaces is configured";
+           type enumeration {
+             enum "internal" {
+               description "Internal Management";
+               junos:must "(!(\".. analyzer\"))";
+               junos:must-message "Analyzer can not be used if interface is configured management internal";
+               junos:must "(!(\".. mapping\"))";
+               junos:must-message "Mapping can not be used if interface is configured management internal ";
+               junos:must "(!(\".. offloads disable\"))";
+               junos:must-message "offloads not supported on  Internal Management interface";
+             }
+             enum "out-of-band" {
+               description "Out Of Band Management";
+               junos:must "(!(\".. analyzer\"))";
+               junos:must-message "Analyzer can not be used if interface is configured management out-of-band";
+               junos:must "(!(\".. mapping\"))";
+               junos:must-message "Mapping can not be used if interface is configured management out-of-band";
+               junos:must "(!(\".. offloads disable\"))";
+               junos:must-message "offloads not supported on  out-of-band interface";
+             }
+           }
+         }
+         leaf analyzer {
+           description "Analyzer interface";
+           junos:must "(!(\".. mapping\"))";
+           junos:must-message "Mapping and analyzer are mutually exclusive";
+           type empty;
+         }
+         container mapping {
+           junos:must "(!(\".. analyzer\"))";
+           junos:must-message "Mapping and analyzer are mutually exclusive";
+           description "Attach to a physical interface or VLAN";
+           uses apply-advanced;
+           list interface {
+             key name;
+             ordered-by user;
+             description "Attach to a physical interface";
+             junos:must "(!(\".. .. offloads disable\"))";
+             junos:must-message "offloads not supported on vf interface";
+             junos:must "(!(\".. vlan\"))";
+             junos:must-message "Attaching interface to both physical interface and vlan is not allowed";
+             max-elements 1;
+             leaf name {
+               description "Set heth-x-y or hsxe interface";
+               type string {
+                 junos:posix-pattern "^(heth-[0-1]-([0-9]))$|hsxe0|hsxe1";
+                 junos:pattern-message "invalid heth-x-y/hsxe0/hsxe1 interface name";
+               }
+             }
+             uses apply-advanced;
+             container virtual-function {
+               presence "enable virtual-function";
+               description "Attach using SR-IOV";
+               uses apply-advanced;
+               leaf vlan-id {
+                 description "VLAN Id";
+                 type union {
+                   type string {
+                     pattern "<.*>|$.*";
+                   }
+                   type uint32 {
+                     range "1 .. 4094";
+                   }
+                 }
+               }
+             }
+           }
+           container vlan {
+             junos:must "(!(\".. interface\"))";
+             junos:must-message "Attaching interface to both physical interface and vlan is not allowed";
+             description "Attach VNF interface to VLAN";
+             uses apply-advanced;
+             leaf mode {
+               description "Type of interface mode";
+               default "access";
+               type enumeration {
+                 enum "access" {
+                   description "Interface mode is access";
+                 }
+                 enum "trunk" {
+                   description "Interface mode is trunk";
+                 }
+               }
+             }
+             leaf-list members {
+               ordered-by user;
+               description "Membership for this interface";
+               type string;
+             }
+             leaf native-vlan-id {
+               description "Virtual LAN identifier for untagged frames";
+               type union {
+                 type string {
+                   pattern "<.*>|$.*";
+                 }
+                 type uint32 {
+                   range "1 .. 4094";
+                 }
+               }
+             }
+           }
+         }
+         container offloads {
+           junos:must "(!(\".. analyzer\"))";
+           junos:must-message "offloads not supported on  analyzer interface";
+           description "Offloads configuration for the VNF interface";
+           uses apply-advanced;
+           choice enable-disable {
+             case case_1 {
+               leaf disable {
+                 description "Disable offloads for the VNF interface";
+                 type empty;
+               }
+             }
+           }
+         }
+       }
+       container memory {
+         description "Memory configuration";
+         uses apply-advanced;
+         leaf size {
+           description "Size in kilobytes";
+           type union {
+             type uint32;
+             type string {
+               pattern "<.*>|$.*";
+             }
+           }
+         }
+         container features {
+           description "Features";
+           uses apply-advanced;
+           container hugepages {
+             presence "enable hugepages";
+             junos:must "(\"system memory hugepages\")";
+             junos:must-message "system memory hugepages must be configured";
+             description "Hugepages";
+             uses apply-advanced;
+             leaf page-size {
+               description "Page size";
+               default "1024";
+               type enumeration {
+                 enum "1024" {
+                   description "Pagesize of 1GB";
+                 }
+                 enum "2" {
+                   description "Pagesize of 2MB";
+                 }
+               }
+             }
+           }
+         }
+       }
+       list storage {
+         key name;
+         ordered-by user;
+         description "Storage configuration";
+         leaf name {
+           description "Target device name";
+           type string {
+             junos:posix-pattern "^(hd[a-z]|sd[a-z]|vd[a-z])$";
+             junos:pattern-message "Must be a valid device name in the format hdX or sdX or vdX. Example: hdb, sdc, vdb, etc.";
+           }
+         }
+         uses apply-advanced;
+         container type {
+           description "Disk type";
+           uses apply-advanced;
+           choice types {
+             case case_1 {
+               container cdrom {
+                 description "CDROM";
+                 uses storage_attrib;
+               }
+             }
+             case case_2 {
+               container disk {
+                 description "Harddisk";
+                 uses storage_attrib_disk;
+               }
+             }
+             case case_3 {
+               container usb {
+                 description "USB";
+                 uses storage_attrib;
+               }
+             }
+           }
+         }
+       }
+       leaf no-autostart {
+         description "Do not autostart VNF on commit";
+         type empty;
+       }
+     }
+   }
+   grouping apply-advanced {
+     description "Apply advanced configuration logic";
+     leaf-list apply-groups {
+       ordered-by user;
+       description "Groups from which to inherit configuration data";
+       type string;
+     }
+     leaf-list apply-groups-except {
+       ordered-by user;
+       description "Don't inherit configuration data from these groups";
+       type string;
+     }
+     list apply-macro {
+       key name;
+       ordered-by user;
+       description "Macro and parameters for commit script expansion";
+       uses apply-macro-type;
+     }
+   }
+   grouping apply-macro-type {
+     description "Macro data for commit-script expansion";
+     leaf name {
+       description "Name of the macro to be expanded";
+       type string;
+     }
+     list data {
+       key name;
+       uses macro-data-type;
+     }
+   }
+   grouping macro-data-type {
+     leaf name {
+       description "Keyword part of the keyword-value pair";
+       type string;
+     }
+     leaf value {
+       description "Value part of the keyword-value pair";
+       type string;
+     }
+   }
+   grouping storage_attrib {
+     description "Storage attributes";
+     uses apply-advanced;
+     container source {
+       description "Source for disk";
+       uses apply-advanced;
+       leaf file {
+         description "File name";
+         type string {
+           length "1 .. 256";
+         }
+       }
+     }
+   }
+   grouping storage_attrib_disk {
+     description "Storage attributes";
+     uses apply-advanced;
+     container source {
+       description "Source for disk";
+       uses apply-advanced;
+       leaf file {
+         description "File name";
+         type string {
+           length "1 .. 256";
+         }
+       }
+     }
+     leaf bus-type {
+       description "Bus type";
+       default "virtio";
+       type enumeration {
+         enum "virtio" {
+           description "Virtio";
+         }
+         enum "ide" {
+           description "Ide";
+         }
+       }
+     }
+     leaf file-type {
+       description "File type";
+       default "qcow2";
+       type enumeration {
+         enum "qcow2" {
+           description "Qcow2";
+         }
+         enum "raw" {
+           description "Raw";
+         }
+       }
+     }
+     leaf driver-cache {
+       description "Driver cache types";
+       default "default-cache";
+       type enumeration {
+         enum "none" {
+           description "Cache type none";
+         }
+         enum "writethrough" {
+           description "Cache type writethrough";
+         }
+         enum "writeback" {
+           description "Cache type writeback";
+         }
+         enum "directsync" {
+           description "Cache type directsync";
+         }
+         enum "unsafe" {
+           description "Cache type unsafe";
+         }
+         enum "default-cache" {
+           description "Cache type default";
+         }
+       }
+     }
+   }
+   grouping vcpu_set {
+     description "VCPU number";
+     leaf name {
+       description "VCPU number";
+       type union {
+         type uint32;
+         type string {
+           pattern "<.*>|$.*";
+         }
+       }
+     }
+     uses apply-advanced;
+     leaf-list physical-cpu {
+       description "Physical CPUs";
+       type string;
+     }
+   }
+ }
