@@ -23,6 +23,7 @@ import math
 
 import pwd
 import requests
+import time
 import uwsgi as uwsgi
 
 import tools.utility.log as lo
@@ -2149,6 +2150,9 @@ def load(on_change):
     if active_cache is None or on_change:
         # We should get here only if application was started for the first time (active_cache is None)
         # or if we need to reload cache (on_change == True)
+        while lock_uwsgi_cache2.locked():
+            time.sleep(1)
+            LOGGER.info("waiting for cache2 to be loaded")
         with lock_uwsgi_cache1:
             LOGGER.info('Loading cache 1')
             load_uwsgi_cache('cache_chunks1', 'main_cache1', 'cache_modules1', on_change)

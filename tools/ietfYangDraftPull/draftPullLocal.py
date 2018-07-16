@@ -82,7 +82,7 @@ def check_early_revisions(directory):
                     except Exception:
                         LOGGER.error('Failed to process revision for {}: (rev: {})'.format(f2, revision))
         if len(revisions) == 0:
-            return
+            continue
         latest = revisions.index(max(revisions))
         files_to_delete.remove(files_to_delete[latest])
         for fi in files_to_delete:

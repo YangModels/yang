@@ -768,7 +768,11 @@ class Modules:
         if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.huawei8910)
         if status['status'] == 'unknown':
+            status = self.__get_module_status(self.jsons.ciena)
+        if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.mef_experimental_json)
+        if status['status'] == 'unknown':
+            status = self.__get_module_status(self.jsons.mef_standard_json)
         if status['status'] == 'unknown':
             status = self.__get_module_status(self.jsons.openconfig_json)
         return status
@@ -915,6 +919,15 @@ class Modules:
         if res != '':
             return res
         res = self.__parse_res(self.jsons.huawei8910)
+        if res != '':
+            return res
+        res = self.__parse_res(self.jsons.ciena)
+        if res != '':
+            return res
+        res = self.__parse_res(self.jsons.mef_experimental_json)
+        if res != '':
+            return res
+        res = self.__parse_res(self.jsons.mef_standard_json)
         if res != '':
             return res
         res = self.__parse_res(self.jsons.openconfig_json)
