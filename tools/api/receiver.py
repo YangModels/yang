@@ -562,7 +562,7 @@ def on_request(ch, method, props, body):
                 complicatedAlgorithms = ModulesComplicatedAlgorithms(yangcatalog_api_prefix, credentials,
                                                                      confd_protocol, confd_ip, confdPort,
                                                                      save_file_dir, None, all_modules)
-                complicatedAlgorithms.parse(False)
+                complicatedAlgorithms.parse()
                 complicatedAlgorithms.populate()
 
     LOGGER.info('Receiver is done with id - {} and message = {}'

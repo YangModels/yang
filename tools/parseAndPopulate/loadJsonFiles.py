@@ -15,6 +15,7 @@ class LoadFiles:
         self.ieee_experimental_json = {}
         self.ietf_rfc_standard_json = {}
         self.mef_experimental_json = {}
+        self.mef_standard_json = {}
         self.openconfig_json = {}
         self.ietf_rfc_standard_json['json'] = load_json_from_url(
             'http://www.claise.be/RFCStandard.json')
@@ -50,6 +51,11 @@ class LoadFiles:
             'http://www.claise.be/MEFExperimental.json')
         self.mef_experimental_json['ths'] = resolve_results(
             'http://claise.be/MEFExperimentalYANGPageCompilation.html')
+
+        self.mef_experimental_json['json'] = load_json_from_url(
+            'http://www.claise.be/MEFStandard.json')
+        self.mef_experimental_json['ths'] = resolve_results(
+            'http://claise.be/MEFStandardYANGPageCompilation.html')
 
         self.openconfig_json['json'] = load_json_from_url(
             'http://www.claise.be/Openconfig.json')
@@ -217,4 +223,10 @@ class LoadFiles:
         self.huawei8910['json'] = load_json_from_url(
             'http://www.claise.be/NETWORKROUTER8910.json')
         self.huawei8910['ths'] = resolve_results(
+            'http://www.claise.be/NETWORKROUTER8910YANGPageCompilation.html')
+
+        self.ciena = {}
+        self.ciena['json'] = load_json_from_url(
+            'http://www.claise.be/NETWORKROUTER8910.json')
+        self.ciena['ths'] = resolve_results(
             'http://www.claise.be/NETWORKROUTER8910YANGPageCompilation.html')

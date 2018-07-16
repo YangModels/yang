@@ -142,8 +142,6 @@ if __name__ == "__main__":
                 subprocess.check_call(arguments, stderr=f)
 
     LOGGER.info('Populating yang catalog with data. Starting to add modules')
-    thread = threading.Thread(target=run_complicated_algorithms())
-    thread.start()
     with open('../parseAndPopulate/{}/prepare.json'.format(direc)) as data_file:
         read = data_file.read()
         modules_json = json.loads(read)['module']
@@ -246,12 +244,9 @@ if __name__ == "__main__":
             if response.status_code != 201:
                 LOGGER.warning('Could not send a load-cache request')
 
+            thread = threading.Thread(target=run_complicated_algorithms())
+            thread.start()
 
-        try:
-            shutil.rmtree('../api/cache')
-        except OSError:
-            # Be happy if deleted
-            pass
         else:
             url = (yangcatalog_api_prefix + 'load-cache')
             LOGGER.info('{}'.format(url))
@@ -272,6 +267,12 @@ if __name__ == "__main__":
                              args.credentials, apiIp=args.api_ip,
                              from_api=False, set_key=key,
                              force_indexing=args.force_indexing)
-        shutil.rmtree('../parseAndPopulate/' + direc)
         if thread is not None:
             thread.join()
+        try:
+            shutil.rmtree('../parseAndPopulate/' + direc)
+            shutil.rmtree('../api/cache')
+        except OSError:
+            # Be happy if deleted
+            pass
+

@@ -69,6 +69,11 @@ class RepoUtil(object):
             config.set_value('user', 'email', config_user_email)
             config.set_value('user', 'name', config_user_name)
 
+    def updateSubmodule(self, recursive=True, init=True):
+        """Clone submodules of a git repository"""
+        for submodule in self.repo.submodules:
+            submodule.update(recursive, init)
+
     def add_all_untracked(self):
         """Commit all untracked and modified files. This method shouldn't
         generate any exceptions as we don't allow unexpected
@@ -90,7 +95,6 @@ class RepoUtil(object):
     def commit_all(self, message='RepoUtil Commit'):
         """Equivalent of git commit -a -m MESSAGE."""
         self.repo.git.commit(a=True, m=message)
-        self.repo.git
 
     def push(self):
         """Push repo to origin. Credential errors may happen here."""

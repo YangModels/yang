@@ -7,7 +7,7 @@ import requests
 from tools.utility import log
 from tools.utility.util import get_curr_dir, find_first_file
 
-LOGGER = log.get_logger('')
+LOGGER = log.get_logger(__file__)
 
 
 class ModulesComplicatedAlgorithms:
@@ -29,10 +29,9 @@ class ModulesComplicatedAlgorithms:
         self.__path = None
         self.__prefix = '{}://{}:{}'.format(protocol, ip, port)
 
-    def parse(self, tree_type_allowed):
-        if tree_type_allowed:
-            LOGGER.info("parsing tree types")
-            self.__resolve_tree_type()
+    def parse(self):
+        LOGGER.info("parsing tree types")
+        self.__resolve_tree_type()
         LOGGER.info("parsing semantic version")
         self.__parse_semver()
         LOGGER.info("parsing dependents")
