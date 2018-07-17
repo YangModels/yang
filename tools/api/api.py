@@ -1,11 +1,13 @@
 import ConfigParser
-import argparse
 import base64
 import collections
 import errno
+import grp
 import hashlib
 import json
+import math
 import os
+import pwd
 import re
 import shutil
 import subprocess
@@ -16,23 +18,18 @@ from copy import deepcopy
 from datetime import datetime
 from threading import Lock
 from urllib2 import URLError
+
 import MySQLdb
-import grp
 import jinja2
-import math
-
-import pwd
 import requests
-import time
 import uwsgi as uwsgi
-
-import tools.utility.log as lo
-import yangSearch.index as index
 from OpenSSL.crypto import load_publickey, FILETYPE_PEM, X509, verify
 from flask import Flask, jsonify, abort, make_response, request, Response, \
     redirect
 from flask_httpauth import HTTPBasicAuth
 
+import tools.utility.log as lo
+import yangSearch.index as index
 from tools.api.prometheus.main import monitor
 from tools.api.sender import Sender
 from tools.utility import repoutil, yangParser, messageFactory
@@ -52,10 +49,51 @@ auth = HTTPBasicAuth()
 
 class MyFlask(Flask):
 
-    def __init__(self, import_name):
+    def __init__(self, import_name): 
         super(MyFlask, self).__init__(import_name)
         self.response = None
         self.ys_set = 'set'
+        LOGGER.info('Loading all configuration')
+        config_path = os.path.abspath('.') + '/../utility/config.ini'
+        config = ConfigParser.ConfigParser()
+        config.read(config_path)
+        self.result_dir = config.get('API-Section', 'result-html-dir')
+        self.sender = Sender()
+        self.dbHost = config.get('API-Section', 'dbIp')
+        self.dbName = config.get('API-Section', 'dbName')
+        self.dbUser = config.get('API-Section', 'dbUser')
+        self.dbPass = config.get('API-Section', 'dbPassword')
+        self.credentials = config.get('General-Section', 'credentials').split(' ')
+        self.confd_ip = config.get('General-Section', 'confd-ip')
+        self.confdPort = int(config.get('General-Section', 'confd-port'))
+        self.protocol = config.get('General-Section', 'protocol')
+        self.save_requests = config.get('API-Section', 'save-requests')
+        self.save_file_dir = config.get('API-Section', 'save-file-dir')
+        self.token = config.get('API-Section', 'yang-catalog-token')
+        self.admin_token = config.get('API-Section', 'admin-token')
+        self.commit_msg_file = config.get('API-Section', 'commit-dir')
+        self.integrity_file_location = config.get('API-Section',
+                                             'integrity-file-location')
+        self.diff_file_dir = config.get('API-Section', 'save-diff-dir')
+        ip = config.get('API-Section', 'ip')
+        self.api_port = int(config.get('General-Section', 'api-port'))
+        self.log = open('api_log_file.txt', 'w')
+        self.api_protocol = config.get('General-Section', 'protocol-api')
+        self.is_uwsgi = config.get('General-Section', 'uwsgi')
+        self.config_name = config.get('General-Section', 'repo-config-name')
+        self.config_email = config.get('General-Section', 'repo-config-email')
+        separator = ':'
+        suffix = self.api_port
+        if self.is_uwsgi == 'True':
+            separator = '/'
+            suffix = 'api'
+        if ip == '0.0.0.0':
+            local_ip = 'yangcatalog.org'
+        else:
+            local_ip = ip
+        self.yangcatalog_api_prefix = '{}://{}{}{}/'.format(self.api_protocol, local_ip,
+                                                       separator, suffix)
+        LOGGER.debug('Starting api')
 
     def process_response(self, response):
         self.response = response
@@ -134,7 +172,7 @@ class MyFlask(Flask):
                         }
                     })
                     rp = requests.post('{}/search-filter'.format(
-                        yangcatalog_api_prefix), search_filter,
+                        self.yangcatalog_api_prefix), search_filter,
                         headers={
                             'Content-type': 'application/json',
                             'Accept': 'application/json'}
@@ -143,7 +181,7 @@ class MyFlask(Flask):
                     self.get_dependencies(mo, mods, inset)
                 else:
                     rp = requests.get('{}/search/name/{}'
-                                      .format(yangcatalog_api_prefix,
+                                      .format(self.yangcatalog_api_prefix,
                                               dep['name']))
                     if rp.status_code == 404:
                         continue
@@ -222,9 +260,9 @@ class MyFlask(Flask):
 
                 modules = []
                 for mod in mods:
-                    if not os.path.exists(save_file_dir + '/' + mod):
+                    if not os.path.exists(self.save_file_dir + '/' + mod):
                         continue
-                    shutil.copy(save_file_dir + '/' + mod, ys_dir)
+                    shutil.copy(self.save_file_dir + '/' + mod, ys_dir)
                     modules.append([mod.split('@')[0], mod.split('@')[1]
                                    .replace('.yang', '')])
                 ys_dir = '/home/miott/ysuite/yangsuite/data/users/'
@@ -253,7 +291,7 @@ class MyFlask(Flask):
                         os.chown(os.path.join(root, momo), uid, gid)
                 os.chown(path, uid, gid)
                 json_data['yangsuite-url'] = (
-                    '{}/yangsuite/{}'.format(yangcatalog_api_prefix, id))
+                    '{}/yangsuite/{}'.format(self.yangcatalog_api_prefix, id))
                 self.response.data = json.dumps(json_data)
                 return self.response
             else:
@@ -261,10 +299,12 @@ class MyFlask(Flask):
         else:
             return self.response
 
-app = MyFlask(__name__)
-monitor(app)
+
+application = MyFlask(__name__)
+monitor(application)
 lock_uwsgi_cache1 = Lock()
 lock_uwsgi_cache2 = Lock()
+lock_for_load = Lock()
 
 NS_MAP = {
     "http://cisco.com/": "cisco",
@@ -286,7 +326,7 @@ def make_cache(credentials, response, cache_chunks, main_cache, is_uwsgi=True):
                     why it failed.
     """
     try:
-        path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog?deep'
+        path = application.protocol + '://' + application.confd_ip + ':' + repr(application.confdPort) + '/api/config/catalog?deep'
         data = http_request(path, 'GET', '', credentials, 'application/vnd.yang.data+json').read()
 
         if is_uwsgi == 'True':
@@ -297,12 +337,12 @@ def make_cache(credentials, response, cache_chunks, main_cache, is_uwsgi=True):
             LOGGER.info('all {} chunks are set in uwsgi cache'.format(chunks))
             uwsgi.cache_set('chunks-data', repr(chunks), 0, cache_chunks)
         else:
-            return data
+            return response, data
     except:
         e = sys.exc_info()[0]
         LOGGER.error('Could not load json to cache. Error: {}'.format(e))
-        return 'Server error - downloading cache'
-    return response
+        return 'Server error - downloading cache', None
+    return response, data
 
 
 def create_response(body, status, headers=None):
@@ -356,7 +396,7 @@ def http_request(path, method, json_data, http_credentials, header):
         raise e
 
 
-@app.errorhandler(404)
+@application.errorhandler(404)
 def not_found():
     """Error handler for 404"""
     return make_response(jsonify({'error': 'Not found'}), 404)
@@ -374,7 +414,7 @@ def authorize_for_sdos(request, organizations_sent, organization_parsed):
     LOGGER.info('Checking sdo authorization for user {}'.format(username))
     accessRigths = None
     try:
-        db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
+        db = MySQLdb.connect(host=application.dbHost, db=application.dbName, user=application.dbUser, passwd=application.dbPass)
         # prepare a cursor object using cursor() method
         cursor = db.cursor()
         # execute SQL query using execute() method.
@@ -413,7 +453,7 @@ def authorize_for_vendors(request, body):
     LOGGER.info('Checking vendor authorization for user {}'.format(username))
     accessRigths = None
     try:
-        db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
+        db = MySQLdb.connect(host=application.dbHost, db=application.dbName, user=application.dbUser, passwd=application.dbPass)
         # prepare a cursor object using cursor() method
         cursor = db.cursor()
         # execute SQL query using execute() method.
@@ -461,8 +501,8 @@ def authorize_for_vendors(request, body):
     return 'passed'
 
 
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>', methods=['PUT', 'POST', 'GET', 'DELETE', 'PATCH'])
+@application.route('/', defaults={'path': ''})
+@application.route('/<path:path>', methods=['PUT', 'POST', 'GET', 'DELETE', 'PATCH'])
 def catch_all(path):
     """Catch all the rest api requests that are not supported"""
     return make_response(jsonify(
@@ -487,27 +527,27 @@ def check_authorized(signature, payload):
     verify(certificate, base64.b64decode(signature), payload, str('SHA1'))
 
 
-@app.route('/yangsuite/<id>', methods=['GET'])
+@application.route('/yangsuite/<id>', methods=['GET'])
 def yangsuite_redirect(id):
     local_ip = '127.0.0.1'
-    if is_uwsgi:
+    if application.is_uwsgi:
         local_ip = 'yangcatalog.org'
 #    return redirect('http://{}:8000/ydk/aaa/{}'.format(local_ip, id))
     return redirect('https://{}/yangsuite/ydk/aaa/{}'.format(local_ip, id))
 
 
 @auth.login_required
-@app.route('/ietf', methods=['GET'])
+@application.route('/ietf', methods=['GET'])
 def trigger_ietf_pull():
     username = request.authorization['username']
     if username != 'admin':
         return unauthorized
-    job_id = sender.send('run_ietf')
+    job_id = application.sender.send('run_ietf')
     LOGGER.info('job_id {}'.format(job_id))
     return make_response(jsonify({'job-id': job_id}), 202)
 
 
-@app.route('/checkComplete', methods=['POST'])
+@application.route('/checkComplete', methods=['POST'])
 def check_local():
     """Authorize sender if it is Travis, if travis job was sent from yang-catalog
     repository and job passed fine and Travis run a job on pushed patch, create
@@ -539,7 +579,7 @@ def check_local():
     else:
         commit_sha = body['head_commit']
     try:
-        commit_file = file(commit_msg_file)
+        commit_file = file(application.commit_msg_file)
         for line in commit_file:
             if commit_sha in line:
                 verify_commit = True
@@ -561,7 +601,7 @@ def check_local():
                     }))
 
                     r = requests.post(yang_models_url + '/pulls',
-                                      json=json_body, headers={'Authorization': 'token ' + token})
+                                      json=json_body, headers={'Authorization': 'token ' + application.token})
                     if r.status_code == requests.codes.created:
                         LOGGER.info('Pull request created successfully')
                         return make_response(jsonify({'info': 'Success'}), 201)
@@ -571,7 +611,7 @@ def check_local():
             else:
                 LOGGER.warning('Travis job did not pass. Removing forked repository.')
                 requests.delete('https://api.github.com/repos/yang-catalog/yang',
-                                headers={'Authorization': 'token ' + token})
+                                headers={'Authorization': 'token ' + application.token})
                 return make_response(jsonify({'info': 'Failed'}), 406)
         elif body['repository']['owner_name'] == 'YangModels':
             if body['result_message'] == 'Passed':
@@ -584,16 +624,16 @@ def check_local():
                         'body': 'AUTOMATED YANG CATALOG APPROVAL',
                         'event': 'APPROVE'
                     })
-                    response = requests.post(url, data, headers={'Authorization': 'token ' + admin_token})
+                    response = requests.post(url, data, headers={'Authorization': 'token ' + application.admin_token})
                     LOGGER.info('review response code {}. Merge response {}.'.format(
                             response.status_code, response.content))
                     data = json.dumps({'commit-title': 'Travis job passed',
                                        'sha': body['head_commit']})
                     response = requests.put('https://api.github.com/repos/YangModels/yang/pulls/' + repr(pull_number) +
-                                 '/merge', data, headers={'Authorization': 'token ' + admin_token})
+                                 '/merge', data, headers={'Authorization': 'token ' + application.admin_token})
                     LOGGER.info('Merge response code {}. Merge response {}.'.format(response.status_code, response.content))
                     requests.delete('https://api.github.com/repos/yang-catalog/yang',
-                                    headers={'Authorization': 'token ' + token})
+                                    headers={'Authorization': 'token ' + application.token})
                     return make_response(jsonify({'info': 'Success'}), 201)
             else:
                 LOGGER.warning('Travis job did not pass. Removing pull request')
@@ -605,12 +645,12 @@ def check_local():
                     "base": "master"
                 }))
                 requests.patch('https://api.github.com/repos/YangModels/yang/pulls/' + pull_number, json=json_body,
-                               headers={'Authorization': 'token ' + token})
+                               headers={'Authorization': 'token ' + application.token})
                 LOGGER.warning(
                     'Travis job did not pass. Removing forked repository.')
                 requests.delete(
                     'https://api.github.com/repos/yang-catalog/yang',
-                    headers={'Authorization': 'token ' + token})
+                    headers={'Authorization': 'token ' + application.token})
                 return make_response(jsonify({'info': 'Failed'}), 406)
         else:
             LOGGER.warning('Owner name verification failed. Owner -> {}'
@@ -623,7 +663,7 @@ def check_local():
     return make_response(jsonify({'Error': 'Fails'}), 500)
 
 
-@app.route('/modules/module/<name>,<revision>,<organization>', methods=['DELETE'])
+@application.route('/modules/module/<name>,<revision>,<organization>', methods=['DELETE'])
 @auth.login_required
 def delete_module(name, revision, organization):
     """Delete a specific module defined with name, revision and organization. This is
@@ -642,7 +682,7 @@ def delete_module(name, revision, organization):
     LOGGER.debug('Checking authorization for user {}'.format(username))
     accessRigths = None
     try:
-        db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
+        db = MySQLdb.connect(host=application.dbHost, db=application.dbName, user=application.dbUser, passwd=application.dbPass)
         # prepare a cursor object using cursor() method
         cursor = db.cursor()
         # execute SQL query using execute() method.
@@ -658,8 +698,8 @@ def delete_module(name, revision, organization):
         LOGGER.error('Cannot connect to database. MySQL error: {}'.format(err))
     try:
         response = http_request(
-            protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + name +
-            ',' + revision + ',' + organization, 'GET', None, credentials, 'application/vnd.yang.data+json')
+            application.protocol + '://' + application.confd_ip + ':' + repr(application.confdPort) + '/api/config/catalog/modules/module/' + name +
+            ',' + revision + ',' + organization, 'GET', None, application.credentials, 'application/vnd.yang.data+json')
     except urllib2.HTTPError as e:
         return not_found()
 
@@ -670,18 +710,18 @@ def delete_module(name, revision, organization):
     if read['yang-catalog:module'].get('implementations') is not None:
         return make_response(jsonify({'error': 'This module has reference in vendors branch'}), 400)
 
-    path_to_delete = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' \
+    path_to_delete = application.protocol + '://' + application.confd_ip + ':' + repr(application.confdPort) + '/api/config/catalog/modules/module/' \
                      + name + ',' + revision + ',' + organization
 
-    arguments = [protocol, confd_ip, repr(confdPort), credentials[0],
-                 credentials[1], path_to_delete, 'DELETE', api_protocol, repr(api_port)]
-    job_id = sender.send('#'.join(arguments))
+    arguments = [application.protocol, application.confd_ip, repr(application.confdPort), application.credentials[0],
+                 application.credentials[1], path_to_delete, 'DELETE', application.api_protocol, repr(application.api_port)]
+    job_id = application.sender.send('#'.join(arguments))
 
     LOGGER.info('job_id {}'.format(job_id))
     return make_response(jsonify({'info': 'Verification successful', 'job-id': job_id}), 202)
 
 
-@app.route('/modules', methods=['DELETE'])
+@application.route('/modules', methods=['DELETE'])
 @auth.login_required
 def delete_modules():
     """Delete a specific modules defined with name, revision and organization. This is
@@ -698,7 +738,7 @@ def delete_modules():
     LOGGER.debug('Checking authorization for user {}'.format(username))
     accessRigths = None
     try:
-        db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
+        db = MySQLdb.connect(host=application.dbHost, db=application.dbName, user=application.dbUser, passwd=application.dbPass)
         # prepare a cursor object using cursor() method
         cursor = db.cursor()
         # execute SQL query using execute() method.
@@ -721,8 +761,8 @@ def delete_modules():
     for mod in modules:
         try:
             response = http_request(
-                protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + mod['name'] +
-                ',' + mod['revision'] + ',' + mod['organization'], 'GET', None, credentials, 'application/vnd.yang.data+json')
+                application.protocol + '://' + application.confd_ip + ':' + repr(application.confdPort) + '/api/config/catalog/modules/module/' + mod['name'] +
+                ',' + mod['revision'] + ',' + mod['organization'], 'GET', None, application.credentials, 'application/vnd.yang.data+json')
             read = json.loads(response.read())
 
             if read['yang-catalog:module'][
@@ -738,16 +778,16 @@ def delete_modules():
 
     path_to_delete = json.dumps(rpc['input'])
 
-    arguments = [protocol, confd_ip, repr(confdPort), credentials[0],
-                 credentials[1], path_to_delete, 'DELETE_MULTIPLE',
-                 api_protocol, repr(api_port)]
-    job_id = sender.send('#'.join(arguments))
+    arguments = [application.protocol, application.confd_ip, repr(application.confdPort), application.credentials[0],
+                 application.credentials[1], path_to_delete, 'DELETE_MULTIPLE',
+                 application.api_protocol, repr(application.api_port)]
+    job_id = application.sender.send('#'.join(arguments))
 
     LOGGER.info('job_id {}'.format(job_id))
     return make_response(jsonify({'info': 'Verification successful', 'job-id': job_id}), 202)
 
 
-@app.route('/vendors/<path:value>', methods=['DELETE'])
+@application.route('/vendors/<path:value>', methods=['DELETE'])
 @auth.login_required
 def delete_vendor(value):
     """Delete a specific vendor defined with path. This is not done right away but it
@@ -764,7 +804,7 @@ def delete_vendor(value):
     LOGGER.debug('Checking authorization for user {}'.format(username))
     accessRigths = None
     try:
-        db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
+        db = MySQLdb.connect(host=application.dbHost, db=application.dbName, user=application.dbUser, passwd=application.dbPass)
         # prepare a cursor object using cursor() method
         cursor = db.cursor()
         # execute SQL query using execute() method.
@@ -793,7 +833,7 @@ def delete_vendor(value):
         if len(rights) > 4:
             check_software_flavor = rights[4]
 
-    path_to_delete = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/vendors/' \
+    path_to_delete = application.protocol + '://' + application.confd_ip + ':' + repr(application.confdPort) + '/api/config/catalog/vendors/' \
                      + value + '?deep'
 
     vendor = 'None'
@@ -818,15 +858,15 @@ def delete_vendor(value):
     if check_vendor and vendor != check_vendor:
         return unauthorized()
 
-    arguments = [vendor, platform, software_version, software_flavor, protocol, confd_ip, repr(confdPort), credentials[0],
-                 credentials[1], path_to_delete, 'DELETE', api_protocol, repr(api_port)]
-    job_id = sender.send('#'.join(arguments))
+    arguments = [vendor, platform, software_version, software_flavor, application.protocol, application.confd_ip, repr(application.confdPort), application.credentials[0],
+                 application.credentials[1], path_to_delete, 'DELETE', application.api_protocol, repr(application.api_port)]
+    job_id = application.sender.send('#'.join(arguments))
 
     LOGGER.info('job_id {}'.format(job_id))
     return make_response(jsonify({'info': 'Verification successful', 'job-id': job_id}), 202)
 
 
-@app.route('/modules', methods=['PUT', 'POST'])
+@application.route('/modules', methods=['PUT', 'POST'])
 @auth.login_required
 def add_modules():
     """Add a new module. Use PUT request when we want to update every module there is
@@ -847,16 +887,16 @@ def add_modules():
 
     with open('./prepare-sdo.json', "w") as plat:
         json.dump(body, plat)
-    shutil.copy('./prepare-sdo.json', save_requests + '/sdo-'
+    shutil.copy('./prepare-sdo.json', application.save_requests + '/sdo-'
                 + str(datetime.utcnow()).split('.')[0].replace(' ', '_') + '-UTC.json')
     try:
-        http_request(protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/modules/',
-                     'DELETE', None, credentials, 'application/vnd.yang.collection+json')
+        http_request(application.protocol + '://' + application.confd_ip + ':' + repr(application.confdPort) + '/api/config/modules/',
+                     'DELETE', None, application.credentials, 'application/vnd.yang.collection+json')
     except:
         pass
-    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/modules'
+    path = application.protocol + '://' + application.confd_ip + ':' + repr(application.confdPort) + '/api/config/modules'
 
-    base64string = base64.b64encode('%s:%s' % (credentials[0], credentials[1]))
+    base64string = base64.b64encode('%s:%s' % (application.credentials[0], application.credentials[1]))
     response = requests.put(path, json.dumps(body), headers={'Authorization': 'Basic ' + base64string,
                                                              'Content-type': 'application/vnd.yang.data+json',
                                                              'Accept': 'application/vnd.yang.data+json'})
@@ -884,9 +924,9 @@ def add_modules():
         orgz = mod['organization']
         if request.method == 'POST':
             try:
-                path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/modules/module/' + \
+                path = application.protocol + '://' + application.confd_ip + ':' + repr(application.confdPort) + '/api/config/catalog/modules/module/' + \
                        mod['name'] + ',' + mod['revision'] + ',' + mod['organization']
-                http_request(path, 'GET', None, credentials, 'application/vnd.yang.data+json')
+                http_request(path, 'GET', None, application.credentials, 'application/vnd.yang.data+json')
                 continue
             except urllib2.HTTPError as e:
                 pass
@@ -896,7 +936,7 @@ def add_modules():
         LOGGER.debug('Cloning repository')
         if repo_url not in repo:
             repo[repo_url] = repoutil.RepoUtil(repo_url)
-            repo[repo_url].clone(config_name, config_email)
+            repo[repo_url].clone(application.config_name, application.config_email)
 
         for submodule in repo[repo_url].repo.submodules:
             submodule.update(init=True)
@@ -962,10 +1002,10 @@ def add_modules():
 
     LOGGER.debug('Sending a new job')
     arguments = ["python", "../parseAndPopulate/populate.py", "--sdo", "--port",
-                 repr(confdPort), "--dir", direc + "/temp", "--api", "--ip",
-                 confd_ip, "--credentials", credentials[0], credentials[1],
-                 repr(tree_created), protocol, api_protocol, repr(api_port)]
-    job_id = sender.send('#'.join(arguments))
+                 repr(application.confdPort), "--dir", direc + "/temp", "--api", "--ip",
+                 application.confd_ip, "--credentials", application.credentials[0], application.credentials[1],
+                 repr(tree_created), application.protocol, application.api_protocol, repr(application.api_port)]
+    job_id = application.sender.send('#'.join(arguments))
     LOGGER.info('job_id {}'.format(job_id))
     if len(warning) > 0:
         return jsonify({'info': 'Verification successful', 'job-id': job_id, 'warnings': [{'warning': val}
@@ -974,7 +1014,7 @@ def add_modules():
         return make_response(jsonify({'info': 'Verification successful', 'job-id': job_id}), 202)
 
 
-@app.route('/platforms', methods=['PUT', 'POST'])
+@application.route('/platforms', methods=['PUT', 'POST'])
 @auth.login_required
 def add_vendors():
     """Add a new vendors. Use PUT request when we want to update every module there is
@@ -995,18 +1035,18 @@ def add_vendors():
     resolved_authorization = authorize_for_vendors(request, body)
     if 'passed' != resolved_authorization:
         return resolved_authorization
-    with open(save_requests + '/vendor-' + str(datetime.utcnow()).split('.')[0].replace(' ', '_') +
+    with open(application.save_requests + '/vendor-' + str(datetime.utcnow()).split('.')[0].replace(' ', '_') +
               '-UTC.json', "w") as plat:
         json.dump(body, plat)
 
     try:
-        http_request(protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/platforms/',
-                     'DELETE', None, credentials, 'application/vnd.yang.collection+json')
+        http_request(application.protocol + '://' + application.confd_ip + ':' + repr(application.confdPort) + '/api/config/platforms/',
+                     'DELETE', None, application.credentials, 'application/vnd.yang.collection+json')
     except:
         pass
-    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/platforms'
+    path = application.protocol + '://' + application.confd_ip + ':' + repr(application.confdPort) + '/api/config/platforms'
 
-    base64string = base64.b64encode('%s:%s' % (credentials[0], credentials[1]))
+    base64string = base64.b64encode('%s:%s' % (application.credentials[0], application.credentials[1]))
     response = requests.put(path, json.dumps(body), headers={'Authorization': 'Basic ' + base64string,
                                                              'Content-type': 'application/vnd.yang.data+json',
                                                              'Accept': 'application/vnd.yang.data+json'})
@@ -1041,7 +1081,7 @@ def add_vendors():
 
         if repo_url not in repo:
             repo[repo_url] = repoutil.RepoUtil(repo_url)
-            repo[repo_url].clone(config_name, config_email)
+            repo[repo_url].clone(application.config_name, application.config_email)
 
         for submodule in repo[repo_url].repo.submodules:
             submodule.update(init=True)
@@ -1067,16 +1107,16 @@ def add_vendors():
     for key in repo:
         repo[key].remove()
     arguments = ["python", "../parseAndPopulate/populate.py", "--port",
-                 repr(confdPort), "--dir", direc + "/temp", "--api", "--ip",
-                 confd_ip, "--credentials", credentials[0], credentials[1],
-                 repr(tree_created), integrity_file_location, protocol,
-                 api_protocol, repr(api_port)]
-    job_id = sender.send('#'.join(arguments))
+                 repr(application.confdPort), "--dir", direc + "/temp", "--api", "--ip",
+                 application.confd_ip, "--credentials", application.credentials[0], application.credentials[1],
+                 repr(tree_created), application.integrity_file_location, application.protocol,
+                 application.api_protocol, repr(application.api_port)]
+    job_id = application.sender.send('#'.join(arguments))
     LOGGER.info('job_id {}'.format(job_id))
     return make_response(jsonify({'info': 'Verification successful', 'job-id': job_id}), 202)
 
 
-@app.route('/index/search', methods=['POST'])
+@application.route('/index/search', methods=['POST'])
 def index_search():
     """Search through the YANG keyword index for a given search pattern.
        The arguments are a payload specifying search options and filters.
@@ -1090,7 +1130,7 @@ def index_search():
     try:
         search_res = index.do_search(json.dumps(payload))
         res = []
-        rest = Rester(yangcatalog_api_prefix)
+        rest = Rester(application.yangcatalog_api_prefix)
         rejects = {}
         not_founds = {}
 
@@ -1152,7 +1192,7 @@ def index_search():
         return make_response(jsonify({'error': str(e)}), 500)
 
 
-@app.route('/search/<path:value>', methods=['GET'])
+@application.route('/search/<path:value>', methods=['GET'])
 def search(value):
     """Search for a specific leaf from yang-catalog.yang module in modules
     branch. The key searched is defined in @module_keys variable.
@@ -1195,7 +1235,7 @@ def search(value):
                     , mimetype='application/json', status=400)
 
 
-@app.route('/search-filter/<leaf>', methods=['POST'])
+@application.route('/search-filter/<leaf>', methods=['POST'])
 def rpc_search_get_one(leaf):
     rpc = request.json
     if rpc.get('input'):
@@ -1241,7 +1281,7 @@ def search_recursive(output, module, leaf):
         output.add(meta_data)
 
 
-@app.route('/services/tree/<f1>@<r1>.yang', methods=['GET'])
+@application.route('/services/tree/<f1>@<r1>.yang', methods=['GET'])
 def create_tree(f1, r1):
     try:
         os.makedirs(get_curr_dir(__file__) + '/temp')
@@ -1249,8 +1289,8 @@ def create_tree(f1, r1):
         # be happy if someone already created the path
         if e.errno != errno.EEXIST:
             return 'Server error - could not create directory'
-    path_to_yang = '{}{}@{}.yang'.format(save_file_dir, f1, r1)
-    arguments = ['pyang', '-p', save_file_dir, '-f', 'tree', path_to_yang]
+    path_to_yang = '{}{}@{}.yang'.format(application.save_file_dir, f1, r1)
+    arguments = ['pyang', '-p', application.save_file_dir, '-f', 'tree', path_to_yang]
     pyang = subprocess.Popen(arguments,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE)
@@ -1263,7 +1303,7 @@ def create_tree(f1, r1):
         return '<html><body><pre>{}</pre></body></html>'.format(stdout)
 
 
-@app.route('/services/reference/<f1>@<r1>.yang', methods=['GET'])
+@application.route('/services/reference/<f1>@<r1>.yang', methods=['GET'])
 def create_reference(f1, r1):
     try:
         os.makedirs(get_curr_dir(__file__) + '/temp')
@@ -1271,8 +1311,8 @@ def create_reference(f1, r1):
         # be happy if someone already created the path
         if e.errno != errno.EEXIST:
             return 'Server error - could not create directory'
-    schema1 = '{}{}@{}.yang'.format(save_file_dir, f1, r1)
-    arguments = ['pyang', '-p', save_file_dir, '-f', 'tree', schema1]
+    schema1 = '{}{}@{}.yang'.format(application.save_file_dir, f1, r1)
+    arguments = ['pyang', '-p', application.save_file_dir, '-f', 'tree', schema1]
     pyang = subprocess.Popen(arguments,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE)
@@ -1306,7 +1346,7 @@ def create_bootstrap_danger():
     return template
 
 
-@app.route('/services/file1=<f1>@<r1>/check-update-from/file2=<f2>@<r2>',
+@application.route('/services/file1=<f1>@<r1>/check-update-from/file2=<f2>@<r2>',
            methods=['GET'])
 def create_update_from(f1, r1, f2, r2):
     try:
@@ -1315,8 +1355,8 @@ def create_update_from(f1, r1, f2, r2):
         # be happy if someone already created the path
         if e.errno != errno.EEXIST:
             return 'Server error - could not create directory'
-    schema1 = '{}{}@{}.yang'.format(save_file_dir, f1, r1)
-    schema2 = '{}{}@{}.yang'.format(save_file_dir, f2, r2)
+    schema1 = '{}{}@{}.yang'.format(application.save_file_dir, f1, r1)
+    schema2 = '{}{}@{}.yang'.format(application.save_file_dir, f2, r2)
     arguments = ['pyang', '-P', get_curr_dir(__file__) + '/../../.', '-p',
                  get_curr_dir(__file__) + '/../../.',
                  schema1, '--check-update-from',
@@ -1328,7 +1368,7 @@ def create_update_from(f1, r1, f2, r2):
     return '<html><body><pre>{}</pre></body></html>'.format(stderr)
 
 
-@app.route('/services/diff-file/file1=<f1>@<r1>/file2=<f2>@<r2>',
+@application.route('/services/diff-file/file1=<f1>@<r1>/file2=<f2>@<r2>',
            methods=['GET'])
 def create_diff_file(f1, r1, f2, r2):
     try:
@@ -1337,34 +1377,34 @@ def create_diff_file(f1, r1, f2, r2):
         # be happy if someone already created the path
         if e.errno != errno.EEXIST:
             return 'Server error - could not create directory'
-    schema1 = '{}{}@{}.yang'.format(save_file_dir, f1, r1)
-    schema2 = '{}{}@{}.yang'.format(save_file_dir, f2, r2)
+    schema1 = '{}{}@{}.yang'.format(application.save_file_dir, f1, r1)
+    schema2 = '{}{}@{}.yang'.format(application.save_file_dir, f2, r2)
 
     arguments = ['cat', schema1]
     cat = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE)
     stdout, stderr = cat.communicate()
     file_name1 = 'schema1.txt'
-    with open('{}{}'.format(diff_file_dir, file_name1), 'w+') as f:
+    with open('{}{}'.format(application.diff_file_dir, file_name1), 'w+') as f:
         f.write('<pre>{}</pre>'.format(stdout))
     arguments = ['cat', schema2]
     cat = subprocess.Popen(arguments, stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE)
     stdout, stderr = cat.communicate()
     file_name2 = 'schema2.txt'
-    with open('{}{}'.format(diff_file_dir, file_name2), 'w+') as f:
+    with open('{}{}'.format(application.diff_file_dir, file_name2), 'w+') as f:
         f.write('<pre>{}</pre>'.format(stdout))
     tree1 = 'https://yangcatalog.org/compatibility/{}'.format(file_name1)
     tree2 = 'https://yangcatalog.org/compatibility/{}'.format(file_name2)
     diff_url = ('https://www.ietf.org/rfcdiff/rfcdiff.pyht?url1={}&url2={}'
                 .format(tree1, tree2))
     response = requests.get(diff_url)
-    os.remove(diff_file_dir + '/' + file_name1)
-    os.remove(diff_file_dir + '/' + file_name2)
+    os.remove(application.diff_file_dir + '/' + file_name1)
+    os.remove(application.diff_file_dir + '/' + file_name2)
     return '<html><body>{}</body></html>'.format(response.content)
 
 
-@app.route('/services/diff-tree/file1=<f1>@<r1>/file2=<f2>@<r2>', methods=['GET'])
+@application.route('/services/diff-tree/file1=<f1>@<r1>/file2=<f2>@<r2>', methods=['GET'])
 def create_diff_tree(f1, r1, f2, r2):
     try:
         os.makedirs(get_curr_dir(__file__) + '/temp')
@@ -1372,36 +1412,36 @@ def create_diff_tree(f1, r1, f2, r2):
         # be happy if someone already created the path
         if e.errno != errno.EEXIST:
             return 'Server error - could not create directory'
-    schema1 = '{}{}@{}.yang'.format(save_file_dir, f1, r1)
-    schema2 = '{}{}@{}.yang'.format(save_file_dir, f2, r2)
+    schema1 = '{}{}@{}.yang'.format(application.save_file_dir, f1, r1)
+    schema2 = '{}{}@{}.yang'.format(application.save_file_dir, f2, r2)
 
-    arguments = ['pyang', '-p', save_file_dir, '-f', 'tree', schema1]
+    arguments = ['pyang', '-p', application.save_file_dir, '-f', 'tree', schema1]
     pyang = subprocess.Popen(arguments,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE)
     stdout, stderr = pyang.communicate()
     file_name1 = 'schema1.txt'
-    with open('{}{}'.format(diff_file_dir, file_name1), 'w+') as f:
+    with open('{}{}'.format(application.diff_file_dir, file_name1), 'w+') as f:
         f.write('<pre>{}</pre>'.format(stdout))
-    arguments = ['pyang', '-p', save_file_dir, '-f', 'tree', schema2]
+    arguments = ['pyang', '-p', application.save_file_dir, '-f', 'tree', schema2]
     pyang = subprocess.Popen(arguments,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE)
     stdout, stderr = pyang.communicate()
     file_name2 = 'schema2.txt'
-    with open('{}{}'.format(diff_file_dir, file_name2), 'w+') as f:
+    with open('{}{}'.format(application.diff_file_dir, file_name2), 'w+') as f:
         f.write('<pre>{}</pre>'.format(stdout))
     tree1 = 'https://yangcatalog.org/compatibility/{}'.format(file_name1)
     tree2 = 'https://yangcatalog.org/compatibility/{}'.format(file_name2)
     diff_url = ('https://www.ietf.org/rfcdiff/rfcdiff.pyht?url1={}&url2={}'
                 .format(tree1, tree2))
     response = requests.get(diff_url)
-    os.remove(diff_file_dir + '/' + file_name1)
-    os.remove(diff_file_dir + '/' + file_name2)
+    os.remove(application.diff_file_dir + '/' + file_name1)
+    os.remove(application.diff_file_dir + '/' + file_name2)
     return '<html><body>{}</body></html>'.format(response.content)
 
 
-@app.route('/get-common', methods=['POST'])
+@application.route('/get-common', methods=['POST'])
 def get_common():
     body = request.json
     if body is None:
@@ -1444,7 +1484,7 @@ def get_common():
                     mimetype='application/json')
 
 
-@app.route('/check-semantic-version', methods=['POST'])
+@application.route('/check-semantic-version', methods=['POST'])
 def check_semver():
     body = request.json
     if body is None:
@@ -1504,7 +1544,7 @@ def check_semver():
                         reason = 'Newer module failed compilation'
                     else:
                         file_name = ('{}/services/file1={}@{}/check-update-from/file2={}@{}'
-                                     .format(yangcatalog_api_prefix, name_new,
+                                     .format(application.yangcatalog_api_prefix, name_new,
                                              revision_new, name_old,
                                              revision_old))
                         reason = ('pyang --check-update-from output: {}'.
@@ -1512,7 +1552,7 @@ def check_semver():
 
                         diff = (
                             '{}/services/diff-tree/file1={}@{}/file2={}@{}'.
-                                format(yangcatalog_api_prefix, name_old,
+                                format(application.yangcatalog_api_prefix, name_old,
                                        revision_old, name_new, revision_new))
 
                         output_mod['yang-module-pyang-tree-diff'] = diff
@@ -1525,7 +1565,7 @@ def check_semver():
                     output_mod['new-derived-semantic-version'] = semver_new
                     output_mod['derived-semantic-version-results'] = reason
                     diff = ('{}/services/diff-file/file1={}@{}/file2={}@{}'
-                            .format(yangcatalog_api_prefix, name_old,
+                            .format(application.yangcatalog_api_prefix, name_old,
                                     revision_old, name_new, revision_new))
                     output_mod['yang-module-diff'] = diff
                     output_modules_list.append(output_mod)
@@ -1535,7 +1575,7 @@ def check_semver():
     return make_response(jsonify(output), 200)
 
 
-@app.route('/search-filter', methods=['POST'])
+@application.route('/search-filter', methods=['POST'])
 def rpc_search(body=None):
     if body is None:
         body = request.json
@@ -1915,7 +1955,7 @@ def rpc_search(body=None):
             400)
 
 
-@app.route('/search/vendors/<path:value>', methods=['GET'])
+@application.route('/search/vendors/<path:value>', methods=['GET'])
 def search_vendors(value):
     """Search for a specific vendor, platform, os-type, os-version depending on
     the value sent via API.
@@ -1925,8 +1965,8 @@ def search_vendors(value):
                 :return response to the request.
     """
     LOGGER.info('Searching for specific vendors {}'.format(value))
-    path = protocol + '://' + confd_ip + ':' + repr(confdPort) + '/api/config/catalog/vendors/' + value + '?deep'
-    data = requests.get(path, auth=(credentials[0], credentials[1]),
+    path = application.protocol + '://' + application.confd_ip + ':' + repr(application.confdPort) + '/api/config/catalog/vendors/' + value + '?deep'
+    data = requests.get(path, auth=(application.credentials[0], application.credentials[1]),
                         headers={'Accept': 'application/vnd.yang.data+json'})
     if data.status_code == 200 or data.status_code == 204:
         data = json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
@@ -1936,7 +1976,7 @@ def search_vendors(value):
         return not_found()
 
 
-@app.route('/search/modules/<name>,<revision>,<organization>', methods=['GET'])
+@application.route('/search/modules/<name>,<revision>,<organization>', methods=['GET'])
 def search_module(name, revision, organization):
     """Search for a specific module defined with name, revision and organization
             Arguments:
@@ -1967,7 +2007,7 @@ def search_module(name, revision, organization):
         return not_found()
 
 
-@app.route('/search/modules', methods=['GET'])
+@application.route('/search/modules', methods=['GET'])
 def get_modules():
     """Search for a all the modules populated in confd
             :return response to the request with all the modules
@@ -1978,7 +2018,7 @@ def get_modules():
         return Response(json.dumps(modules_data(active_cache[1])), mimetype='application/json')
 
 
-@app.route('/search/vendors', methods=['GET'])
+@application.route('/search/vendors', methods=['GET'])
 def get_vendors():
     """Search for a all the vendors populated in confd
             :return response to the request with all the vendors
@@ -1989,7 +2029,7 @@ def get_vendors():
         return Response(json.dumps(vendors_data(active_cache[1])), mimetype='application/json')
 
 
-@app.route('/search/catalog', methods=['GET'])
+@application.route('/search/catalog', methods=['GET'])
 def get_catalog():
     """Search for a all the data populated in confd
                 :return response to the request with all the data
@@ -2004,13 +2044,13 @@ def get_catalog():
         return Response(json.dumps(data), mimetype='application/json')
 
 
-@app.route('/job/<job_id>', methods=['GET'])
+@application.route('/job/<job_id>', methods=['GET'])
 def get_job(job_id):
     """Search for a job_id to see the process of the job
                 :return response to the request with the job
     """
     LOGGER.info('Searching for job_id {}'.format(job_id))
-    result = sender.get_response(job_id)
+    result = application.sender.get_response(job_id)
     split = result.split('#split#')
 
     reason = None
@@ -2024,7 +2064,7 @@ def get_job(job_id):
                     })
 
 
-@app.route('/check-platform-metadata', methods=['POST'])
+@application.route('/check-platform-metadata', methods=['POST'])
 def trigger_populate():
     LOGGER.info('Trigger populate if necessary')
     try:
@@ -2049,14 +2089,14 @@ def trigger_populate():
         try:
             LOGGER.info('Cloning repo to local directory {}'
                         .format(repo.localdir))
-            repo.clone(config_name, config_email)
+            repo.clone(application.config_name, application.config_email)
             for path in paths:
                 arguments = ['python', repo.localdir + '/' +
                              'tools/parseAndPopulate/populate.py', '--ip',
                              'yangcatalog.org', '--api-ip', 'yangcatalog.org',
                              '--dir', repo.localdir + '/' + path,
-                             '--result-html-dir', result_dir, '--save-file-dir',
-                             save_file_dir]
+                             '--result-html-dir', application.result_dir, '--save-file-dir',
+                             application.save_file_dir]
                 with open("log_trigger.txt", "wr") as f:
                     subprocess.check_call(arguments, stderr=f)
         except:
@@ -2070,7 +2110,7 @@ def trigger_populate():
         return make_response(jsonify({'info': 'Success'}), 200)
 
 
-@app.route('/load-cache', methods=['POST'])
+@application.route('/load-cache', methods=['POST'])
 @auth.login_required
 def load_to_memory():
     """Load all the data populated to yang-catalog to memory.
@@ -2085,7 +2125,7 @@ def load_to_memory():
     return make_response(jsonify({'info': 'Success'}), 201)
 
 
-@app.route('/contributors', methods=['GET'])
+@application.route('/contributors', methods=['GET'])
 def get_organizations():
     orgs = set()
     active_cache = get_active_cache()
@@ -2150,18 +2190,17 @@ def load(on_change):
     if active_cache is None or on_change:
         # We should get here only if application was started for the first time (active_cache is None)
         # or if we need to reload cache (on_change == True)
-        while lock_uwsgi_cache2.locked():
-            time.sleep(1)
-            LOGGER.info("waiting for cache2 to be loaded")
-        with lock_uwsgi_cache1:
-            LOGGER.info('Loading cache 1')
-            load_uwsgi_cache('cache_chunks1', 'main_cache1', 'cache_modules1', on_change)
-            # reset active cache back to 1 since we are done with populating cache 1
-            uwsgi.cache_update('active_cache', '1', 0, 'cache_chunks1')
-        LOGGER.info('Loading cache 2')
-        with lock_uwsgi_cache2:
-            load_uwsgi_cache('cache_chunks2', 'main_cache2', 'cache_modules2', on_change)
-        LOGGER.info('Both caches are loaded')
+
+        with lock_for_load:
+            with lock_uwsgi_cache1:
+                LOGGER.info('Loading cache 1')
+                load_uwsgi_cache('cache_chunks1', 'main_cache1', 'cache_modules1', on_change)
+                # reset active cache back to 1 since we are done with populating cache 1
+                uwsgi.cache_update('active_cache', '1', 0, 'cache_chunks1')
+            LOGGER.info('Loading cache 2')
+            with lock_uwsgi_cache2:
+                load_uwsgi_cache('cache_chunks2', 'main_cache2', 'cache_modules2', on_change)
+            LOGGER.info('Both caches are loaded')
     else:
         # if we need to get some data from api
         if active_cache[1] == '1':
@@ -2182,7 +2221,6 @@ def load(on_change):
 
 def load_uwsgi_cache(cache_chunks, main_cache, cache_modules, on_change):
     response = 'work'
-    data = ''
     initialized = uwsgi.cache_get('initialized', cache_chunks)
     LOGGER.debug('initialized {} on change {}'.format(initialized, on_change))
     if initialized is None or initialized == 'False' or on_change:
@@ -2193,14 +2231,10 @@ def load_uwsgi_cache(cache_chunks, main_cache, cache_modules, on_change):
             # set active cache to 2 until we work on cache 1
             uwsgi.cache_set('active_cache', '2', 0, 'cache_chunks1')
         uwsgi.cache_set('initialized', 'False', 0, cache_chunks)
-        response = make_cache(credentials, response, cache_chunks, main_cache, is_uwsgi=is_uwsgi)
+        response, data = make_cache(application.credentials, response, cache_chunks, main_cache, is_uwsgi=application.is_uwsgi)
 
-        chunks = int(uwsgi.cache_get('chunks-data', cache_chunks))
-        for i in range(0, chunks, 1):
-            data += uwsgi.cache_get('data{}'.format(i), main_cache)
         cat = \
-            json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
-                .decode(data)['yang-catalog:catalog']
+            json.loads(data)['yang-catalog:catalog']
         modules = cat['modules']
         if cat.get('vendors'):
             vendors = cat['vendors']
@@ -2287,7 +2321,7 @@ def get_password(username):
                 :return hashed password
     """
     try:
-        db = MySQLdb.connect(host=dbHost, db=dbName, user=dbUser, passwd=dbPass)
+        db = MySQLdb.connect(host=application.dbHost, db=application.dbName, user=application.dbUser, passwd=application.dbPass)
         # prepare a cursor object using cursor() method
         cursor = db.cursor()
 
@@ -2301,7 +2335,6 @@ def get_password(username):
                 return row[2]
         db.close()
         return None
-    # print row
 
     except MySQLdb.MySQLError as err:
         LOGGER.error('Cannot connect to database. MySQL error: {}'.format(err))
@@ -2313,76 +2346,4 @@ def unauthorized():
     return make_response(jsonify({'error': 'Unauthorized access'}), 401)
 
 
-def runit(env, start_response):
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config-path', type=str,
-                        default='../utility/config.ini',
-                        help='Set path to config file')
-    LOGGER.info('Loading all configuration')
-    args = parser.parse_args()
-    config_path = os.path.abspath('.') + '/' + args.config_path
-    config = ConfigParser.ConfigParser()
-    config.read(config_path)
-    global result_dir
-    result_dir = config.get('API-Section', 'result-html-dir')
-    global sender
-    sender = Sender()
-    global dbHost
-    dbHost = config.get('API-Section', 'dbIp')
-    global dbName
-    dbName = config.get('API-Section', 'dbName')
-    global dbUser
-    dbUser = config.get('API-Section', 'dbUser')
-    global dbPass
-    dbPass = config.get('API-Section', 'dbPassword')
-    global credentials
-    credentials = config.get('General-Section', 'credentials').split(' ')
-    global confd_ip
-    confd_ip = config.get('General-Section', 'confd-ip')
-    global confdPort
-    confdPort = int(config.get('General-Section', 'confd-port'))
-    global protocol
-    protocol = config.get('General-Section', 'protocol')
-    global save_requests
-    save_requests = config.get('API-Section', 'save-requests')
-    global save_file_dir
-    save_file_dir = config.get('API-Section', 'save-file-dir')
-    global token
-    token = config.get('API-Section', 'yang-catalog-token')
-    global admin_token
-    admin_token = config.get('API-Section', 'admin-token')
-    global commit_msg_file
-    commit_msg_file = config.get('API-Section', 'commit-dir')
-    global integrity_file_location
-    integrity_file_location = config.get('API-Section',
-                                         'integrity-file-location')
-    global diff_file_dir
-    diff_file_dir = config.get('API-Section', 'save-diff-dir')
-    global log
-    ip = config.get('API-Section', 'ip')
-    global api_port
-    api_port = int(config.get('General-Section', 'api-port'))
-    log = open('api_log_file.txt', 'w')
-    global api_protocol
-    api_protocol = config.get('General-Section', 'protocol-api')
-    global is_uwsgi
-    is_uwsgi = config.get('General-Section', 'uwsgi')
-    global config_name
-    config_name = config.get('General-Section', 'repo-config-name')
-    global config_email
-    config_email = config.get('General-Section', 'repo-config-email')
-    load(False)
-    global yangcatalog_api_prefix
-    separator = ':'
-    suffix = api_port
-    if is_uwsgi == 'True':
-        separator = '/'
-        suffix = 'api'
-    if ip == '0.0.0.0':
-        local_ip = 'yangcatalog.org'
-    else:
-        local_ip = ip
-    yangcatalog_api_prefix = '{}://{}{}{}/'.format(api_protocol, local_ip,
-                                                   separator, suffix)
-    LOGGER.debug('Starting api')
-    return app(env, start_response)
+load(False)
