@@ -36,7 +36,7 @@ class Sender:
         lines = f.readlines()
         f.close()
         for line in lines:
-            if correlation_id in line:
+            if correlation_id == line.split('- ')[1].strip():
                 return line.split('- ')[-1]
 
         return self.__response_type[3]

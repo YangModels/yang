@@ -50,8 +50,8 @@ if __name__ == "__main__":
                         help='Set ip address where the confd is started. Default -> 127.0.0.1')
     parser.add_argument('--api-port', default=8443, type=int,
                         help='Set port where the api is started. Default -> 8443')
-    parser.add_argument('--api-ip', default='127.0.0.1', type=str,
-                        help='Set ip address where the api is started. Default -> 127.0.0.1')
+    parser.add_argument('--api-ip', default='yangcatalog.org', type=str,
+                        help='Set ip address where the api is started. Default -> yangcatalog.org')
     parser.add_argument('--credentials', help='Set authorization parameters username password respectively.'
                                               ' Default parameters are admin admin', nargs=2, default=['admin', 'admin']
                         , type=str)
