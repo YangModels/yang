@@ -256,7 +256,7 @@ class Modules:
         yang_file = open(self.__path)
         for line in yang_file:
             if re.search('oc-ext:openconfig-version .*;', line):
-                self.semver = re.findall('\d.\d.\d', line).pop()
+                self.semver = re.findall('[0-9]+.[0-9]+.[0-9]+', line).pop()
         yang_file.close()
 
     def __resolve_imports(self):
