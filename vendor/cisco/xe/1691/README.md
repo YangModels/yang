@@ -173,3 +173,23 @@ Some models are not fully compliant with all IETF guidelines as exemplified by r
 ### Revision Statements
 
 Revision statements embedded in the YANG files **should** accurately reflect whether or not a new revision has been introduced.
+
+### Known Issues
+
+Below are some of the issues captured after running backward compatibility check with the previous release (16.8.1). These issues are being tracked and will be resolved in the upcoming release.
+
+* Cisco-IOS-XE-ospf.yang:2001: error: XPath function "compare" is not defined in the XPath context.
+* Cisco-IOS-XE-atm.yang:1: error: new revision 2017-02-07 is not newer than old revision 2017-02-07 (RFC 6020: 10, p2)
+* Cisco-IOS-XE-common-types.yang:1: error: new revision 2017-12-01 is not newer than old revision 2017-12-01 (RFC 6020: 10, p2)
+* Cisco-IOS-XE-device-tracking.yang:1: error: new revision 2017-06-07 is not newer than old revision 2017-06-07 (RFC 6020: 10, p2)
+* Cisco-IOS-XE-dot1x.yang:1: error: new revision 2017-11-27 is not newer than old revision 2017-11-27 (RFC 6020: 10, p2)
+* Cisco-IOS-XE-http.yang:1: error: new revision 2018-01-24 is not newer than old revision 2018-01-24 (RFC 6020: 10, p2)
+* openconfig-aaa-tacacs.yang:1: error: new revision 2017-09-18 is not newer than old revision 2017-09-18 (RFC 6020: 10, p2)
+* openconfig-aaa-types.yang:1: error: new revision 2017-09-18 is not newer than old revision 2017-09-18 (RFC 6020: 10, p2)
+* openconfig-inet-types.yang:1: error: new revision 2017-08-24 is not newer than old revision 2017-08-24 (RFC 6020: 10, p2)
+* cisco-routing-ext.yang:1: error: new revision 2016-07-09 is not newer than old revision 2016-07-09 (RFC 6020: 10, p2)
+* cisco-xe-openconfig-bgp-deviation.yang:1: error: new revision 2017-05-24 is not newer than old revision 2017-05-24 (RFC 6020: 10, p2)
+* cisco-xe-openconfig-bgp-policy-deviation.yang:1: error: new revision 2017-07-24 is not newer than old revision 2017-07-24 (RFC 6020: 10, p2)
+* cisco-xe-openconfig-routing-policy-deviation.yang:1: error: new revision 2017-03-30 is not newer than old revision 2017-03-30 (RFC 6020: 10, p2)
+
+
