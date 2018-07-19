@@ -98,7 +98,7 @@ def do_search(options):
             sql += ' OR '.join(queries)
             sql += ')'
 
-        sql += ' AND (mo.module = yi.module) GROUP BY yi.argument, yi.module, yi.revision'
+        sql += ' AND (mo.module = yi.module) GROUP BY yi.argument, yi.module, yi.revision,'
         sql += ' yi.organization, yi.path, yi.statement, yi.description, yi.properties'
         cur.execute(sql)
 
