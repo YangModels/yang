@@ -1,7 +1,7 @@
 from tools.utility import log
 from tools.utility.util import load_json_from_url, resolve_results
 
-LOGGER = log.get_logger('modules')
+LOGGER = log.get_logger('modules', '/home/miroslav/log/populate/yang.log')
 
 
 class LoadFiles:

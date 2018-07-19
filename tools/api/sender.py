@@ -5,7 +5,7 @@ import pika
 
 import tools.utility.log as log
 
-LOGGER = log.get_logger(__name__)
+LOGGER = log.get_logger(__name__, '/home/miroslav/log/api/yang.log')
 
 
 class Sender:

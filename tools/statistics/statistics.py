@@ -15,9 +15,8 @@ import time
 
 import tools.utility.log as log
 from tools.utility import yangParser, repoutil
-from tools.utility.util import get_curr_dir
 
-LOGGER = log.get_logger('statistics')
+LOGGER = log.get_logger('statistics', '/home/miroslav/log/jobs/yang.log')
 
 NS_MAP = {
     "http://cisco.com/ns/yang/": "cisco",

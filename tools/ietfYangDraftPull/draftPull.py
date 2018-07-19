@@ -20,7 +20,7 @@ from tools.ietfYangDraftPull.draftPullLocal import check_name_no_revision_exist,
     check_early_revisions
 from tools.utility import repoutil, messageFactory
 
-LOGGER = log.get_logger('draftPull')
+LOGGER = log.get_logger('draftPull', '/home/miroslav/log/jobs/yang.log')
 
 
 def load_json_from_url(url):

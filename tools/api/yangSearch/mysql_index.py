@@ -1,4 +1,3 @@
-#import sqlite3
 import MySQLdb
 import MySQLdb.cursors
 import json
@@ -6,16 +5,17 @@ import re
 import tools.utility.log as lo
 
 LOGGER = lo.get_logger('sql')
-#DBF = '/var/yang/yang.db'
+# DBF = '/var/yang/yang.db'
 
-conn = MySQLdb.connect(host="localhost",    # your host, usually localhost
-                     user="yang",         # your username
-                     passwd="Y@ng3r123",  # your password
-                     db="yang")        # name of the data base
+conn = MySQLdb.connect(host="localhost",  # your host, usually localhost
+                       user="yang",  # your username
+                       passwd="Y@ng3r123",  # your password
+                       db="yang")  # name of the data base
 
 # you must create a Cursor object. It will let
 #  you execute all the queries you need
-cur = conn.cursor(cursorclass = MySQLdb.cursors.DictCursor)
+cur = conn.cursor(cursorclass=MySQLdb.cursors.DictCursor)
+
 
 # Use all the SQL you like
 # cur.execute("SELECT * FROM YOUR_TABLE_NAME")
@@ -32,6 +32,7 @@ def __mysql_regexp(pattern, buf, modifiers=re.I | re.S):
         return exp.search(buf) is not None
 
     return False
+
 
 __schema_types = [
     'typedef',
@@ -65,31 +66,24 @@ __node_data = {
 def do_search(options):
     opts = json.loads(options)
     try:
-        #conn = sqlite3.connect(DBF)
-        #db.row_factory = MySQLdb.
-        #conn.create_function('REGEXP', 2, __mysql_regexp)
-        #if 'case-sensitive' in opts and opts['case-sensitive']:
-        #    conn.execute('PRAGMA case_sensitive_like=ON')
-        #else:
-        #    conn.execute('PRAGMA case_sensitive_like=OFF')
-
         case_sensitivity = ''
         if 'case-sensitive' in opts and opts['case-sensitive']:
             case_sensitivity = 'BINARY '
 
-        sql = 'SELECT yi.*, MAX(mo.revision) AS latest_revision FROM yindex yi, modules mo WHERE ' + case_sensitivity
-#        qparams = {'descr': '%' + opts['search'] + '%'}
+        sql = 'SELECT yi.module, yi.revision, yi.organization, yi.path, yi.statement, yi.argument, '
+        sql += 'yi.description, yi.properties, MAX(mo.revision) AS latest_revision '
+        sql += 'FROM yindex yi, modules mo WHERE ' + case_sensitivity
         search_term = opts['search']
         sts = __search_fields
         if 'search-fields' in opts:
             sts = opts['search-fields']
 
         wclause = []
-        #if 'type' in opts and opts['type'] == 'regex':
+        # if 'type' in opts and opts['type'] == 'regex':
         #    for field in sts:
         #        if field in __search_fields:
         #            wclause.append('REGEXP(:descr, yi.{})'.format(field))
-        #else:
+        # else:
         for field in sts:
             if field in __search_fields:
                 wclause.append('yi.{} LIKE "%{}%"'.format(field, search_term))
@@ -104,21 +98,16 @@ def do_search(options):
             sql += ' OR '.join(queries)
             sql += ')'
 
-        sql += ' AND (mo.module = yi.module) GROUP BY yi.argument, yi.module, yi.revision'
-	LOGGER.info(sql)
+        sql += ' AND (mo.module = yi.module) GROUP BY yi.argument, yi.module, yi.revision,'
+        sql += ' yi.organization, yi.path, yi.statement, yi.description, yi.properties'
         cur.execute(sql)
 
         results = []
         filter_list = __node_data.keys()
         if 'filter' in opts and 'node' in opts['filter']:
             filter_list = opts['filter']['node']
-        LOGGER.info(cur)
         rows = cur.fetchall()
-        LOGGER.info('ROWS\n')
-        LOGGER.info(rows)
         for row in rows:
-            LOGGER.info('ROW\n')
-            LOGGER.info(row)
             module = {'latest_revision': row['latest_revision'], 'name': row[
                 'module'], 'revision': row['revision'], 'organization': row['organization']}
             result = {'module': module}
@@ -128,10 +117,8 @@ def do_search(options):
                     result['node'][nf] = row[__node_data[nf]]
 
             results.append(result)
-        
-        LOGGER.info(results)
+
         return results
     except MySQLdb.Error as e:
         raise Exception("Error searching for {}: {}".format(
             opts['search'], e.args[0]))
-

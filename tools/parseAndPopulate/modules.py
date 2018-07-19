@@ -74,7 +74,7 @@ github = 'https://github.com/'
 github_raw = 'https://raw.githubusercontent.com/'
 MISSING_ELEMENT = 'missing element'
 
-LOGGER = log.get_logger('modules')
+LOGGER = log.get_logger('modules', '/home/miroslav/log/populate/yang.log')
 
 
 class Modules:

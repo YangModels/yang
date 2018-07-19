@@ -8,7 +8,7 @@ import requests
 import tools.utility.log as log
 from tools.utility import repoutil, yangParser
 
-LOGGER = log.get_logger('openconfigPullLocal')
+LOGGER = log.get_logger('openconfigPullLocal', '/home/miroslav/log/jobs/yang.log')
 
 
 def resolve_revision(yang_file):
