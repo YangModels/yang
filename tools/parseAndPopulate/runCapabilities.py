@@ -12,7 +12,7 @@ import statistics
 import tools.utility.log as log
 from tools.utility.util import get_curr_dir
 
-LOGGER = log.get_logger('runCapabilities')
+LOGGER = log.get_logger('runCapabilities', '/home/miroslav/log/populate/yang.log')
 
 
 def find_missing_hello(directory, pattern):

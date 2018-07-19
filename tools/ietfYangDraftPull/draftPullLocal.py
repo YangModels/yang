@@ -14,7 +14,7 @@ import tools.utility.log as log
 from tools.utility import yangParser
 from tools.utility.util import get_curr_dir
 
-LOGGER = log.get_logger('draftPullLocal')
+LOGGER = log.get_logger('draftPullLocal', '/home/miroslav/log/jobs/yang.log')
 
 def get_latest_revision(f):
     stmt = yangParser.parse(f)

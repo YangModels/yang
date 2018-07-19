@@ -15,7 +15,7 @@ import tools.utility.log as log
 from tools.api.receiver import send_to_indexing
 from tools.parseAndPopulate.modulesComplicatedAlgorithms import ModulesComplicatedAlgorithms
 
-LOGGER = log.get_logger('populate')
+LOGGER = log.get_logger('populate', '/home/miroslav/log/populate/yang.log')
 
 
 def run_complicated_algorithms():

@@ -38,7 +38,7 @@ from tools.utility.util import get_curr_dir
 from yangSearch.module import Module
 from yangSearch.rester import Rester, RestException
 
-LOGGER = lo.get_logger('api')
+LOGGER = lo.get_logger('api', '/home/miroslav/log/api/yang.log')
 url = 'https://github.com/'
 
 github_api_url = 'https://api.github.com'
@@ -2311,7 +2311,8 @@ def load_uwsgi_cache(cache_chunks, main_cache, cache_modules, on_change):
         response, data = make_cache(application.credentials, response, cache_chunks, main_cache, is_uwsgi=application.is_uwsgi)
 
         cat = \
-            json.loads(data)['yang-catalog:catalog']
+            json.JSONDecoder(object_pairs_hook=collections.OrderedDict) \
+                .decode(data)['yang-catalog:catalog']
         modules = cat['modules']
         if cat.get('vendors'):
             vendors = cat['vendors']
@@ -2421,8 +2422,6 @@ def get_password(username):
 def unauthorized():
     """Return unathorized error message"""
     return make_response(jsonify({'error': 'Unauthorized access'}), 401)
-
-
 
 
 load(False)

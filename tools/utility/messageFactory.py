@@ -8,7 +8,7 @@ from ciscosparkapi import CiscoSparkAPI
 
 import tools.utility.log as lo
 
-LOGGER = lo.get_logger('Messaging')
+LOGGER = lo.get_logger('Messaging', '/home/miroslav/log/messaging/yang.log')
 GREETINGS = 'Hello from yang-catalog'
 
 

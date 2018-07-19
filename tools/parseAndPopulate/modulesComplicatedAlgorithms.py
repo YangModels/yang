@@ -7,7 +7,7 @@ import requests
 from tools.utility import log
 from tools.utility.util import get_curr_dir, find_first_file
 
-LOGGER = log.get_logger(__file__)
+LOGGER = log.get_logger(__file__, '/home/miroslav/log/populate/yang.log')
 
 
 class ModulesComplicatedAlgorithms:

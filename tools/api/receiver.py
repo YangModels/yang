@@ -20,7 +20,7 @@ from tools.parseAndPopulate.modulesComplicatedAlgorithms import ModulesComplicat
 from tools.utility import messageFactory
 from tools.utility.util import get_curr_dir
 
-LOGGER = log.get_logger('receiver')
+LOGGER = log.get_logger('receiver', '/home/miroslav/log/api/yang.log')
 
 
 # Make a http request on path with json_data
@@ -460,7 +460,7 @@ def make_cache(credentials, response):
     except:
         e = sys.exc_info()[0]
         LOGGER.error('Could not load json to memory-cache. Error: {}'.format(e))
-        return __response_type[0] + '#split#Server error - loading to memory'
+        return __response_type[0] + '#split#Server error-> loading to memory'
     return response
 
 
