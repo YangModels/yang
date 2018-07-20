@@ -62,6 +62,7 @@ class MyFlask(Flask):
         self.sender = Sender()
         self.dbHost = config.get('API-Section', 'dbIp')
         self.dbName = config.get('API-Section', 'dbName')
+        self.dbNameSearch = config.get('API-Section', 'dbNameSearch')
         self.dbUser = config.get('API-Section', 'dbUser')
         self.dbPass = config.get('API-Section', 'dbPassword')
         self.credentials = config.get('General-Section', 'credentials').split(' ')
@@ -76,7 +77,7 @@ class MyFlask(Flask):
         self.integrity_file_location = config.get('API-Section',
                                              'integrity-file-location')
         self.diff_file_dir = config.get('API-Section', 'save-diff-dir')
-        ip = config.get('API-Section', 'ip')
+        self.ip = config.get('API-Section', 'ip')
         self.api_port = int(config.get('General-Section', 'api-port'))
         self.log = open('api_log_file.txt', 'w')
         self.api_protocol = config.get('General-Section', 'protocol-api')
@@ -88,10 +89,6 @@ class MyFlask(Flask):
         if self.is_uwsgi == 'True':
             separator = '/'
             suffix = 'api'
-        if ip == '0.0.0.0':
-            local_ip = 'yangcatalog.org'
-        else:
-            local_ip = ip
         self.yangcatalog_api_prefix = '{}://{}{}{}/'.format(self.api_protocol, local_ip,
                                                        separator, suffix)
         LOGGER.debug('Starting api')
@@ -1205,7 +1202,9 @@ def slow_search():
     if 'search' not in payload:
         return make_response(jsonify({'error': 'You must specify a "search" argument'}), 400)
     try:
-        search_res = ind.do_search(json.dumps(payload))
+        search_res = ind.do_search(json.dumps(payload), application.dbHost,
+                                   application.dbNameSearch, application.dbPass,
+                                   application.dbUser)
         res = []
         rest = Rester(application.yangcatalog_api_prefix)
         rejects = {}
@@ -2145,42 +2144,46 @@ def get_job(job_id):
 def trigger_populate():
     LOGGER.info('Trigger populate if necessary')
     try:
-        body = request.json
+        commits = request.json['commits']
         paths = []
-        added = body.get('added')
         new = []
         mod = []
-        for add in added:
-            if 'platform-metadata.json' in add:
-                paths.append('/'.join(add.split('/')[:-1]))
-                new.append('/'.join(add.split('/')[:-1]))
-        modified = body.get('modified')
-        for m in modified:
-            if 'platform-metadata.json' in m:
-                paths.append('/'.join(m.split('/')[:-1]))
-                mod.append('/'.join(m.split('/')[:-1]))
+        if commits:
+            for commit in commits:
+                added = commit.get('added')
+                if added:
+                    for add in added:
+                        if 'platform-metadata.json' in add:
+                            paths.append('/'.join(add.split('/')[:-1]))
+                            new.append('/'.join(add.split('/')[:-1]))
+                modified = commit.get('modified')
+                if modified:
+                    for m in modified:
+                        if 'platform-metadata.json' in m:
+                            paths.append('/'.join(m.split('/')[:-1]))
+                            mod.append('/'.join(m.split('/')[:-1]))
         mf = messageFactory.MessageFactory()
         mf.send_new_modified_platform_metadata(new, mod)
         LOGGER.info('Forking the repo')
         repo = repoutil.RepoUtil('https://github.com/YangModels/yang.git')
         try:
-            LOGGER.info('Cloning repo to local directory {}'
-                        .format(repo.localdir))
             repo.clone(application.config_name, application.config_email)
+            LOGGER.info('Cloned repo to local directory {}'
+                        .format(repo.localdir))
             for path in paths:
-                arguments = ['python', repo.localdir + '/' +
-                             'tools/parseAndPopulate/populate.py', '--ip',
-                             'yangcatalog.org', '--api-ip', 'yangcatalog.org',
-                             '--dir', repo.localdir + '/' + path,
-                             '--result-html-dir', application.result_dir, '--save-file-dir',
-                             application.save_file_dir]
-                with open("log_trigger.txt", "wr") as f:
-                    subprocess.check_call(arguments, stderr=f)
+                arguments = ["python", repo.localdir + "/" +
+                             "tools/parseAndPopulate/populate.py", "--port", repr(application.confdPort), "--ip",
+                             application.confd_ip, "--api-protocol", application.api_protocol, "--api-port",
+                             repr(application.api_port), "--api-ip", application.ip,
+                             "--dir", repo.localdir + "/" + path, "--result-html-dir", application.result_dir,
+                             "--credentials", application.credentials[0], application.credentials[1],
+                             "--save-file-dir", application.save_file_dir, "repoLocalDir"]
+                arguments = arguments + paths + [repo.localdir, "github"]
+                application.sender.send("#".join(arguments))
         except:
             LOGGER.error('Could not populate after git push')
             repo.remove()
             return make_response(jsonify({'info': 'Success'}), 200)
-        repo.remove()
         return make_response(jsonify({'info': 'Success'}), 200)
     except Exception as e:
         LOGGER.error('Automated github webhook failure - {}'.format(e.message))
