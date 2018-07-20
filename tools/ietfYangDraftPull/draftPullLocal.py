@@ -14,7 +14,7 @@ import tools.utility.log as log
 from tools.utility import yangParser
 from tools.utility.util import get_curr_dir
 
-LOGGER = log.get_logger('draftPullLocal')
+LOGGER = log.get_logger('draftPullLocal', '/home/miroslav/log/jobs/yang.log')
 
 def get_latest_revision(f):
     stmt = yangParser.parse(f)
@@ -82,7 +82,7 @@ def check_early_revisions(directory):
                     except Exception:
                         LOGGER.error('Failed to process revision for {}: (rev: {})'.format(f2, revision))
         if len(revisions) == 0:
-            return
+            continue
         latest = revisions.index(max(revisions))
         files_to_delete.remove(files_to_delete[latest])
         for fi in files_to_delete:

@@ -70,7 +70,7 @@ if __name__ == '__main__':
     parser.add_argument('--credentials',
                         help='Set authorization parameters username password respectively.'
                              ' Default parameters are admin admin', nargs=2,
-                        default=['admin', 'Y@ng_adm1n->(paSS)'], type=str)
+                        default=['admin', 'admin'], type=str)
     parser.add_argument('--api-protocol', type=str, default='https',
                         help='Whether api runs on http or https.'
                              ' Default is set to http')

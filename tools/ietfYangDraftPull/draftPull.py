@@ -19,9 +19,8 @@ import tools.utility.log as log
 from tools.ietfYangDraftPull.draftPullLocal import check_name_no_revision_exist, \
     check_early_revisions
 from tools.utility import repoutil, messageFactory
-from tools.utility.util import get_curr_dir
 
-LOGGER = log.get_logger('draftPull')
+LOGGER = log.get_logger('draftPull', '/home/miroslav/log/jobs/yang.log')
 
 
 def load_json_from_url(url):
@@ -109,10 +108,7 @@ if __name__ == "__main__":
     tar.close()
     diff_files = []
     new_files = []
-    check_name_no_revision_exist(
-        repo.localdir + '/standard/ietf/RFCtemp/')
-    check_early_revisions(
-        repo.localdir + '/standard/ietf/RFCtemp/')
+
     for root, subdirs, sdos in os.walk(
                     repo.localdir + '/standard/ietf/RFCtemp'):
         for file_name in sdos:

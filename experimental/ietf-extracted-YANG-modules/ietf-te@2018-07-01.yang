@@ -1,0 +1,1577 @@
+module ietf-te {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-te";
+
+  /* Replace with IANA when assigned */
+  prefix "te";
+
+  /* Import TE generic types */
+  import ietf-te-types {
+    prefix te-types;
+  }
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  organization
+    "IETF Traffic Engineering Architecture and Signaling (TEAS)
+     Working Group";
+
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/teas/>
+     WG List:  <mailto:teas@ietf.org>
+
+     WG Chair: Lou Berger
+               <mailto:lberger@labn.net>
+
+     WG Chair: Vishnu Pavan Beeram
+               <mailto:vbeeram@juniper.net>
+
+     Editor:   Tarek Saad
+               <mailto:tsaad@cisco.com>
+
+     Editor:   Rakesh Gandhi
+               <mailto:rgandhi@cisco.com>
+
+     Editor:   Vishnu Pavan Beeram
+               <mailto:vbeeram@juniper.net>
+
+     Editor:   Himanshu Shah
+               <mailto:hshah@ciena.com>
+
+     Editor:   Xufeng Liu
+               <mailto:Xufeng_Liu@jabil.com>
+
+     Editor:   Igor Bryskin
+               <mailto:Igor.Bryskin@huawei.com>";
+
+  description
+    "YANG data module for TE configuration,
+    state, RPC and notifications.";
+
+  revision "2018-07-01" {
+    description "Latest update to TE generic YANG module.";
+    reference "TBA";
+  }
+
+  typedef tunnel-ref {
+    type leafref {
+      path "/te:te/te:tunnels/te:tunnel/te:name";
+    }
+    description
+      "This type is used by data models that need to reference
+       configured TE tunnel.";
+  }
+
+  typedef path-ref {
+    type union {
+      type leafref {
+        path "/te:te/te:tunnels/te:tunnel/" +
+              "te:p2p-primary-paths/te:p2p-primary-path/te:name";
+      }
+      type leafref {
+        path "/te:te/te:tunnels/te:tunnel/" +
+             "te:p2p-secondary-paths/te:p2p-secondary-path/te:name";
+      }
+    }
+    description
+      "This type is used by data models that need to reference
+       configured primary or secondary path of a TE tunnel.";
+  }
+
+  typedef tunnel-p2mp-ref {
+    type leafref {
+      path "/te:te/te:tunnels/te:tunnel-p2mp/te:name";
+    }
+    description
+      "This type is used by data models that need to reference
+       configured P2MP TE tunnel.";
+    reference "RFC4875";
+  }
+
+  /**
+   * TE tunnel generic groupings
+   */
+  grouping path-affinities-contents_config {
+    description
+      "Path affinities constraints grouping";
+    reference "RFC3630 and RFC5305";
+    leaf usage {
+      type identityref {
+        base te-types:resource-affinities-type;
+      }
+      description "Affinities usage";
+    }
+    choice style {
+      description
+        "Path affinities representation style";
+      case value {
+        leaf value {
+          type te-types:admin-groups;
+          description
+            "Bitmap indicating what bits are of significance";
+        }
+      }
+      case named {
+        list affinity-names {
+          key "name";
+          leaf name {
+            type string;
+            description "Affinity name";
+          }
+          description "List of named affinities";
+        }
+      }
+    }
+  }
+
+  grouping path-affinities {
+    description "Path affinities grouping";
+    reference "RFC 3209";
+    container path-affinities {
+      description "Path affinities container";
+      list constraints {
+        key "usage";
+        description "List of named affinity constraints";
+        uses path-affinities-contents_config;
+      }
+    }
+  }
+
+  grouping path-srlgs-values_config {
+    description "Path SRLG values properties grouping";
+    reference "RFC4203 and RFC5307";
+    leaf usage {
+      type identityref {
+        base te-types:route-exclude-srlg;
+      }
+      description "SRLG usage";
+    }
+    leaf-list values {
+      type te-types:srlg;
+      description "SRLG value";
+      reference "RFC4203 and RFC5307";
+    }
+  }
+
+  grouping path-srlgs {
+    description "Path SRLG properties grouping";
+    container path-srlgs {
+      description "Path SRLG properties container";
+      choice style {
+        description "Type of SRLG representation";
+        case values {
+          uses path-srlgs-values_config;
+        }
+        case named {
+          container constraints {
+            description "SRLG named constraints";
+            list constraint {
+              key "usage";
+              leaf usage {
+                type identityref {
+                  base te-types:route-exclude-srlg;
+                }
+                description "SRLG usage";
+              }
+              container constraint {
+                description "Container for named SRLG list";
+                list srlg-names {
+                  key "name";
+                  leaf name {
+                    type string;
+                    description "The SRLG name";
+                  }
+                  description "List named SRLGs";
+                }
+              }
+              description "List of named SRLG constraints";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  grouping p2p-reverse-primary-path-properties {
+    description "tunnel path properties.";
+    reference "RFC7551";
+    container p2p-reverse-primary-path {
+      description "Tunnel reverse primary path properties";
+      uses p2p-path-reverse-properties_config;
+      uses path-constraints-common_config;
+      container state {
+        config false;
+        description
+          "Configuration applied parameters and state";
+        uses p2p-path-properties_state;
+      }
+      container p2p-reverse-secondary-path {
+        description "Tunnel reverse secondary path properties";
+        uses p2p-reverse-path-candidate-secondary-path-config;
+      }
+    }
+  }
+
+  grouping p2p-secondary-path-properties {
+    description "tunnel path properties.";
+    uses p2p-path-properties_config;
+    uses path-constraints-common_config;
+    uses protection-restoration-params_config;
+    container state {
+      config false;
+      description
+        "Configuration applied parameters and state";
+      uses p2p-path-properties_state;
+    }
+  }
+
+  grouping p2p-primary-path-properties {
+    description
+      "TE tunnel primary path properties grouping";
+    uses p2p-path-properties_config;
+    uses path-constraints-common_config;
+    container state {
+      config false;
+      description
+        "Configuration applied parameters and state";
+      uses p2p-path-properties_state;
+    }
+  }
+
+  grouping path-properties_state {
+    description "Computed path properties grouping";
+    leaf metric-type {
+      type identityref {
+        base te-types:path-metric-type;
+      }
+      description "TE path metric type";
+    }
+    leaf accumulative-value {
+      type uint64;
+      description "TE path metric accumulative value";
+    }
+  }
+
+  grouping path-properties {
+    description "TE computed path properties grouping";
+    container path-properties {
+      description "The TE path computed properties";
+      list path-metric {
+        key metric-type;
+        description "TE path metric type";
+        leaf metric-type {
+          type leafref {
+            path "../state/metric-type";
+          }
+          description "TE path metric type";
+        }
+        container state {
+          config false;
+          description
+            "Configuration applied parameters and state";
+          uses path-properties_state;
+        }
+      }
+      uses path-affinities;
+      uses path-srlgs;
+      container path-route-objects {
+        description
+          "Container for the list of computed route objects
+           as returned by the computation engine";
+        list path-computed-route-object {
+          key index;
+          description
+            "List of computed route objects returned by the
+             computation engine";
+          leaf index {
+            type leafref {
+              path "../state/index";
+            }
+            description "Index of computed route object";
+          }
+          container state {
+            config false;
+            description
+              "Configuration applied parameters and state";
+            uses te-types:explicit-route-hop;
+          }
+        }
+      }
+      uses shared-resources-tunnels;
+    }
+  }
+
+  grouping p2p-path-properties_state {
+    description "TE per path state parameters";
+    uses path-properties {
+      description "The TE path computed properties";
+    }
+    container lsps {
+      description "TE LSPs container";
+      list lsp {
+        key
+          "source destination tunnel-id lsp-id "+
+          "extended-tunnel-id";
+        description "List of LSPs associated with the tunnel.";
+        uses lsp-properties_state;
+        uses shared-resources-tunnels_state;
+        uses lsp-record-route-information_state;
+        uses path-properties {
+          description "The TE path actual properties";
+        }
+      }
+    }
+  }
+
+  grouping p2p-path-properties-common_config {
+    description
+      "TE tunnel common path properties configuration grouping";
+    leaf name {
+      type string;
+      description "TE path name";
+    }
+    leaf path-setup-protocol {
+      type identityref {
+        base te-types:path-signaling-type;
+      }
+      description
+        "Signaling protocol used to set up this tunnel";
+    }
+    leaf path-computation-method {
+      type identityref {
+        base te-types:path-computation-method;
+      }
+      default te-types:path-locally-computed;
+      description
+        "The method used for computing the path, either
+        locally computed, queried from a server or not
+        computed at all (explicitly configured).";
+    }
+    leaf path-computation-server {
+      when "../path-computation-method = "+
+      "'te-types:path-externally-queried'" {
+        description
+          "The path-computation server when the path is
+           externally queried";
+      }
+      type inet:ip-address;
+      description
+        "Address of the external path computation
+         server";
+    }
+    leaf compute-only {
+      type empty;
+      description
+        "When set, the path is computed and updated whenever
+         the topology is updated. No resources are committed
+         or reserved in the network.";
+    }
+    leaf use-path-computation {
+      when "../path-computation-method =" +
+      " 'te-types:path-locally-computed'";
+      type boolean;
+      description "A CSPF dynamically computed path";
+    }
+    leaf lockdown {
+      type empty;
+      description
+        "Indicates no reoptimization to be attempted for
+         this path.";
+    }
+    leaf path-scope {
+      type identityref {
+        base te-types:path-scope-type;
+      }
+      default te-types:path-scope-end-to-end;
+      description "Path scope if segment or an end-to-end path";
+    }
+  }
+
+  grouping p2p-path-reverse-properties_config {
+    description
+      "TE tunnel reverse path properties configuration
+       grouping";
+    uses p2p-path-properties-common_config;
+    uses te-types:generic-path-optimization;
+    leaf named-path-constraint {
+      if-feature te-types:named-path-constraints;
+      type leafref {
+        path "../../../../../../globals/"
+        + "named-path-constraints/named-path-constraint/"
+        + "name";
+      }
+      description
+        "Reference to a globally defined named path
+        constraint set";
+    }
+  }
+
+  grouping p2p-path-properties_config {
+    description
+      "TE tunnel path properties configuration grouping";
+    uses p2p-path-properties-common_config;
+    uses te-types:generic-path-optimization;
+    leaf preference {
+      type uint8 {
+        range "1..255";
+      }
+      description
+        "Specifies a preference for this path. The lower the
+        number higher the preference";
+    }
+    leaf named-path-constraint {
+      if-feature te-types:named-path-constraints;
+      type leafref {
+        path "../../../../../globals/"
+        + "named-path-constraints/named-path-constraint/"
+        + "name";
+      }
+      description
+        "Reference to a globally defined named path
+        constraint set";
+    }
+  }
+
+  /* TE tunnel configuration data */
+  grouping tunnel-p2mp-params_config {
+    description
+      "Configuration parameters relating to TE tunnel";
+    leaf name {
+      type string;
+      description "TE tunnel name.";
+    }
+    leaf identifier {
+      type uint16;
+      description
+        "TE tunnel Identifier.";
+      reference "RFC 3209";
+    }
+    leaf description {
+      type string;
+      description
+        "Textual description for this TE tunnel";
+    }
+  }
+
+  grouping hierarchical-link_config {
+    description
+      "Hierarchical link configuration grouping";
+    reference "RFC4206";
+    leaf local-te-node-id {
+      type te-types:te-node-id;
+      description
+        "Local TE node identifier";
+    }
+    leaf local-te-link-tp-id {
+      type te-types:te-tp-id;
+      description
+        "Local TE link termination point identifier";
+    }
+    leaf remote-te-node-id {
+      type te-types:te-node-id;
+      description
+        "Remote TE node identifier";
+    }
+    uses te-types:te-topology-identifier;
+  }
+
+  grouping hierarchical-link {
+    description
+      "Hierarchical link grouping";
+    reference "RFC4206";
+    container hierarchical-link {
+      description
+        "Identifies a hierarchical link (in client layer)
+         that this tunnel is associated with.";
+      uses hierarchical-link_config;
+    }
+  }
+
+  grouping protection-restoration-params_state {
+    description
+      "Protection parameters grouping";
+    leaf lockout-of-normal {
+      type boolean;
+      description
+        "
+          When set to 'True', it represents a lockout of normal
+          traffic external command. When set to 'False', it
+          represents a clear lockout of normal traffic external
+          command. The lockout of normal traffic command applies
+          to this Tunnel.
+        ";
+      reference
+        "ITU-T G.808, RFC 4427";
+    }
+    leaf freeze {
+      type boolean;
+      description
+        "
+          When set to 'True', it represents a freeze external
+          command. When set to 'False', it represents a clear
+          freeze external command. The freeze command command
+          applies to all the Tunnels which are sharing the
+          protection resources with this Tunnel.
+        ";
+      reference
+        "ITU-T G.808, RFC 4427";
+    }
+    leaf lsp-protection-role {
+      type enumeration {
+        enum working {
+          description
+            "A working LSP must be a primary LSP whilst a protecting
+             LSP can be either a primary or a secondary LSP. Also,
+             known as protected LSPs when working LSPs are associated
+             with protecting LSPs.";
+        }
+        enum protecting {
+          description
+            "A secondary LSP is an LSP that has been provisioned
+             in the control plane only; e.g. resource allocation
+             has not been committed at the data plane";
+        }
+      }
+      description "LSP role type";
+      reference "rfc4872, section 4.2.1";
+    }
+
+    leaf lsp-protection-state {
+      type identityref {
+        base te-types:lsp-protection-state;
+      }
+      description
+        "The state of the APS state machine controlling which
+         tunnels is using the resources of the protecting LSP.";
+    }
+    leaf protection-group-ingress-node-id {
+      type te-types:te-node-id;
+      description
+        "Indicates the te-node-id of the protection group
+        ingress node when the APS state represents an extenal
+        command (LoP, SF, MS) applied to it or a WTR timer
+        running on it. If the external command is not applied to
+        the ingress node or the WTR timer is not running on it,
+        this attribute is not specified. If value 0.0.0.0 is used
+        when the te-node-id of the protection group ingress node is
+        unknown (e.g., because the ingress node is outside the scope
+        of control of the server)";
+    }
+    leaf protection-group-egress-node-id {
+      type te-types:te-node-id;
+      description
+        "Indicates the te-node-id of the protection group egress node
+        when the APS state represents an extenal command (LoP, SF,
+        MS) applied to it or a WTR timer running on it. If the
+        external command is not applied to the ingress node or
+        the WTR timer is not running on it, this attribute is not
+        specified. If value 0.0.0.0 is used when the te-node-id of
+        the protection group ingress node is unknown (e.g., because
+        the ingress node is outside the scope of control of the
+        server)";
+    }
+  }
+
+  grouping protection-restoration-params_config {
+    description "Protection and restoration parameters";
+    container protection {
+      description "Protection parameters";
+      leaf enable {
+        type boolean;
+        default 'false';
+        description
+          "A flag to specify if LSP protection is enabled";
+        reference "rfc4427";
+      }
+      leaf protection-type {
+        type identityref {
+          base te-types:lsp-protection-type;
+        }
+        description "LSP protection type.";
+      }
+      leaf protection-reversion-disable {
+        type boolean;
+        description "Disable protection reversion to working path";
+      }
+      leaf hold-off-time {
+        type uint32;
+        units "milli-seconds";
+        default 0;
+        description
+          "The time between the declaration of an SF or SD condition
+           and the initialization of the protection switching
+           algorithm.";
+        reference "rfc4427";
+      }
+      leaf wait-to-revert {
+        type uint16;
+        units seconds;
+        description
+         "Time to wait before attempting LSP reversion";
+        reference "rfc4427";
+      }
+      leaf aps-signal-id {
+        type uint8 {
+          range "1..255";
+        }
+        description
+          "The APS signal number used to reference the traffic of this
+           tunnel. The default value for normal traffic is 1.
+           The default value for extra-traffic is 255. If not specified,
+           non-default values can be assigned by the server,
+           if and only if, the server controls both endpoints.";
+        reference
+          "ITU-T G.808.1";
+      }
+    }
+    container restoration {
+      description "Restoration parameters";
+      leaf enable {
+        type boolean;
+        default 'false';
+        description
+          "A flag to specify if LSP restoration is enabled";
+        reference "rfc4427";
+      }
+      leaf restoration-type {
+        type identityref {
+          base te-types:lsp-restoration-type;
+        }
+        description "LSP restoration type.";
+      }
+      leaf restoration-scheme {
+        type identityref {
+          base te-types:restoration-scheme-type;
+        }
+        description "LSP restoration scheme.";
+      }
+      leaf restoration-reversion-disable {
+        type boolean;
+        description "Disable restoration reversion to working path";
+      }
+      leaf hold-off-time {
+        type uint32;
+        units "milli-seconds";
+        description
+          "The time between the declaration of an SF or SD condition
+           and the initialization of the protection switching
+           algorithm.";
+        reference "rfc4427";
+      }
+      leaf wait-to-restore {
+        type uint16;
+        units seconds;
+        description
+         "Time to wait before attempting LSP restoration";
+        reference "rfc4427";
+      }
+      leaf wait-to-revert {
+        type uint16;
+        units seconds;
+        description
+         "Time to wait before attempting LSP reversion";
+        reference "rfc4427";
+      }
+    }
+  }
+
+  grouping p2p-dependency-tunnels_config {
+    description
+      "Groupong for tunnel dependency list of tunnels";
+    container dependency-tunnels {
+      description "Dependency tunnels list";
+      list dependency-tunnel {
+        key "name";
+        description "Dependency tunnel entry";
+        leaf name {
+          type leafref {
+            path "../../../../../tunnels/tunnel/name";
+            require-instance false;
+          }
+          description "Dependency tunnel name";
+        }
+        leaf encoding {
+          type identityref {
+            base te-types:lsp-encoding-types;
+          }
+          description "LSP encoding type";
+          reference "RFC3945";
+        }
+        leaf switching-type {
+          type identityref {
+            base te-types:switching-capabilities;
+          }
+          description "LSP switching type";
+          reference "RFC3945";
+        }
+      }
+    }
+  }
+
+  grouping tunnel-p2p-params_config {
+    description
+      "Configuration parameters relating to TE tunnel";
+    leaf name {
+      type string;
+      description "TE tunnel name.";
+    }
+    leaf identifier {
+      type uint16;
+      description
+        "TE tunnel Identifier.";
+      reference "RFC3209";
+    }
+    leaf description {
+      type string;
+      description
+        "Textual description for this TE tunnel";
+    }
+    leaf encoding {
+      type identityref {
+        base te-types:lsp-encoding-types;
+      }
+      description "LSP encoding type";
+      reference "RFC3945";
+    }
+    leaf switching-type {
+      type identityref {
+        base te-types:switching-capabilities;
+      }
+      description "LSP switching type";
+      reference "RFC3945";
+    }
+    leaf provisioning-state {
+      type identityref {
+        base te-types:tunnel-state-type;
+      }
+      default te-types:tunnel-state-up;
+      description "TE tunnel administrative state.";
+    }
+    leaf preference {
+      type uint8 {
+        range "1..255";
+      }
+      description
+        "Specifies a preference for this tunnel.
+        A lower number signifies a better preference";
+    }
+    leaf reoptimize-timer {
+      type uint16;
+      units seconds;
+      description
+       "frequency of reoptimization of
+        a traffic engineered LSP";
+    }
+    leaf source {
+      type te-types:te-node-id;
+      description
+        "TE tunnel source node ID.";
+    }
+    leaf destination {
+      type te-types:te-node-id;
+      description
+        "TE tunnel destination node ID";
+    }
+    leaf src-tp-id {
+      type binary;
+      description
+        "TE tunnel source termination point identifier.";
+    }
+    leaf dst-tp-id {
+      type binary;
+      description
+        "TE tunnel destination termination point identifier.";
+    }
+    leaf bidirectional {
+      type boolean;
+      default 'false';
+      description "TE tunnel bidirectional";
+    }
+    uses tunnel-p2p-associations_config;
+    uses protection-restoration-params_config;
+    uses te-types:tunnel-constraints_config;
+    uses p2p-dependency-tunnels_config;
+    uses hierarchical-link;
+  }
+
+  grouping tunnel-p2p-associations_config {
+    description "TE tunnel association grouping";
+    container association-objects {
+      description "TE tunnel associations";
+      list association-object {
+        key "type ID source global-source";
+        description "List of association base objects";
+        reference "RFC4872";
+        leaf type {
+          type identityref {
+            base te-types:association-type;
+          }
+          description "Association type";
+          reference "RFC4872";
+        }
+        leaf ID {
+          type uint16;
+          description "Association ID";
+          reference "RFC4872";
+        }
+        leaf source {
+          type inet:ip-address;
+          description "Association source";
+          reference "RFC4872";
+        }
+        leaf global-source {
+          type inet:ip-address;
+          description "Association global source";
+          reference "RFC4872";
+        }
+      }
+      list association-object-extended {
+        key "type ID source global-source extended-ID";
+        description "List of extended association objects";
+        reference "RFC6780";
+        leaf type {
+          type identityref {
+            base te-types:association-type;
+          }
+          description "Association type";
+        }
+        leaf ID {
+          type uint16;
+          description "Association ID";
+          reference "RFC4872";
+        }
+        leaf source {
+          type inet:ip-address;
+          description "Association source";
+        }
+        leaf global-source {
+          type inet:ip-address;
+          description "Association global source";
+          reference "RFC4872";
+        }
+        leaf extended-ID {
+          type binary;
+          description "Association extended ID";
+          reference "RFC4872";
+        }
+      }
+    }
+  }
+
+  grouping tunnel-p2p-params_state {
+    description
+      "State parameters relating to TE tunnel";
+    leaf operational-state {
+      type identityref {
+        base te-types:tunnel-state-type;
+      }
+      default te-types:tunnel-state-up;
+      description "TE tunnel administrative state.";
+    }
+  }
+
+  grouping access-segment-info {
+    description
+      "info related to a segment";
+    container forward {
+      description
+        "for the forward direction of this tunnel";
+      uses te-types:label-set-info;
+    }
+    container reverse {
+      description
+        "for the reverse direction of this tunnel";
+        uses te-types:label-set-info;
+    }
+  }
+
+  grouping path-access-segment-info {
+    description
+      "If an end-to-end tunnel crosses multiple domains using
+       the same technology, some additional constraints have to be
+       taken in consideration in each domain";
+    container path-in-segment {
+      presence
+        "The end-to-end tunnel starts in a previous domain;
+         this tunnel is a segment in the current domain.";
+      description
+        "This tunnel is a segment that needs to be coordinated
+         with previous segment stitched on head-end side.";
+      uses access-segment-info;
+    }
+    container path-out-segment {
+      presence
+        "The end-to-end tunnel is not terminated in this domain;
+         this tunnel is a segment in the current domain.";
+      description
+        "This tunnel is a segment that needs to be coordinated
+         with previous segment stitched on head-end side.";
+      uses access-segment-info;
+    }
+  }
+
+  /* TE tunnel configuration/state grouping */
+  grouping tunnel-p2mp-properties {
+    description
+      "Top level grouping for P2MP tunnel properties.";
+    uses tunnel-p2mp-params_config;
+    container state {
+      config false;
+      description
+        "Configuration applied parameters and state";
+      leaf operational-state {
+        type identityref {
+          base te-types:tunnel-state-type;
+        }
+        default te-types:tunnel-state-up;
+        description "TE tunnel administrative state.";
+      }
+    }
+  }
+
+  grouping p2p-path-candidate-secondary-path-config {
+    description
+      "Configuration parameters relating to a secondary path which
+      is a candidate for a particular primary path";
+
+    leaf secondary-path {
+      type leafref {
+        path "../../../../../p2p-secondary-paths/" +
+             "p2p-secondary-path/name";
+      }
+      description
+        "A reference to the secondary path that should be utilised
+        when the containing primary path option is in use";
+    }
+
+    leaf path-setup-protocol {
+      type identityref {
+        base te-types:path-signaling-type;
+      }
+      description
+        "Signaling protocol used to set up this tunnel";
+    }
+  }
+
+  grouping p2p-reverse-path-candidate-secondary-path-config {
+    description
+      "Configuration parameters relating to a secondary path which
+      is a candidate for a particular primary path";
+
+    leaf secondary-path {
+      type leafref {
+        path "../../../../../p2p-secondary-paths/" +
+             "p2p-secondary-path/name";
+      }
+      description
+        "A reference to the secondary path that should be utilised
+        when the containing primary path option is in use";
+    }
+
+    leaf path-setup-protocol {
+      type identityref {
+        base te-types:path-signaling-type;
+      }
+      description
+        "Signaling protocol used to set up this tunnel";
+    }
+  }
+
+  grouping p2p-path-candidate-secondary-path-state {
+    description
+      "Operational state parameters relating to a secondary path
+      which is a candidate for a particular primary path";
+
+    leaf active {
+      type boolean;
+      description
+        "Indicates the current active path option that has
+        been selected of the candidate secondary paths";
+    }
+  }
+
+  grouping tunnel-p2p-properties {
+    description
+      "Top level grouping for tunnel properties.";
+    uses tunnel-p2p-params_config;
+    container state {
+      config false;
+      description
+        "Configuration applied parameters and state";
+      uses tunnel-p2p-params_state;
+    }
+    container p2p-primary-paths {
+      description "Set of P2P primary aths container";
+      list p2p-primary-path {
+        key "name";
+        description
+          "List of primary paths for this tunnel.";
+        uses p2p-primary-path-properties;
+        uses p2p-reverse-primary-path-properties;
+        container candidate-p2p-secondary-paths {
+          description
+            "The set of candidate secondary paths which may be used
+            for this primary path. When secondary paths are specified
+            in the list the path of the secondary LSP in use must be
+            restricted to those path options referenced. The
+            priority of the secondary paths is specified within the
+            list. Higher priority values are less preferred - that is
+            to say that a path with priority 0 is the most preferred
+            path. In the case that the list is empty, any secondary
+            path option may be utilised when the current primary path
+            is in use.";
+          list candidate-p2p-secondary-path {
+            key "secondary-path";
+            description
+              "List of secondary paths for this tunnel.";
+            uses p2p-path-candidate-secondary-path-config;
+
+            container state {
+              config false;
+              description
+                "Configuration applied parameters and state";
+              uses p2p-path-candidate-secondary-path-state;
+            }
+          }
+        }
+      }
+    }
+    container p2p-secondary-paths {
+      description "Set of P2P secondary paths container";
+      list p2p-secondary-path {
+        key "name";
+        description
+          "List of secondary paths for this tunnel.";
+        uses p2p-secondary-path-properties;
+      }
+    }
+  }
+
+  grouping shared-resources-tunnels_state {
+    description
+      "The specific tunnel that is using the shared secondary path
+       resources";
+    leaf lsp-shared-resources-tunnel {
+      type te:tunnel-ref;
+      description
+        "Reference to the tunnel that sharing secondary path
+        resources with this tunnel";
+    }
+  }
+  grouping shared-resources-tunnels {
+    description
+      "Set of tunnels that share secondary path resources with
+      this tunnnel";
+    container shared-resources-tunnels {
+      description
+        "Set of tunnels that share secondary path resources with
+        this tunnnel";
+      leaf-list lsp-shared-resources-tunnel {
+        type te:tunnel-ref;
+        description
+          "Reference to the tunnel that sharing secondary path
+          resources with this tunnel";
+      }
+    }
+  }
+
+  grouping tunnel-actions {
+    description "Tunnel actions";
+    action tunnel-action {
+      description "Tunnel action";
+      input {
+        leaf action-type {
+          type identityref {
+            base te-types:tunnel-action-type;
+          }
+          description "Tunnel action type";
+        }
+      }
+      output {
+        leaf action-result {
+          type identityref {
+            base te-types:te-action-result;
+          }
+          description "The result of the RPC operation";
+        }
+      }
+    }
+  }
+  grouping tunnel-protection-actions {
+    description
+      "Protection external command actions";
+    action protection-external-commands {
+      input {
+        leaf protection-external-command {
+          type identityref {
+            base te-types:protection-external-commands;
+          }
+          description
+            "Protection external command";
+        }
+        leaf protection-group-ingress-node-id {
+          type te-types:te-node-id;
+          description
+            "When specified, indicates whether the action is
+             applied on ingress node.
+             By default, if neither ingress nor egress node-id
+             is set, the the action applies to ingress node only.";
+        }
+        leaf protection-group-egress-node-id {
+          type te-types:te-node-id;
+          description
+            "When specified, indicates whether the action is
+             applied on egress node.
+             By default, if neither ingress nor egress node-id
+             is set, the the action applies to ingress node only.";
+        }
+        leaf path-ref {
+          type path-ref;
+          description
+            "Indicates to which path the external command applies to.";
+        }
+        leaf traffic-type {
+          type enumeration {
+            enum normal-traffic {
+              description
+                "The manual-switch or forced-switch command applies to
+                 the normal traffic (this Tunnel).";
+            }
+            enum null-traffic {
+              description
+                "The manual-switch or forced-switch command applies to
+                 the null traffic.";
+            }
+            enum extra-traffic {
+              description
+                "The manual-switch or forced-switch command applies to
+                 the extra traffic (the extra-traffic Tunnel sharing
+                 protection bandwidth with this Tunnel).";
+            }
+          }
+          description
+            "Indicates whether the manual-switch or forced-switch
+             commands applies to the normal traffic, the null traffic
+             or the extra-traffic.";
+          reference
+            "ITU-T G.808, RFC 4427";
+        }
+        leaf extra-traffic-tunnel-ref {
+          type te:tunnel-ref;
+          description
+            "In case there are multiple extra-traffic tunnels sharing
+             protection bandwidth with this Tunnel (m:n protection),
+             represents which extra-traffic Tunnel the manual-switch or
+             forced-switch to extra-traffic command applies to.";
+        }
+      }
+    }
+  }
+
+  /*** End of TE tunnel groupings ***/
+
+  /**
+   * LSP related generic groupings
+   */
+  grouping lsp-record-route-information_state {
+    description "recorded route information grouping";
+    container lsp-record-route-subobjects {
+      description "RSVP recorded route object information";
+      list record-route-subobject {
+        when "../../origin-type = 'ingress'" {
+          description "Applicable on non-ingress LSPs only";
+        }
+        key "index";
+        description "Record route sub-object list";
+        uses te-types:record-route-subobject_state;
+      }
+    }
+  }
+
+  grouping lsps-state-grouping {
+    description
+      "LSPs state operational data grouping";
+    container lsps-state {
+      config false;
+      description "TE LSPs state container";
+      list lsp {
+        key
+          "source destination tunnel-id lsp-id "+
+          "extended-tunnel-id";
+        description "List of LSPs associated with the tunnel.";
+        uses lsp-properties_state;
+        uses lsp-record-route-information_state;
+      }
+    }
+  }
+
+  /*** End of TE LSP groupings ***/
+
+  /**
+   * TE global generic groupings
+   */
+
+  /* Global named admin-groups configuration data */
+  grouping named-admin-groups_config {
+    description
+      "Global named administrative groups configuration
+      grouping";
+    leaf name {
+      type string;
+      description
+        "A string name that uniquely identifies a TE
+        interface named admin-group";
+    }
+    leaf bit-position {
+      type uint32;
+      description
+        "Bit position representing the administrative group";
+      reference "RFC3209 and RFC7308";
+    }
+  }
+  grouping named-admin-groups {
+    description
+      "Global named administrative groups configuration
+      grouping";
+    container named-admin-groups {
+      description "TE named admin groups container";
+      list named-admin-group {
+        if-feature te-types:extended-admin-groups;
+        if-feature te-types:named-extended-admin-groups;
+        key "name";
+        description
+          "List of named TE admin-groups";
+        uses named-admin-groups_config;
+      }
+    }
+  }
+
+  /* Global named admin-srlgs configuration data */
+  grouping named-srlgs_config {
+    description
+      "Global named SRLGs configuration grouping";
+    leaf name {
+      type string;
+      description
+        "A string name that uniquely identifies a TE
+        interface named srlg";
+    }
+    leaf group {
+      type te-types:srlg;
+      description "An SRLG value";
+    }
+    leaf cost {
+      type uint32;
+      description
+        "SRLG associated cost. Used during path to append
+         the path cost when traversing a link with this SRLG";
+    }
+  }
+
+  grouping named-srlgs {
+    description
+      "Global named SRLGs configuration grouping";
+    container named-srlgs {
+      description "TE named SRLGs container";
+      list named-srlg {
+        if-feature te-types:named-srlg-groups;
+        key "name";
+        description
+          "A list of named SRLG groups";
+        uses named-srlgs_config;
+      }
+    }
+  }
+
+  /* Global named paths constraints configuration data */
+  grouping path-constraints_state {
+    description
+      "TE path constraints state";
+    leaf bandwidth-generic_state {
+      type te-types:te-bandwidth;
+      description
+        "A technology agnostic requested bandwidth to use
+         for path computation";
+    }
+    leaf disjointness_state {
+      type te-types:te-path-disjointness;
+      description
+        "The type of resource disjointness.";
+    }
+  }
+
+  grouping path-constraints-common_config {
+    description
+      "Global named path constraints configuration
+      grouping";
+    uses te-types:common-path-constraints-attributes;
+    uses te-types:generic-path-disjointness;
+    uses te-types:path-route-objects;
+    uses shared-resources-tunnels {
+      description
+        "Set of tunnels that are allowed to share secondary path
+         resources of this tunnel";
+    }
+    uses path-access-segment-info {
+      description
+        "Tunnel constraints induced by other segments.";
+    }
+  }
+
+  grouping path-constraints {
+    description "Per path constraints";
+    uses path-constraints-common_config;
+    container state {
+      config false;
+      description
+        "Configuration applied parameters and state";
+      uses path-constraints_state;
+    }
+  }
+
+  grouping named-path-constraints {
+    description
+      "Global named path constraints configuration
+      grouping";
+    container named-path-constraints {
+      description "TE named path constraints container";
+      list named-path-constraint {
+        if-feature te-types:named-path-constraints;
+        key "name";
+        leaf name {
+          type string;
+          description
+            "A string name that uniquely identifies a
+            path constraint set";
+        }
+        uses path-constraints;
+        description
+          "A list of named path constraints";
+      }
+    }
+  }
+
+  /* TE globals container data */
+  grouping globals-grouping {
+    description
+      "Globals TE system-wide configuration data grouping";
+    container globals {
+      description
+        "Globals TE system-wide configuration data container";
+      uses named-admin-groups;
+      uses named-srlgs;
+      uses named-path-constraints;
+    }
+  }
+
+  /* TE tunnels container data */
+  grouping tunnels-grouping {
+    description
+      "Tunnels TE configuration data grouping";
+    container tunnels {
+      description
+        "Tunnels TE configuration data container";
+
+      list tunnel {
+        key "name";
+        description "P2P TE tunnels list.";
+        uses tunnel-p2p-properties;
+        uses tunnel-actions;
+        uses tunnel-protection-actions;
+      }
+      list tunnel-p2mp {
+        key "name";
+        unique "identifier";
+        description "P2MP TE tunnels list.";
+        uses tunnel-p2mp-properties;
+      }
+    }
+  }
+
+  /* TE LSPs ephemeral state container data */
+  grouping lsp-properties_state {
+    description
+      "LSPs state operational data grouping";
+    leaf source {
+      type inet:ip-address;
+      description
+        "Tunnel sender address extracted from
+        SENDER_TEMPLATE  object";
+      reference "RFC3209";
+    }
+    leaf destination {
+      type inet:ip-address;
+      description
+        "Tunnel endpoint address extracted from
+        SESSION object";
+      reference "RFC3209";
+    }
+    leaf tunnel-id {
+      type uint16;
+      description
+        "Tunnel identifier used in the SESSION
+        that remains constant over the life
+        of the tunnel.";
+      reference "RFC3209";
+    }
+    leaf lsp-id {
+      type uint16;
+      description
+        "Identifier used in the SENDER_TEMPLATE
+        and the FILTER_SPEC that can be changed
+        to allow a sender to share resources with
+        itself.";
+      reference "RFC3209";
+    }
+    leaf extended-tunnel-id {
+      type inet:ip-address;
+       description
+        "Extended Tunnel ID of the LSP.";
+      reference "RFC3209";
+    }
+    leaf operational-state {
+      type identityref {
+        base te-types:lsp-state-type;
+      }
+      description "LSP operational state.";
+    }
+    leaf path-setup-protocol {
+      type identityref {
+        base te-types:path-signaling-type;
+      }
+      description
+        "Signaling protocol used to set up this tunnel";
+    }
+    leaf origin-type {
+      type enumeration {
+        enum ingress {
+          description
+            "Origin ingress";
+        }
+        enum egress {
+          description
+            "Origin egress";
+        }
+        enum transit {
+          description
+            "transit";
+        }
+      }
+      description
+        "Origin type of LSP relative to the location
+        of the local switch in the path.";
+    }
+
+    leaf lsp-resource-status {
+      type enumeration {
+        enum primary {
+          description
+            "A primary LSP is a fully established LSP for
+             which the resource allocation has been committed
+             at the data plane";
+        }
+        enum secondary {
+          description
+            "A secondary LSP is an LSP that has been provisioned
+             in the control plane only; e.g. resource allocation
+             has not been committed at the data plane";
+        }
+      }
+      description "LSP resource allocation type";
+      reference "rfc4872, section 4.2.1";
+    }
+
+    uses protection-restoration-params_state;
+  }
+  /*** End of TE global groupings ***/
+
+  /**
+   * TE configurations container
+   */
+  container te {
+    presence "Enable TE feature.";
+    description
+       "TE global container.";
+
+    /* TE Global Configuration Data */
+    uses globals-grouping;
+
+    /* TE Tunnel Configuration Data */
+    uses tunnels-grouping;
+
+    /* TE LSPs State Data */
+    uses lsps-state-grouping;
+
+  }
+
+  /* TE Global RPCs/execution Data */
+  rpc globals-rpc {
+    description
+      "Execution data for TE global.";
+  }
+
+  /* TE interfaces RPCs/execution Data */
+  rpc interfaces-rpc {
+    description
+      "Execution data for TE interfaces.";
+  }
+
+  /* TE Tunnel RPCs/execution Data */
+  rpc tunnels-rpc {
+    description "TE tunnels RPC nodes";
+    input {
+      container tunnel-info {
+        description "Tunnel Identification";
+        choice type {
+          description "Tunnel information type";
+          case tunnel-p2p {
+            leaf p2p-id {
+              type te:tunnel-ref;
+              description "P2P TE tunnel";
+            }
+          }
+          case tunnel-p2mp {
+            leaf p2mp-id {
+              type te:tunnel-p2mp-ref;
+              description "P2MP TE tunnel";
+            }
+          }
+        }
+      }
+    }
+    output {
+      container result {
+        description
+          "The container result of the RPC operation";
+        leaf result {
+          type enumeration {
+            enum success {
+              description "Origin ingress";
+            }
+            enum in-progress {
+              description "Origin egress";
+            }
+            enum fail {
+              description "transit";
+            }
+          }
+          description "The result of the RPC operation";
+        }
+      }
+    }
+  }
+
+  /* TE Global Notification Data */
+  notification globals-notif {
+    description
+      "Notification messages for Global TE.";
+  }
+
+  /* TE Tunnel Notification Data */
+  notification tunnels-notif {
+    description
+      "Notification messages for TE tunnels.";
+  }
+}

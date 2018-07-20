@@ -14,7 +14,7 @@ from tools.parseAndPopulate.loadJsonFiles import LoadFiles
 from tools.parseAndPopulate.modules import Modules
 from tools.utility.util import get_curr_dir
 
-LOGGER = log.get_logger(__name__)
+LOGGER = log.get_logger(__name__, '/home/miroslav/log/populate/yang.log')
 
 github_raw = 'https://raw.githubusercontent.com/'
 

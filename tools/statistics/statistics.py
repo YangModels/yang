@@ -14,10 +14,9 @@ import jinja2
 import time
 
 import tools.utility.log as log
-from tools.utility import yangParser
-from tools.utility.util import get_curr_dir
+from tools.utility import yangParser, repoutil
 
-LOGGER = log.get_logger('statistics')
+LOGGER = log.get_logger('statistics', '/home/miroslav/log/jobs/yang.log')
 
 NS_MAP = {
     "http://cisco.com/ns/yang/": "cisco",
@@ -113,7 +112,12 @@ def get_specifics(path_dir):
     """
     passed = 0
     num_in_catalog = 0
-    for mod_git in list_of_yang_modules_in_subdir(path_dir):
+    yang_modules = list_of_yang_modules_in_subdir(path_dir)
+    yang_modules_length = len(yang_modules)
+    x = 0
+    for mod_git in yang_modules:
+        x += 1
+        LOGGER.info("{} out of {} getting specifics from {}".format(x, yang_modules_length, path_dir))
         try:
             revision = yangParser.parse(os.path.abspath(mod_git)).search('revision')[0].arg
         except:
@@ -132,7 +136,7 @@ def get_specifics(path_dir):
                 data = module_exist.read()
                 org = json.loads(data)['yang-catalog:modules']['module'][0]['organization']
                 rev = json.loads(data)['yang-catalog:modules']['module'][0]['revision']
-                status = json.loads(data)['yang-catalog:modules']['module'][0]['compilation-status']
+                status = json.loads(data)['yang-catalog:modules']['module'][0].get('compilation-status')
                 if org == organization and rev == revision:
                     if 'passed' == status:
                         passed += 1
@@ -144,7 +148,7 @@ def get_specifics(path_dir):
             module_exist = http_request(path, 'GET', '', credentials.split(' '), 'application/vnd.yang.data+json')
             if module_exist:
                 data = module_exist.read()
-                if 'passed' == json.loads(data)['module'][0]['compilation-status']:
+                if 'passed' == json.loads(data)['module'][0].get('compilation-status'):
                     passed += 1
                 num_in_catalog += 1
     return [num_in_catalog, passed]
@@ -221,7 +225,10 @@ def process_data(out, save_list, path, name):
     """
     LOGGER.info('Getting info from {}'.format(name))
     table_sdo = {}
-    modules = out.split(path + ' : ')[1].split('\n')[0]
+    if name is 'openconfig':
+        modules = 0
+    else:
+        modules = out.split(path + ' : ')[1].split('\n')[0]
     num_in_catalog, passed = get_specifics(path)
     table_sdo['name'] = name
     table_sdo['num_gituhub'] = modules
@@ -260,6 +267,8 @@ if __name__ == '__main__':
     api_ip = config.get('Statistics-Section', 'api-ip')
     api_port = config.get('General-Section', 'api-port')
     credentials = config.get('General-Section', 'credentials')
+    config_name = config.get('General-Section', 'repo-config-name')
+    config_email = config.get('General-Section', 'repo-config-email')
     move_to = config.get('Statistics-Section', 'file-location')
     auth = credentials.split(' ')
     is_uwsgi = config.get('General-Section', 'uwsgi')
@@ -270,18 +279,22 @@ if __name__ == '__main__':
         suffix = 'api'
     yangcatalog_api_prefix = '{}://{}{}{}/'.format(protocol, api_ip,
                                                    separator, suffix)
+    LOGGER.info('Cloning the repo')
+    repo = repoutil.RepoUtil('https://github.com/YangModels/yang.git')
+    repo.clone(config_name, config_email)
+    repo.updateSubmodule()
 
     xr = set()
     nx = set()
     xe = set()
 
-    solve_platforms('../../vendor/cisco/xr', xr)
-    solve_platforms('../../vendor/cisco/xe', xe)
-    solve_platforms('../../vendor/cisco/nx', nx)
+    solve_platforms(repo.localdir + '/vendor/cisco/xr', xr)
+    solve_platforms(repo.localdir + '/vendor/cisco/xe', xe)
+    solve_platforms(repo.localdir + '/vendor/cisco/nx', nx)
 
-    xr_versions = sorted(next(os.walk(get_curr_dir(__file__) + '/../../vendor/cisco/xr'))[1])
-    nx_versions = sorted(next(os.walk(get_curr_dir(__file__) + '/../../vendor/cisco/nx'))[1])
-    xe_versions = sorted(next(os.walk(get_curr_dir(__file__) + '/../../vendor/cisco/xe'))[1])
+    xr_versions = sorted(next(os.walk(repo.localdir + '/vendor/cisco/xr'))[1])
+    nx_versions = sorted(next(os.walk(repo.localdir + '/vendor/cisco/nx'))[1])
+    xe_versions = sorted(next(os.walk(repo.localdir + '/vendor/cisco/xe'))[1])
     xr_values = []
     nx_values = []
     xe_values = []
@@ -289,7 +302,7 @@ if __name__ == '__main__':
     for version in xr_versions:
         j = None
         try:
-            with open('../../vendor/cisco/xr/' + version + '/platform-metadata.json', 'r') as f:
+            with open(repo.localdir + '/vendor/cisco/xr/' + version + '/platform-metadata.json', 'r') as f:
                 j = json.load(f)
                 j = j['platforms']['platform']
         except:
@@ -315,7 +328,7 @@ if __name__ == '__main__':
     for version in xe_versions:
         j = None
         try:
-            with open('../../vendor/cisco/xe/' + version + '/platform-metadata.json', 'r') as f:
+            with open(repo.localdir + '/vendor/cisco/xe/' + version + '/platform-metadata.json', 'r') as f:
                 j = json.load(f)
                 j = j['platforms']['platform']
         except:
@@ -336,7 +349,7 @@ if __name__ == '__main__':
     for version in nx_versions:
         j = None
         try:
-            with open('../../vendor/cisco/nx/' + version + '/platform-metadata.json', 'r') as f:
+            with open(repo.localdir + '/vendor/cisco/nx/' + version + '/platform-metadata.json', 'r') as f:
                 j = json.load(f)
                 j = j['platforms']['platform']
         except:
@@ -371,101 +384,108 @@ if __name__ == '__main__':
     # Vendors sparately
     vendor_list = []
 
-    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', get_curr_dir(__file__) + '/../../vendor/cisco',
+    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', repo.localdir + '/vendor/cisco',
                                 '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, vendor_list, get_curr_dir(__file__) + '/../../vendor/cisco', 'cisco')
+    process_data(out, vendor_list, repo.localdir + '/vendor/cisco', 'cisco')
 
-    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', get_curr_dir(__file__) + '/../../vendor/ciena',
+    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', repo.localdir + '/vendor/ciena',
                                 '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, vendor_list, get_curr_dir(__file__) + '/../../vendor/ciena', 'ciena')
+    process_data(out, vendor_list, repo.localdir + '/vendor/ciena', 'ciena')
 
-    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', get_curr_dir(__file__) + '/../../vendor/juniper',
+    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', repo.localdir + '/vendor/juniper',
                                 '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, vendor_list, get_curr_dir(__file__) + '/../../vendor/juniper', 'juniper')
+    process_data(out, vendor_list, repo.localdir + '/vendor/juniper', 'juniper')
 
-    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', get_curr_dir(__file__) + '/../../vendor/huawei',
+    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', repo.localdir + '/vendor/huawei',
                                 '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, vendor_list, get_curr_dir(__file__) + '/../../vendor/huawei', 'huawei')
+    process_data(out, vendor_list, repo.localdir + '/vendor/huawei', 'huawei')
 
     # Vendors all together
-    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', get_curr_dir(__file__) + '/../../vendor',
+    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', repo.localdir + '/vendor',
                                 '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    vendor_modules = out.split(get_curr_dir(__file__) + '/../../vendor : ')[1].split('\n')[0]
-    vendor_modules_ndp = out.split(get_curr_dir(__file__) + '/../../vendor (duplicates removed): ')[1].split('\n')[0]
+    vendor_modules = out.split(repo.localdir + '/vendor : ')[1].split('\n')[0]
+    vendor_modules_ndp = out.split(repo.localdir + '/vendor (duplicates removed): ')[1].split('\n')[0]
 
     # Standard all together
-    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', get_curr_dir(__file__) + '/../../standard',
+    process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir', repo.localdir + '/standard',
                                 '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    standard_modules = out.split(get_curr_dir(__file__) + '/../../standard : ')[1].split('\n')[0]
-    standard_modules_ndp = out.split(get_curr_dir(__file__) + '/../../standard (duplicates removed): ')[1].split('\n')[0]
+    standard_modules = out.split(repo.localdir + '/standard : ')[1].split('\n')[0]
+    standard_modules_ndp = out.split(repo.localdir + '/standard (duplicates removed): ')[1].split('\n')[0]
 
     # Standard separately
     sdo_list = []
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                get_curr_dir(__file__) + '/../../standard/ietf/RFC', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                repo.localdir + '/standard/ietf/RFC', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/ietf/RFC', 'IETF RFCs')
+    process_data(out, sdo_list, repo.localdir + '/standard/ietf/RFC', 'IETF RFCs')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                get_curr_dir(__file__) + '/../../standard/ietf/DRAFT', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                repo.localdir + '/standard/ietf/DRAFT', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/ietf/DRAFT', 'IETF drafts')
+    process_data(out, sdo_list, repo.localdir + '/standard/ietf/DRAFT', 'IETF drafts')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                get_curr_dir(__file__) + '/../../standard/bbf/standard', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                repo.localdir + '/standard/bbf/standard', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/bbf/standard', 'BBF standard')
+    process_data(out, sdo_list, repo.localdir + '/standard/bbf/standard', 'BBF standard')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                get_curr_dir(__file__) + '/../../standard/bbf/draft', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                repo.localdir + '/standard/bbf/draft', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/bbf/draft', 'BBF draft')
+    process_data(out, sdo_list, repo.localdir + '/standard/bbf/draft', 'BBF draft')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                get_curr_dir(__file__) + '/../../standard/ieee/802.1', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                repo.localdir + '/standard/ieee/802.1', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/ieee/802.1', 'IEEE 802.1 with par')
+    process_data(out, sdo_list, repo.localdir + '/standard/ieee/802.1', 'IEEE 802.1 with par')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                get_curr_dir(__file__) + '/../../experimental/ieee/802.1', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                repo.localdir + '/experimental/ieee/802.1', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../experimental/ieee/802.1', 'IEEE 802.1 no par')
+    process_data(out, sdo_list, repo.localdir + '/experimental/ieee/802.1', 'IEEE 802.1 no par')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                get_curr_dir(__file__) + '/../../standard/ieee/802.3', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                repo.localdir + '/standard/ieee/802.3', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/ieee/802.3', 'IEEE 802.3 with par')
+    process_data(out, sdo_list, repo.localdir + '/standard/ieee/802.3', 'IEEE 802.3 with par')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                get_curr_dir(__file__) + '/../../experimental/ieee/802.3', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                repo.localdir + '/experimental/ieee/802.3', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../experimental/ieee/802.3', 'IEEE 802.3 no par')
+    process_data(out, sdo_list, repo.localdir + '/experimental/ieee/802.3', 'IEEE 802.3 no par')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                get_curr_dir(__file__) + '/../../standard/ieee/draft', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                repo.localdir + '/standard/ieee/draft', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/ieee/draft', 'IEEE draft with par')
+    process_data(out, sdo_list, repo.localdir + '/standard/ieee/draft', 'IEEE draft with par')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                get_curr_dir(__file__) + '/../../standard/mef/src/model/standard', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                repo.localdir + '/standard/mef/src/model/standard', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/mef/src/model/standard', 'MEF standard')
+    process_data(out, sdo_list, repo.localdir + '/standard/mef/src/model/standard', 'MEF standard')
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                get_curr_dir(__file__) + '/../../standard/mef/src/model/draft', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                repo.localdir + '/standard/mef/src/model/draft', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../standard/mef/src/model/draft', 'MEF draft')
+    process_data(out, sdo_list, repo.localdir + '/standard/mef/src/model/draft', 'MEF draft')
+    repo.remove()
+
+    # Openconfig is from different repo that s why we need models in github zero
+    LOGGER.info('Cloning the repo')
+    repo = repoutil.RepoUtil('https://github.com/openconfig/public')
+    repo.clone(config_name, config_email)
 
     process = subprocess.Popen(['python', '../runYANGallstats/runYANGallstats.py', '--rootdir',
-                                get_curr_dir(__file__) + '/../../experimental/openconfig', '--removedup', 'True'], stdout=subprocess.PIPE)
+                                repo.localdir + '/release/models', '--removedup', 'True'], stdout=subprocess.PIPE)
     out, err = process.communicate()
-    process_data(out, sdo_list, get_curr_dir(__file__) + '/../../experimental/openconfig', 'openconfig')
+    process_data(out, sdo_list, repo.localdir + '/release/models', 'openconfig')
+    repo.remove()
 
     context = {'table_sdo': sdo_list,
                'table_vendor': vendor_list,

@@ -1,0 +1,3089 @@
+/*
+ * Copyright (c) 2018 Juniper Networks, Inc.
+ * All rights reserved.
+ */
+ module junos-nfx-conf-access {
+   namespace "http://yang.juniper.net/junos-nfx/conf/access";
+
+   prefix jc-access;
+
+   import junos-common-ddl-extensions {
+     prefix junos;
+   }
+
+   import junos-common-types {
+     prefix jt;
+   }
+
+   import junos-nfx-conf-root {
+     prefix jc;
+   }
+
+   organization "Juniper Networks, Inc.";
+
+   contact "yang-support@juniper.net";
+
+   description "Junos access configuration module";
+
+   revision 2018-01-01 {
+     description "Junos: 18.2R1.9";
+   }
+
+   augment /jc:configuration {
+     uses access-group;
+   }
+   augment /jc:configuration/jc:groups {
+     uses access-group;
+   }
+   grouping access-group {
+     container access {
+       description "Network access configuration";
+       junos:must "(\"system services enhanced-orchestration\")";
+       junos:must-message "system services enhanced-orchestration must be configured";
+       uses juniper-access-options;
+       junos:must "(\"system services enhanced-orchestration\")";
+       junos:must-message "system services enhanced-orchestration must be configured";
+     }
+   }
+   grouping juniper-access-options {
+     uses apply-advanced;
+     list radius-server {
+       key name;
+       ordered-by user;
+       description "RADIUS server configuration";
+       uses access-radius-server-object;
+     }
+     list address-pool {
+       key name;
+       ordered-by user;
+       description "Address pool";
+       uses address-pool-object;
+     }
+     list group-profile {
+       key name;
+       ordered-by user;
+       description "Group profile to use for this client";
+       uses group-profile-object;
+     }
+     list profile {
+       key name;
+       ordered-by user;
+       description "Set of attributes that define access";
+       leaf name {
+         description "Profile name";
+         type string {
+           length "1 .. 63";
+         }
+       }
+       uses apply-advanced;
+       leaf-list accounting-order {
+         ordered-by user;
+         description "Order in which accounting mechanisms are used";
+         junos:must "(!(any \".. client <*> l2tp\"))";
+         junos:must-message "Not supported in tunnel client profile configuration";
+         junos:must "(!(any \".. client <*> ike\"))";
+         junos:must-message "Not supported in IKE configuration";
+         type enumeration {
+           enum "radius" {
+             description "Remote Authentication Dial-In User Service";
+           }
+         }
+       }
+       leaf-list authentication-order {
+         ordered-by user;
+         description "Order in which authentication mechanisms are used";
+         junos:must "(!(any \".. client <*> ike\"))";
+         junos:must-message "Not supported in IKE configuration";
+         type enumeration {
+           enum "radius" {
+             description "Remote Authentication Dial-In User Service";
+             junos:must "(!(any \".. .. client <*> l2tp\"))";
+             junos:must-message "Authentication-order cannot include RADIUS for tunnel client profile";
+           }
+           enum "password" {
+             description "Locally configured password in access profile";
+           }
+           enum "none" {
+             description "No authentication performed";
+           }
+           enum "nasreq" {
+             description "Diameter based authentication and authorization using NASREQ application protocol";
+           }
+           enum "ldap" {
+             description "Lightweight Directory Access Protocol";
+             junos:must "((!(any \".. .. client <*> l2tp\") && !(any \".. .. client <*> ppp\")))";
+             junos:must-message "Authentication-order cannot include LDAP for tunnel, ppp client profile";
+             junos:must "((!(\".. .. authentication-order $$={radius}\") && !(\".. .. authentication-order $$={securid}\")))";
+             junos:must-message "Only one of ldap, radius or securid can be specified";
+           }
+           enum "securid" {
+             description "RSA SecurID Authentication";
+             junos:must "((!(any \".. .. client <*> l2tp\") && !(any \".. .. client <*> ppp\")))";
+             junos:must-message "Authentication-order cannot include securid for tunnel, ppp client profile";
+             junos:must "((!(\".. .. authentication-order $$={radius}\") && !(\".. .. authentication-order $$={ldap}\")))";
+             junos:must-message "Only one of ldap, radius or securid can be specified";
+           }
+         }
+       }
+       leaf-list preauthentication-order {
+         ordered-by user;
+         description "Order in which preauthentication mechanisms are used";
+         junos:must "(!(\".. radius attributes exclude calling-station-id access-request\"))";
+         junos:must-message "calling-station-id is excluded from access request";
+         type enumeration {
+           enum "radius" {
+             description "Remote Authentication Dial-In User Service";
+           }
+         }
+       }
+       leaf-list charging-service-list {
+         ordered-by user;
+         description "List of used 3gpp charging servicess";
+         junos:must "(\".. provisioning-order pcrf\")";
+         junos:must-message "charging-service-list requires provisioning-order pcrf";
+         junos:must "(!(\".. service accounting-order\"))";
+         junos:must-message "charging-service-list is mutually exclusive with service accounting";
+         type enumeration {
+           enum "ocs" {
+             description "Online charging service";
+           }
+         }
+       }
+       list client {
+         key name;
+         description "Entity requesting access";
+         junos:must "(((!(any \". <*> l2tp\") || !(any \". <*> ppp\")) && ((!(any \". <*> l2tp\") || !(any \". <*> ike\")) && (!(any \". <*> ike\") || !(any \". <*> ppp\")))))";
+         junos:must-message "All clients in one profile must be either PPP or L2TP or IKE";
+         uses access-client-object;
+       }
+       container radius {
+         description "Set of RADIUS configurations";
+         uses apply-advanced;
+         leaf-list authentication-server {
+           ordered-by user;
+           description "The authentication server list to use in the specified order to send authentication messages";
+           type jt:ipaddr;
+         }
+         leaf-list accounting-server {
+           ordered-by user;
+           description "The accounting server list to use in the specified order to send accounting messages";
+           type jt:ipaddr;
+         }
+         container attributes {
+           description "Specifies how RADIUS attributes should be handled";
+           uses apply-advanced;
+           container ignore {
+             description "Ignores the specified attribute in RADIUS Access-Accept messages";
+             uses apply-advanced;
+             leaf output-filter {
+               description "Juniper (IANA 4874) Output-filter / Egress-Policy-Name (VSA 26-11)";
+               type empty;
+             }
+             leaf input-filter {
+               description "Juniper (IANA 4874) Input-filter / Ingress-Policy-Name (VSA 26-10)";
+               type empty;
+             }
+             leaf framed-ip-netmask {
+               description "Framed-IP-Netmask (attribute 9)";
+               type empty;
+             }
+             leaf logical-system-routing-instance {
+               description "Juniper (IANA 4874) Logical-system-routing-instance / Virtual-Router (VSA 26-1)";
+               type empty;
+             }
+             leaf dynamic-iflset-name {
+               description "Juniper (IANA 4874) Dynamic interface set / Qos-Set-Name (VSA 26-130)";
+               type empty;
+             }
+             leaf idle-timeout {
+               description "Idle-Timeout (attribute 28)";
+               type empty;
+             }
+             leaf session-timeout {
+               description "Session-Timeout (attribute 27)";
+               type empty;
+             }
+             leaf-list standard-attribute {
+               ordered-by user;
+               description "RADIUS standard attribute number";
+               type union {
+                 type string {
+                   pattern "<.*>|$.*";
+                 }
+                 type uint32 {
+                   range "1 .. 255";
+                 }
+               }
+             }
+             list vendor-id {
+               key name;
+               ordered-by user;
+               description "Specify the vendor-identifier for a vendor-specific attribute (VSA)";
+               leaf name {
+                 description "Vendor IANA enterprise number";
+                 type union {
+                   type string {
+                     pattern "<.*>|$.*";
+                   }
+                   type uint32 {
+                     range "1 .. 16777215";
+                   }
+                 }
+               }
+               uses apply-advanced;
+               leaf-list vendor-attribute {
+                 ordered-by user;
+                 description "Vendor specific attribute number";
+                 type union {
+                   type string {
+                     pattern "<.*>|$.*";
+                   }
+                   type uint32 {
+                     range "1 .. 255";
+                   }
+                 }
+               }
+             }
+           }
+           container exclude {
+             description "Configures the exclusion of RADIUS attributes in RADIUS messages";
+             uses apply-advanced;
+             list standard-attribute {
+               key name;
+               ordered-by user;
+               description "Specify RADIUS standard attribute number";
+               leaf name {
+                 description "RADIUS standard attribute number";
+                 type union {
+                   type string {
+                     pattern "<.*>|$.*";
+                   }
+                   type uint32 {
+                     range "1 .. 255";
+                   }
+                 }
+               }
+               uses apply-advanced;
+               leaf-list packet-type {
+                 ordered-by user;
+                 description "Specify packet types to be excluded";
+                 type enumeration {
+                   enum "access-request" {
+                     description "RADIUS Access-Request message";
+                   }
+                   enum "accounting-on" {
+                     description "RADIUS Accounting-On Message";
+                   }
+                   enum "accounting-off" {
+                     description "RADIUS Accounting-Off message";
+                   }
+                   enum "accounting-start" {
+                     description "RADIUS Accounting-Start message";
+                   }
+                   enum "accounting-stop" {
+                     description "RADIUS Accounting-Stop message";
+                   }
+                 }
+               }
+             }
+             list vendor-id {
+               key name;
+               ordered-by user;
+               description "Specify the vendor-identifier for a vendor-specific attribute (VSA)";
+               leaf name {
+                 description "Vendor IANA enterprise number";
+                 type union {
+                   type string {
+                     pattern "<.*>|$.*";
+                   }
+                   type uint32 {
+                     range "1 .. 16777215";
+                   }
+                 }
+               }
+               uses apply-advanced;
+               list vendor-attribute {
+                 key name;
+                 ordered-by user;
+                 description "Specify vendor specific attribute number";
+                 leaf name {
+                   description "Vendor specific attribute number";
+                   type union {
+                     type string {
+                       pattern "<.*>|$.*";
+                     }
+                     type uint32 {
+                       range "1 .. 255";
+                     }
+                   }
+                 }
+                 uses apply-advanced;
+                 leaf-list packet-type {
+                   ordered-by user;
+                   description "Specify packet types to be excluded";
+                   type enumeration {
+                     enum "access-request" {
+                       description "RADIUS Access-Request message";
+                     }
+                     enum "accounting-on" {
+                       description "RADIUS Accounting-On Message";
+                     }
+                     enum "accounting-off" {
+                       description "RADIUS Accounting-Off message";
+                     }
+                     enum "accounting-start" {
+                       description "RADIUS Accounting-Start message";
+                     }
+                     enum "accounting-stop" {
+                       description "RADIUS Accounting-Stop message";
+                     }
+                   }
+                 }
+               }
+             }
+             leaf-list accounting-authentic {
+               ordered-by user;
+               description "Excludes RADIUS attribute 45, Acct-Authentic";
+               type enumeration {
+                 enum "accounting-on" {
+                   description "RADIUS Accounting-On Message";
+                 }
+                 enum "accounting-off" {
+                   description "RADIUS Accounting-Off message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list accounting-delay-time {
+               ordered-by user;
+               description "Excludes RADIUS attribute 41, Acct-Delay-Time";
+               type enumeration {
+                 enum "accounting-on" {
+                   description "RADIUS Accounting-On Message";
+                 }
+                 enum "accounting-off" {
+                   description "RADIUS Accounting-Off message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list accounting-session-id {
+               ordered-by user;
+               description "Excludes RADIUS attribute 44, Acct-Session-ID";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+               }
+             }
+             leaf-list accounting-terminate-cause {
+               ordered-by user;
+               description "Excludes RADIUS attribute 49, Acct-Terminate-Cause";
+               type enumeration {
+                 enum "accounting-off" {
+                   description "RADIUS Accounting-Off message";
+                 }
+               }
+             }
+             leaf-list called-station-id {
+               ordered-by user;
+               description "Excludes RADIUS attribute 30, Called-Station-ID";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list calling-station-id {
+               ordered-by user;
+               description "Excludes RADIUS attribute 31, Calling-Station-ID";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                   junos:must "(!(\".. .. .. .. .. preauthentication-order\"))";
+                   junos:must-message "Preauthentication-order and exclude calling-station-id in access-request are mutually exclusive";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list class {
+               ordered-by user;
+               description "Excludes RADIUS attribute 25, Class";
+               type enumeration {
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list delegated-ipv6-prefix {
+               ordered-by user;
+               description "Excludes RADIUS attribute 123, Delegated-IPv6-Prefix";
+               type enumeration {
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list dhcp-options {
+               ordered-by user;
+               description "Excludes RADIUS attribute 26-55, DHCP-Options";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list dhcp-gi-address {
+               ordered-by user;
+               description "Excludes RADIUS attribute 26-57, DHCP-GI-Address";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list dhcp-mac-address {
+               ordered-by user;
+               description "Excludes RADIUS attribute 26-56, DHCP-MAC-Address";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list output-filter {
+               ordered-by user;
+               description "Excludes RADIUS attribute 26-11, Egress-Policy-Name";
+               type enumeration {
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list event-time-stamp {
+               ordered-by user;
+               description "Excludes RADIUS attribute 55, Event-Timestamp";
+               type enumeration {
+                 enum "accounting-on" {
+                   description "RADIUS Accounting-On Message";
+                 }
+                 enum "accounting-off" {
+                   description "RADIUS Accounting-Off message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list framed-ip-address {
+               ordered-by user;
+               description "Excludes RADIUS attribute 8, Framed-IP-Address";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list framed-ip-netmask {
+               ordered-by user;
+               description "Excludes RADIUS attribute 9, Framed-IP-Netmask";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list framed-ip-route {
+               ordered-by user;
+               description "Excludes RADIUS attribute 22, Framed-Route";
+               type enumeration {
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list framed-ipv6-address {
+               ordered-by user;
+               description "Excludes RADIUS attribute 168, Framed-IPV6-Address";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list framed-ipv6-pool {
+               ordered-by user;
+               description "Excludes RADIUS attribute 100, Framed-IPv6-Pool";
+               type enumeration {
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list framed-ipv6-prefix {
+               ordered-by user;
+               description "Excludes RADIUS attribute 97, Framed-IPv6-Prefix";
+               type enumeration {
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list framed-ipv6-route {
+               ordered-by user;
+               description "Excludes RADIUS attribute 99, Framed-IPv6-Route";
+               type enumeration {
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list framed-pool {
+               ordered-by user;
+               description "Excludes RADIUS attribute 88, Framed-Pool";
+               type enumeration {
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list input-filter {
+               ordered-by user;
+               description "Excludes RADIUS attribute 26-10, Ingress-Policy-Name";
+               type enumeration {
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list input-gigapackets {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) VSA  26-42, Acct-Input-Gigapackets";
+               type enumeration {
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list input-gigawords {
+               ordered-by user;
+               description "Excludes RADIUS attribute 52, Acct-Input-Gigawords";
+               type enumeration {
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list input-ipv6-packets {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) VSA  26-153, Acct-Input-IPv6-Packets";
+               type enumeration {
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list input-ipv6-gigawords {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) VSA  26-155, Acct-Input-IPv6-Gigawords";
+               type enumeration {
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list input-ipv6-octets {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) VSA  26-151, Acct-Input-IPv6-Octets";
+               type enumeration {
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list interface-description {
+               ordered-by user;
+               description "Excludes RADIUS attribute 26-63, Interface-Desc";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list nas-identifier {
+               ordered-by user;
+               description "Excludes RADIUS attribute 32, NAS-identifier";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-on" {
+                   description "RADIUS Accounting-On Message";
+                 }
+                 enum "accounting-off" {
+                   description "RADIUS Accounting-Off message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list nas-port {
+               ordered-by user;
+               description "Excludes RADIUS attribute 5, NAS-Port";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list nas-port-id {
+               ordered-by user;
+               description "Excludes RADIUS attribute 87, NAS-Port-ID";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list nas-port-type {
+               ordered-by user;
+               description "Excludes RADIUS attribute 61, NAS-Port-Type";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list output-gigapackets {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) VSA  26-43, Acct-Output-Gigapackets";
+               type enumeration {
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list output-gigawords {
+               ordered-by user;
+               description "Excludes RADIUS attribute 53, Acct-Output-Gigawords";
+               type enumeration {
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list output-ipv6-packets {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) VSA  26-154, Acct-Output-IPv6-Packets";
+               type enumeration {
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list output-ipv6-gigawords {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) VSA  26-156, Acct-Output-IPv6-Gigawords";
+               type enumeration {
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list output-ipv6-octets {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) VSA  26-152, Acct-Output-IPv6-Octets";
+               type enumeration {
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list dynamic-iflset-name {
+               ordered-by user;
+               description "Excludes RADIUS attribute 26-130, Dynamic-Iflset-Name";
+               type enumeration {
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list dsl-forum-attributes {
+               ordered-by user;
+               description "Excludes DSL Forum RADIUS attributes (RFC 4679)";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list l2c-upstream-data {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-92, L2C-Upstream-Data";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list l2c-downstream-data {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-93, L2C-Downstream-Data";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list acc-loop-cir-id {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-110, Acc-Loop-Cir-Id";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list acc-aggr-cir-id-bin {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-111, Acc-Aggr-Cir-Id-Bin";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list acc-aggr-cir-id-asc {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-112, Acc-Aggr-Cir-Id-Asc";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list act-data-rate-up {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-113, Act-Data-Rate-Up";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list act-data-rate-dn {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-114, Act-Data-Rate-Dn";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list min-data-rate-up {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-115, Min-Data-Rate-Up";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list min-data-rate-dn {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-116, Min-Data-Rate-Dn";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list att-data-rate-up {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-117, Att-Data-Rate-Up";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list att-data-rate-dn {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-118, Att-Data-Rate-Dn";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list max-data-rate-up {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-119, Max-Data-Rate-Up";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list max-data-rate-dn {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-120, Max-Data-Rate-Dn";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list min-lp-data-rate-up {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-121, Min-Lp-Data-Rate-Up";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list min-lp-data-rate-dn {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-122, Min-Lp-Data-Rate-Dn";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list max-interlv-delay-up {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-123, Max-Interlv-Delay-Up";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list act-interlv-delay-up {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-124, Act-Interlv-Delay-Up";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list max-interlv-delay-dn {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-125, Max-Interlv-Delay-Dn";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list act-interlv-delay-dn {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-126, Act-Interlv-Delay-Dn";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list dsl-line-state {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-127, DSL-Line-State";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list dsl-type {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-128, DSL-Type";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list downstream-calculated-qos-rate {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-141, Downstream-Calculated-QoS-Rate";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list upstream-calculated-qos-rate {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) DSL VSA 26-142, Upstream-Calculated-QoS-Rate";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list framed-interface-id {
+               ordered-by user;
+               description "Excludes RADIUS attribute 96, Framed-Interface-Id";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list chargeable-user-identity {
+               ordered-by user;
+               description "Excludes RADIUS attribute 89, Chargeable-User-Identity";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+               }
+             }
+             leaf-list l2tp-tx-connect-speed {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) VSA 26-162, , L2TP-Tx-Connect-Speed";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list l2tp-rx-connect-speed {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) VSA 26-163, , L2TP-Rx-Connect-Speed";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list tunnel-type {
+               ordered-by user;
+               description "Excludes RADIUS attribute 64, Tunnel-Type";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list tunnel-medium-type {
+               ordered-by user;
+               description "Excludes RADIUS attribute 65, Tunnel-Medium-Type";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list tunnel-client-endpoint {
+               ordered-by user;
+               description "Excludes RADIUS attribute 66, Tunnel-Client-Endpoint";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list tunnel-server-endpoint {
+               ordered-by user;
+               description "Excludes RADIUS attribute 67, Tunnel-Server-Endpoint";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list tunnel-assignment-id {
+               ordered-by user;
+               description "Excludes RADIUS attribute 82, Tunnel-Assignment-Id";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list tunnel-client-auth-id {
+               ordered-by user;
+               description "Excludes RADIUS attribute 90, Tunnel-Client-Auth-Id";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list tunnel-server-auth-id {
+               ordered-by user;
+               description "Excludes RADIUS attribute 91, Tunnel-Server-Auth-Id";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list acct-tunnel-connection {
+               ordered-by user;
+               description "Excludes RADIUS attribute 68, Acct-Tunnel-Connection";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list acc-loop-remote-id {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) VSA 26-XXX, ERX-Acc-Loop-Remote-Id";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list acc-loop-encap {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) VSA 26-182, ERX-Acc-Loop-Encap";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list pppoe-description {
+               ordered-by user;
+               description "Excludes RADIUS attribute 26-24, PPPOE-Description";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list virtual-router {
+               ordered-by user;
+               description "Excludes Juniper (IANA 4874) VSA 26-1, Virtual-Router";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list first-relay-ipv4-address {
+               ordered-by user;
+               description "Excludes RADIUS attribute 26-189, DHCP-First-Relay-IPv4-Address";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list first-relay-ipv6-address {
+               ordered-by user;
+               description "Excludes RADIUS attribute 26-190, DHCP-First-Relay-IPv6-Address";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list dhcpv6-options {
+               ordered-by user;
+               description "Excludes RADIUS attribute 26-207, DHCPv6-Options";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+             leaf-list dhcp-header {
+               ordered-by user;
+               description "Excludes RADIUS attribute 26-208, DHCP-Header";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+               }
+             }
+             leaf-list dhcpv6-header {
+               ordered-by user;
+               description "Excludes RADIUS attribute 26-209, DHCPv6-Header";
+               type enumeration {
+                 enum "access-request" {
+                   description "RADIUS Access-Request message";
+                 }
+               }
+             }
+             leaf-list acct-request-reason {
+               ordered-by user;
+               description "Excludes RADIUS attribute 26-210, Acct-Request-Reason";
+               type enumeration {
+                 enum "accounting-start" {
+                   description "RADIUS Accounting-Start message";
+                 }
+                 enum "accounting-stop" {
+                   description "RADIUS Accounting-Stop message";
+                 }
+               }
+             }
+           }
+         }
+       }
+       list radius-server {
+         key name;
+         ordered-by user;
+         description "RADIUS server configuration";
+         junos:must "(!(any \".. client <*> l2tp\"))";
+         junos:must-message "Not supported in L2TP configuration";
+         junos:must "((!(any \".. client <*> l2tp\") && !(any \".. client <*> ike\")))";
+         junos:must-message "Not supported in L2TP or IKE configuration";
+         uses profile-radius-server-object;
+       }
+       container accounting {
+         description "Specifies the accounting options";
+         uses apply-advanced;
+         leaf-list order {
+           ordered-by user;
+           description "Order in which accounting mechanisms are used";
+           type enumeration {
+             enum "radius" {
+               description "Remote authentication dial-in user service";
+             }
+           }
+         }
+         leaf accounting-stop-on-failure {
+           description "Send an Acct-Stop message if a user fails authentication, but AAA-server grants access";
+           type empty;
+         }
+         leaf accounting-stop-on-access-deny {
+           description "Send an Acct-Stop message if AAA-server denies access";
+           type empty;
+         }
+         leaf coa-immediate-update {
+           description "Send an Acct-Update message on completion of processing a change of authorization";
+           type empty;
+         }
+         leaf wait-for-acct-on-ack {
+           description "Wait for ACCT-ON-ACK";
+           type empty;
+         }
+         leaf-list duplication-filter {
+           ordered-by user;
+           description "Configure duplication filters";
+           type enumeration {
+             enum "interim-original" {
+               description "Do not send original accounting interims";
+             }
+             enum "interim-duplicated" {
+               description "Do not send duplicated accounting interims";
+             }
+             enum "exclude-attributes" {
+               description "Use duplication access profile exclude attributes";
+             }
+           }
+         }
+         container duplication-vrf {
+           description "Duplication vrf configurations";
+           uses apply-advanced;
+           leaf vrf-name {
+             description "VRF name";
+             type string {
+               length "1 .. 257";
+             }
+           }
+           leaf-list access-profile-name {
+             ordered-by user;
+             description "Access profile name";
+             type string {
+               length "1 .. 63";
+             }
+             max-elements 5;
+           }
+         }
+         leaf-list duplication-attribute-format {
+           ordered-by user;
+           description "Use attribute format defined under duplication accouting access-profile";
+           type enumeration {
+             enum "username" {
+               description "Username";
+             }
+           }
+         }
+         leaf ancp-speed-change-immediate-update {
+           description "Send an Acct-Update message when ANCP speed change is detected";
+           type empty;
+         }
+         leaf family-state-change-immediate-update {
+           description "Send an Acct-Update message to notify address family activation state change";
+           type empty;
+         }
+       }
+       container jsrc {
+         description "Set of JSRC configurations";
+         uses apply-advanced;
+         container attributes {
+           description "Specifies how JSRC attributes should be handled";
+           uses apply-advanced;
+           container exclude {
+             description "Configures the exclusion of JSRC attributes in DIAMETER messages";
+             uses apply-advanced;
+           }
+         }
+       }
+     }
+     container ppp-options {
+       presence "enable ppp-options";
+       description "Point-to-Point Protocol (PPP) specific options";
+       uses apply-advanced;
+       container compliance {
+         description "Standards compliance definition";
+         uses apply-advanced;
+         leaf-list rfc {
+           ordered-by user;
+           description "Enforce compliance with RFC standards";
+           type enumeration {
+             enum "2486" {
+               description "RFC 2486 compliant";
+             }
+           }
+         }
+       }
+     }
+     container accounting-backup-options {
+       description "Pending accounting backup-options ";
+       uses apply-advanced;
+       leaf max-pending-accounting-stops {
+         description "Max pending accouting stops";
+         junos:must "(!(any \"access profile <*> provisioning-order $$={pcrf}\"))";
+         junos:must-message "backup accounting is not supported with pcrf provisioning";
+         type union {
+           type string {
+             pattern "<.*>|$.*";
+           }
+           type uint32 {
+             range "1 .. 168000";
+           }
+         }
+       }
+       leaf max-withhold-time {
+         description "Maximum time in mins to hold the pending accounting stops";
+         units "minutes";
+         junos:must "(!(any \"access profile <*> provisioning-order $$={pcrf}\"))";
+         junos:must-message "backup accounting is not supported with pcrf provisioning";
+         type union {
+           type string {
+             pattern "<.*>|$.*";
+           }
+           type uint32 {
+             range "60 .. 1440";
+           }
+         }
+       }
+     }
+     container diameter-profiles {
+       description "Diameter application configurations";
+       uses aaa-diameter-profiles;
+     }
+     container firewall-authentication {
+       description "Type of firewall authentication";
+       uses apply-advanced;
+       container pass-through {
+         description "Pass-through firewall authentication settings";
+         uses apply-advanced;
+         leaf default-profile {
+           description "Name of profile to use if not specified in policy";
+           junos:must "(\"access profile $$\")";
+           junos:must-message "Profile must be defined in the [edit access profile] hierarchy";
+           type string {
+             length "1 .. 250";
+           }
+         }
+         container ftp {
+           description "FTP banners";
+           uses banner-object;
+         }
+         container telnet {
+           description "Telnet banners";
+           uses banner-object;
+         }
+         container http {
+           description "HTTP banners";
+           uses banner-object;
+         }
+       }
+       container web-authentication {
+         description "Web-authentication settings";
+         uses apply-advanced;
+         leaf default-profile {
+           description "Name of profile to use for web-authentication";
+           junos:must "(\"access profile $$\")";
+           junos:must-message "Profile must be defined in the [edit access profile] hierarchy";
+           type string {
+             length "1 .. 250";
+           }
+         }
+         container banner {
+           uses apply-advanced;
+           leaf success {
+             description "The message that will be displayed on successful login";
+             type string {
+               length "1 .. 250";
+             }
+           }
+         }
+         leaf timeout {
+           description "Web-authentication timeout value in seconds";
+           type union {
+             type string {
+               pattern "<.*>|$.*";
+             }
+             type int32 {
+               range "5 .. 60";
+             }
+           }
+         }
+       }
+       container traceoptions {
+         description "Firewall authentication tracing options";
+         uses apply-advanced;
+         leaf no-remote-trace {
+           description "Disable remote tracing";
+           junos:must "(\"system tracing\")";
+           junos:must-message "'no-remote-trace' is valid only when [system tracing] is configured";
+           type empty;
+         }
+         container file {
+           description "Trace file information";
+           leaf filename {
+             description "Name of file in which to write trace information";
+             type string {
+               length "1 .. 1024";
+               junos:posix-pattern "![/ %]";
+               junos:pattern-message "Must not contain '/', % or a space";
+             }
+           }
+           leaf size {
+             description "Maximum trace file size";
+             type string;
+           }
+           leaf files {
+             description "Maximum number of trace files";
+             default "3";
+             type union {
+               type string {
+                 pattern "<.*>|$.*";
+               }
+               type uint32 {
+                 range "2 .. 1000";
+               }
+             }
+           }
+           choice world-readable-choice {
+             leaf world-readable {
+               description "Allow any user to read the log file";
+               type empty;
+             }
+             leaf no-world-readable {
+               description "Don't allow any user to read the log file";
+               type empty;
+             }
+           }
+           leaf match {
+             description "Regular expression for lines to be logged";
+             type jt:regular-expression;
+           }
+         }
+         list flag {
+           key name;
+           ordered-by user;
+           description "Tracing parameters";
+           leaf name {
+             type enumeration {
+               enum "configuration" {
+                 description "Trace configuration events";
+               }
+               enum "setup" {
+                 description "Trace setup of firewall authentication service";
+               }
+               enum "authentication" {
+                 description "Trace authentication events";
+               }
+               enum "all" {
+                 description "Trace with all flags enabled";
+               }
+             }
+           }
+         }
+       }
+     }
+     container diameter {
+       description "Diameter server and network-element configuration";
+       uses juniper-mobile-diameter;
+     }
+   }
+   grouping aaa-diameter-profiles {
+     uses apply-advanced;
+     list gy-profile {
+       key name;
+       ordered-by user;
+       description "Diameter Gy application profile configuration";
+       uses aaa-diameter-profile-type-gy;
+     }
+     list gx-profile {
+       key name;
+       ordered-by user;
+       description "Diameter Gx application profile configuration";
+       uses aaa-diameter-profile-type-gx;
+     }
+   }
+   grouping aaa-diameter-profile-type-gx {
+     leaf name {
+       description "Diameter profile name";
+       type string {
+         length "1 .. 63";
+       }
+     }
+     uses apply-advanced;
+     list targets {
+       key name;
+       ordered-by user;
+       description "AAA diameter target configurations";
+       uses aaa-diameter-target;
+     }
+     leaf request-timeout {
+       description "Profile request timeout";
+       units "seconds";
+       type union {
+         type string {
+           pattern "<.*>|$.*";
+         }
+         type uint32 {
+           range "0 .. 65535";
+         }
+       }
+     }
+     container attributes {
+       description "Diameter AVP attributes for Gx application";
+       uses aaa-diameter-gx-profile-attr-type;
+     }
+   }
+   grouping aaa-diameter-gx-profile-attr-type {
+     uses apply-advanced;
+     container include {
+       description "Specify AVP options to be included";
+       uses apply-advanced;
+       leaf gx-capability-list {
+         description "Include Gx Capability list AVP";
+         type union {
+           type uint32;
+           type string {
+             pattern "<.*>|$.*";
+           }
+         }
+       }
+       leaf rule-suggestion {
+         description "Include rule-suggestion AVP";
+         type string {
+           length "1 .. 63";
+         }
+       }
+       leaf rai {
+         description "Include RAI AVP";
+         type empty;
+       }
+       leaf qos-negotiation {
+         description "Include QoS negotiation AVP";
+         type empty;
+       }
+       leaf qos-upgrade {
+         description "Include QoS upgrade AVP";
+         type empty;
+       }
+     }
+     container exclude {
+       description "Specify AVP options to be excluded";
+       uses apply-advanced;
+       leaf packet-filter-information {
+         description "Exclude packet filter information AVP";
+         type empty;
+       }
+       leaf packet-filter-operation {
+         description "Exclude packet filter operation AVP";
+         type empty;
+       }
+       leaf rat-type {
+         description "Exclude rat-type AVP";
+         type empty;
+       }
+       leaf default-eps-bearer-qos {
+         description "Exclude default EPS bearer QOS AVP";
+         type empty;
+       }
+       leaf an-gw-address {
+         description "Exclude an-gw-address AVP";
+         type empty;
+       }
+       leaf network-request-support {
+         description "Exclude network request support AVP";
+         type empty;
+       }
+       leaf event-trigger {
+         description "Exclude event trigger AVP";
+         type empty;
+       }
+       leaf threegpp-rat-type {
+         description "Exclude 3GPP-RAT-type AVP";
+         type empty;
+       }
+       leaf offline {
+         description "Exclude offline AVP";
+         type empty;
+       }
+       leaf qos-negotiation {
+         description "Exclude QoS negotiation AVP";
+         type empty;
+       }
+       leaf qos-upgrade {
+         description "Exclude QoS upgrade AVP";
+         type empty;
+       }
+     }
+   }
+   grouping aaa-diameter-profile-type-gy {
+     leaf name {
+       description "Diameter profile name";
+       type string {
+         length "1 .. 63";
+       }
+     }
+     uses apply-advanced;
+     list targets {
+       key name;
+       ordered-by user;
+       description "AAA diameter target configurations";
+       uses aaa-diameter-target;
+     }
+     leaf request-timeout {
+       description "Profile request timeout";
+       units "seconds";
+       type union {
+         type string {
+           pattern "<.*>|$.*";
+         }
+         type uint32 {
+           range "0 .. 65535";
+         }
+       }
+     }
+     container attributes {
+       description "Diameter AVP attributes for Gy application";
+       uses aaa-diameter-gy-profile-attr-type;
+     }
+   }
+   grouping aaa-diameter-gy-profile-attr-type {
+     uses apply-advanced;
+     container include {
+       description "Specify AVP options to be included";
+       uses apply-advanced;
+       leaf cumulative-used-service-unit {
+         description "Include cumulative-used-service-unit AVP";
+         type empty;
+       }
+       leaf credit-instance-id {
+         description "Include credit-instance-id AVP";
+         type empty;
+       }
+       leaf service-start-timestamp {
+         description "Include service-start-timestamp AVP";
+         type empty;
+       }
+       leaf mscc-qos-information {
+         description "Include mscc-qos-information AVP";
+         type empty;
+       }
+       leaf framed-ip-address {
+         description "Include framed ip address AVP";
+         type empty;
+       }
+       leaf framed-ipv6-prefix {
+         description "Include framed IPV6 Prefix AVP";
+         type empty;
+       }
+       leaf gprs-negotiated-qos {
+         description "Include GPRS negotiated QOS AVP";
+         type empty;
+       }
+     }
+     container exclude {
+       description "Specify AVP options to be excluded";
+       uses apply-advanced;
+       leaf ps-information {
+         description "Exclude PS Information AVP. If excluded, all the 3GPP AVPs will be sent at command level ";
+         type empty;
+       }
+       leaf username {
+         description "Exclude Username AVP";
+         type empty;
+       }
+       leaf user-equipment-info {
+         description "Exclude user equipment info AVP";
+         type empty;
+       }
+       leaf all-3gpp-avps {
+         description "Exclude all 3GPP AVPs";
+         type empty;
+       }
+       leaf qos-information {
+         description "Exclude QOS information AVP";
+         type empty;
+       }
+       leaf pdn-connection-id {
+         description "Exclude PDN connection id AVP";
+         type empty;
+       }
+       leaf dynamic-address-flag {
+         description "Exclude dynamic address flag AVP";
+         type empty;
+       }
+       leaf serving-node-type {
+         description "Exclude serving node type AVP";
+         type empty;
+       }
+       leaf cc-selection-mode {
+         description "Exclude charging characteristics selection mode AVP";
+         type empty;
+       }
+       leaf start-time {
+         description "Exclude start time AVP";
+         type empty;
+       }
+       leaf stop-time {
+         description "Exclude stop time AVP";
+         type empty;
+       }
+       leaf user-location-information {
+         description "Exclude user location information AVP";
+         type empty;
+       }
+     }
+   }
+   grouping aaa-diameter-target {
+     description "Diameter target configuration";
+     leaf name {
+       description "Diameter target name";
+       type string {
+         length "1 .. 31";
+       }
+     }
+     uses apply-advanced;
+     leaf destination-realm {
+       description "Destination realm associated with this target";
+       type string {
+         length "1 .. 255";
+       }
+     }
+     leaf destination-host {
+       description "Destination host associated with this target";
+       type string {
+         length "1 .. 255";
+       }
+     }
+     leaf priority {
+       description "Target priority";
+       type union {
+         type string {
+           pattern "<.*>|$.*";
+         }
+         type uint32 {
+           range "1 .. 65535";
+         }
+       }
+     }
+     leaf network-element {
+       description "Specify the diameter network element for this target";
+       junos:must "(\"access diameter network-element $$\")";
+       junos:must-message "Referenced DNE must be defined";
+       type string {
+         length "1 .. 31";
+       }
+     }
+   }
+   grouping access-client-object {
+     leaf name {
+       description "Name of entity requesting access";
+       type string;
+     }
+     uses apply-advanced;
+     leaf no-rfc2486 {
+       description "RFC2486 compliance is not enforced";
+       type empty;
+     }
+     leaf chap-secret {
+       description "CHAP secret";
+       type jt:unreadable;
+     }
+     leaf pap-password {
+       description "PAP password";
+       type jt:unreadable;
+     }
+     choice client_type {
+       case case_1 {
+       }
+       case case_2 {
+       }
+     }
+   }
+   grouping access-radius-server-object {
+     leaf name {
+       description "RADIUS server address";
+       type jt:ipaddr;
+     }
+     uses apply-advanced;
+     leaf port {
+       description "RADIUS server authentication port number";
+       default "1812";
+       type union {
+         type string {
+           pattern "<.*>|$.*";
+         }
+         type uint16 {
+           range "1 .. 65535";
+         }
+       }
+     }
+     leaf preauthentication-port {
+       description "RADIUS server preauthentication port number";
+       type union {
+         type string {
+           pattern "<.*>|$.*";
+         }
+         type uint16 {
+           range "1 .. 65535";
+         }
+       }
+     }
+     leaf secret {
+       description "Shared secret with the RADIUS server";
+       type jt:unreadable;
+     }
+     leaf preauthentication-secret {
+       description "Shared secret with the RADIUS server";
+       type jt:unreadable;
+     }
+     leaf timeout {
+       description "Request timeout period";
+       default "3";
+       units "seconds";
+       type union {
+         type string {
+           pattern "<.*>|$.*";
+         }
+         type uint32 {
+           range "1 .. 1000";
+         }
+       }
+     }
+     leaf retry {
+       description "Retry attempts";
+       default "3";
+       type union {
+         type string {
+           pattern "<.*>|$.*";
+         }
+         type uint32 {
+           range "1 .. 100";
+         }
+       }
+     }
+     leaf max-outstanding-requests {
+       description "Maximum requests in flight to server";
+       default "1000";
+       type union {
+         type string {
+           pattern "<.*>|$.*";
+         }
+         type uint32 {
+           range "0 .. 2000";
+         }
+       }
+     }
+     leaf source-address {
+       description "Use specified address as source address";
+       type jt:ipaddr;
+     }
+     leaf routing-instance {
+       description "Use specified routing instance";
+       junos:must "(\"routing-instances $$\")";
+       junos:must-message "referenced routing-instance must be defined";
+       type string;
+     }
+   }
+   grouping address-pool-object {
+     leaf name {
+       description "Address pool name";
+       type string {
+         length "1 .. 63";
+         junos:posix-pattern "^[A-Za-z0-9][_0-9A-Za-z-]{0,62}$";
+         junos:pattern-message "Must be a string beginning with a number or letter and consisting of no more than 63 total letters, numbers, dashes and underscores.";
+       }
+     }
+     uses apply-advanced;
+     choice address_choice {
+       case case_1 {
+         leaf address {
+           description "Address or address prefix";
+           type jt:ipv4prefix;
+         }
+       }
+       case case_2 {
+         container address-range {
+           presence "enable address-range";
+           description "Range of addresses for pool";
+           leaf low {
+             description "Lower limit of address range";
+             type jt:ipv4addr;
+           }
+           leaf high {
+             description "Upper limit of address range";
+             type jt:ipv4addr;
+           }
+           uses apply-advanced;
+           leaf mask {
+             description "Netmask for address pool";
+             type jt:ipv4addr;
+           }
+         }
+       }
+     }
+     leaf primary-dns {
+       description "Name of primary DNS server";
+       type jt:hostname;
+     }
+     leaf secondary-dns {
+       description "Name of secondary DNS server";
+       type jt:hostname;
+     }
+     leaf primary-wins {
+       description "Name of primary WINS server";
+       type jt:hostname;
+     }
+     leaf secondary-wins {
+       description "Name of secondary WINS server";
+       type jt:hostname;
+     }
+   }
+   grouping apply-advanced {
+     description "Apply advanced configuration logic";
+     leaf-list apply-groups {
+       ordered-by user;
+       description "Groups from which to inherit configuration data";
+       type string;
+     }
+     leaf-list apply-groups-except {
+       ordered-by user;
+       description "Don't inherit configuration data from these groups";
+       type string;
+     }
+     list apply-macro {
+       key name;
+       ordered-by user;
+       description "Macro and parameters for commit script expansion";
+       uses apply-macro-type;
+     }
+   }
+   grouping apply-macro-type {
+     description "Macro data for commit-script expansion";
+     leaf name {
+       description "Name of the macro to be expanded";
+       type string;
+     }
+     list data {
+       key name;
+       uses macro-data-type;
+     }
+   }
+   grouping banner-object {
+     uses apply-advanced;
+     container banner {
+       description "Banners that are prompted during authentication";
+       uses apply-advanced;
+       leaf login {
+         description "The message that will be displayed before login";
+         type string {
+           length "1 .. 250";
+         }
+       }
+       leaf success {
+         description "The message that will be displayed on successful login";
+         type string {
+           length "1 .. 250";
+         }
+       }
+       leaf fail {
+         description "The message that will be displayed after failed user login";
+         type string {
+           length "1 .. 250";
+         }
+       }
+     }
+   }
+   grouping group-profile-object {
+     leaf name {
+       description "Group profile name";
+       type string {
+         length "1 .. 63";
+         junos:posix-pattern "^[[:alnum:]][[:alnum:]_-]*$";
+         junos:pattern-message "Must be a string beginning with a number or letter and consisting of letters, numbers, dashes and underscores.";
+       }
+     }
+     uses apply-advanced;
+     container ppp {
+       presence "enable ppp";
+       junos:must "(!(\".. l2tp\"))";
+       junos:must-message "A group-profile can have either PPP or L2TP attributes only";
+       description "Configuration for Point-to-Point Protocol";
+       uses apply-advanced;
+       leaf framed-pool {
+         description "Address pool used to assign an address for the user";
+         junos:must "(\"access address-pool $$\")";
+         junos:must-message "referenced address pool must be defined";
+         type string {
+           length "1 .. 63";
+         }
+       }
+       leaf idle-timeout {
+         description "Idle timeout before termination of session";
+         default "0";
+         units "seconds";
+         type union {
+           type string {
+             pattern "<.*>|$.*";
+           }
+           type uint32 {
+             range "0 .. 4294967295";
+           }
+         }
+       }
+       container ppp-options {
+         presence "enable ppp-options";
+         description "Point-to-Point Protocol interface-specific options";
+         uses apply-advanced;
+         leaf pap {
+           description "Password Authentication Protocol";
+           type empty;
+         }
+         leaf chap {
+           description "Challenge Handshake Authentication Protocol";
+           type empty;
+         }
+         container initiate-ncp {
+           description "Enable server initiated NCP";
+           uses apply-advanced;
+           leaf ip {
+             description "Enable server initiated IPNCP";
+             type empty;
+           }
+           leaf ipv6 {
+             description "Enable server initiated IPv6NCP";
+             type empty;
+           }
+           leaf dual-stack-passive {
+             description "Disable server initiated IPNCP/IPv6NCP for dual-stack client";
+             type empty;
+           }
+         }
+         leaf peer-ip-address-optional {
+           description "Set Peer IP Address Optional in IP NCP Negotiations";
+           type empty;
+         }
+         leaf ipcp-suggest-dns-option {
+           description "Suggest peer to negotiate with DNS Addresses options";
+           type empty;
+         }
+         leaf ignore-magic-number-mismatch {
+           description "Ignore magic-number validation failure in LCP keepalive";
+           type empty;
+         }
+         leaf aaa-options {
+           description "Attach AAA options name to group-profile";
+           junos:must "(\"access aaa-options $$\")";
+           junos:must-message "referenced aaa-options name must be defined";
+           type string {
+             length "1 .. 63";
+           }
+         }
+       }
+       leaf keepalive {
+         description "PPP keepalive interval";
+         default "10";
+         units "seconds";
+         type union {
+           type string {
+             pattern "<.*>|$.*";
+           }
+           type uint16 {
+             range "0 .. 32767";
+           }
+         }
+       }
+       leaf primary-dns {
+         description "Primary DNS server name";
+         type string;
+       }
+       leaf secondary-dns {
+         description "Secondary DNS server name";
+         type string;
+       }
+       leaf primary-wins {
+         description "Primary wins server name";
+         type string;
+       }
+       leaf secondary-wins {
+         description "Secondary wins server name";
+         type string;
+       }
+       leaf encapsulation-overhead {
+         description "Encapsulation overhead for Class of Service calculation";
+         type union {
+           type string {
+             pattern "<.*>|$.*";
+           }
+           type int8 {
+             range "-63 .. 64";
+           }
+         }
+       }
+       leaf cell-overhead {
+         description "ATM cell overhead for Class of Service calculation";
+         type empty;
+       }
+       leaf interface-id {
+         description "Interface identifier to look up session information";
+         type string {
+           length "1 .. 63";
+           junos:posix-pattern "^[A-Za-z0-9][_0-9A-Za-z-]{0,62}$";
+           junos:pattern-message "Must be a string beginning with a number or letter and consisting of no more than 63 total letters, numbers, dashes and underscores.";
+         }
+       }
+     }
+   }
+   grouping juniper-mobile-diameter {
+     description "Diameter protocol layer";
+     uses apply-advanced;
+     container traceoptions {
+       description "Trace options related to DIAMETER servers";
+       uses diameter-traceoptions;
+     }
+     container origin {
+       presence "enable origin";
+       description "Origin attributes of this diameter instance";
+       uses apply-advanced;
+       leaf realm {
+         description "Origin realm of this diameter instance";
+         type string {
+           length "1 .. 255";
+         }
+       }
+       leaf host {
+         description "Origin host of this diameter instance";
+         type string {
+           length "1 .. 255";
+         }
+       }
+     }
+     leaf vendor-id {
+       description "Vendor-Id to advertize in Capability-Exchange";
+       default "2636";
+       type union {
+         type string {
+           pattern "<.*>|$.*";
+         }
+         type uint32 {
+           range "1 .. 4294967295";
+         }
+       }
+     }
+     leaf firmware-revision {
+       description "Firmware-Revision to advertize in Capability-Exchange";
+       default "0";
+       type union {
+         type string {
+           pattern "<.*>|$.*";
+         }
+         type uint32 {
+           range "0 .. 4294967295";
+         }
+       }
+     }
+     leaf product-name {
+       description "Product-Name to advertize in Capability-Exchange";
+       type string {
+         length "1 .. 127";
+       }
+     }
+     list network-element {
+       key name;
+       ordered-by user;
+       description "Network element of this diameter instance";
+       leaf name {
+         description "Name for this network element";
+         type string {
+           length "1 .. 31";
+           junos:posix-pattern "^[[:alnum:]][[:alnum:]_-]*$";
+           junos:pattern-message "Must be a string beginning with a number or letter and consisting of letters, numbers, dashes and underscores.";
+         }
+       }
+       uses apply-advanced;
+       leaf-list function {
+         ordered-by user;
+         description "Diameter function associated with by this network element";
+         type enumeration {
+           enum "pcc-gx" {
+             description "Policy and Charging Control Application Gx function";
+           }
+           enum "dcca-gy" {
+             description "Diameter Credit Control Application Gy function";
+           }
+         }
+         max-elements 3;
+       }
+       list peer {
+         key name;
+         ordered-by user;
+         description "Peer associated with this network element";
+         leaf name {
+           description "Name of a peer associated with this network element";
+           junos:must "(\"access diameter peer $$\")";
+           junos:must-message "access diameter peer has to be defined";
+           type string {
+             length "1 .. 31";
+             junos:posix-pattern "^[[:alnum:]][[:alnum:]_-]*$";
+             junos:pattern-message "Must be a string beginning with a number or letter and consisting of letters, numbers, dashes and underscores.";
+           }
+         }
+         uses apply-advanced;
+         leaf priority {
+           description "Peer priority with this network element";
+           type union {
+             type string {
+               pattern "<.*>|$.*";
+             }
+             type uint32 {
+               range "1 .. 65535";
+             }
+           }
+         }
+         leaf timeout {
+           description "Peer timeout with this network element in seconds";
+           default "4";
+           type union {
+             type string {
+               pattern "<.*>|$.*";
+             }
+             type uint32 {
+               range "1 .. 100";
+             }
+           }
+         }
+       }
+     }
+     list transport {
+       key name;
+       ordered-by user;
+       description "Diameter transport configuration";
+       max-elements 31;
+       leaf name {
+         description "Name for this transport definition";
+         type string {
+           length "1 .. 31";
+           junos:posix-pattern "^[[:alnum:]][[:alnum:]_-]*$";
+           junos:pattern-message "Must be a string beginning with a number or letter and consisting of letters, numbers, dashes and underscores.";
+         }
+       }
+       uses apply-advanced;
+       leaf address {
+         description "Source IP address for a peer";
+         type jt:ipaddr;
+       }
+       choice instance {
+         case case_1 {
+         }
+         case case_2 {
+           leaf routing-instance {
+             description "Routing instance of server to which to forward";
+             junos:must "(\"routing-instances $$\")";
+             junos:must-message "referenced routing instance must be defined";
+             type union {
+               type string {
+                 pattern "default";
+               }
+               type string {
+                 junos:posix-pattern "!^((__.*__)|(all)|(.*[ ].*)|(\"\")|(.{129,}))$";
+                 junos:pattern-message "Must be a non-reserved string of 128 characters or less with no spaces.";
+               }
+             }
+           }
+         }
+       }
+     }
+     list peer {
+       key name;
+       ordered-by user;
+       description "Diameter peer configuration";
+       max-elements 31;
+       leaf name {
+         description "Name for this Diameter peer";
+         type string {
+           length "1 .. 31";
+           junos:posix-pattern "^[[:alnum:]][[:alnum:]_-]*$";
+           junos:pattern-message "Must be a string beginning with a number or letter and consisting of letters, numbers, dashes and underscores.";
+         }
+       }
+       uses apply-advanced;
+       leaf address {
+         description "IP Address of Diameter peer";
+         type jt:ipaddr;
+       }
+       container connect-actively {
+         presence "enable connect-actively";
+         uses apply-advanced;
+         leaf transport {
+           description "Name of transport";
+           junos:must "(\"access diameter transport $$\")";
+           junos:must-message "Transport is not defined";
+           type string {
+             length "1 .. 31";
+             junos:posix-pattern "^[[:alnum:]][[:alnum:]_-]*$";
+             junos:pattern-message "Must be a string beginning with a number or letter and consisting of letters, numbers, dashes and underscores.";
+           }
+         }
+         leaf port {
+           description "Peer port";
+           default "3868";
+           type union {
+             type string {
+               pattern "<.*>|$.*";
+             }
+             type uint16 {
+               range "1 .. 65535";
+             }
+           }
+         }
+         leaf capabilities-exchange-timeout {
+           description "Time to wait in Wait-I-CEA state";
+           default "10";
+           units "seconds";
+           type union {
+             type string {
+               pattern "<.*>|$.*";
+             }
+             type uint32 {
+               range "1 .. 65535";
+             }
+           }
+         }
+         leaf repeat-timeout {
+           description "Timer to reconnect after getting DO_NOT_WANT_TO_TALK_TO_YOU in DPR";
+           default "0";
+           units "seconds";
+           type union {
+             type string {
+               pattern "<.*>|$.*";
+             }
+             type uint32 {
+               range "0 .. 65535";
+             }
+           }
+         }
+         leaf retry-timeout {
+           description "Time to wait between connection attempts";
+           default "30";
+           units "seconds";
+           type union {
+             type string {
+               pattern "<.*>|$.*";
+             }
+             type uint32 {
+               range "1 .. 65535";
+             }
+           }
+         }
+         leaf timeout {
+           description "Time to wait in Wait-Conn-Ack state";
+           default "10";
+           units "seconds";
+           type union {
+             type string {
+               pattern "<.*>|$.*";
+             }
+             type uint32 {
+               range "1 .. 65535";
+             }
+           }
+         }
+       }
+       container incoming-queue {
+         presence "enable incoming-queue";
+         description "Incoming queue properties of this peer";
+         uses apply-advanced;
+         leaf size {
+           description "Incoming queue size for this peer";
+           type union {
+             type string {
+               pattern "<.*>|$.*";
+             }
+             type uint32 {
+               range "1 .. 65535";
+             }
+           }
+         }
+       }
+       container outgoing-queue {
+         presence "enable outgoing-queue";
+         description "Outgoing queue properties of this peer";
+         uses apply-advanced;
+         leaf size {
+           description "Outgoing queue size for this peer";
+           type union {
+             type string {
+               pattern "<.*>|$.*";
+             }
+             type uint32 {
+               range "1 .. 65535";
+             }
+           }
+         }
+         leaf low-watermark {
+           description "Low watermark in percentage for outgoing queue of this peer";
+           default "60";
+           type union {
+             type string {
+               pattern "<.*>|$.*";
+             }
+             type uint16 {
+               range "1 .. 100";
+             }
+           }
+         }
+         leaf high-watermark {
+           description "High watermark in percentage for outgoing queue of this peer";
+           default "80";
+           type union {
+             type string {
+               pattern "<.*>|$.*";
+             }
+             type uint16 {
+               range "1 .. 100";
+             }
+           }
+         }
+       }
+       leaf watchdog-timeout {
+         description "Time to wait for Device-Watchdog-Answer";
+         default "30";
+         units "seconds";
+         type union {
+           type string {
+             pattern "<.*>|$.*";
+           }
+           type uint32 {
+             range "1 .. 65535";
+           }
+         }
+       }
+       leaf connection-timeout {
+         description "Time to wait in Wait-Conn-Ack state";
+         status deprecated;
+         default "10";
+         units "seconds";
+         type union {
+           type string {
+             pattern "<.*>|$.*";
+           }
+           type uint32 {
+             range "1 .. 65535";
+           }
+         }
+       }
+       leaf connection-repeat-timeout {
+         description "Timer to reconnect after getting DO_NOT_WANT_TO_TALK_TO_YOU in DPR";
+         status deprecated;
+         default "0";
+         units "seconds";
+         type union {
+           type string {
+             pattern "<.*>|$.*";
+           }
+           type uint32 {
+             range "0 .. 65535";
+           }
+         }
+       }
+       leaf capabilities-exchange-timeout {
+         description "Time to wait in Wait-I-CEA state";
+         status deprecated;
+         default "10";
+         units "seconds";
+         type union {
+           type string {
+             pattern "<.*>|$.*";
+           }
+           type uint32 {
+             range "1 .. 65535";
+           }
+         }
+       }
+       leaf disconnect-peer-timeout {
+         description "Time to wait in Closing state";
+         default "10";
+         units "seconds";
+         type union {
+           type string {
+             pattern "<.*>|$.*";
+           }
+           type uint32 {
+             range "1 .. 65535";
+           }
+         }
+       }
+       leaf connection-retry-timeout {
+         description "Time to wait between connection attempts";
+         status deprecated;
+         default "30";
+         units "seconds";
+         type union {
+           type string {
+             pattern "<.*>|$.*";
+           }
+           type uint32 {
+             range "1 .. 65535";
+           }
+         }
+       }
+       leaf origin-host-prefix {
+         description "Peer-specific prefix for local Origin-Host";
+         type string {
+           length "1 .. 255";
+         }
+       }
+     }
+     container applications {
+       presence "enable applications";
+       description "Diameter applications related configuration";
+       uses apply-advanced;
+       container pcc-gx {
+         presence "enable pcc-gx";
+         description "Policy and Charging Control Application Gx configuration";
+         uses apply-advanced;
+         leaf maximum-pending-requests {
+           description "Maximum pending requests for this application";
+           default "40000";
+           type union {
+             type string {
+               pattern "<.*>|$.*";
+             }
+             type uint16 {
+               range "1000 .. 65535";
+             }
+           }
+         }
+       }
+       container dcca-gy {
+         presence "enable dcca-gy";
+         description "Diameter Credit Control Application Gy configuration";
+         uses apply-advanced;
+         leaf maximum-pending-requests {
+           description "Maximum pending requests for this application";
+           default "40000";
+           type union {
+             type string {
+               pattern "<.*>|$.*";
+             }
+             type uint16 {
+               range "1000 .. 65535";
+             }
+           }
+         }
+       }
+     }
+   }
+   grouping diameter-traceoptions {
+     description "Trace options related to DIAMETER peers";
+     uses apply-advanced;
+     leaf no-remote-trace {
+       description "Disable remote tracing";
+       junos:must "(\"system tracing\")";
+       junos:must-message "'no-remote-trace' is valid only when [system tracing] is configured";
+       type empty;
+     }
+     container file {
+       description "Trace file information";
+       leaf filename {
+         description "Name of file in which to write trace information";
+         type string {
+           length "1 .. 1024";
+           junos:posix-pattern "![/ %]";
+           junos:pattern-message "Must not contain '/', % or a space";
+         }
+       }
+       leaf size {
+         description "Maximum trace file size";
+         type string;
+       }
+       leaf files {
+         description "Maximum number of trace files";
+         default "3";
+         type union {
+           type string {
+             pattern "<.*>|$.*";
+           }
+           type uint32 {
+             range "2 .. 1000";
+           }
+         }
+       }
+       choice world-readable-choice {
+         leaf world-readable {
+           description "Allow any user to read the log file";
+           type empty;
+         }
+         leaf no-world-readable {
+           description "Don't allow any user to read the log file";
+           type empty;
+         }
+       }
+     }
+     leaf level {
+       description "Level of debugging output";
+       default "error";
+       type enumeration {
+         enum "error" {
+           description "Match error conditions";
+         }
+         enum "warning" {
+           description "Match warning messages";
+         }
+         enum "notice" {
+           description "Match conditions that should be handled specially";
+         }
+         enum "info" {
+           description "Match informational messages";
+         }
+         enum "verbose" {
+           description "Match verbose messages";
+         }
+         enum "all" {
+           description "Match all levels";
+         }
+       }
+     }
+     list flag {
+       key name;
+       ordered-by user;
+       description "Tracing parameters";
+       leaf name {
+         type enumeration {
+           enum "send" {
+             description "Trace transmitted packets";
+           }
+           enum "send-detail" {
+             description "Trace transmitted packets in detail";
+           }
+           enum "receive" {
+             description "Trace received packets";
+           }
+           enum "receive-detail" {
+             description "Trace received packets in detail";
+           }
+           enum "timeout" {
+             description "Trace timeout events";
+           }
+           enum "state" {
+             description "Trace DIAMTER peer state changes";
+           }
+           enum "all" {
+             description "Trace everything";
+           }
+         }
+       }
+     }
+     list peer {
+       key name;
+       ordered-by user;
+       description "Trace packet sent to or received from the peer[s]";
+       leaf name {
+         description "Trace packet sent to or received from the peer";
+         junos:must "(\"access diameter peer $$\")";
+         junos:must-message "Referenced DIAMETER peer name must be defined";
+         type string {
+           length "1 .. 31";
+         }
+       }
+       uses apply-advanced;
+     }
+   }
+   grouping macro-data-type {
+     leaf name {
+       description "Keyword part of the keyword-value pair";
+       type string;
+     }
+     leaf value {
+       description "Value part of the keyword-value pair";
+       type string;
+     }
+   }
+   grouping profile-radius-server-object {
+     leaf name {
+       description "RADIUS server address";
+       type jt:ipaddr;
+     }
+     uses apply-advanced;
+     leaf port {
+       description "RADIUS server authentication port number";
+       default "1812";
+       type union {
+         type string {
+           pattern "<.*>|$.*";
+         }
+         type uint16 {
+           range "1 .. 65535";
+         }
+       }
+     }
+     leaf preauthentication-port {
+       description "RADIUS server preauthentication port number";
+       type union {
+         type string {
+           pattern "<.*>|$.*";
+         }
+         type uint16 {
+           range "1 .. 65535";
+         }
+       }
+     }
+     leaf secret {
+       description "Shared secret with the RADIUS server";
+       type jt:unreadable;
+     }
+     leaf preauthentication-secret {
+       description "Shared secret with the RADIUS server";
+       type jt:unreadable;
+     }
+     leaf timeout {
+       description "Request timeout period";
+       default "3";
+       units "seconds";
+       type union {
+         type string {
+           pattern "<.*>|$.*";
+         }
+         type uint32 {
+           range "1 .. 1000";
+         }
+       }
+     }
+     leaf retry {
+       description "Retry attempts";
+       default "3";
+       type union {
+         type string {
+           pattern "<.*>|$.*";
+         }
+         type uint32 {
+           range "1 .. 100";
+         }
+       }
+     }
+     leaf max-outstanding-requests {
+       description "Maximum requests in flight to server";
+       default "1000";
+       type union {
+         type string {
+           pattern "<.*>|$.*";
+         }
+         type uint32 {
+           range "0 .. 2000";
+         }
+       }
+     }
+     leaf source-address {
+       description "Use specified address as source address";
+       type jt:ipaddr;
+     }
+     leaf routing-instance {
+       description "Use specified routing instance";
+       junos:must "(\"routing-instances $$\")";
+       junos:must-message "referenced routing-instance must be defined";
+       type string;
+     }
+   }
+ }

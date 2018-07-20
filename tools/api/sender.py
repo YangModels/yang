@@ -5,7 +5,7 @@ import pika
 
 import tools.utility.log as log
 
-LOGGER = log.get_logger(__name__)
+LOGGER = log.get_logger(__name__, '/home/miroslav/log/api/yang.log')
 
 
 class Sender:
@@ -36,7 +36,7 @@ class Sender:
         lines = f.readlines()
         f.close()
         for line in lines:
-            if correlation_id in line:
+            if correlation_id == line.split('- ')[1].strip():
                 return line.split('- ')[-1]
 
         return self.__response_type[3]
