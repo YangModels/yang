@@ -22,7 +22,7 @@ def run_complicated_algorithms():
     complicatedAlgorithms = ModulesComplicatedAlgorithms(yangcatalog_api_prefix, args.credentials,
                                                          args.protocol, args.ip, args.port, args.save_file_dir,
                                                          direc, None)
-    complicatedAlgorithms.parse(True)
+    complicatedAlgorithms.parse()
     complicatedAlgorithms.populate()
 
 

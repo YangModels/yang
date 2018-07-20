@@ -7,15 +7,12 @@ import tools.utility.log as lo
 LOGGER = lo.get_logger('sql')
 # DBF = '/var/yang/yang.db'
 
-conn = MySQLdb.connect(host="localhost",  # your host, usually localhost
-                       user="yang",  # your username
-                       passwd="Y@ng3r123",  # your password
-                       db="yang")  # name of the data base
+conn = None
 
 # you must create a Cursor object. It will let
 #  you execute all the queries you need
-cur = conn.cursor(cursorclass=MySQLdb.cursors.DictCursor)
 
+cur = None
 
 # Use all the SQL you like
 # cur.execute("SELECT * FROM YOUR_TABLE_NAME")
@@ -26,12 +23,22 @@ cur = conn.cursor(cursorclass=MySQLdb.cursors.DictCursor)
 
 # db.close()
 
+
 def __mysql_regexp(pattern, buf, modifiers=re.I | re.S):
     if pattern is not None and buf is not None:
         exp = re.compile(pattern, modifiers)
         return exp.search(buf) is not None
 
     return False
+
+
+def create_connection(dbHost, dbPass, dbName, dbUser):
+    connection = MySQLdb.connect(host=dbHost,  # your host, usually localhost
+                           user=dbUser,  # your username
+                           passwd=dbPass,  # your password
+                           db=dbName)  # name of the data base
+    cursor = conn.cursor(cursorclass=MySQLdb.cursors.DictCursor)
+    return connection, cursor
 
 
 __schema_types = [
@@ -63,8 +70,14 @@ __node_data = {
 }
 
 
-def do_search(options):
+def do_search(options, dbHost, dbName, dbPass,  dbUser):
+    global conn, cur
     opts = json.loads(options)
+    if conn is None:
+        conn, cur = create_connection(dbHost, dbPass, dbName, dbUser)
+    else:
+        if not conn.open:
+            conn, cur = create_connection(dbHost, dbPass, dbName, dbUser)
     try:
         case_sensitivity = ''
         if 'case-sensitive' in opts and opts['case-sensitive']:
