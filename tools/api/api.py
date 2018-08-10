@@ -89,7 +89,7 @@ class MyFlask(Flask):
         if self.is_uwsgi == 'True':
             separator = '/'
             suffix = 'api'
-        self.yangcatalog_api_prefix = '{}://{}{}{}/'.format(self.api_protocol, local_ip,
+        self.yangcatalog_api_prefix = '{}://{}{}{}/'.format(self.api_protocol, self.ip,
                                                        separator, suffix)
         LOGGER.debug('Starting api')
 
@@ -2162,27 +2162,28 @@ def trigger_populate():
                         if 'platform-metadata.json' in m:
                             paths.append('/'.join(m.split('/')[:-1]))
                             mod.append('/'.join(m.split('/')[:-1]))
-        mf = messageFactory.MessageFactory()
-        mf.send_new_modified_platform_metadata(new, mod)
-        LOGGER.info('Forking the repo')
-        repo = repoutil.RepoUtil('https://github.com/YangModels/yang.git')
-        try:
-            repo.clone(application.config_name, application.config_email)
-            LOGGER.info('Cloned repo to local directory {}'
-                        .format(repo.localdir))
-            for path in paths:
-                arguments = ["python", repo.localdir + "/" +
-                             "tools/parseAndPopulate/populate.py", "--port", repr(application.confdPort), "--ip",
-                             application.confd_ip, "--api-protocol", application.api_protocol, "--api-port",
-                             repr(application.api_port), "--api-ip", application.ip,
-                             "--dir", repo.localdir + "/" + path, "--result-html-dir", application.result_dir,
-                             "--credentials", application.credentials[0], application.credentials[1],
-                             "--save-file-dir", application.save_file_dir, "repoLocalDir"]
-                arguments = arguments + paths + [repo.localdir, "github"]
-                application.sender.send("#".join(arguments))
-        except:
-            LOGGER.error('Could not populate after git push')
-            repo.remove()
+        if len(paths) > 0:
+            mf = messageFactory.MessageFactory()
+            mf.send_new_modified_platform_metadata(new, mod)
+            LOGGER.info('Forking the repo')
+            repo = repoutil.RepoUtil('https://github.com/YangModels/yang.git')
+            try:
+                repo.clone(application.config_name, application.config_email)
+                LOGGER.info('Cloned repo to local directory {}'
+                            .format(repo.localdir))
+                for path in paths:
+                    arguments = ["python", repo.localdir + "/" +
+                                 "tools/parseAndPopulate/populate.py", "--port", repr(application.confdPort), "--ip",
+                                 application.confd_ip, "--api-protocol", application.api_protocol, "--api-port",
+                                 repr(application.api_port), "--api-ip", application.ip,
+                                 "--dir", repo.localdir + "/" + path, "--result-html-dir", application.result_dir,
+                                 "--credentials", application.credentials[0], application.credentials[1],
+                                 "--save-file-dir", application.save_file_dir, "repoLocalDir"]
+                    arguments = arguments + paths + [repo.localdir, "github"]
+                    application.sender.send("#".join(arguments))
+            except:
+                LOGGER.error('Could not populate after git push')
+                repo.remove()
             return make_response(jsonify({'info': 'Success'}), 200)
         return make_response(jsonify({'info': 'Success'}), 200)
     except Exception as e:
