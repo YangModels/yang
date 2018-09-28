@@ -4,6 +4,12 @@ module ietf-netconf-client {
   namespace "urn:ietf:params:xml:ns:yang:ietf-netconf-client";
   prefix "ncc";
 
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+
   import ietf-inet-types {
     prefix inet;
     reference
@@ -12,14 +18,14 @@ module ietf-netconf-client {
 
   import ietf-ssh-client {
     prefix ss;
-    revision-date 2018-06-04; // stable grouping definitions
+    revision-date 2018-09-20; // stable grouping definitions
     reference
       "RFC YYYY: YANG Groupings for SSH Clients and SSH Servers";
   }
 
   import ietf-tls-client {
     prefix ts;
-    revision-date 2018-06-04; // stable grouping definitions
+    revision-date 2018-09-20; // stable grouping definitions
     reference
       "RFC ZZZZ: YANG Groupings for TLS Clients and TLS Servers";
   }
@@ -33,7 +39,6 @@ module ietf-netconf-client {
 
     Author:   Kent Watsen
               <mailto:kwatsen@juniper.net>
-
     Author:   Gary Wu
               <mailto:garywu@cisco.com>";
 
@@ -54,7 +59,7 @@ module ietf-netconf-client {
     This version of this YANG module is part of RFC XXXX; see
     the RFC itself for full legal notices.";
 
-  revision "2018-06-04" {
+  revision "2018-09-20" {
     description
      "Initial version";
     reference
@@ -116,12 +121,12 @@ module ietf-netconf-client {
   }
 
   container netconf-client {
-    uses netconf-client;
+    uses netconf-client-grouping;
     description
       "Top-level container for NETCONF client configuration.";
   }
 
-  grouping netconf-client {
+  grouping netconf-client-grouping {
     description
       "Top-level grouping for NETCONF client configuration.";
 
@@ -237,7 +242,7 @@ module ietf-netconf-client {
           description
            "Indicates the kind of connection to use.";
           choice connection-type {
-            default persistent-connection;
+            mandatory true;
             description
               "Selects between available connection types.";
             case persistent-connection {
@@ -254,20 +259,6 @@ module ietf-netconf-client {
                   This connection type minimizes any NETCONF server
                   to NETCONF client data-transfer delay, albeit at
                   the expense of holding resources longer.";
-                leaf idle-timeout {
-                  type uint32;
-                  units "seconds";
-                  default 86400;  // one day;
-                  description
-                    "Specifies the maximum number of seconds that
-                     a NETCONF session may remain idle. A NETCONF
-                     session will be dropped if it is idle for an
-                     interval longer than this number of seconds.
-                     If set to zero, then the client will never
-                     drop a session because it is idle.  Sessions
-                     that have a notification subscription active
-                     are never dropped.";
-                }
                 container keep-alives {
                   description
                     "Configures the keep-alive policy, to
@@ -275,9 +266,6 @@ module ietf-netconf-client {
                      server.  An unresponsive SSH/TLS server will
                      be dropped after approximately max-attempts *
                      max-wait seconds.";
-                  reference
-                    "RFC 8071: NETCONF Call Home and RESTCONF Call
-                     Home, Section 3.1, item S6";
                   leaf max-wait {
                     type uint16 {
                       range "1..max";
@@ -310,40 +298,47 @@ module ietf-netconf-client {
                  "Indicates that a periodic connection is to be
                   maintained.";
                 description
-                 "Periodically connect to the NETCONF server, so
-                  that the NETCONF server may deliver messages
-                  pending for the NETCONF client.  The NETCONF
-                  server must close the connection when it is
-                  ready to release it. Once the connection has
-                  been closed, the NETCONF client will restart
-                  its timer until the next connection.";
+                 "Periodically connect to the NETCONF server.  The
+                  NETCONF server should close the connection upon
+                  completing planned activities.
+
+                  This connection type increases resource
+                  utilization, albeit with increased delay in
+                  NETCONF server to NETCONF client interactions.";
+                leaf period {
+                  type uint16;
+                  units "minutes";
+                  default 60;
+                  description
+                    "Duration of time between periodic connections.";
+                }
+                leaf anchor-time {
+                  type yang:date-and-time {
+                    // constrained to minute-level granularity
+                    pattern '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}'
+                            + '(Z|[\+\-]\d{2}:\d{2})';
+                  }
+                  description
+                    "Designates a timestamp before or after which a
+                     series of periodic connections are determined.
+                     The periodic connections occur at a whole
+                     multiple interval from the anchor time.  For
+                     example, for an anchor time is 15 minutes past
+                     midnight and a period interval of 24 hours, then
+                     a periodic connection will occur 15 minutes past
+                     midnight everyday.";
+                }
                 leaf idle-timeout {
                   type uint16;
                   units "seconds";
-                  default 300; // five minutes
+                  default 120; // two minutes
                   description
                     "Specifies the maximum number of seconds that
                      a NETCONF session may remain idle. A NETCONF
                      session will be dropped if it is idle for an
                      interval longer than this number of seconds.
-                     If set to zero, then the server will never
-                     drop a session because it is idle.  Sessions
-                     that have a notification subscription active
-                     are never dropped.";
-                }
-                leaf reconnect-timeout {
-                  type uint16 {
-                    range "1..max";
-                  }
-                  units minutes;
-                  default 60;
-                  description
-                   "Sets the maximum amount of unconnected time
-                    the NETCONF client will wait before re-
-                    establishing a connection to the NETCONF
-                    server.  The NETCONF client may initiate a
-                    connection before this time if desired
-                    (e.g., to set configuration).";
+                     If set to zero, then the NETCONF client will
+                     never drop a session because it is idle.";
                 }
               }
             }
@@ -373,6 +368,11 @@ module ietf-netconf-client {
                    first endpoint configured is used.   NETCONF
                    clients SHOULD be able to remember the last
                    endpoint connected to across reboots.";
+              }
+              enum random-selection {
+                description
+                  "Indicates that reconnections should start with
+                   a random endpoint.";
               }
             }
             default first-listed;

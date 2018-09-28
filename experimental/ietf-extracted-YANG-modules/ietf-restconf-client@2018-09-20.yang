@@ -4,6 +4,12 @@ module ietf-restconf-client {
   namespace "urn:ietf:params:xml:ns:yang:ietf-restconf-client";
   prefix "rcc";
 
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+
   import ietf-inet-types {
     prefix inet;
     reference
@@ -12,7 +18,7 @@ module ietf-restconf-client {
 
   import ietf-tls-client {
     prefix ts;
-    revision-date 2018-06-04; // stable grouping definitions
+    revision-date 2018-09-20; // stable grouping definitions
     reference
       "RFC ZZZZ: YANG Groupings for TLS Clients and TLS Servers";
   }
@@ -23,7 +29,6 @@ module ietf-restconf-client {
   contact
    "WG Web:   <http://datatracker.ietf.org/wg/restconf/>
     WG List:  <mailto:restconf@ietf.org>
-
     Author:   Kent Watsen
               <mailto:kwatsen@juniper.net>
 
@@ -47,7 +52,7 @@ module ietf-restconf-client {
     This version of this YANG module is part of RFC XXXX; see
     the RFC itself for full legal notices.";
 
-  revision "2018-06-04" {
+  revision "2018-09-20" {
     description
      "Initial version";
     reference
@@ -95,12 +100,12 @@ module ietf-restconf-client {
   }
 
   container restconf-client {
-    uses restconf-client;
+    uses restconf-client-grouping;
     description
       "Top-level container for RESTCONF client configuration.";
   }
 
-  grouping restconf-client {
+  grouping restconf-client-grouping {
     description
       "Top-level grouping for RESTCONF client configuration.";
 
@@ -185,7 +190,7 @@ module ietf-restconf-client {
               description
                "Indicates the kind of connection to use.";
               choice connection-type {
-                default persistent-connection;
+                mandatory true;
                 description
                   "Selects between available connection types.";
                 case persistent-connection {
@@ -201,21 +206,6 @@ module ietf-restconf-client {
                       connection type minimizes any RESTCONF server
                       to RESTCONF client data-transfer delay, albeit
                       at the expense of holding resources longer.";
-                    leaf idle-timeout {
-                      type uint32;
-                      units "seconds";
-                      default 86400;  // one day;
-                      description
-                        "Specifies the maximum number of seconds
-                         that the underlying TLS session may remain
-                         idle.  A TLS session will be dropped if it
-                         is idle for an interval longer than this
-                         number of seconds.  If set to zero, then
-                         the client will never drop a session
-                         because it is idle.  Sessions that have
-                         a notification subscription active are
-                         never dropped.";
-                    }
                     container keep-alives {
                       description
                         "Configures the keep-alive policy, to
@@ -223,9 +213,6 @@ module ietf-restconf-client {
                          server.  An unresponsive TLS server will
                          be dropped after approximately max-attempts
                          * max-wait seconds.";
-                      reference
-                        "RFC 8071: NETCONF Call Home and RESTCONF
-                         Call Home, Section 3.1, item S6";
                       leaf max-wait {
                         type uint16 {
                           range "1..max";
@@ -258,38 +245,51 @@ module ietf-restconf-client {
                      "Indicates that a periodic connection is to be
                       maintained.";
                     description
-                     "Periodically connect to the RESTCONF server,
-                      so that, e.g., the RESTCONF client can
-                      collect data (logs) from the RESTCONF server.
-                      Once the connection is closed, for whatever
-                      reason, the RESTCONF client will restart its
-                      timer until the next connection.";
+                     "Periodically connect to the NETCONF server.
+                      The RESTCONF server should close the underlying
+                      TLS connection upon completing planned
+                      activities.
+
+                      This connection type increases resource
+                      utilization, albeit with increased delay in
+                      RESTCONF server to RESTCONF client
+                      interactions.";
+                    leaf period {
+                      type uint16;
+                      units "minutes";
+                      default 60;
+                      description
+                        "Duration of time between periodic
+                         connections.";
+                    }
+                    leaf anchor-time {
+                      type yang:date-and-time {
+                        // constrained to minute-level granularity
+                        pattern '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}'
+                                + '(Z|[\+\-]\d{2}:\d{2})';
+                      }
+                      description
+                        "Designates a timestamp before or after which
+                         a series of periodic connections are
+                         determined.  The periodic connections occur
+                         at a whole multiple interval from the anchor
+                         time.  For example, for an anchor time is 15
+                         minutes past midnight and a period interval
+                         of 24 hours, then a periodic connection will
+                         occur 15 minutes past midnight everyday.";
+                    }
                     leaf idle-timeout {
                       type uint16;
                       units "seconds";
-                      default 300; // five minutes
+                      default 120; // two minutes
                       description
                         "Specifies the maximum number of seconds
                          that the underlying TLS session may remain
                          idle. A TLS session will be dropped if it
                          is idle for an interval longer than this
                          number of seconds If set to zero, then the
-                         server will never drop a session because
-                         it is idle.";
-                    }
-                    leaf reconnect-timeout {
-                      type uint16 {
-                        range "1..max";
-                      }
-                      units minutes;
-                      default 60;
-                      description
-                       "Sets the maximum amount of unconnected time
-                        the RESTCONF client will wait before re-
-                        establishing a connection to the RESTCONF
-                        server.  The RESTCONF client may initiate
-                        a connection before this time if desired
-                        (e.g., to set configuration).";
+                         RESTCONF client will never drop a session
+                         because it is idle.";
                     }
                   }
                 } // end periodic-connection
@@ -321,6 +321,11 @@ module ietf-restconf-client {
                        configured is used.   RESTCONF clients
                        SHOULD be able to remember the last
                        endpoint connected to across reboots.";
+                  }
+                  enum random-selection {
+                    description
+                      "Indicates that reconnections should start with
+                       a random endpoint.";
                   }
                 }
                 default first-listed;
