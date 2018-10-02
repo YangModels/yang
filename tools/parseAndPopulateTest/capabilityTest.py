@@ -36,7 +36,7 @@ class CapabilityTest(unittest.TestCase):
         prepare_sdo = prepare.Prepare('prepare', TEST_DIR)
         integrity = statistics.Statistics('./testModules')
         capability = cap.Capability('./testModules', 0, prepare_sdo, integrity,
-                                    False, True, TEST_DIR, TEST_DIR, TEST_DIR)
+                                    False, True, TEST_DIR, TEST_DIR, TEST_DIR, None)
         capability.parse_and_dump_sdo()
         prepare_sdo.dump_modules('../parseAndPopulate/test0/')
         with open('../parseAndPopulate/test0/prepare.json', 'r') as f:

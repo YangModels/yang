@@ -67,7 +67,8 @@ NS_MAP = {
     "http://cisco.com/ns/yang/": "cisco",
     "http://www.huawei.com/netconf": "huawei",
     "http://openconfig.net/yang/": "openconfig",
-    "http://tail-f.com/": "tail-f"
+    "http://tail-f.com/": "tail-f",
+    "http://yang.juniper.net/": "juniper"
 }
 
 github = 'https://github.com/'
@@ -364,11 +365,11 @@ class Modules:
         if maturity_level:
             self.maturity_level = maturity_level
         else:
+            yang_name = self.name + '.yang'
+            yang_name_rev = self.name + '@' + self.revision + '.yang'
             try:
-                maturity_level = \
-                    self.jsons.ietf_draft_json['json'][self.name + '.yang'][0].split(
-                        '</a>')[
-                        0].split('\">')[1].split('-')[1]
+                maturity_level = self.jsons.status['IETFYANGDraft'][yang_name][0].split(
+                    '</a>')[0].split('\">')[1].split('-')[1]
                 if 'ietf' in maturity_level:
                     self.maturity_level = 'adopted'
                     return
@@ -379,11 +380,8 @@ class Modules:
                 pass
             # try to find in draft with revision
             try:
-                maturity_level = \
-                    self.jsons.ietf_draft_json['json'][
-                        self.name + '@' + self.revision + '.yang'][0].split(
-                        '</a>')[0].split('\">')[1].split(
-                        '-')[1]
+                maturity_level = self.jsons.status['IETFYANGDraft'][yang_name_rev][0].split(
+                    '</a>')[0].split('\">')[1].split('-')[1]
                 if 'ietf' in maturity_level:
                     self.maturity_level = 'adopted'
                     return
@@ -393,59 +391,43 @@ class Modules:
             except KeyError:
                 pass
             # try to find in rfc with revision
-            try:
-                maturity_level = self.jsons.ietf_rfc_json['json'][
-                    self.name + '@' + self.revision + '.yang']
+            if self.jsons.status['IETFYANGRFC'].get(yang_name_rev) is not None:
                 self.maturity_level = 'ratified'
                 return
-            except KeyError:
-                pass
-            try:
-                maturity_level = self.jsons.ietf_rfc_json['json'][self.name + '.yang']
+            if self.jsons.status['IETFYANGRFC'].get(yang_name) is not None:
                 self.maturity_level = 'ratified'
                 return
-            except KeyError:
-                pass
             self.maturity_level = None
 
     def __resolve_author_email(self, author_email=None):
         if author_email:
             self.author_email = author_email
         else:
+            yang_name = self.name + '.yang'
+            yang_name_rev = self.name + '@' + self.revision + '.yang'
             try:
-                email = \
-                    self.jsons.ietf_draft_json['json'][self.name + '.yang'][1].split(
-                        '\">Email')[0].split('mailto:')[1]
-                self.author_email = email
+                self.author_email = self.jsons.status['IETFYANGDraft'][yang_name][1].split(
+                    '\">Email')[0].split('mailto:')[1]
                 return
             except KeyError:
                 pass
             # try to find in draft with revision
             try:
-                email = \
-                    self.jsons.ietf_draft_json['json'][
-                        self.name + '@' + self.revision + '.yang'][1].split(
-                        '\">Email')[0].split('mailto:')[1]
-                self.author_email = email
+                self.author_email = self.jsons.status['IETFYANGDraft'][yang_name_rev][1].split(
+                    '\">Email')[0].split('mailto:')[1]
                 return
             except KeyError:
                 pass
             try:
-                email = \
-                    self.jsons.ietf_draft_example_json['json'][self.name + '.yang'][
-                        1].split(
-                        '\">Email')[0].split('mailto:')[1]
-                self.author_email = email
+                self.author_email = self.jsons.status['IETFYANGDraftExample'][yang_name][
+                    1].split('\">Email')[0].split('mailto:')[1]
                 return
             except KeyError:
                 pass
             # try to find in draft with revision
             try:
-                email = \
-                    self.jsons.ietf_draft_example_json['json'][
-                        self.name + '@' + self.revision + '.yang'][1].split(
-                        '\">Email')[0].split('mailto:')[1]
-                self.author_email = email
+                self.author_email = self.jsons.status['IETFYANGDraftExample'][yang_name_rev][1].split(
+                    '\">Email')[0].split('mailto:')[1]
                 return
             except KeyError:
                 pass
@@ -453,33 +435,30 @@ class Modules:
 
     def __resolve_working_group(self):
         if self.organization == 'ietf':
+            yang_name = self.name + '.yang'
+            yang_name_rev = self.name + '@' + self.revision + '.yang'
             try:
-                self.ietf_wg = \
-                    self.jsons.ietf_draft_json['json'][self.name + '.yang'][0].split(
-                        '</a>')[
-                        0].split('\">')[1].split('-')[2]
+                self.ietf_wg = self.jsons.status['IETFYANGDraft'][yang_name][0].split(
+                        '</a>')[0].split('\">')[1].split('-')[2]
                 return
             except KeyError:
                 pass
             # try to find in draft with revision
             try:
-                self.ietf_wg = \
-                    self.jsons.ietf_draft_json['json'][
-                        self.name + '@' + self.revision + '.yang'][
+                self.ietf_wg = self.jsons.status['IETFYANGDraft'][yang_name_rev][
                         0].split('</a>')[0].split('\">')[1].split('-')[2]
                 return
             except KeyError:
                 pass
             # try to find in ietf RFC map with revision
             try:
-                self.ietf_wg = IETF_RFC_MAP[self.name + '.yang']
+                self.ietf_wg = IETF_RFC_MAP[yang_name]
                 return
             except KeyError:
                 pass
             # try to find in ietf RFC map with revision
             try:
-                self.ietf_wg = IETF_RFC_MAP[
-                    self.name + '@' + self.revision + '.yang']
+                self.ietf_wg = IETF_RFC_MAP[yang_name_rev]
                 return
             except KeyError:
                 pass
@@ -563,6 +542,8 @@ class Modules:
 
     def __resolve_compilation_status_and_result(self):
         self.compilation_status = self.__parse_status()
+        if self.compilation_status not in ['passed', 'passed-with-warnings', 'failed', 'pending', 'unknown']:
+            self.compilation_status = 'unknown'
         if self.compilation_status['status'] != 'passed':
             self.compilation_result = self.__parse_result()
             if (self.compilation_result['pyang'] == ''
@@ -711,254 +692,81 @@ class Modules:
 
     def __parse_status(self):
         LOGGER.debug('Parsing status of module {}'.format(self.__path))
-
-        status = self.__get_module_status(self.jsons.ietf_draft_json, 3)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.ietf_rfc_standard_json)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.bbf_json)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.ieee_standard_json)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.ieee_experimental_json)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.xr611)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.xr612)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.xr613)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.xr621)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.xr622)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.xr631)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.xe1631)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.xe1632)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.xe1641)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.xe1651)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.xe1661)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.xe1662)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.xe1671)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.nx703f11)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.nx703f21)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.nx703f22)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.nx703f31)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.nx703i51)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.nx703i61)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.nx703i52)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.nx703i71)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.nx703i72)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.huawei8910)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.ciena)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.mef_experimental_json)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.mef_standard_json)
-        if status['status'] == 'unknown':
-            status = self.__get_module_status(self.jsons.openconfig_json)
+        status = {'status': 'unknown'}
+        for name in self.jsons.names:
+            if status['status'] == 'unknown':
+                if name == 'IETFYANGDraft':
+                    status = self.__get_module_status(name, 3)
+                else:
+                    status = self.__get_module_status(name)
+            else:
+                break
         return status
 
-    def __get_module_status(self, files_json, index=0):
-        # try to find in rfc without revision
+    def __get_module_status(self, name, index=0):
+        if name == 'IETFYANGRFC':
+            return {'status': 'unknown'}
         status = {}
+        # try to find with revision
         try:
-            status['status'] = files_json['json'][self.name + '.yang'][index]
-            if status['status'] == 'PASSED WITH WARNINGS':
-                status['status'] = 'passed-with-warnings'
-            status['status'] = status['status'].lower()
-            status['ths'] = files_json['ths']
-            return status
-        except:
-            pass
-        # try to find in draft with revision
-        try:
-            status['status'] = files_json['json'][self.name + '@' + self.revision + '.yang'][
+            status['status'] = self.jsons.status[name][self.name + '@' + self.revision + '.yang'][
                 index]
             if status['status'] == 'PASSED WITH WARNINGS':
                 status['status'] = 'passed-with-warnings'
             status['status'] = status['status'].lower()
-            status['ths'] = files_json['ths']
+            status['ths'] = self.jsons.headers[name]
             return status
         except:
             pass
-        return {'status': 'unknown', 'ths': self.jsons.ietf_rfc_standard_json['ths']}
+        # try to find without revision
+        try:
+            status['status'] = self.jsons.status[name][self.name + '.yang'][index]
+            if status['status'] == 'PASSED WITH WARNINGS':
+                status['status'] = 'passed-with-warnings'
+            status['status'] = status['status'].lower()
+            status['ths'] = self.jsons.headers[name]
+            return status
+        except:
+            pass
+        return {'status': 'unknown', 'ths': self.jsons.headers[name]}
 
     def __parse_result(self):
-        LOGGER.debug(
-            'Parsing compulation status of module {}'.format(self.__path))
-        # try to find in draft without revision
-        result = {}
-        try:
-            result['pyang_lint'] = self.jsons.ietf_draft_json['json'][self.name + '.yang'][4]
-            result['pyang'] = \
-                self.jsons.ietf_draft_json['json'][self.name + '.yang'][
-                    5]
-            result['confdrc'] = self.jsons.ietf_draft_json['json'][self.name + '.yang'][
-                6]
-            result['yumadump'] = \
-                self.jsons.ietf_draft_json['json'][self.name + '.yang'][7]
-            result['yanglint'] = \
-                self.jsons.ietf_draft_json['json'][self.name + '.yang'][8]
-            return result
-        except KeyError:
-            pass
-        # try to find in draft with revision
-        try:
-            result['pyang_lint'] = \
-                self.jsons.ietf_draft_json['json'][
-                    self.name + '@' + self.revision + '.yang'][
-                    4]
-            result['pyang'] = \
-                self.jsons.ietf_draft_json['json'][
-                    self.name + '@' + self.revision + '.yang'][
-                    5]
-            result['confdrc'] = \
-                self.jsons.ietf_draft_json['json'][
-                    self.name + '@' + self.revision + '.yang'][
-                    6]
-            result['yumadump'] = \
-                self.jsons.ietf_draft_json['json'][
-                    self.name + '@' + self.revision + '.yang'][
-                    7]
-            result['yanglint'] = \
-                self.jsons.ietf_draft_json['json'][
-                    self.name + '@' + self.revision + '.yang'][
-                    8]
-            return result
-        except KeyError:
-            pass
-        res = self.__parse_res(self.jsons.ietf_rfc_standard_json)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.bbf_json)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.ieee_standard_json)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.ieee_experimental_json)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.nx703i52)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.nx703i61)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.nx703i51)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.nx703f21)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.nx703f11)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.nx703f22)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.nx703f31)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.nx703i71)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.xr621)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.xr622)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.xr631)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.xr613)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.xr612)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.xr611)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.xe1651)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.xe1661)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.xe1662)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.xe1641)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.xe1632)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.xe1631)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.huawei8910)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.ciena)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.mef_experimental_json)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.mef_standard_json)
-        if res != '':
-            return res
-        res = self.__parse_res(self.jsons.openconfig_json)
-        if res != '':
-            return res
+        LOGGER.debug('Parsing compulation status of module {}'.format(self.__path))
+        res = ''
+        for name in self.jsons.names:
+            if name == 'IETFYANGRFC':
+                continue
+            if res == '':
+                if name == 'IETFYANGDraft':
+                    res = self.__parse_res(name, 3)
+                else:
+                    res = self.__parse_res(name)
+            else:
+                return res
         return {'pyang': '', 'pyang_lint': '', 'confdrc': '', 'yumadump': '',
                 'yanglint': ''}
 
-    def __parse_res(self, json_file):
+    def __parse_res(self, name, index=0):
         result = {}
+        # try to find with revision
         try:
-            result['pyang_lint'] = json_file['json'][self.name + '.yang'][1]
-            result['pyang'] = json_file['json'][self.name + '.yang'][2]
-            result['confdrc'] = json_file['json'][self.name + '.yang'][3]
-            result['yumadump'] = json_file['json'][self.name + '.yang'][4]
-            result['yanglint'] = json_file['json'][self.name + '.yang'][5]
+            yang_name = self.name + '@' + self.revision + '.yang'
+            result['pyang_lint'] = self.jsons.status[name][yang_name][1 + index]
+            result['pyang'] = self.jsons.status[name][yang_name][2 + index]
+            result['confdrc'] = self.jsons.status[name][yang_name][3 + index]
+            result['yumadump'] = self.jsons.status[name][yang_name][4 + index]
+            result['yanglint'] = self.jsons.status[name][yang_name][5 + index]
             return result
         except:
             pass
-        # try to find in draft with revision
+        # try to find without revision
         try:
-            result['pyang_lint'] = \
-                json_file['json'][self.name + '@' + self.revision + '.yang'][1]
-            result['pyang'] = \
-                json_file['json'][self.name + '@' + self.revision + '.yang'][2]
-            result['confdrc'] = \
-                json_file['json'][self.name + '@' + self.revision + '.yang'][3]
-            result['yumadump'] = \
-                json_file['json'][self.name + '@' + self.revision + '.yang'][4]
-            result['yanglint'] = \
-                json_file['json'][self.name + '@' + self.revision + '.yang'][5]
+            yang_name = self.name + '.yang'
+            result['pyang_lint'] = self.jsons.status[name][yang_name][1 + index]
+            result['pyang'] = self.jsons.status[name][yang_name][2 + index]
+            result['confdrc'] = self.jsons.status[name][yang_name][3 + index]
+            result['yumadump'] = self.jsons.status[name][yang_name][4 + index]
+            result['yanglint'] = self.jsons.status[name][yang_name][5 + index]
             return result
         except:
             pass
@@ -968,54 +776,39 @@ class Modules:
         LOGGER.debug(
             'Parsing document reference of module {}'.format(self.__path))
         # try to find in draft without revision
+        yang_name = self.name + '.yang'
+        yang_name_rev = self.name + '@' + self.revision + '.yang'
         try:
-            doc_name = \
-                self.jsons.ietf_draft_json['json'][self.name + '.yang'][0].split(
-                    '</a>')[
-                    0].split(
-                    '\">')[1]
-            doc_source = \
-                self.jsons.ietf_draft_json['json'][self.name + '.yang'][0].split(
-                    'a href=\"')[
-                    1].split('\">')[0]
+            doc_name = self.jsons.status['IETFYANGDraft'][yang_name][0].split(
+                '</a>')[0].split('\">')[1]
+            doc_source = self.jsons.status['IETFYANGDraft'][yang_name][0].split(
+                'a href=\"')[1].split('\">')[0]
             return [doc_name, doc_source]
         except KeyError:
             pass
         # try to find in draft with revision
         try:
-            doc_name = \
-                self.jsons.ietf_draft_json['json'][
-                    self.name + '@' + self.revision + '.yang'][
-                    0].split('</a>')[0].split('\">')[1]
-            doc_source = \
-                self.jsons.ietf_draft_json['json'][
-                    self.name + '@' + self.revision + '.yang'][
-                    0].split('a href=\"')[1] \
-                    .split('\">')[0]
+            doc_name = self.jsons.status['IETFYANGDraft'][yang_name_rev][
+                0].split('</a>')[0].split('\">')[1]
+            doc_source = self.jsons.status['IETFYANGDraft'][yang_name_rev][
+                0].split('a href=\"')[1].split('\">')[0]
             return [doc_name, doc_source]
         except KeyError:
             pass
             # try to find in rfc with revision
             try:
-                doc_name = self.jsons.ietf_rfc_json['json'][
-                    self.name + '@' + self.revision + '.yang'].split('</a>')[
-                    0].split('\">')[1]
-                doc_source = self.jsons.ietf_rfc_json['json'][
-                    self.name + '@' + self.revision + '.yang'].split(
-                    'a href=\"')[1] \
-                    .split('\">')[0]
+                doc_name = self.jsons.status['IETFYANGRFC'][
+                    yang_name_rev].split('</a>')[0].split('\">')[1]
+                doc_source = self.jsons.status['IETFYANGRFC'][
+                    yang_name_rev].split('a href=\"')[1].split('\">')[0]
                 return [doc_name, doc_source]
             except KeyError:
                 pass
             try:
-                doc_name = \
-                    self.jsons.ietf_rfc_json['json'][self.name + '.yang'].split('</a>')[
-                        0].split(
-                        '\">')[1]
-                doc_source = \
-                    self.jsons.ietf_rfc_json['json'][self.name + '.yang'].split(
-                        'a href=\"')[
-                        1].split('\">')[0]
+                doc_name = self.jsons.status['IETFYANGRFC'][yang_name].split('</a>')[
+                    0].split('\">')[1]
+                doc_source = self.jsons.status['IETFYANGRFC'][yang_name].split(
+                    'a href=\"')[1].split('\">')[0]
                 return [doc_name, doc_source]
             except KeyError:
                 pass

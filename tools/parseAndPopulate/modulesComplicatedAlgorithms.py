@@ -321,7 +321,12 @@ class ModulesComplicatedAlgorithms:
             else:
                 data = json.loads(response.content)
                 rev = module['revision'].split('-')
-                date = datetime(int(rev[0]), int(rev[1]), int(rev[2]))
+                try:
+                    date = datetime(int(rev[0]), int(rev[1]), int(rev[2]))
+                except Exception:
+                    LOGGER.error('Failed to process revision for {}: (rev: {})'.format(module['name'], rev))
+                    if int(rev[1]) == 2 and int(rev[2]) == 29:
+                        date = datetime(int(rev[0]), int(rev[1]), 28)
                 module_temp = {}
                 module_temp['name'] = module['name']
                 module_temp['revision'] = module['revision']
@@ -338,7 +343,13 @@ class ModulesComplicatedAlgorithms:
                         continue
                     rev = revision.split('-')
                     module_temp['revision'] = revision
-                    module_temp['date'] = datetime(int(rev[0]), int(rev[1]), int(rev[2]))
+
+                    try:
+                        module_temp['date'] = datetime(int(rev[0]), int(rev[1]), int(rev[2]))
+                    except Exception:
+                        LOGGER.error('Failed to process revision for {}: (rev: {})'.format(module['name'], rev))
+                        if int(rev[1]) == 2 and int(rev[2]) == 29:
+                            module_temp['date'] = datetime(int(rev[0]), int(rev[1]), 28)
                     module_temp['name'] = mod['name']
                     module_temp['organization'] = mod['organization']
                     module_temp['schema'] = mod.get('schema')

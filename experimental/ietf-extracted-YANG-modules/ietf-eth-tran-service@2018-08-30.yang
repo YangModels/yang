@@ -1,0 +1,574 @@
+module ietf-eth-tran-service {
+
+  namespace "urn:ietf:params:xml:ns:yang:ietf-eth-tran-service";
+
+  prefix "ethtsvc";
+
+        import ietf-yang-types {
+                prefix "yang";
+        }
+
+  import ietf-te-types {
+    prefix "te-types";
+  }
+
+  import ietf-eth-tran-types {
+    prefix "etht-types";
+  }
+
+        organization
+                "Internet Engineering Task Force (IETF) CCAMP WG";
+  contact
+    "
+      WG List: <mailto:ccamp@ietf.org>
+
+      ID-draft editor:
+        Haomian Zheng (zhenghaomian@huawei.com);
+        Italo Busi (italo.busi@huawei.com);
+        Aihua Guo (aihuaguo@huawei.com);
+        Yunbin Xu (xuyunbin@ritt.cn);
+        Yang Zhao (zhaoyangyjy@chinamobile.com);
+        Xufeng Liu (Xufeng_Liu@jabil.com);
+        Giuseppe Fioccola (giuseppe.fioccola@telecomitalia.it);
+    ";
+
+  description
+    "This module defines a YANG data model for describing
+     the Ethernet transport services.";
+
+        revision 2018-08-30 {
+                description
+                        "Initial revision";
+                reference
+                        "draft-zheng-ccamp-client-signal-yang";
+        }
+
+  /*
+  Groupings
+  */
+
+  grouping vlan-classification {
+    description
+      "A grouping which represents classification on an 802.1Q VLAN tag.";
+
+    leaf tag-type {
+      type etht-types:eth-tag-classify;
+      description
+        "The tag type used for VLAN classification.";
+    }
+    choice individual-bundling-vlan {
+      description
+        "VLAN based classification can be individual
+         or bundling.";
+      case individual-vlan {
+        leaf vlan-value {
+          type etht-types:vlanid;
+          description
+            "VLAN ID value.";
+        }
+      }
+
+      case vlan-bundling {
+        leaf vlan-range {
+          type etht-types:vid-range-type;
+          description
+            "List of VLAN ID values.";
+        }
+      }
+    }
+  }
+
+  grouping vlan-write {
+    description
+      "A grouping which represents push/pop operations
+       of an 802.1Q VLAN tag.";
+
+    leaf tag-type {
+      type etht-types:eth-tag-type;
+      description
+        "The VLAN tag type to push/swap.";
+    }
+    leaf vlan-value {
+      type etht-types:vlanid;
+      description
+        "The VLAN ID value to push/swap.";
+    }
+  }
+
+  grouping vlan-operations {
+    description
+      "A grouping which represents VLAN operations.";
+
+      leaf pop-tags {
+      type uint8 {
+        range "1..2";
+      }
+      description
+        "The number of VLAN tags to pop (or swap if used in
+         conjunction with push-tags)";
+    }
+    container push-tags {
+      description
+        "The VLAN tags to push (or swap if used in
+         conjunction with pop-tags)";
+
+      container outer-tag {
+        presence
+          "Indicates existence of the outermost VLAN tag to
+           push/swap";
+
+        description
+          "The outermost VLAN tag to push/swap.";
+
+        uses vlan-write;
+      }
+      container second-tag {
+        must
+                                        '../outer-tag/tag-type = "etht-types:s-vlan-tag-type" and ' +
+                                        'tag-type = "etht-types:c-vlan-tag-type"'
+        {
+
+          error-message
+            "
+              When pushing/swapping two tags, the outermost tag must
+              be specified and of S-VLAN type and the second
+              outermost tag must be of C-VLAN tag type.
+            ";
+          description
+            "
+              For IEEE 802.1Q interoperability, when pushing/swapping
+              two tags, it is required that the outermost tag exists
+              and is an S-VLAN, and the second outermost tag is a
+              C-VLAN.
+            ";
+        }
+
+        presence
+          "Indicates existence of a second outermost VLAN tag to
+           push/swap";
+
+        description
+          "The second outermost VLAN tag to push/swap.";
+
+        uses vlan-write;
+      }
+    }
+  }
+
+  grouping bandwidth-profiles {
+    description
+      "A grouping which represent bandwidth profile configuration.";
+
+    choice direction {
+      description
+        "Whether the bandwidth profiles are symmetrical or
+         asymmetrical";
+      case symmetrical {
+        description
+          "The same bandwidth profile is used to describe the ingress
+          and the egress bandwidth profile.";
+
+        leaf ingress-egress-bandwidth-profile-name {
+          type "string";
+          description
+            "Name of the bandwidth profile.";
+        }
+      }
+      case asymmetrical {
+        description
+          "Ingress and egress bandwidth profiles can be specified.";
+        leaf ingress-bandwidth-profile-name {
+          type "string";
+          description
+            "Name of the bandwidth profile used in
+             the ingress direction.";
+        }
+        leaf egress-bandwidth-profile-name {
+          type "string";
+          description
+            "Name of the bandwidth profile used in
+             the egress direction.";
+        }
+      }
+    }
+  }
+
+  grouping etht-svc-access-parameters {
+    description
+      "ETH transport services access parameters";
+
+    leaf access-node-id {
+      type te-types:te-node-id;
+      description
+        "The identifier of the access node in
+         the ETH transport topology.";
+    }
+    leaf access-ltp-id {
+      type te-types:te-tp-id;
+      description
+        "The TE link termination point identifier, used
+         together with access-node-id to identify the
+         access LTP.";
+    }
+    leaf service-classification-type {
+      type identityref {
+        base etht-types:service-classification-type;
+      }
+      description
+        "Service classification type.";
+    }
+
+    choice service-classification {
+      description
+        "Access classification can be port-based or
+         VLAN based.";
+
+      case port-classification {
+        /* no additional information */
+      }
+
+      case vlan-classification {
+        container outer-tag {
+          presence "The outermost VLAN tag exists";
+          description
+            "Classifies traffic using the outermost VLAN tag.";
+
+          uses vlan-classification;
+        }
+        container second-tag {
+          must
+                                                '../outer-tag/tag-type = "etht-types:classify-s-vlan" and ' +
+                                                'tag-type = "etht-types:classify-c-vlan"'
+          {
+
+            error-message
+              "
+                When matching two tags, the outermost tag must be
+                specified and of S-VLAN type and the second
+                outermost tag must be of C-VLAN tag type.
+              ";
+            description
+              "
+                For IEEE 802.1Q interoperability, when matching two
+                tags, it is required that the outermost tag exists
+                and is an S-VLAN, and the second outermost tag is a
+                C-VLAN.
+              ";
+          }
+          presence "The second outermost VLAN tag exists";
+
+          description
+            "Classifies traffic using the second outermost VLAN tag.";
+
+          uses vlan-classification;
+        }
+      }
+    }
+
+/*
+        Open issue: can we constraints it to be used only with mp services?
+*/
+                leaf split-horizon-group {
+                        type string;
+                        description "Identify a split horizon group";
+                }
+
+    uses bandwidth-profiles;
+
+    container vlan-operations {
+        description
+          "include parameters for vlan-operation";
+      choice direction {
+        description
+          "Whether the VLAN operations are symmetrical or
+           asymmetrical";
+        case symmetrical {
+          container symmetrical-operation {
+            uses vlan-operations;
+            description
+              "Symmetrical operations.
+               Expressed in the ingress direction, but
+               the reverse operation is applied to egress traffic";
+          }
+        }
+        case asymmetrical {
+          container asymmetrical-operation {
+            description "Asymmetrical operations";
+            container ingress {
+              uses vlan-operations;
+              description "Ingress operations";
+            }
+            container egress {
+              uses vlan-operations;
+              description "Egress operations";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  grouping etht-svc-tunnel-parameters {
+    description
+      "ETH transport services tunnel parameters";
+
+    leaf tunnel-name {
+      type string;
+      description
+        "TE service tunnel instance name.";
+    }
+    choice svc-multiplexing-tag {
+      description
+        "Service multiplexing is optional and flexible.";
+
+      case other {
+        /*
+         placeholder to support proprietary multiplexing
+         (for further discussion)
+        */
+                        }
+
+      case none {
+        /* no additional information is needed */
+                        }
+
+      case vlan-tag {
+        /*
+          No additional information is needed
+          The C-Tag or S-Tag used for service mulitplexing is defined
+          by the VLAN classification and operations configured in the
+          etht-svc-access-parameters grouping
+        */
+                        }
+
+      case pw {
+        /* to be completed (for further discussion) */
+                        }
+    }
+
+/*
+        Open issue: can we constraints it to be used only with mp services?
+*/
+                leaf src-split-horizon-group {
+                        type string;
+                        description "Identify a split horizon group at the Tunnel source TTP";
+                }
+                leaf dst-split-horizon-group {
+                        type string;
+                        description "Identify a split horizon group at the Tunnel destination TTP";
+                }
+  }
+
+  grouping te-topology-identifier {
+                description
+        "An identifier to uniquely identify the TE topology.";
+    leaf access-provider-id {
+      type te-types:te-global-id;
+      description
+        "An identifier to uniquely identify a provider.";
+    }
+    leaf access-client-id {
+      type te-types:te-global-id;
+      description
+        "An identifier to uniquely identify a client.";
+    }
+    leaf access-topology-id {
+      type te-types:te-topology-id;
+      description
+        "Identifies the topology the
+        service access ports belong to.";
+    }
+  }
+
+        grouping  etht-svc-pm-threshold_config {
+                description
+                        "Configuraiton parameters for Ethernet service PM thresholds.";
+
+                leaf sending-rate-high {
+                        type uint64;
+                        description
+                                "High threshold of packet sending rate in kbps.";
+                }
+                leaf sending-rate-low {
+                        type uint64;
+                        description
+                                "Low threshold of packet sending rate in kbps.";
+                }
+                leaf receiving-rate-high {
+                        type uint64;
+                        description
+                                "High threshold of packet receiving rate in kbps.";
+                }
+                leaf receiving-rate-low {
+                        type uint64;
+                        description
+                                "Low threshold of packet receiving rate in kbps.";
+                }
+        }
+
+        grouping  etht-svc-pm-stats {
+                description
+                        "Ethernet service PM statistics.";
+
+                leaf sending-rate-too-high {
+                        type uint32;
+                        description
+                                "Counter that indicates the number of times the sending rate is above the high threshold";
+                }
+                leaf sending-rate-too-low {
+                        type uint32;
+                        description
+                                "Counter that indicates the number of times the sending rate is below the low threshold";
+                }
+                leaf receiving-rate-too-high {
+                        type uint32;
+                        description
+                                "Counter that indicates the number of times the receiving rate is above the high threshold";
+                }
+                leaf receiving-rate-too-low {
+                        type uint32;
+                        description
+                                "Counter that indicates the number of times the receiving rate is below the low threshold";
+                }
+        }
+
+  grouping  etht-svc-instance_config {
+    description
+      "Configuraiton parameters for Ethernet services.";
+
+    leaf etht-svc-name {
+      type string;
+      description
+        "Name of the p2p ETH transport service.";
+    }
+
+                leaf etht-svc-descr {
+                        type string;
+                        description
+                                "Description of the ETH transport service.";
+                }
+
+                leaf etht-svc-type {
+                        type etht-types:service-type;
+                        description
+                                "Type of Ethernet service (p2p, mp2mp or rmp).";
+                        /* Add default as p2p */
+                }
+
+                uses te-topology-identifier;
+
+    list etht-svc-access-ports {
+      key access-port-id;
+      min-elements "1";
+/*
+        Open Issue:
+                Is it possible to limit the max-elements only for p2p services?
+
+                        max-elements "2";
+*/
+      description
+        "List of the ETH trasport services access port instances.";
+
+      leaf access-port-id {
+        type uint16;
+        description
+          "ID of the service access port instance";
+      }
+        uses etht-svc-access-parameters;
+    }
+    list etht-svc-tunnels {
+      key tunnel-name;
+      description
+        "List of the TE Tunnels supporting the ETH
+        transport service.";
+
+      uses etht-svc-tunnel-parameters;
+    }
+                container pm-config {
+                        description
+                                "ETH service performance monitoring";
+
+                        leaf pm-enable {
+                                type boolean;
+                                description
+                                        "Boolean value indicating whether PM is enabled.";
+                        }
+                        uses etht-svc-pm-threshold_config;
+                }
+    leaf admin-status {
+      type identityref {
+        base te-types:tunnel-state-type;
+      }
+      default te-types:tunnel-state-up;
+      description "ETH service administrative state.";
+    }
+        }
+
+  grouping  etht-svc-instance_state {
+    description
+      "State parameters for Ethernet services.";
+
+    leaf operational-state {
+          type identityref {
+        base te-types:tunnel-state-type;
+      }
+      default te-types:tunnel-state-up;
+          description "ETH service operational state.";
+    }
+    leaf provisioning-state {
+      type identityref {
+        base te-types:lsp-state-type;
+      }
+      description "ETH service provisioning state.";
+    }
+                leaf creation-time {
+                        type yang:date-and-time;
+                        description
+                                "Time of ETH service creation.";
+                }
+                leaf last-updated-time {
+                        type yang:date-and-time;
+                        description
+                                "Time of ETH service last update.";
+                }
+                uses etht-svc-pm-stats;
+  }
+
+  /*
+  Data nodes
+  */
+
+  container etht-svc {
+    description
+      "ETH transport services.";
+
+    container globals {
+      description
+      "ETH profile information.";
+      list etht-svc-bandwidth-profiles {
+        key bandwidth-profile-name;
+        description
+          "List of bandwidth profile templates used by
+           Ethernet services.";
+
+        uses etht-types:etht-bandwidth-profiles;
+      }
+    }
+
+    list etht-svc-instances {
+      key etht-svc-name;
+      description
+        "The list of p2p ETH transport service instances";
+
+      uses etht-svc-instance_config;
+
+      container state {
+        config false;
+        description
+          "Ethernet Service states.";
+
+        uses etht-svc-instance_state;
+      }
+    }
+  }
+}
