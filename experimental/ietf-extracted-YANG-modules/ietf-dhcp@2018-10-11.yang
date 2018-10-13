@@ -1,4 +1,5 @@
 module ietf-dhcp {
+  yang-version 1.1;
   namespace "urn:ietf:params:xml:ns:yang:ietf-dhcp";
   prefix "dhcp";
 
@@ -19,23 +20,22 @@ module ietf-dhcp {
                 chin.chen@ericsson.com";
   description  "The module for implementing DHCP protocol";
 
-  revision 2017-03-02 {
+  revision "2018-10-11" {
     description   "initial draft revision";
-    reference     "rfc2131 rfc6020";
+    reference     "rfc2131 rfc6020 rfc7950";
   }
 
   /*--------------------*/
   /*      Features      */
   /*--------------------*/
-  feature dhcp-server {
+  feature server {
     description "Feature DHCP server";
   }
 
-  feature dhcp-client {
+  feature client {
     description "Feature DHCP client";
   }
-
-  feature dhcp-relay {
+  feature relay {
     description "Feature DHCP relay";
   }
 
@@ -56,7 +56,7 @@ module ietf-dhcp {
       enum manual {
       description
         "a client's IP address is assigned by the
-                   network administrator, and DHCP is used
+          network administrator, and DHCP is used
          simply to convey the assigned address to the client";
       }
     }
@@ -68,7 +68,6 @@ module ietf-dhcp {
   /*--------------------*/
   grouping server-packet {
     description "The packets are sent from server ";
-
     leaf offer-packet {
       type uint32;
       config "false";
@@ -115,7 +114,6 @@ module ietf-dhcp {
       description "Total number of DHCPINFORM packets";
     }
   }
-
   grouping sum-packet {
     description "All of commnicated packets between server and client";
 
@@ -168,7 +166,7 @@ module ietf-dhcp {
     description
       "DHCP configuration";
     container server {
-      if-feature dhcp-server;
+      if-feature server;
       description
       "DHCP server configuration";
       leaf lease-time {
@@ -196,7 +194,7 @@ module ietf-dhcp {
         description "Configuration option";
         uses dhcp-option;
       }
-      list dhcp-ip-pool {
+      list ip-pool {
         key "ip-pool-name";
         description   "Global IP pool configuration";
 
@@ -240,20 +238,14 @@ module ietf-dhcp {
           }
         }
         list section {
-          key "section-index";
+          key "start-ip";
           description "IPv4 address for the range";
-          leaf section-index {
-            type uint16 {
-                    range "0..255";
-            }
-            description "Index of IPv4 address range";
-          }
-          leaf section-start-ip {
+          leaf start-ip {
             type inet:ipv4-address;
             mandatory "true";
             description "Starting IPv4 Address of a section";
           }
-          leaf section-end-ip {
+          leaf end-ip {
             type inet:ipv4-address;
             description "Last IPv4 Address of a section";
           }
@@ -262,10 +254,81 @@ module ietf-dhcp {
           description "Configuration option";
           uses dhcp-option;
         }
+        leaf used-ip-count {
+          type uint32;
+          config "false";
+          description "Total number of used IPv4 addresses";
+        }
+        leaf idle-ip-count  {
+          type uint32;
+          config "false";
+          description "Total number of idle IPv4 addresses";
+        }
+        leaf conflict-ip-count {
+          type uint32;
+          config "false";
+          description "Total number of conflict IPv4 addresses";
+        }
+        leaf total-ip-count  {
+          type uint32;
+          config "false";
+          description "Total number of IPv4 addresses";
+        }
+    }
+
+      list packet-statistics {
+      key "interface";
+      config "false";
+        description "Packet statistics";
+
+        leaf interface {
+          type if:interface-ref;
+          description "Name of the interface";
+        }
+
+        action clean-statistics {
+      description "Clear the specific interface statistics";
+        }
+
+        container receive {
+          description "Number of  received packets";
+
+          uses client-packet;
+        }
+        container send {
+          description "Number of sent packets";
+
+          uses server-packet;
+        }
+      }
+      container host {
+      config "false";
+        description "Host status information";
+        leaf interface {
+          type if:interface-ref;
+          description "Name of the interface";
+        }
+        leaf host-ip {
+          type string;
+          description "IPv4 address of the host";
+        }
+        leaf host-hardware-address {
+          type string;
+          description "MAC address of the host";
+        }
+        leaf lease {
+          type uint32;
+          description "Default network address lease
+                    time assigned to DHCP clients";
+        }
+        leaf type {
+          type allocate-type;
+          description "Mechanisms for IP address allocation";
+        }
       }
     }
     container relay {
-      if-feature dhcp-relay;
+      if-feature relay;
       description "DHCP relay agent configuration";
 
       list server-group {
@@ -288,10 +351,30 @@ module ietf-dhcp {
           type inet:ipv4-address;
           description "IPv4 address of the server";
         }
+
+        container packet-statistics {
+         config "false";
+          description "Packet statistics";
+
+          action clean-statistics {
+        description "Clear the specific interface statistics";
+          }
+          container receive {
+            description "Number of  received packets";
+
+            uses sum-packet;
+          }
+          container send {
+            description
+              "Number of sent packets";
+
+            uses sum-packet;
+          }
+        }
       }
-    }
+  }
     container client {
-      if-feature dhcp-client;
+      if-feature client;
       description "DHCP client configuration";
 
       list interfaces {
@@ -312,233 +395,27 @@ module ietf-dhcp {
           }
           description "Default network address lease time assigned to DHCP clients";
         }
-      }
-    }
-  }
-
-  /*--------------------------*/
-  /*  Operational State Data  */
-  /*--------------------------*/
-  container dhcp-state {
-    config "false";
-    description "DHCP state data";
-
-    container server {
-      if-feature dhcp-server;
-      description "DHCP server state data";
-
-      container packet-statistics {
-        description "Packet statistics";
-
-        leaf interface {
-          type if:interface-state-ref;
-          description "Name of the interface";
-        }
-
-        container receive {
-          description "Number of  received packets";
-          uses client-packet;
-        }
-        container send {
-          description "Number of sent packets";
-
-          uses server-packet;
-        }
-      }
-      container host {
-        description "Host status information";
-        leaf interface {
-          type string;
+        container packet-statistics {
           config "false";
-          description "Name of the interface";
-        }
-        leaf host-ip {
-          type string;
-          config "false";
-          description "IPv4 address of the host";
-        }
-        leaf host-hardware-address {
-          type string;
-          config "false";
-          description "MAC address of the host";
-        }
-        leaf lease {
-          type uint32;
-          config "false";
-          description "Default network address lease
-                      time assigned to DHCP clients";
-        }
-        leaf type {
-          type allocate-type;
-          config "false";
-          description "Mechanisms for IP address allocation";
-        }
-      }
-      list ip-pool {
-        key "ip-pool-name";
-        description   "Global IP pool configuration";
+      description "Packet statistics";
 
-        leaf ip-pool-name {
-          type string {
-            length "1..64";
+          action clean-statistics {
+            description "Clear the specific interface statistics";
           }
-          description "Name of an IP pool";
+
+          container receive {
+            description "Number of  received packets";
+
+            uses server-packet;
+          }
+
+          container send {
+            description "Number of sent packets";
+
+            uses client-packet;
+          }
         }
-        leaf gateway-ip {
-          type inet:ip-address;
-          description "IPv4 address of the gateway";
-        }
-        leaf gateway-mask {
-          type inet:ip-prefix;
-          description "Network submask of the gateway";
-        }
-        leaf used-ip-count {
-          type uint32;
-          config "false";
-          description "Total number of used IPv4 addresses";
-        }
-        leaf idle-ip-count  {
-          type uint32;
-          config "false";
-          description "Total number of idle IPv4 addresses";
-        }
-        leaf conflict-ip-count {
-          type uint32;
-          config "false";
-          description "Total number of conflict IPv4 addresses";
-        }
-        leaf total-ip-count  {
-          type uint32;
-          config "false";
-          description "Total number of IPv4 addresses";
-        }
-      }
     }
-    container relay {
-      if-feature dhcp-relay;
-      description "DHCP reply agent state data";
-
-      container packet-statistics {
-        description "Packet statistics";
-
-        leaf interface {
-          type if:interface-state-ref;
-          description "Name of the interface";
-        }
-
-        container receive {
-          description "Number of  received packets";
-
-          uses sum-packet;
-        }
-        container send {
-          description
-            "Number of sent packets";
-
-          uses sum-packet;
-        }
-      }
-    }
-    container client {
-      if-feature dhcp-client;
-      description "DHCP client state data";
-
-      container packet-statistics {
-        description "Packet statistics";
-
-        leaf interface {
-          type if:interface-state-ref;
-          description "Name of the interface";
-        }
-
-        container receive {
-          description "Number of  received packets";
-
-          uses server-packet;
-        }
-        container send {
-          description "Number of sent packets";
-
-          uses client-packet;
-        }
-      }
-    }
-  }
-
-  /*--------------------------*/
-  /*  Define RPC for action   */
-  /*--------------------------*/
-  rpc clean-server-statistics {
-    if-feature dhcp-server;
-    description "Clean server packet statistics";
-    input {
-      leaf interface {
-        type leafref {
-            path "/dhcp:dhcp-state/dhcp:server/"+
-            "dhcp:packet-statistics/dhcp:interface";
-        }
-        description "Name of the interface";
-      }
-      leaf clean-at {
-        type yang:date-and-time;
-        description "The start time to clean packet statistics";
-      }
-    }
-    output {
-      leaf clean-finished-at {
-        type yang:date-and-time;
-        description "The finish time to clean packet statistics";
-      }
-    }
-  }
-
-  rpc clean-relay-statistics {
-    if-feature dhcp-relay;
-    description "Clean relay packet statistics";
-    input {
-      leaf interface {
-        type leafref {
-            path "/dhcp:dhcp-state/dhcp:relay/"+
-            "dhcp:packet-statistics/dhcp:interface";
-        }
-        description "Name of the interface";
-      }
-      leaf clean-at {
-        type yang:date-and-time;
-        description "The start time to clean packet statistics";
-      }
-
-    }
-    output {
-      leaf clean-finished-at {
-        type yang:date-and-time;
-        description "The finish time to clean packet statistics";
-      }
-    }
-  }
-
-  rpc clean-client-statistics {
-    if-feature dhcp-client;
-    description "Clean client packet statistics";
-    input {
-      leaf interface {
-        type leafref {
-            path "/dhcp:dhcp-state/dhcp:client/"+
-            "dhcp:packet-statistics/dhcp:interface";
-        }
-        description "Name of the interface";
-      }
-      leaf clean-at {
-        type yang:date-and-time;
-        description "The start time to clean packet statistics";
-      }
-
-    }
-    output {
-      leaf clean-finished-at {
-        type yang:date-and-time;
-        description "The finish time to clean packet statistics";
-      }
     }
   }
 }
