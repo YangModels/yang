@@ -1,5 +1,6 @@
 module ietf-te {
   yang-version 1.1;
+
   namespace "urn:ietf:params:xml:ns:yang:ietf-te";
 
   /* Replace with IANA when assigned */
@@ -8,10 +9,13 @@ module ietf-te {
   /* Import TE generic types */
   import ietf-te-types {
     prefix te-types;
+    reference "draft-ietf-teas-yang-te-types: A YANG Data Model for
+               Common Traffic Engineering Types";
   }
 
   import ietf-inet-types {
     prefix inet;
+    reference "RFC6991: Common YANG Data Types";
   }
 
   organization
@@ -45,12 +49,11 @@ module ietf-te {
 
      Editor:   Igor Bryskin
                <mailto:Igor.Bryskin@huawei.com>";
-
   description
     "YANG data module for TE configuration,
     state, RPC and notifications.";
 
-  revision "2018-07-01" {
+  revision "2018-10-10" {
     description "Latest update to TE generic YANG module.";
     reference "TBA";
   }
@@ -62,6 +65,16 @@ module ietf-te {
     description
       "This type is used by data models that need to reference
        configured TE tunnel.";
+  }
+
+  typedef tunnel-p2mp-ref {
+    type leafref {
+      path "/te:te/te:tunnels/te:tunnel-p2mp/te:name";
+    }
+    description
+      "This type is used by data models that need to reference
+       configured P2MP TE tunnel.";
+    reference "RFC4875";
   }
 
   typedef path-ref {
@@ -80,120 +93,9 @@ module ietf-te {
        configured primary or secondary path of a TE tunnel.";
   }
 
-  typedef tunnel-p2mp-ref {
-    type leafref {
-      path "/te:te/te:tunnels/te:tunnel-p2mp/te:name";
-    }
-    description
-      "This type is used by data models that need to reference
-       configured P2MP TE tunnel.";
-    reference "RFC4875";
-  }
-
   /**
    * TE tunnel generic groupings
    */
-  grouping path-affinities-contents_config {
-    description
-      "Path affinities constraints grouping";
-    reference "RFC3630 and RFC5305";
-    leaf usage {
-      type identityref {
-        base te-types:resource-affinities-type;
-      }
-      description "Affinities usage";
-    }
-    choice style {
-      description
-        "Path affinities representation style";
-      case value {
-        leaf value {
-          type te-types:admin-groups;
-          description
-            "Bitmap indicating what bits are of significance";
-        }
-      }
-      case named {
-        list affinity-names {
-          key "name";
-          leaf name {
-            type string;
-            description "Affinity name";
-          }
-          description "List of named affinities";
-        }
-      }
-    }
-  }
-
-  grouping path-affinities {
-    description "Path affinities grouping";
-    reference "RFC 3209";
-    container path-affinities {
-      description "Path affinities container";
-      list constraints {
-        key "usage";
-        description "List of named affinity constraints";
-        uses path-affinities-contents_config;
-      }
-    }
-  }
-
-  grouping path-srlgs-values_config {
-    description "Path SRLG values properties grouping";
-    reference "RFC4203 and RFC5307";
-    leaf usage {
-      type identityref {
-        base te-types:route-exclude-srlg;
-      }
-      description "SRLG usage";
-    }
-    leaf-list values {
-      type te-types:srlg;
-      description "SRLG value";
-      reference "RFC4203 and RFC5307";
-    }
-  }
-
-  grouping path-srlgs {
-    description "Path SRLG properties grouping";
-    container path-srlgs {
-      description "Path SRLG properties container";
-      choice style {
-        description "Type of SRLG representation";
-        case values {
-          uses path-srlgs-values_config;
-        }
-        case named {
-          container constraints {
-            description "SRLG named constraints";
-            list constraint {
-              key "usage";
-              leaf usage {
-                type identityref {
-                  base te-types:route-exclude-srlg;
-                }
-                description "SRLG usage";
-              }
-              container constraint {
-                description "Container for named SRLG list";
-                list srlg-names {
-                  key "name";
-                  leaf name {
-                    type string;
-                    description "The SRLG name";
-                  }
-                  description "List named SRLGs";
-                }
-              }
-              description "List of named SRLG constraints";
-            }
-          }
-        }
-      }
-    }
-  }
-
   grouping p2p-reverse-primary-path-properties {
     description "tunnel path properties.";
     reference "RFC7551";
@@ -274,8 +176,8 @@ module ietf-te {
           uses path-properties_state;
         }
       }
-      uses path-affinities;
-      uses path-srlgs;
+      uses te-types:generic-path-affinities;
+      uses te-types:generic-path-srlgs;
       container path-route-objects {
         description
           "Container for the list of computed route objects
@@ -295,6 +197,10 @@ module ietf-te {
             config false;
             description
               "Configuration applied parameters and state";
+            leaf index {
+              type uint32;
+              description "ERO subobject index";
+            }
             uses te-types:explicit-route-hop;
           }
         }
@@ -305,8 +211,20 @@ module ietf-te {
 
   grouping p2p-path-properties_state {
     description "TE per path state parameters";
-    uses path-properties {
-      description "The TE path computed properties";
+    container computed-paths-properties {
+      description "Computed path properties container";
+      list computed-path-properties {
+        key k-index;
+        description "List of computed paths";
+        leaf k-index {
+          type uint8;
+          description
+            "The k-th path returned from the computation server.";
+        }
+        uses path-properties {
+          description "The TE path computed properties";
+        }
+      }
     }
     container lsps {
       description "TE LSPs container";
@@ -420,6 +338,13 @@ module ietf-te {
       description
         "Specifies a preference for this path. The lower the
         number higher the preference";
+    }
+    leaf k-requested-paths {
+      type uint8;
+      description
+        "The number of k-shortest-paths  requested from the path
+         computation server and returned sorted by its optimization
+         objective";
     }
     leaf named-path-constraint {
       if-feature te-types:named-path-constraints;
@@ -872,21 +797,6 @@ module ietf-te {
     }
   }
 
-  grouping access-segment-info {
-    description
-      "info related to a segment";
-    container forward {
-      description
-        "for the forward direction of this tunnel";
-      uses te-types:label-set-info;
-    }
-    container reverse {
-      description
-        "for the reverse direction of this tunnel";
-        uses te-types:label-set-info;
-    }
-  }
-
   grouping path-access-segment-info {
     description
       "If an end-to-end tunnel crosses multiple domains using
@@ -899,7 +809,7 @@ module ietf-te {
       description
         "This tunnel is a segment that needs to be coordinated
          with previous segment stitched on head-end side.";
-      uses access-segment-info;
+      uses te-types:label-set-info;
     }
     container path-out-segment {
       presence
@@ -908,7 +818,7 @@ module ietf-te {
       description
         "This tunnel is a segment that needs to be coordinated
          with previous segment stitched on head-end side.";
-      uses access-segment-info;
+      uses te-types:label-set-info;
     }
   }
 
@@ -1054,7 +964,7 @@ module ietf-te {
       "The specific tunnel that is using the shared secondary path
        resources";
     leaf lsp-shared-resources-tunnel {
-      type te:tunnel-ref;
+      type tunnel-ref;
       description
         "Reference to the tunnel that sharing secondary path
         resources with this tunnel";
@@ -1069,7 +979,7 @@ module ietf-te {
         "Set of tunnels that share secondary path resources with
         this tunnnel";
       leaf-list lsp-shared-resources-tunnel {
-        type te:tunnel-ref;
+        type tunnel-ref;
         description
           "Reference to the tunnel that sharing secondary path
           resources with this tunnel";
@@ -1159,7 +1069,7 @@ module ietf-te {
             "ITU-T G.808, RFC 4427";
         }
         leaf extra-traffic-tunnel-ref {
-          type te:tunnel-ref;
+          type tunnel-ref;
           description
             "In case there are multiple extra-traffic tunnels sharing
              protection bandwidth with this Tunnel (m:n protection),
@@ -1528,13 +1438,13 @@ module ietf-te {
           description "Tunnel information type";
           case tunnel-p2p {
             leaf p2p-id {
-              type te:tunnel-ref;
+              type tunnel-ref;
               description "P2P TE tunnel";
             }
           }
           case tunnel-p2mp {
             leaf p2mp-id {
-              type te:tunnel-p2mp-ref;
+              type tunnel-p2mp-ref;
               description "P2MP TE tunnel";
             }
           }
