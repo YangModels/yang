@@ -1,6 +1,17 @@
 module ietf-basic-remote-attestation {
   namespace "urn:ietf:params:xml:ns:yang:ietf-basic-remote-attestation";
   prefix "yang-brat";
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ietf-hardware {
+      prefix ietfhw;
+  }
+  import ietf-crypto-types {
+      prefix ietfct;
+  }
+
   organization
    "Fraunhofer SIT";
   contact
@@ -102,7 +113,7 @@ module ietf-basic-remote-attestation {
       container pcr {
         description
           "The composite of a PCR number and corresponding bank numbers.";
-        leaf-list pcr-numbers {
+        leaf-list pcr-indices {
            type uint8;
            description
              "The number of the PCR. At the moment this is limited
@@ -128,7 +139,7 @@ module ietf-basic-remote-attestation {
       container pcr {
         description
           "The composite of a PCR number and corresponding bank numbers.";
-        leaf-list pcr-numbers {
+        leaf-list pcr-index {
            type uint8;
            description
              "The numbers of the PCRs that are associated with
@@ -197,29 +208,67 @@ module ietf-basic-remote-attestation {
     }
   }
 
- grouping node-location {
+ grouping tpm-name {
    description
-     "In a distributed system get the data from a specific node
-      identified by the location. If this field is not specified
-      data associated with each node forming the system will be
-      returned.";
-   leaf location {
+     "In a system with multiple-TPMs get the data from a specific TPM
+      identified by the name and physical-index.";
+   leaf tpm_name {
       type string;
       description
-      "Location of the node or All";
+      "Name of the TPM or All";
    }
-
+   leaf tpm-physical-index {
+       if-feature ietfhw:entity-mib;
+       type int32 {
+            range "1..2147483647";
+       }
+       config false;
+       description
+            "The entPhysicalIndex for the TPM.";
+        reference
+            "RFC 6933: Entity MIB (Version 4) - entPhysicalIndex";
+     }
+ }
+ grouping compute-node {
+   description
+     "In a distributed system with multiple compute nodes
+      this is the node identified by name and physical-index.";
+   leaf node-name {
+      type string;
+      description
+      "Name of the compute node or All";
+   }
+   leaf node-physical-index {
+       if-feature ietfhw:entity-mib;
+       type int32 {
+            range "1..2147483647";
+       }
+       config false;
+       description
+            "The entPhysicalIndex for the compute node.";
+        reference
+            "RFC 6933: Entity MIB (Version 4) - entPhysicalIndex";
+     }
+ }
+ grouping node-uptime {
+   description
+     "Uptime in seconds of the node.";
+   leaf up-time {
+     type uint32;
+     description
+     "Uptime in seconds of this node reporting its data";
+   }
  }
   identity log-type {
     description
       "The type of logs available.";
   }
-
   identity bios {
     base log-type;
     description
       "Measurement log created by the BIOS/UEFI.";
   }
+
   identity ima {
     base log-type;
     description
@@ -229,13 +278,13 @@ module ietf-basic-remote-attestation {
   grouping log-identifier {
     description
       "Identifier for type of log to be retrieved.";
-    leaf measurement-log-type {
+    leaf log-type {
       type identityref {
         base log-type;
       }
       mandatory true;
       description
-        "The corresponding log type identity.";
+        "The corresponding measurement log type identity.";
     }
   }
 
@@ -355,6 +404,7 @@ grouping boot-event-log {
       mandatory true;
       description
         "Event log type determines the event logs content.";
+
       case bios {
         description
           "BIOS/UEFI event logs";
@@ -378,7 +428,7 @@ grouping boot-event-log {
     }
   }
 
-  rpc tpm2-challenge-repsonse-attestation {
+  rpc tpm2-challenge-response-attestation {
     description
       "This RPC accepts the input for TSS commands of the managed device.
       ComponentIndex from the hardware manager YANG module to refer to
@@ -396,30 +446,32 @@ grouping boot-event-log {
         uses signature-scheme;
         uses attestation-key-identifier;
       }
-      uses node-location;
+      uses tpm-name;
     }
     output {
       list tpm2-attestation-response {
-        key location;
+        key tpm_name;
         description
           "The binary output of TPM2b_Quote. An TPMS_ATTEST structure
           including a length, encapsulated in a signature";
-        uses node-location;
+        uses tpm-name;
+        uses node-uptime;
+        uses compute-node;
         container tpms-attest {
           leaf pcrdigest {
             type binary;
             description
               "split out value of TPMS_QUOTE_INFO for convenience";
           }
-          leaf pcrdigest-length {
-            type uint32;
-            description
-              "split out length of digest for convenience";
-          }
           leaf tpms-attest-result {
             type binary;
             description
               "The complete TPM generate structure including signature.";
+          }
+          leaf tpms-attest-result-length {
+            type uint32;
+            description
+              "Length of attest result provided by the TPM structure.";
           }
           description
             "A composite of value and length and list of selected
@@ -428,7 +480,7 @@ grouping boot-event-log {
         leaf tpmt-signature {
           type binary;
           description
-             "split out value of the signature for convenience";
+             "Split out value of the signature for convenience. TODO: check for length values that complent binary value data node leafs.";
         }
       }
     }
@@ -440,25 +492,34 @@ grouping boot-event-log {
       in TPM_Quote commands, an attestation certificate.";
     input {
       uses nonce;
-      uses pcr-selector;
       uses signature-scheme;
-      uses node-location;
+      uses tpm-name;
+      leaf certificate-name {
+         type string;
+         description
+         "An arbitrary name for the identity certificate chain requested.";
+      }
     }
     output {
-      list attestation-certificates {
-        key location;
-        uses node-location;
-        leaf attestation-certificate {
-          type binary;
-          description
-            "An individual signed public attestation according to requested
-            capabilities.";
-        }
-        uses attestation-key-identifier;
-        description
-          "Attestation Certificate data of a node in a distributed system
-          identified by the location";
+    list attestation-certificates {
+      key tpm_name;
+      description
+        "Attestation Certificate data from a TPM identified by the TPM name";
+      uses tpm-name;
+      uses node-uptime;
+      uses compute-node;
+      leaf certificate-name {
+         type string;
+         description
+         "An arbitrary name for this identity certificate or certificate chain.";
       }
+      leaf attestation-certificate {
+        description
+          "The binary signed certificate chain data for this identity certificate.";
+        type ietfct:end-entity-cert-cms;
+      }
+      uses attestation-key-identifier;
+    }
     }
   }
 
@@ -469,66 +530,87 @@ grouping boot-event-log {
       The type of log is a choice that can be
       augmented.";
     input {
-      choice index-type {
-        case last-entry {
-          leaf last-entry-value {
-            type binary;
-            description
-              "Content of the last entry requested.";
-          }
-          description
-            "The last entry of the log already retrieved";
-        }
-        case index {
-          leaf index-number {
-            type uint64;
-            description
-              "The numeric index number";
-          }
-          description
-            "Numeric index of the last log entry retrieved.";
-        }
+      list log-selector {
+        key node-name;
         description
-          "Last-line or index.";
+         "Selection of log entries to be reported.";
+        uses compute-node;
+        choice index-type {
+          description
+             "Last log entry received, log index number, or timestamp.";
+
+          case last-entry {
+            description
+              "The last entry of the log already retrieved.";
+            leaf last-entry-value {
+              description
+              "Content of an log event which matches 1:1 with a
+              unique event record contained within the log.  Log
+              entries subsequent to this will be passed to the
+              requestor.  Note: if log entry values are not unique,
+              this MUST return an error.";
+              type binary;
+            }
+          }
+          case index {
+            description
+              "Numeric index of the last log entry retrieved, or zero.";
+            leaf index-number {
+              description
+              "The numeric index number of a log entry.  Zero means
+              to start at the beginning of the log.   Entries
+              subsequent to this will be passed to the
+              requestor.";
+              type uint64;
+            }
+          }
+          case timestamp {
+            leaf timestamp {
+              type yang:date-and-time;
+              description
+                "Timestamp from which to start the extraction.  The next
+                log entry subsequent to this timestamp is to be sent.";
+            }
+            description
+              "Timestamp from which to start the extraction.";
+          }
+        }
       }
       uses log-identifier;
       uses pcr-selection;
-      leaf chunk-size {
-        type uint64;
+      leaf log-entry-quantity {
+        type uint16;
         description
-         "The number of log entries to be returned. If omitted, it means all of them.";
+         "The number of log entries to be returned. If omitted, it
+         means all of them.";
       }
-      uses node-location;
     }
     output {
       container system-event-logs {
-        list node-data {
-          key node-location;
-          description
-            "Event logs of a node in a distributed system
-             identified by the location";
-          leaf node-location {
-            type string;
-            description
-              "Location of the node in the distributed system";
-          }
-          leaf up-time {
-            type uint32;
-            description
-              "Uptime in seconds of this node reporting its data";
-          }
-          container log-result {
-            description
-              "The requested entries of the corresponding log.";
-          uses event-logs;
-          }
-        }
-        description
-          "The requested data of the measurement event logs";
-      }
-    }
-  }
-
+         description
+         "The requested data of the measurement event logs";
+         list node-data {
+           key node-name;
+           description
+           "Event logs of a node in a distributed system
+            identified by the node name";
+           uses compute-node;
+           uses node-uptime;
+           list tpm-updated {
+             key tpm_name;
+             description
+             "TPM these events may have recorded data in";
+             uses tpm-name;
+           }
+           container log-result {
+             description
+             "The requested entries of the corresponding log.";
+             uses event-logs;
+           }
+         }
+       }
+     }
+   }
   container rats-support-structures {
     leaf-list supported-algos {
       type uint16;
@@ -536,14 +618,38 @@ grouping boot-event-log {
         "Supported TPM_ALG_ID values for the TPM in question.
         Will include ComponentIndex soon.";
     }
-    leaf endorsement-certificate {
-      type binary;
+  list tpms {
+      key tpm_name;
+      uses tpm-name;
       description
-        "The signed pulic endorsement key (EK) and corresponding claims
-         (EK Certificate). In a TPM 2.0 the EK Certificate resides in a
-         well-defined NVRAM location by the TPM vednor.";
+        "A list of TPMs in this composite
+         device that rats can be conducted with.";
     }
+  list compute-nodes {
+      key node-name;
+      uses compute-node;
+      description
+        "A list names of hardware components in this composite
+         device that rats can be conducted with.";
+   }
+   container endorsement-certificates {
+      list certificate {
+        key tpm_name;
+        uses tpm-name;
+        description
+          "The TPM's endorsement-certificate.";
+        leaf endorsement-certificate {
+          type binary;
+          mandatory true;
+          description
+            "The signed pulic endorsement key (EK) and corresponding claims
+             (EK Certificate). In a TPM 2.0 the EK Certificate resides in a
+             well-defined NVRAM location by the TPM vednor.";
+        }
+      }
     description
       "Basic information elements to enable RATS.";
+    }
+  config false;
   }
 }
