@@ -1,0 +1,391 @@
+module ietf-te-path-computation {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-te-path-computation";
+  // replace with IANA namespace when assigned
+
+  prefix "tepc";
+
+  import ietf-inet-types {
+    prefix "inet";
+  }
+
+  import ietf-yang-types {
+    prefix "yang-types";
+  }
+
+  import ietf-te {
+    prefix "te";
+  }
+
+  import ietf-te-types {
+    prefix "te-types";
+  }
+
+  organization
+    "Traffic Engineering Architecture and Signaling (TEAS)
+     Working Group";
+
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/teas/>
+     WG List:  <mailto:teas@ietf.org>
+     WG Chair: Lou Berger
+               <mailto:lberger@labn.net>
+
+     WG Chair: Vishnu Pavan Beeram
+               <mailto:vbeeram@juniper.net>
+
+   ";
+
+  description "YANG model for stateless TE path computation";
+
+  revision "2018-10-23" {
+    description
+      "Initial revision";
+    reference
+      "draft-ietf-teas-yang-path-computation";
+  }
+
+  /*
+   * Features
+   */
+
+  feature stateless-path-computation {
+    description
+      "This feature indicates that the system supports
+       stateless path computation.";
+  }
+
+  /*
+   * Groupings
+   */
+
+  grouping path-info {
+    leaf path-id {
+      type yang-types:uuid;
+      config false;
+      description "path-id ref.";
+    }
+    uses te-types:generic-path-properties;
+    description "Path computation output information";
+  }
+
+  grouping requested-info {
+    description
+      "This grouping defines the information (e.g., metrics)
+       which must be returned in the response";
+    list requested-metrics {
+      key 'metric-type';
+      description
+        "The list of the requested metrics
+         The metrics listed here must be returned in the response.
+         Returning other metrics in the response is optional.";
+      leaf metric-type {
+        type identityref {
+          base te-types:path-metric-type;
+        }
+        description
+          "The metric that must be returned in the response";
+      }
+    }
+    leaf return-srlgs {
+      type boolean;
+      default false;
+      description
+        "If true, path srlgs must be returned in the response.
+         If false, returning path srlgs in the response optional.";
+    }
+    leaf return-affinities {
+      type boolean;
+      default false;
+      description
+      "If true, path affinities must be returned in the response.
+       If false, returning path affinities in the response is
+       optional.";
+    }
+  }
+
+  identity svec-metric-type {
+    description
+      "Base identity for svec metric type";
+  }
+
+  identity svec-metric-cumul-te {
+    base svec-metric-type;
+    description
+      "TE cumulative path metric";
+  }
+
+  identity svec-metric-cumul-igp {
+    base svec-metric-type;
+    description
+      "IGP cumulative path metric";
+  }
+
+  identity svec-metric-cumul-hop {
+    base svec-metric-type;
+    description
+      "Hop cumulative path metric";
+  }
+
+  identity svec-metric-aggregate-bandwidth-consumption {
+    base svec-metric-type;
+    description
+      "Cumulative bandwith consumption of the set of
+       synchronized paths";
+  }
+
+  identity svec-metric-load-of-the-most-loaded-link {
+    base svec-metric-type;
+    description
+      "Load of the most loaded link";
+  }
+
+  grouping svec-metrics-bounds_config {
+    description
+      "TE path metric bounds grouping for computing a set of
+       synchronized requests";
+    leaf metric-type {
+      type identityref {
+        base svec-metric-type;
+      }
+      description "TE path metric type usable for computing a set of
+         synchronized requests";
+    }
+    leaf upper-bound {
+      type uint64;
+      description "Upper bound on end-to-end svec path metric";
+    }
+  }
+
+  grouping svec-metrics-optimization_config {
+    description
+      "TE path metric bounds grouping for computing a set of
+       synchronized requests";
+
+    leaf metric-type {
+      type identityref {
+        base svec-metric-type;
+      }
+      description "TE path metric type usable for computing a set of
+         synchronized requests";
+    }
+    leaf weight {
+      type uint8;
+      description "Metric normalization weight";
+    }
+  }
+
+  grouping svec-exclude {
+    description "List of resources to be excluded by all the paths
+      in the SVEC";
+    container exclude-objects {
+      description "resources to be excluded";
+      list excludes {
+        key index;
+        description
+          "List of explicit route objects to always exclude
+           from synchronized path computation";
+        leaf index {
+          type uint32;
+          description "XRO subobject index";
+        }
+        uses te-types:explicit-route-hop;
+      }
+    }
+  }
+
+  grouping synchronization-constraints {
+    description "Global constraints applicable to synchronized
+      path computation";
+    container svec-constraints {
+      description "global svec constraints";
+      list path-metric-bound {
+        key metric-type;
+        description "list of bound metrics";
+        uses svec-metrics-bounds_config;
+      }
+    }
+    uses te-types:generic-path-srlgs;
+    uses svec-exclude;
+  }
+
+  grouping synchronization-optimization {
+      description "Synchronized request optimization";
+    container optimizations {
+      description
+        "The objective function container that includes attributes
+         to impose when computing a synchronized set of paths";
+
+      choice algorithm {
+        description "Optimizations algorithm.";
+        case metric {
+          list optimization-metric {
+            key "metric-type";
+            description "svec path metric type";
+            uses svec-metrics-optimization_config;
+          }
+        }
+        case objective-function {
+          container objective-function {
+            description
+              "The objective function container that includes
+               attributes to impose when computing a TE path";
+            uses te-types:path-objective-function_config;
+          }
+        }
+      }
+    }
+  }
+
+  grouping synchronization-info {
+    description "Information for sync";
+    list synchronization {
+      key "synchronization-id";
+      description "sync list";
+      leaf synchronization-id {
+        type uint32;
+        description "index";
+      }
+      container svec {
+        description
+         "Synchronization VECtor";
+        leaf relaxable {
+          type boolean;
+          default true;
+          description
+           "If this leaf is true, path computation process is
+            free to ignore svec content.
+            Otherwise, it must take into account this svec.";
+        }
+        uses te-types:generic-path-disjointness;
+        leaf-list request-id-number {
+          type uint32;
+          description
+            "This list reports the set of path computation
+             requests that must be synchronized.";
+        }
+      }
+      uses synchronization-constraints;
+      uses synchronization-optimization;
+    }
+  }
+
+  grouping no-path-info {
+    description "no-path-info";
+    container no-path {
+      presence "Response without path information, due to failure
+        performing the path computation";
+      description "if path computation cannot identify a path,
+        rpc returns no path.";
+    }
+  }
+
+  /*
+   * These groupings should be removed when defined in te-types
+   */
+
+  grouping encoding-and-switching-type {
+    description
+      "Common grouping to define the LSP encoding and
+       switching types";
+
+    leaf encoding {
+      type identityref {
+        base te-types:lsp-encoding-types;
+      }
+      description "LSP encoding type";
+      reference "RFC3945";
+    }
+    leaf switching-type {
+      type identityref {
+        base te-types:switching-capabilities;
+      }
+      description "LSP switching type";
+      reference "RFC3945";
+    }
+  }
+
+  grouping end-points {
+    description
+      "Common grouping to define the TE tunnel end-points";
+
+    leaf source {
+      type inet:ip-address;
+      description "TE tunnel source address.";
+    }
+    leaf destination {
+      type inet:ip-address;
+      description "P2P tunnel destination address";
+    }
+    leaf src-tp-id {
+      type binary;
+      description
+        "TE tunnel source termination point identifier.";
+    }
+    leaf dst-tp-id {
+      type binary;
+      description
+        "TE tunnel destination termination point identifier.";
+    }
+    leaf bidirectional {
+      type boolean;
+      default 'false';
+      description "TE tunnel bidirectional";
+    }
+  }
+
+  /**
+   * AUGMENTS TO TE RPC
+   */
+
+  augment "/te:tunnels-rpc/te:input/te:tunnel-info" {
+    description "statelessComputeP2PPath input";
+    list path-request {
+      key "request-id";
+      description "request-list";
+      leaf request-id {
+        type uint32;
+        mandatory true;
+        description
+          "Each path computation request is uniquely identified
+           by the request-id-number.";
+      }
+      uses te-types:te-topology-identifier;
+      uses end-points;
+      uses encoding-and-switching-type;
+      uses te-types:path-route-objects;
+      uses te-types:generic-path-constraints;
+      uses te-types:generic-path-optimization;
+      uses requested-info;
+      uses te:path-access-segment-info;
+    }
+    uses synchronization-info;
+  }
+
+  augment "/te:tunnels-rpc/te:output/te:result" {
+    description "statelessComputeP2PPath output";
+    list response {
+      key response-id;
+      config false;
+      description "response";
+      leaf response-id {
+        type uint32;
+        description
+          "The list key that has to reuse request-id-number.";
+      }
+      choice response-type {
+        config false;
+        description "response-type";
+        case no-path-case {
+          uses no-path-info;
+        }
+        case path-case {
+          container computed-path {
+            uses path-info;
+            description "Path computation service.";
+          }
+        }
+      }
+    }
+  }
+}
