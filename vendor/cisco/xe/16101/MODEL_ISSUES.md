@@ -4,6 +4,6 @@ A number of differences have crept in to a small number of YANG modules supporte
 
 You can find the per-platform deviations with deltas in the following locations:
 
-* Cable
+* cable
 * cat9k
-* isr1k_4k
+* isr_4k
