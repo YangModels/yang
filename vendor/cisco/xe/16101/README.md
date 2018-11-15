@@ -254,7 +254,7 @@ Pay special attention to the following YANG models, which we expect to finalize 
 * Cisco-IOS-XE-wireless-types.yang
 * Cisco-IOS-XE-wireless-wlan-cfg.yang
 
-##### Caution: Don't depend on the experimental YANG models listed above. They might disappear, and they will change.
+These experimental YANG models are in the early status of design and are likely to change.
 
 #### 16.10.1 Errata
 
