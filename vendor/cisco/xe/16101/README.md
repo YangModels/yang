@@ -8,40 +8,37 @@ This directory contains the YANG models supported by IOS XE 16.10.1:
 
 The schemas may be retrieved from devices using the NETCONF "get-schema" RPC as detailed in [RFC 6022](https://tools.ietf.org/html/rfc6022) Section 3.1. Schemas may also be retrieved using RESTCONF "get" on ietf-yang-library.yang model schema leaf, which provides the list of URL's from which the schemas can be downloaded. Models listed in this repository are supported by following IOS XE platforms:
 
-* ASR 1000
+* ASR 900, 920 and 1000
 * CSR 1000v/ISRv
-* ISR 1000 and ISR 4000
-* ASR900 RSP2/RSP3, ASR920 and NCS4200
-* Catalyst 9300, 9400, 9500 and 9200
+* Catalyst 9300, 9400, 9500 and 9800
 * CBR-8
 * IR 1101
-* C9800-CL, C9800-40 and C9800-80
+* ISR 1000 and 4000
+* NCS520 and NCS4200
 
 Model content may differ based on platform capability. As a convenience, copies of the platform "hello" messages are also provided:
+#### ASR 900 RSP2/RSP3, ASR920, NCS520 and NCS4200
+Capability Statement: [capability-asr900.xml](capability-asr900.xml)
 #### ASR 1000
 Capability Statement: [capability-asr1k.xml](capability-asr1k.xml)
-#### CSR 1000v
-Capability Statement: [capability-csr1k.xml](capability-csr1k.xml)
-#### ISR 1000
-Capability Statement: [capability-isr1k.xml](capability-isr1k.xml)
-#### ISR 4000
-Capability Statement: [capability-isr4k.xml](capability-isr4k.xml)
-#### ASR900 RSP2/RSP3, ASR920 and NCS4200
-Capability Statement: [capability-asr900.xml](capability-asr900.xml)
 #### Catalyst 9300
 Capability Statement: [capability-cat9300.xml](capability-cat9300.xml)
 #### Catalyst 9400
 Capability Statement: [capability-cat9400.xml](capability-cat9400.xml)
 #### Catalyst 9500
 Capability Statement: [capability-cat9500.xml](capability-cat9500.xml)
-#### Catalyst 9200, 9200L
-Capability Statement: [capability-cat9200.xml](capability-cat9200.xml)
+#### Catalyst 9800
+Capability Statement: [capability-wireless.xml](capability-wireless.xml)
 #### CBR-8
 Capability Statement: [capability-cbr.xml](capability-cbr.xml)
+#### CSR1000v/ISRv
+Capability Statement: [capability-csr1k.xml](capability-csr1k.xml)
 #### IR 1101
-Capability Statement: [capability-IOT.xml](capability-IOT.xml)
-#### C9800-CL, C9800-40 and C9800-80
-Capability Statement: [capability-wireless.xml](capability-wireless.xml)
+Capability Statement: [capability-ir1101.xml](capability-ir1101.xml)
+#### ISR 1000
+Capability Statement: [capability-isr1k.xml](capability-isr1k.xml)
+#### ISR 4000
+Capability Statement: [capability-isr4k.xml](capability-isr4k.xml)
 
 
 ### Major Namespace and Model Changes In 16.10.1
@@ -50,62 +47,27 @@ Capability Statement: [capability-wireless.xml](capability-wireless.xml)
 
 #### Native Models Added
 
- * Cisco-IOS-XE-app-hosting-cfg.yang
- * Cisco-IOS-XE-app-hosting-oper.yang
- * Cisco-IOS-XE-dialer.yang
- * Cisco-IOS-XE-gir-oper.yang
- * Cisco-IOS-XE-ha-oper.yang
- * Cisco-IOS-XE-im-events-oper.yang
- * Cisco-IOS-XE-mlppp-oper.yang
- * Cisco-IOS-XE-pnp.yang
- * Cisco-IOS-XE-pppoe.yang
- * Cisco-IOS-XE-serial.yang
- * Cisco-IOS-XE-stack-oper.yang
- * Cisco-IOS-XE-voice-oper.yang
- * Cisco-IOS-XE-wsa-types.yang
- * Cisco-xe-openconfig-lldp-deviation.yang
- * Cisco-IOS-XE-wireless-access-point-oper.yang
- * Cisco-IOS-XE-wireless-ap-cfg.yang
- * Cisco-IOS-XE-wireless-ap-types.yang
- * Cisco-IOS-XE-wireless-apf-cfg.yang
- * Cisco-IOS-XE-wireless-client-oper.yang
- * Cisco-IOS-XE-wireless-client-types.yang
- * Cisco-IOS-XE-wireless-cts-sxp-cfg.yang
- * Cisco-IOS-XE-wireless-cts-sxp-oper.yang
- * Cisco-IOS-XE-wireless-dot11-cfg.yang
- * Cisco-IOS-XE-wireless-enum-types.yang
- * Cisco-IOS-XE-wireless-events-oper.yang
- * Cisco-IOS-XE-wireless-fabric-cfg.yang
- * Cisco-IOS-XE-wireless-flex-cfg.yang
- * Cisco-IOS-XE-wireless-fqdn-cfg.yang
- * Cisco-IOS-XE-wireless-fqdn-oper.yang
- * Cisco-IOS-XE-wireless-general-cfg.yang
- * Cisco-IOS-XE-wireless-hyperlocation-oper.yang
- * Cisco-IOS-XE-wireless-lisp-agent-oper.yang
- * Cisco-IOS-XE-wireless-location-cfg.yang
- * Cisco-IOS-XE-wireless-location-oper.yang
- * Cisco-IOS-XE-wireless-mcast-oper.yang
- * Cisco-IOS-XE-wireless-mesh-cfg.yang
- * Cisco-IOS-XE-wireless-mesh-oper.yang
- * Cisco-IOS-XE-wireless-mobility-cfg.yang
- * Cisco-IOS-XE-wireless-mobility-oper.yang
- * Cisco-IOS-XE-wireless-mobility-types.yang
- * Cisco-IOS-XE-wireless-mstream-cfg.yang
- * Cisco-IOS-XE-wireless-nmsp-oper.yang
- * Cisco-IOS-XE-wireless-rf-cfg.yang
- * Cisco-IOS-XE-wireless-rf-profile-oper.yang
- * Cisco-IOS-XE-wireless-rfid-cfg.yang
- * Cisco-IOS-XE-wireless-rfid-oper.yang
- * Cisco-IOS-XE-wireless-rogue-cfg.yang
- * Cisco-IOS-XE-wireless-rogue-oper.yang
- * Cisco-IOS-XE-wireless-rogue-types.yang
- * Cisco-IOS-XE-wireless-rrm-cfg.yang
- * Cisco-IOS-XE-wireless-rrm-oper.yang
- * Cisco-IOS-XE-wireless-rrm-types.yang
- * Cisco-IOS-XE-wireless-security-cfg.yang
- * Cisco-IOS-XE-wireless-site-cfg.yang
- * Cisco-IOS-XE-wireless-types.yang
- * Cisco-IOS-XE-wireless-wlan-cfg.yang
+* Cisco-IOS-XE-app-hosting-cfg.yang
+* Cisco-xe-openconfig-lldp-deviation.yang
+* Cisco-IOS-XE-wireless-access-point-oper.yang
+* Cisco-IOS-XE-wireless-cts-sxp-cfg.yang
+* Cisco-IOS-XE-wireless-cts-sxp-oper.yang
+* Cisco-IOS-XE-wireless-fabric-cfg.yang
+* Cisco-IOS-XE-wireless-fqdn-oper.yang
+* Cisco-IOS-XE-wireless-hyperlocation-oper.yang
+* Cisco-IOS-XE-wireless-lisp-agent-oper.yang
+* Cisco-IOS-XE-wireless-location-cfg.yang
+* Cisco-IOS-XE-wireless-location-oper.yang
+* Cisco-IOS-XE-wireless-mcast-oper.yang
+* Cisco-IOS-XE-wireless-mobility-cfg.yang
+* Cisco-IOS-XE-wireless-mobility-oper.yang
+* Cisco-IOS-XE-wireless-mobility-types.yang
+* Cisco-IOS-XE-wireless-nmsp-oper.yang
+* Cisco-IOS-XE-wireless-rf-cfg.yang
+* Cisco-IOS-XE-wireless-rf-profile-oper.yang
+* Cisco-IOS-XE-wireless-rogue-cfg.yang
+* Cisco-IOS-XE-wireless-rogue-oper.yang
+* Cisco-IOS-XE-wireless-rogue-types.yang
 
 #### Native Models Modified 
 
@@ -258,7 +220,7 @@ These experimental YANG models are in the early status of design and are likely 
 
 #### 16.10.1 Errata
 
-The below models, while advertised in the capabilities, are not supported on ASR900, ASR920, RSP2/RSP3 and NCS4200.
+The below models, while advertised in the capabilities, are not supported on ASR900 RSP2/RSP3, ASR920, NCS520 and NCS4200.
 
 * Cisco-IOS-XE-cellwan-oper.yang
 * Cisco-IOS-XE-flow-monitor-oper.yang
@@ -266,12 +228,14 @@ The below models, while advertised in the capabilities, are not supported on ASR
 * Cisco-IOS-XE-utd-common-oper
 * Cisco-IOS-XE-utd-oper
 
-"Cisco-IOS-XE-atm.yang" model, while advertised in the capability, is not supported on CSR1K platform.
+"Cisco-IOS-XE-atm.yang" model, while advertised in the capability, is not supported on CSR1000v/ISRv
+
+"Cisco-IOS-XE-im-events-oper.yang" model is not supported on any of the platforms.
 
  
 ### Compliance With "pyang --lint"
 
-Some models are not fully compliant with all IETF guidelines as exemplified by running the pyang tool with the ```--lint``` flag. The errors and warnings exhibited by running pyang with the ```--lint``` flag are currently deemed to be non-critical as they do not impact the semantic of the models or prevent the models being used as part of toolchains. A script has been provided, "check-models.sh", that runs pyang with ```--lint``` validation enabled, but ignoring certain errors. This allows the developer to determine what issues may be present.
+Some models are not fully compliant with all IETF guidelines as exemplified by running the pyang tool with the ```--lint``` flag. The errors and warnings exhibited by running pyang with the ```--lint```flag are currently deemed to be non-critical as they do not impact the semantic of the models or prevent the models being used as part of toolchains. A script has been provided, "check-models.sh", that runs pyang with ```--lint``` validation enabled, but ignoring certain errors. This allows the developer to determine what issues may be present.
 
 ### Revision Statements
 
@@ -279,4 +243,4 @@ Revision statements embedded in the YANG files **should** accurately reflect whe
 
 ### Cross-Platform Compatibility Issues
 
-Unfortunately, IOS-XE 16.10.1 has some issues with small number of deviation models that have variations in definition across platforms. The details of the models impacted and the issues can be found in [this document](MODEL_ISSUES.md)
+IOS-XE 16.10.1 has small number of models that have variations in definition across platforms. The details of the models and platforms impacted can be found in [this document](MODEL_ISSUES.md)
