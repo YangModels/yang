@@ -48,7 +48,6 @@ Capability Statement: [capability-isr4k.xml](capability-isr4k.xml)
 #### Native Models Added
 
 * Cisco-IOS-XE-app-hosting-cfg.yang
-* Cisco-xe-openconfig-lldp-deviation.yang
 * Cisco-IOS-XE-wireless-access-point-oper.yang
 * Cisco-IOS-XE-wireless-cts-sxp-cfg.yang
 * Cisco-IOS-XE-wireless-cts-sxp-oper.yang
