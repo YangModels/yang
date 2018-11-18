@@ -4,6 +4,6 @@ A small number of YANG models supported in IOS-XE 16.10.1 has a few differences 
 
 You can find the per-platform deviations with deltas in the following locations:
 
-* cable
-* cat9k
-* isr_4k
+* [cbr](cbr)
+* [cat9k](cat9k)
+* [isr4k](isr4k)
