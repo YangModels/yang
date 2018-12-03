@@ -8,7 +8,7 @@ from ciscosparkapi import CiscoSparkAPI
 
 import tools.utility.log as lo
 
-LOGGER = lo.get_logger('Messaging')
+LOGGER = lo.get_logger('Messaging', '/home/miroslav/log/messaging/yang.log')
 GREETINGS = 'Hello from yang-catalog'
 
 
@@ -72,7 +72,7 @@ class MessageFactory:
                    'Files that are different then in yangModels repo: \n{}'
                    .format(GREETINGS, new_files, diff_files))
         to = ['bclaise@cisco.com', 'einarnn@cisco.com', 'jclarke@cisco.com',
-              'mirkovac@cisco.com']
+              'mirolsav.kovac@pantheon.tech', 'evyncke@cisco.com']
 
         self.__post_to_spark(message)
         self.__post_to_email(message, to)

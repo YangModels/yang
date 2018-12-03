@@ -2,16 +2,12 @@ import ConfigParser
 import argparse
 import errno
 import filecmp
-import json
 import os
 import shutil
 import sys
 import tarfile
-import urllib
-import urllib2
 
 import requests
-from numpy.f2py.auxfuncs import throw_error
 from travispy import TravisPy
 from travispy.errors import TravisError
 
@@ -19,28 +15,8 @@ import tools.utility.log as log
 from tools.ietfYangDraftPull.draftPullLocal import check_name_no_revision_exist, \
     check_early_revisions
 from tools.utility import repoutil, messageFactory
-from tools.utility.util import get_curr_dir
 
-LOGGER = log.get_logger('draftPull')
-
-
-def load_json_from_url(url):
-    failed = True
-    loaded_json = None
-    tries = 10
-    while failed:
-        try:
-            response = urllib2.urlopen(url).read()
-            loaded_json = json.loads(response)
-            failed = False
-        except:
-            tries -= 1
-            if tries == 0:
-                failed = False
-            pass
-    if tries == 0:
-        raise throw_error('Couldn`t open a json file from url: ' + url)
-    return loaded_json
+LOGGER = log.get_logger('draftPull', '/home/miroslav/log/jobs/yang.log')
 
 
 if __name__ == "__main__":
@@ -58,6 +34,7 @@ if __name__ == "__main__":
     commit_dir = config.get('DraftPull-Section', 'commit-dir')
     config_name = config.get('General-Section', 'repo-config-name')
     config_email = config.get('General-Section', 'repo-config-email')
+    private_credentials = config.get('General-Section', 'private-secret').split(' ')
     github_credentials = ''
     if len(username) > 0:
         github_credentials = username + ':' + token + '@'
@@ -82,11 +59,11 @@ if __name__ == "__main__":
                         headers={'Authorization': 'token ' + token})
         repo.remove()
         sys.exit(500)
-    # Download all the latest yang modules out of http://www.claise.be/IETFYANGDraft.json and store them in tmp folder
+    # Download all the latest yang modules out of https://new.yangcatalog.org/private/IETFYANGDraft.json and store them in tmp folder
     LOGGER.info(
-        'Loading all files from http://www.claise.be/IETFYANGDraft.json')
-    ietf_draft_json = load_json_from_url(
-        'http://www.claise.be/IETFYANGDraft.json')
+        'Loading all files from https://new.yangcatalog.org/private/IETFDraft.json')
+    ietf_draft_json = requests.get('https://new.yangcatalog.org/private/IETFDraft.json'
+                                   , auth=(private_credentials[0], private_credentials[1])).json()
     try:
         os.makedirs(
             repo.localdir + '/experimental/ietf-extracted-YANG-modules/')
@@ -95,9 +72,12 @@ if __name__ == "__main__":
         if e.errno != errno.EEXIST:
             raise
 
-    response = urllib.urlretrieve('http://www.claise.be/YANG-RFC.tar',
-                                  repo.localdir + '/tools/ietfYangDraftPull/rfc.tar')
-    tar = tarfile.open(repo.localdir + '/tools/ietfYangDraftPull/rfc.tar')
+    response = requests.get('https://new.yangcatalog.org/private/YANG-RFC.tgz'
+                            , auth=(private_credentials[0], private_credentials[1]))
+    zfile = open('./rfc.tgz', 'wb')
+    zfile.write(response.content)
+    zfile.close()
+    tgz = tarfile.open(repo.localdir + '/tools/ietfYangDraftPull/rfc.tgz')
     try:
         os.makedirs(
             repo.localdir + '/standard/ietf/RFCtemp')
@@ -105,14 +85,11 @@ if __name__ == "__main__":
         # be happy if someone already created the path
         if e.errno != errno.EEXIST:
             raise
-    tar.extractall(repo.localdir + '/standard/ietf/RFCtemp')
-    tar.close()
+    tgz.extractall(repo.localdir + '/standard/ietf/RFCtemp')
+    tgz.close()
     diff_files = []
     new_files = []
-    check_name_no_revision_exist(
-        repo.localdir + '/standard/ietf/RFCtemp/')
-    check_early_revisions(
-        repo.localdir + '/standard/ietf/RFCtemp/')
+
     for root, subdirs, sdos in os.walk(
                     repo.localdir + '/standard/ietf/RFCtemp'):
         for file_name in sdos:
@@ -126,7 +103,7 @@ if __name__ == "__main__":
                 else:
                     new_files.append(file_name)
     shutil.rmtree(repo.localdir + '/standard/ietf/RFCtemp')
-    os.remove(repo.localdir + '/tools/ietfYangDraftPull/rfc.tar')
+    os.remove(repo.localdir + '/tools/ietfYangDraftPull/rfc.tgz')
     if len(new_files) > 0 or len(diff_files) > 0:
         LOGGER.warning('new or modified RFC files found. Sending an E-mail')
         mf = messageFactory.MessageFactory()

@@ -1,0 +1,335 @@
+module ietf-bier-te {
+
+ yang-version 1.1;
+
+ namespace "urn:ietf:params:xml:ns:yang:ietf-bier-te";
+
+ prefix bier-te;
+
+ import ietf-routing {
+     prefix "rt";
+     reference "RFC8022";
+ }
+
+ import ietf-interfaces {
+     prefix "if";
+     reference "RFC7223";
+ }
+
+ import ietf-routing-types {
+     prefix "rt-types";
+     reference "RFC8294";
+ }
+
+ organization " IETF BIER(Bit Indexed Explicit Replication ) Working Group";
+ contact
+     "WG Web:   <http://tools.ietf.org/wg/bier/>
+      WG List:  <mailto:bier@ietf.org>
+
+      Editor:   Zheng Zhang
+                <mailto:zhang.zheng@zte.com.cn>
+      Editor:   Cui Wang
+                <mailto:wang.cui1@zte.com.cn>
+      Editor:   Ran Chen
+                <mailto:chen.ran@zte.com.cn>
+      Editor:   Fangwei Hu
+                <mailto:hu.fangwei@zte.com.cn>
+      Editor:   Mahesh Sivakumar
+                <mailto:masivaku@cisco.com>
+     ";
+
+ description
+     " The module defines the YANG definitions for BIER TE.
+
+       Copyright (c) 2018 IETF Trust and the persons
+       identified as authors of the code.  All rights reserved.
+
+       Redistribution and use in source and binary forms, with or
+       without modification, is permitted pursuant to, and subject
+       to the license terms contained in, the Simplified BSD License
+       set forth in Section 4.c of the IETF Trust's Legal Provisions
+       Relating to IETF Documents
+       (http://trustee.ietf.org/license-info).
+       This version of this YANG module is part of RFC 3618; see
+       the RFC itself for full legal notices.";
+
+ revision 2018-11-30 {
+     description
+     "Initial revision.";
+     reference
+       "draft-ietf-bier-te-arch-01: Traffic Engineering for Bit Index Explicit Replication (BIER-TE)";
+ }
+
+ /*
+ * Features
+ */
+ feature bier-te-frr {
+     description
+         "Support Fast Re-route feature in BIER TE.";
+ }
+ feature bier-te-ecmp {
+     description
+         "Support ECMP feature in BIER TE.";
+ }
+
+ typedef bit-string {
+     type uint16;
+     description "The bit mask of one bit-string.";
+ }
+
+ grouping te-frr {
+     description "The TE fast re-route information.";
+     list btaft {
+         key "frr-index";
+         description "The index of the frr paths. This item can be used for multiple links protection in different SI.";
+         leaf frr-index {
+             type uint16;
+             mandatory true;
+             description "The frr item index.";
+         }
+         leaf frr-si{
+             type uint16;
+             mandatory true;
+             description "The set identifier of this forwarding item.";
+         }
+         leaf frr-bsl {
+             type uint16;
+             mandatory true;
+             description "The value of bitstringlength.";
+         }
+         list addbitmask {
+             key "bitmask";
+             description "The adding bitmask of the forwarding item.";
+             leaf bitmask {
+                 type bit-string;
+                 description "The adding bitmask of the forwarding item. This item should be merged into the packet's bit-string.";
+             }
+         }
+     }
+ }
+
+ grouping fwd-type {
+     description "The collection of all possible forwarding type.";
+     choice fwd-type {
+         mandatory true;
+         case connected {
+             description "The forwarding type is connected. Mostly connected interfaces.";
+                     }
+         case routed {
+             description "The forwarding type is routed. Mostly not connected interfaces.";
+         }
+         case local-decap {
+             description "Means that the packet should be decapsulated and forward out BIER domain.";
+         }
+         /*case ecmp {
+             description "There is more than one path in the forwarding items with equal cost.";
+         }*/
+         case other {
+             description "Means that the packet should be discarded.";
+         }
+         description "The collection of all possible forwarding type.";
+     }
+ }
+
+ grouping bp-type {
+     description "The collection of all possible adjacency type.";
+
+     leaf bp-type {
+         type enumeration {
+             enum p2p {
+                 description "Describes p2p adjacency.";
+             }
+             enum bfer {
+                 description "Describes bfer adjacency.";
+             }
+             enum leaf-bfer {
+                 description "Describes leaf-bfer adjacency. There is no next BFR that the packet should be forwarded.";
+             }
+             enum lan {
+                 description "Describes lan adjacency..";
+             }
+             enum spoke {
+                 description "Describes spoke adjacency of hub-and-spoke.";
+             }
+             enum ring-clockwise {
+                 description "Describes clockwise adjacency in ring.";
+             }
+             enum ring-counterclockwise {
+                 description "Describes counterclockwise adjacency in ring.";
+             }
+             enum ecmp {
+                 description "Describes ecmp adjacency. When the type is set to ecmp,
+                              the corresponding ecmp entry should be used to balance the load.";
+             }
+             enum virtual-link {
+                 description "Describes virtual adjacency between two indirect connect nodes.";
+             }
+             enum other {
+                 description "Describes other id type of adjacency.";
+             }
+         }
+         description "The collection of all possible adjacency type.";
+     }
+ }
+
+ grouping te-bift-id {
+     description "The index of BIER forwarding items. It usually represents the combination of [SD, BSL, SI].";
+     leaf type {
+         type enumeration {
+             enum mpls {
+                 description "The bift-id value is represent the BIER TE mpls forwarding plane. It is a mpls label.";
+             }
+             enum eth {
+                 description "The bift-id value is represent the BIER TE ethernet forwarding plane.
+                              It is an index of ethernet encapsulation.";
+             }
+             enum other {
+                 description "Describes other type of te-bift-id.";
+             }
+         }
+         description "The types of BIER TE bift-id. If this type is not set, mpls is default type.";
+     }
+     leaf value {
+         type rt-types:mpls-label;
+         mandatory true;
+         description "The bift-id value of the forwarding item. It can be a mpls label or an index of ethernet encapsulation
+                      which is used to represent specific combination of [SD, BSL, SI]. The ethernet index value is
+                      the same range (20bits) as mpls label.";
+     }
+ }
+
+ grouping te-items {
+     description "The BIER TE forwarding items collection.";
+     uses fwd-type;
+
+     container out-info {
+         description "The information of out forwarding packets. Includes the out interface and the bift-id of next hop.";
+         leaf fwd-intf {
+             type if:interface-ref;
+             mandatory true;
+             description "The out interface of this forwarding item.";
+         }
+         container te-out-bift-id {
+             description "The bift-id information corresponding to a specific out interface.";
+             uses te-bift-id;
+         }
+     }
+
+     container te-frr {
+         if-feature bier-te-frr;
+         leaf frr-index {
+             type uint16;
+             description "The index of this frr path.";
+         }
+         list resetbitmask {
+             key "bitmask";
+             description "The deleting bitmask of the forwarding item.";
+             leaf bitmask {
+                 type bit-string;
+                 description "The deleting bitmask of the forwarding item.";
+             }
+         }
+         description "If this link is protected, frr items can be used to forward flows when this link is down.";
+     }
+ }
+
+ grouping fwd-items {
+     list si {
+         key "si";
+         description "The forwarding items of one set identifier.";
+         leaf si{
+             type uint16;
+             mandatory true;
+             description "The set identifier of this forwarding item.";
+         }
+                     container te-bift-id {
+             description "The bift-id which is used to locate the specific forwarding item.";
+             uses te-bift-id;
+         }
+
+         list fwd-items {
+             key "te-bp";
+             description "The forwarding information of one BIER TE item.";
+             leaf te-bp {
+                 type uint16;
+                 mandatory true;
+                 description "The bit index of a BIER TE forwarding item.";
+             }
+
+             uses bp-type;
+             uses te-items;
+
+             list te-ecmp {
+                 if-feature bier-te-ecmp;
+                 key "out-if";
+                 leaf out-if {
+                     type if:interface-ref;
+                     description "The outgoing interface.";
+                 }
+                 container te-out-bift-id {
+                     description "The bift-id info for a specific out interface.";
+                     uses te-bift-id;
+                 }
+                 description "The list of the ecmp paths. When the type of BP is set to ecmp, this interface ecmp list
+                              should be used to balance the load on each interface.";
+             }
+         }
+     }
+     description "The forwarding items in one combination of SD, BSL and SI.";
+ }
+
+ grouping te-info {
+     description "The BIER TE forwarding information.";
+     list subdomain {
+         key "subdomain-id";
+         description "The forwarding items of one sub-domain.";
+         leaf subdomain-id {
+             type uint16;
+             description "The sub-domain-id of this sub-domain.";
+         }
+
+         list bsl {
+             key "fwd-bsl";
+             description "The forwarding items in one bitstringlength.";
+             leaf fwd-bsl {
+                 type uint16;
+                 description "The value of bitstringlength.";
+             }
+             uses fwd-items;
+         }
+
+         container te-frr-items {
+             if-feature bier-te-frr;
+             uses te-frr;
+             description "The TE fast re-route items for protective forwarding.";
+         }
+     }
+ }
+ /*
+ * data nodes
+ */
+ augment "/rt:routing" {
+     description "The BIER TE information.";
+     container bier-te {
+         description "The BIER TE information container.";
+         uses te-info;
+     }
+ }
+
+ /*
+ * Notifications
+ */
+ notification bier-te-notification {
+     description
+       "This notification is sent when a condition changes in BIER TE.";
+     list bp-is-zero {
+         key "if-index";
+         description "The adjacency id is zero. Zero is invalid for BIER TE.";
+         leaf if-index {
+             type if:interface-ref;
+             description "The adjacency id of this interface is zero.";
+         }
+         uses bp-type;
+     }
+ }
+}

@@ -1,0 +1,1332 @@
+module cisco-smart-license {
+  /* This is the Cisco Smart Licensing common YANG model.
+     This model must be common across all Cisco products that 
+     support smart licensing. */
+    
+  namespace "http://cisco.com/ns/yang/cisco-smart-license";
+  
+  prefix cisco-smart-license;
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  include "cisco-smart-license-errors";
+
+  organization
+    "Cisco Systems, Inc.";
+  contact
+    "Cisco Systems, Inc.
+     Customer Service
+     Postal: 170 W Tasman Drive
+     San Jose, CA 95134
+     Tel: +1 1800 553-NETS
+     E-mail: cs-yang@cisco.com";
+  description
+    "Smart licensing configuration, RPC, notification and operational data.
+     
+     Copyright (c) 2016-2017 by Cisco Systems, Inc.
+     All rights reserved.";
+
+  revision 2017-10-11 {
+    description
+      "Initial Revision to allow register/de-register, enable/disable,
+       get register status, receive notifications, get
+        license usage and other state information.";
+    reference "https://software.cisco.com/";
+  }
+
+  
+  /**************************************************************/
+  /* typedefs 
+    We have specified a value for each enum. This is very helpfull in 
+    making it easier to ensure a consistant and proper implementation of 
+    this YANG model across all Cisco products and operating systems.*/
+
+  /* failure message string */
+  typedef fail-message-type {
+    type string {
+      length "0..255";
+    }
+    description
+      "If an operation failed then this the message that 
+        can be displayed for the user. This is not a parsable string.";
+  }
+  
+  /* registration failure reasons used in the registration notification */
+  typedef notif-register-failure-enum {
+    type enumeration {
+      enum general-failure {
+        value 0;
+        description
+          "General failure.";
+      }
+      enum already-registered-failure {
+        value 1;
+        description
+          "This smart licensing instance is already registered.";
+      }
+      enum de-register-failure {
+        value 2;
+        description
+          "The de-register failed because this instance is not registered.";
+      }
+    }
+    description
+      "Registration failure reasons. In all cases
+       notif-failure-data-group.message will contain a more 
+       detailed failure message.";
+  }
+
+  /* Registration state types */
+  typedef registration-state-enum {
+      type enumeration {
+          enum reg-state-not-registered {
+              value 0;
+              description 
+                "This smart licensing instance is not registered.";
+          }
+          enum reg-state-complete {
+              value 1;
+              description 
+                "Registration was successful and this smart licensing 
+                 instance is registered.";
+          }
+          enum reg-state-in-progress {
+              value 2;
+              description
+                "Registration is in progress.";
+          }
+          enum reg-state-retry {
+              value 3;
+              description 
+                  "The initial registration attempt failed but
+                   a retry is in progress.";
+          }
+          enum reg-state-failed {
+              value 4;
+              description
+                "Registration failed.";
+          }
+      }
+      description
+        "The smart licensing registration state.";
+  }
+ 
+  /* authorization state types */
+  typedef authorization-state-enum {
+      type enumeration {
+          enum auth-state-none {
+              value 0;
+              description 
+                "No licenses are in use so there is no authorization 
+                 state to report.";
+          }
+          enum auth-state-eval {
+              value 1;
+              description
+                "Evaluation period is in use and is counting down.";
+          }
+          enum auth-state-eval-expired {
+              value 2;
+              description
+                "Evaluation period in use but it has expired.";
+          }
+          enum auth-state-authorized {
+              value 3;
+              description 
+                 "All license usage is authorized and within terms 
+                  of the customer's contract.";
+          }
+          enum auth-state-authorized-reservation {
+              value 4;
+              description 
+                "All license usage is authorized because a  
+                 reservation authorization code is installed.";
+          }
+          enum auth-state-out-of-compliance {
+              value 5;
+              description 
+                 "License usage is out of compliance with the 
+                  terms of the contract. Either too many licenses are in
+                  use or licenses that were not purchased are in use.";
+          }
+          enum auth-state-authorization-expired {
+              value 6;
+              description 
+                "The authorization period has expired because this
+                 product instance has not communicated with the
+                 SSM or satellite in over 90 days.";
+          }
+      }
+      description
+        "The smart licensing authorization state.";
+  }
+  
+  /* typedef for utility reporting types */
+  typedef utility-reporting-type-enum {
+    type enumeration {
+      enum utility-reporting-type-none {
+         value 0;
+         description
+           "The system is not reporting utility usage data.";
+      }
+      enum utility-reporting-type-subscription {
+         value 1;
+         description 
+           "The system is reporting utility usage data because it has 
+            received subscription information from either the SSM or 
+            satellite.";
+      }
+      enum utility-reporting-type-certificate {
+         value 2;
+         description 
+           "The system is reporting utility usage data because it has 
+            received a utility certificate from a Third Party 
+            Billing Platform.";
+      }
+    }
+    description
+      "What has triggered the system to start reporting utility usage.";
+  }  
+  
+  /* typedef for transport types */
+  typedef transport-type-enum {
+    type enumeration {
+      enum transport-type-callhome {
+        value 0;
+        description
+          "Smart Licensing is using callhome for communications.";
+      }
+      enum transport-type-smart {
+        value 1;
+        description 
+          "Smart licensing is using the smart transport for 
+           communications."; 
+      } 
+    }
+    description
+      "The type of transport in use by smart licensing.";
+  }
+
+  /* typedef for license enforcement modes */
+  typedef enforcement-mode-enum {
+    type enumeration {
+      enum  enforcement-waiting{
+        value 0;
+        description
+           "The initial state after an entitlement request while we are waiting 
+            the Authorization request response. In this mode the device will 
+            have established communications with Cisco and successfully 
+            registered with the Cisco Licensing cloud.";
+      }
+      enum  enforcement-in-compliance{
+        value 1;
+        description 
+          "Cisco Smart Software Manager (CSSM) has responded that
+           the entitlement requested is in compliance."; 
+      } 
+      enum enforcement-out-of-compliance {
+        value 2;
+        description 
+          "Cisco Smart Software Manager (CSSM) has responded that
+           the entitlement requested is out of compliance. 
+           either too many licenses /entitlements are in use or the license 
+           has not been purchased"; 
+      } 
+      enum enforcement-overage {
+        value 3;
+        description 
+          "more licenses are in use than were purchased but the customer
+            is still within the terms of their contract"; 
+      } 
+      enum enforcement-evaluation {
+        value 4;
+        description 
+          "The evaluation period is in use.
+           It will remain in use until the following
+           two messages have been received by the product from the 
+           Cisco Smart Software Manager (CSSM):
+            Successful response to a registration request,
+            successful response to an entitlement authorization request";
+      } 
+      enum enforcement-evaluation-expired {
+        value 5;
+        description 
+          "The evaluation period has expired"; 
+      } 
+      enum enforcement-authorization-expired {
+        value 6;
+        description 
+          "Authorization period has expired. This will occur if the product
+           has not been able to communicate with Cisco or a satellite 
+           for an extended period of time, usually 90 days.";
+      } 
+      enum enforcement-reservation-in-compliance {
+        value 7;
+        description 
+          "The entitlement requested is in compliance because 
+           a reservation authorization code is installed and the product
+           is in Permanent License Reservation mode.";
+      } 
+      enum enforcement-invalid-tag {
+        value 8;
+        description
+          "The entitlement tag is invalid.
+           The CSSM does not recognize the entitlement tag
+           because it is not in the database. This usually only occurs
+           during testing.";
+      } 
+      enum enforcement-disabled {
+        value 9;
+        description
+          "Smart licensing has been disabled. The feature using this license
+           should be disabled.";
+      }
+    }
+    description
+        "For an entitlement tag (license) that is in use this enumeration
+          tells us how the license is being enforced.";
+  }
+  /*******************************************************************/
+  /* groupings */
+  
+  grouping registration-fail-info {
+    description
+      "Failure info for a registration failure.";
+    leaf fail-time {
+      type yang:date-and-time;
+      description
+        "Time the registration failed.";
+    }
+    leaf fail-message {
+      type fail-message-type;  
+      description
+        "Failure message that can be displayed for the user. 
+         This is not a parsable message.";
+    }
+  }
+
+  /* registration state */
+  grouping registration-state {
+    description
+      "The state of the registration for this product instance.";
+    leaf registration-state {
+        type registration-state-enum;
+        description
+          "The current registration state.";
+    } 
+
+    container registration-in-progress {
+      when "../registration-state = 'reg-state-in-progress'";
+      description
+        "Registration is in progress.";
+      leaf start-time {
+        type yang:date-and-time;
+        description
+          "Time the registration started.";
+      }
+    }
+
+    container registration-failed {
+      when "../registration-state = 'reg-state-failed'";
+      description
+        "Registration failed.";
+        uses registration-fail-info;
+    }
+    
+    container registration-retry {
+       when "../registration-state = 'reg-state-retry'";
+      description
+        "Registration failed and doing a retry.";
+      leaf retry-next-time {
+        type yang:date-and-time;
+        description
+            "Time the registration will be retried.";
+      }
+      uses registration-fail-info;
+    }
+    
+    container registration-complete {
+      when "../registration-state = 'reg-state-complete'";
+      description
+        "Registration success.";
+      leaf complete-time {
+        type yang:date-and-time;
+        description
+          "Time the registration was successful.";
+      }
+      leaf last-renew-time {
+        type yang:date-and-time;
+        description
+          "Time the last registration renewal occurred. 
+           If empty then no renewal has occurred.";
+      }
+      leaf next-renew-time {
+          type yang:date-and-time;
+          description
+            "Time the registration will be automatically renewed.";
+        }
+      leaf expire-time {
+        type yang:date-and-time;
+        description
+          "Time the registration will expire if it is not renewed.";
+      }
+      leaf last-renew-success {
+        type boolean;
+        description
+          "Was the last renewal attempt successful.";
+      }
+      leaf fail-message {
+        type fail-message-type;  
+        description
+          "If the last renewal failed then this is a failure message that
+           can be displayed for the user. 
+           This is not a parsable string.
+           Only present if the last renewal failed";
+      }
+      leaf smart-account {
+        type string {
+            length "1..255";  
+        }
+        description
+          "The smart account name for this registration.";
+      }
+      leaf virtual-account {
+        type string {
+            length "1..255";  
+        }
+        description
+          "The virtual account name for this registration.";
+      }
+    }
+  
+    leaf export-control-allowed {
+      type boolean;
+      description
+          "Is the device allowed to enable export controlled features.";
+    }
+  }
+  
+  /* The smart license UDI   */  
+  grouping udi {
+    description 
+      "The Smart Licensing UDI definition. 
+       A UDI will contain one or more of the fields defined. 
+       While the pid and sn fields are most commonly used
+       different product types will use different fields. This UDI
+       will be unique for each product instance that is installed.";
+    leaf pid {
+      type string {
+          length "1..255";  
+        }
+      description
+        "The Product Identifier. Always combined with sn.";
+    }
+    leaf sn {
+      type string {
+          length "1..255";  
+        }
+      description
+        "The system serial number. Always combined with pid.";
+    }
+    leaf vid {
+      type string {
+        length "1..255";  
+      }
+      description 
+        "The version identifier. Usually combined with pid & sn."; 
+    }
+    leaf uuid {
+      type yang:uuid;
+      description 
+        "A 32 byte hex value generated by the system. 
+         This will be in proper UUID format 8-4-4-4-12. Often used by VMs
+         or other systems that do not have a hardware identifier.";
+    }
+    leaf suvi {
+      type string {
+        length "1..255";  
+      }
+      description 
+        "Free form virtual identifier often used by software 
+         only devices like software routers or VMs.";
+    }
+    leaf host-identifier {
+      type string {
+        length "1..255";  
+      }
+      description 
+        "Host identifier available on some systems. 
+        Typically 8 hex digits.";
+    }
+    leaf mac-address {
+      type yang:mac-address;
+      description 
+        "The MAC address of the system. This is usually only used if there 
+        is nothing else available to be used as an identifier."; 
+    }
+  }
+
+  /* additional authorization state information */
+  grouping authorization-info {
+      description 
+        "Additional authorization state information used by some of 
+         the authorization states.";
+      leaf last-comm-status-success {
+        type boolean;
+        description
+          "Last communication was successful or failed.";
+      }
+      leaf fail-message {
+        type fail-message-type;  
+        description
+          "Failure message if the last communications attempt failed.
+           This can be displayed for the user. It is not a parsable string.";
+      }      
+      leaf last-comm-time {
+        type yang:date-and-time;
+        description
+          "Time the last communication attempt happened.";
+      }    
+      leaf next-comm-time {
+        type yang:date-and-time;
+        description
+          "The next time communications will be attempted to the back end.
+           This will be zero if the initial communication has not completed.";
+      }
+      leaf comm-deadline-time {
+        type yang:date-and-time;
+        description
+          "If there are no communications between now and this time
+          smart licensing will enter the authorization expired state. 
+          This may be zero indicating there is no deadline.";
+      }
+    }
+  
+  /* expiration period counter */
+  grouping evaluation-time-left {
+    description
+      "Number of seconds of license usage until the evaluation 
+       period expires.";
+    leaf seconds-left {
+      type uint64;
+      description
+        "Number of seconds of license usage until the evaluation 
+         period expires. Note that this not a hard date and time because
+         if no licenses are in use the evaluation period stops 
+         counting down.";
+    }    
+  }
+
+  /* authorization state */
+  grouping authorization-state {
+    description
+      "The license authorization state.";
+    leaf authorization-state {
+        type authorization-state-enum;
+        description
+          "The current authorization state.";
+    } 
+    
+    container authorization-none {
+      when "../authorization-state = 'auth-state-none'";
+      description
+        "No licenses in use. This empty container is not needed but is 
+         a place holder to show there is no data for this state.";
+    }
+
+    container authorization-eval {
+      when "../authorization-state = 'auth-state-eval'";
+      description
+        "Evaluation period is in use and counting down.
+         The evaluation period only counts down when licenses are
+         in use.";
+      uses evaluation-time-left;
+    }
+
+    container authorization-eval-expired {
+      when "../authorization-state = 'auth-state-eval-expired'";
+      description
+        "Evaluation period is in use but has expired.";
+      leaf expire-time {
+        type yang:date-and-time;
+        description
+          "Time the evaluation period expired.";
+      }    
+    }
+
+    container authorization-authorized {
+      when "../authorization-state = 'auth-state-authorized'";
+      description
+        "All license usage is authorized and within terms of the contract.";
+      uses authorization-info;  
+    }
+
+    container authorization-authorized-reservation {
+      when "../authorization-state = 'auth-state-authorized-reservation'";
+      description 
+        "All license usage is authorized because a  
+         reservation authorization code is installed.";
+      leaf reservation-time {
+        type yang:date-and-time;
+        description
+          "Time the reservation occurred.";
+      }   
+    }
+
+    container authorization-out-of-compliance {
+      when "../authorization-state = 'auth-state-out-of-compliance'";
+      description 
+        "License usage is out of compliance with the terms of the 
+         contract because more licenses are in use than were purchased.";
+      uses authorization-info;  
+      leaf ooc-time {
+        type yang:date-and-time;
+        description
+          "Time the product instance entered the out of compliance state.";
+      }    
+    }
+
+    container authorization-authorization-expired {
+      when "../authorization-state = 'auth-state-authorization-expired'";
+      description
+        "The authorization period has expired because the product 
+        instance ahs not communicated with the SSM or satellite in 
+        over 90 days.";
+      uses authorization-info;  
+    }
+  }
+
+   /* Customer information */
+   grouping customer-info {
+     description
+       "Customer name and address information.";
+     leaf id {
+        type string {
+          length 1..250;
+        }
+        description
+          "The cisco issued customer id which will be included
+           in the utility usage (RUM) report.";
+     }
+     leaf name {
+       type string {
+         length "1..250";
+       }
+       description 
+         "The customer company name which will be included
+         in the utility usage (RUM) report.";
+     }
+     leaf street {
+       type string {
+         length "1..250";
+       }
+       description 
+         "The customer company street address which will be included
+         in the utility usage (RUM) report.";
+     }
+     leaf city {
+       type string {
+         length "1..250";
+       }
+       description 
+         "The customer company city which will be included
+         in the utility usage (RUM) report.";
+     }
+     leaf state {
+       type string {
+           length "1..250";
+       }
+       description 
+         "The customer company state which will be included
+         in the utility usage (RUM) report.";
+       reference 
+         "ISO3166 standard for state codes.";
+     }
+     leaf country {
+       type string {
+         length "1..250";
+       }
+       description 
+         "The customer company country which will be included
+         in the utility usage (RUM) report.";
+       reference 
+         "ISO3166 standard for country codes.";
+     }
+     leaf postal-code {
+       type string {
+         length 1..250;
+       }
+       description
+         "The customer location specific postal code
+          which will be included in the utility usage (RUM) report.";
+     }
+  }
+
+  /* utility state information */
+  grouping utility-state {
+    description 
+      "State of utility reporting in smart licensing.";
+    leaf enabled {
+      type boolean;
+      description 
+        "Utility reporting is enabled. The system still 
+         needs a utility certificate registration or a subscription 
+         to begin reporting actual utility data.";
+    }
+    leaf reporting {
+      type utility-reporting-type-enum; 
+      description 
+        "Is the system reporting utility data. If so then what triggered 
+        it to start reporting. If this is utility-reporting-none then all
+        of the times below will be zero.";
+    }
+    container reporting-times {
+      when "../reporting != 'utility-reporting-none'";
+      description
+        "If the product instance is reporting utility data this will
+         contain various timing information about that reporting.";
+      leaf  last-report-time {
+        type yang:date-and-time;
+        description
+            "Time the last report was sent.";
+      }
+      leaf last-report-success {
+        type boolean;
+        description
+          "Was the last report successfully sent?";
+      }
+      leaf fail-message {
+        type fail-message-type;  
+        description
+          "Failure message if the last report send failed.";
+      }    
+      leaf  next-report-time {
+        type yang:date-and-time;
+        description
+          "Time the next report is scheduled to be sent.";
+      }
+    }
+    container customer-info {
+      when "../reporting != 'utility-reporting-none'";
+      description
+        "Customer address information that will be sent 
+         in the utility usage reports.";
+      uses customer-info;
+    }
+  }
+     
+  /* transport information & state */
+  grouping transport-state {
+    description 
+      "Transport settings. Smart licensing uses the transport to
+       send messages to the CSSM, satellite or 
+       Third Party Billing Platform."; 
+    leaf transport-type {
+      type transport-type-enum;
+      description 
+        "Type of communications transport smart licensing is using.";
+    }
+    container url-settings {
+      when "../transport-type = 'transport-type-smart'";
+      description
+        "URLs in use if the transport type is smart.";
+      leaf url-registration {
+        type inet:uri; 
+        description 
+          "The URL used for registration, authorization and any 
+           other messages not related to utility.";
+      }
+       leaf url-utility {
+        type inet:uri; 
+        description 
+        "The URL used for utility reporting. url-utility and 
+         url-registration may be the same or different. If a satellite
+         is in use then they will probably be the same.";
+      }
+    }
+  }
+     
+  /* privacy info for state and config */
+  grouping privacy-info {
+    description 
+      "Will smart licensing send the host name in any outgoing messages.";
+    leaf hostname {
+      type boolean;
+      description 
+        "If true then the hostname will not be sent in 
+         any messages.";
+    }
+    leaf version {
+        type boolean;
+        description 
+          "If true then the smart licensing version will not be sent in 
+           any messages.";
+      }
+  }
+           
+  /* evaluation period state */
+  grouping eval-period-state {     
+    description
+        "State of the evaluation period. In use or not and time left.";
+    leaf eval-in-use {
+      type boolean;
+      description 
+       "Is the evaluation period currently in use and counting down.";
+    }    
+    leaf eval-expired {
+      type boolean;
+      description
+        "Has the evaluation period expired.";
+    }
+    container eval-period-left {
+      when "../eval-expired = 'false'";
+      description 
+        "If the evaluation period is not expired this is the number 
+        of seconds left in the period.";
+      leaf time-left {
+        type uint32;
+        description
+          "Number of seconds of license usage until the evaluation 
+           period expires.";
+      }         
+    }
+    container eval-expire-time {
+      when "../eval-expired = 'true'";
+      description
+        "If the evaluation period has expired then this is the 
+        time of the expiration."; 
+      leaf expire-time {
+        type yang:date-and-time;
+        description
+          "Date and time the evaluation period expired.";
+      }         
+    }
+  }      
+  
+  /* license (entitlement tag) usage */
+  grouping license-usage {
+    description
+        "State of usage for a single entitlement tag (license).";
+    leaf entitlement-tag {
+      type string;
+      description
+        "The ISO 19770 entitlement tag used to define this license.";
+    }
+    leaf short-name {
+      type string;
+      description
+        "The human readable license name from the entitlement tag.";
+    }
+    leaf license-name {
+      type string;
+      description
+        "The license name that can be seen in the CSSM portal or on 
+         the satellite. 
+         This is only available after the product has registered.";
+    }
+    leaf description {
+      type string;
+      description
+        "The long description of this license.
+         This is only available after the product has registered.";
+      }
+    leaf count {
+      type uint32;
+      description
+        "The in-use count of this license. Note that licensing only reports 
+         usage for licenses that are in use (count of 1 or greater).";
+      }
+    leaf enforcement-mode {
+      type enforcement-mode-enum;
+      description
+        "The current enforcement mode of this license.";
+    }
+    leaf post-paid {
+      type boolean;
+      description
+      "If true then this entitlement is being reported in a post paid mode
+       with utility usage reports. Otherwise it will be reported in 
+       the regular prepaid mode.";
+    }
+    leaf subscription-id {
+      type string;
+      description 
+        "If this entitlement tag is being reported in the post paid
+         utility usage mode and there is a subscription id in the customer's 
+         virtual account this will be that subscription id.";
+    }
+  }
+   
+  /* failure data information for notifications */   
+  grouping notif-failure-data-group {
+    description
+      "Describes why a register operation failed.";
+    leaf reason {
+      type notif-register-failure-enum;
+      description
+        "Why did the operation fail.";
+    }
+    leaf message {
+      type fail-message-type;  
+      description
+        "A message describing the details of the failure.";
+    }
+  }
+
+  /****************************************************************** */
+  /* RPC */
+  
+  rpc register-id-token {
+    description
+      "Register with an ID token.
+       This will begin the registration process. Since the registration 
+       process will take somewhere between seconds and hours you must get the  
+       registration-success or registration-fail notifications 
+       or check the registration status in smart-license:state
+       to know the status of the registration.";
+    input {
+      leaf id-token {
+        type string {
+          length "1..255";  
+        }
+        description
+          "The ID token used to register.";
+      }
+      leaf force {
+        type boolean;
+        default "false";
+        description
+          "Force the registration if set.";
+      }
+    }
+    output {
+      leaf return-code {
+        type error-enum;
+        description
+          "The return code. 
+           If smart licensing is not enabled (status:enabled)
+           then the error will be error-enum:notenabled.
+           On success the return code will be 
+           error-enum:registrationinprogress.";
+      }
+    }
+  }
+
+  rpc de-register {
+    description
+      "De-register. This will immediately de-register the device.";
+    output {
+      leaf return-code {
+        type error-enum;
+        description
+          "The return code for the de-register process.";
+      }
+    }
+  }
+
+  rpc renew-id {
+      description
+        "Under normal operations smart licensing will automatically renew 
+         the ID certificates used for regsitration. This command can 
+         be used if he customer wants to initiate a manual 
+         registration renewal.";
+      output {
+        leaf return-code {
+          type error-enum;
+          description
+            "The return code.";
+        }
+      }
+    }
+  
+  rpc renew-auth {
+      description
+        "Under normal operations smart licensing will automatically renew 
+         the license authorization every 30 days. This command can 
+         be used if he customer wants to iinitiate a manual 
+         renewal.";
+      output {
+        leaf return-code {
+          type error-enum;
+          description
+            "The return code.";
+        }
+      }
+    }
+  /*****************************************************************/
+  /* Notifications */
+  
+  notification ready {
+    description
+      "Smart Licensing on the product instance has initialized
+       and is ready to accept the enable command.";
+  }
+ 
+  notification enabled {
+    description
+      "Smart Licensing on the product instance has been enabled.";  
+  }
+  notification registration-fail {
+    description
+      "Registration with Cisco failed.";
+    uses notif-failure-data-group;
+  }
+
+  notification enforcement-mode {
+    description
+      "This indicates how licenses are currently being enforced on the 
+       product instance.";
+    leaf mode {
+      type authorization-state-enum;
+      description
+        "The current enforcement mode for the licenses on the product instance.";
+    }
+  }
+  
+  notification registration-success {
+    description
+      "Registration with Cisco was successful.";
+  } 
+
+  notification registration-expired {
+    description 
+      "The registration period has expired because the product instance
+       has not communicated with the SSM in a very long time.";
+    uses notif-failure-data-group;
+  }
+  notification registration-renew-success{
+    description
+      "The registration renewal with Cisco was successful.";
+  }
+  
+  notification registration-renew-fail {
+    description
+      "The registration renewal with Cisco failed.";
+    uses notif-failure-data-group;
+ }
+  notification authorization-renew-success{
+      description
+        "The autorization renewal was successful.
+         Every 30 days the agent will automatically send the list of
+         entitlements in use 
+         (even if they have not changed or the list is empty)
+         to the SSM. The SSM will send back a status of Authorized or
+         out of compliance.";
+  }
+  notification authorization-renew-fail {
+      description
+          "The autorization renewal failed.
+          Every 30 days the agent will automatically send the list of
+          entitlements in use 
+          (even if they have not changed or the list is empty)
+          to the SSM. The SSM will send back a status of Authorized or
+          out of compliance.";
+      uses notif-failure-data-group;
+  }
+  notification communications-fail{
+    description
+      "Communicatios with the SSM have failed.";
+    uses notif-failure-data-group;
+  }
+  notification communications-restored {
+      description
+        "Communications with the SSM have ben restored.";
+  }
+  notification registration-out-of-range {
+    description
+      "The registration period time in the ID Certificate is
+       out of the valid range after the system clock changed.
+       This means the current time is either before the start date
+       or after the expired date.
+       Smart Licensing will allow a one hour grace period for the system clock
+       to be changed back into the validity period of the certificate before it
+       removes the certificate and de-registers the product.";
+  }
+
+  notification evaluation-expiration-warning {
+      description
+        "The evaluation period will expire soon.
+         This notification will be sent prior to expiration at the following 
+         intervvals: 60 days,30 days, 21 days,14 days, 7 days, 
+         every day in the last week, every hour for the last day.";
+      uses evaluation-time-left;
+  }
+  notification evaluation-expired {
+      description
+        "The evaluation period has expired. This notification will be
+         sent at the time of expiration and every hour after expiration
+         unitl all licenses features are turned off or the device is 
+         registered.";
+      leaf expire-time {
+          type yang:date-and-time;
+          description
+            "The date and time the evaluation period expired.";
+        }
+  }
+  notification registration-expiration-warning {
+      description
+        "The registration period has expired. The normal registration
+         period is one year and will be automatically renewed every
+         six months. If the device fails to renew the registration 
+         because of continued communications failures for an additional
+         six months the registration period will expire and the device
+         will de-register.";
+      leaf expire-time {
+          type yang:date-and-time;
+          description
+            "The date and time the registration period expired.";
+        }
+  }
+
+  notification de-register-success {
+    description
+      "The smart licensing instance has been de-registered.
+       This could be the result of a user action or an expired registration.";
+  }
+  
+  notification de-register-fail {
+    description
+      "de-registration has failed on the SSM or there was a communications
+       failure so the SSM has not removed product instance from its database. 
+       Locally on the product instance all registration information has 
+       been removed.";
+    uses notif-failure-data-group;
+  } 
+ 
+  notification utility-expired {
+    description
+      "The certificate used for utility registration with a third party 
+       authenticator has expired. Probably because of continuous communications
+       failures. The product instance will de-register."; 
+    uses notif-failure-data-group;
+  }
+  notification utility-renewal-fail {
+    description
+      "The renewal of the certificate used for utility registration with a 
+       third party authenticator has failed. Possibly because of
+       a communications failure. The product instance will try the renewal 
+       later."; 
+    uses notif-failure-data-group;
+  }
+  notification utility-renewal-success {
+    description
+      "The renewal of the certificate used for utility registration with a 
+       third party authenticator was successful."; 
+  }
+  notification utility-RUM-fail {
+    description
+      "Failed to sent a RUM (utility usage) report because of a 
+       communications error. the product instance will continue to 
+       attempting sending all reports until successful.";
+    uses notif-failure-data-group;
+  }
+    
+  notification utility-reporting-started {
+    description
+      "The utility billing feature is enabled and is now sending 
+       utility usage reports.";
+  }
+  
+  notification utility-reporting-stopped {
+    description
+      "The utility billing feature has been disabled and is no longer sending 
+       utility usage reports.";
+  }
+
+  /* Licensing container to hold both config and state */
+  container licensing {   
+  
+  /******************************************************************/
+  /* configuration */
+  container config {
+    description
+      "Smart licensing configuration.";
+    leaf enable {
+      type boolean;
+      description
+        "Enable/disable smart licensing. If state:always-enabled is true then
+         Smart Licensing is always enabled and config:enable will be
+          silently ignored";
+    }
+    leaf custom-id {
+        type string;
+        description 
+          "A free form ID set by the customer which will be included
+          in the utility usage (RUM) report and inthe message header.";
+      }
+    container privacy {
+      uses privacy-info;
+      description 
+        "Controls whether or not some information is sent in messages to the 
+          CSSM or satellite.";
+     }
+     container utility {
+       description
+         "Utility settings.";
+       leaf utility-enable {
+         type boolean;
+         description 
+           "Indicates the customer's intent to start reporting 
+            utility usage information. This alone does not enable 
+            utility reporting. Either subscription information will be 
+            automatically downloaded from the SSM or a utility
+            certificate we be loaded if the system registers with a 
+            Third Party Billing Platform.";
+        }
+        container customer-info {
+          description
+            "Customer address information that will be included in 
+             the utility usage reports.";
+          uses customer-info;
+        }
+      }  
+      container transport {
+        description 
+          "Transport layer settings.";
+        leaf transport-type {
+          type transport-type-enum;
+          description 
+            "The transport type. If transport-type
+            is set to transport-type-callhome then any additional
+            transport settings must be done from the callhome CLI.
+            If the transport-type is set to transport-type-smart
+            additional settings are available below.";
+        }
+        container transport-smart {
+          when "../transport-type = 'transport-type-smart'";
+          description
+            "Settings for the smart transport.";
+          choice url-setting {
+            description 
+                "Set the URL(s) used for communications to the SSM,
+                 satellite or Third Party Billing Platform.";
+            case set-default {
+              leaf url-default {
+                type boolean;
+                description 
+                  "Tell smart licensing to set the default URLs for both
+                   url-registration and url-utility that point to 
+                   the Cisco SSM.";
+              }
+            }
+            case set-urls {
+              container urls {
+                description 
+                  "The URLS used for registration and utility reporting.
+                   These should be set if the product instance will
+                   communicate with a satellite or Third Party 
+                   Billing Platform.";
+                leaf url-registration {
+                  type inet:uri; 
+                  description 
+                    "Set the URL used for registration, authorization and
+                    anything else not related to utility usage reporting.";
+                }  
+                leaf url-utility {
+                  type inet:uri; 
+                  description
+                    "Set the URL to be used for sending utility usage 
+                     reports. This should be the same as url-registration 
+                     if you are using a satellite.";
+                }        
+              }
+            }
+          }
+      }
+    }
+  }
+
+  /*******************************************************************/
+  /* Operational data */
+
+  container state {
+    config false;
+    description
+      "Smart licensing state.";
+    leaf always-enabled {
+      type boolean;
+      description 
+        "Smart Licensing is always enabled. the smart-enabled leaf below 
+         will always be true. The config:enable setting above will be silently 
+         ignored by Smart licensing";
+    }
+    leaf smart-enabled {
+      type boolean;
+      description
+        "Is smart licensing enabled. If always-enabled above is true then
+          smart licensing is always enabled and can not be disabled.";
+    }
+    leaf version {
+      type string {
+        length "1..255";  
+      }
+      description
+        "The smart licensing version in use."; 
+    }
+    container state-info {
+      /* This state-info is only available if 
+       * ../smart-enabled = true
+       */
+      when "../smart-enabled = 'true'";
+      description
+        "Smart licensing state information. 
+            This is only valid if smart-enabled = true.";
+      container registration {
+        description
+          "State of license registration."; 
+        uses registration-state;
+      }
+      container authorization {
+        description
+          "State of license authorization."; 
+        uses authorization-state;
+      }  
+      container utility {
+        description
+          "State of utility reporting."; 
+        uses utility-state;
+      }
+      leaf custom-id {
+        type string;
+        description
+          "The custom ID set by the customer that will be included in the
+           utility usage (RUM) report and in th emessage header";
+      }
+      container transport {
+        description
+          "State of the transport.";
+        uses transport-state;
+      }
+      container privacy {
+        description
+          "State of the privacy settings.";
+        uses privacy-info;
+      }
+      container evaluation {
+        description
+          "State of the evaluation period.";
+        uses eval-period-state;
+      }
+      container udi {
+        description
+          "UDI of the system."; 
+        uses udi;
+      }  
+      list usage {
+        key "entitlement-tag";
+        uses license-usage;
+        description
+          "List of license (entitlement tag) usage information. 
+           This only contains the information for licenses that are in use.";
+      }
+    }
+  }
+  description
+      "Container to hold config and state.";  
+  } 
+}
+

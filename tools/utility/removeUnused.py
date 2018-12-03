@@ -9,7 +9,7 @@ import datetime
 import tools.utility.log as lo
 from tools.utility import messageFactory
 
-LOGGER = lo.get_logger('api')
+LOGGER = lo.get_logger('removeUnused')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

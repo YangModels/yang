@@ -12,7 +12,7 @@ import statistics
 import tools.utility.log as log
 from tools.utility.util import get_curr_dir
 
-LOGGER = log.get_logger('runCapabilities')
+LOGGER = log.get_logger('runCapabilities', '/home/miroslav/log/populate/yang.log')
 
 
 def find_missing_hello(directory, pattern):
@@ -72,6 +72,7 @@ if __name__ == "__main__":
     config = ConfigParser.ConfigParser()
     config.read(config_path)
     is_uwsgi = config.get('General-Section', 'uwsgi')
+    private_credentials = config.get('General-Section', 'private-secret').split(' ')
     separator = ':'
     suffix = args.api_port
     if is_uwsgi == 'True':
@@ -106,7 +107,7 @@ if __name__ == "__main__":
                 capability = cap.Capability(search_dir, index, prepare_sdo,
                                             integrity, args.api, sdo,
                                             args.json_dir, args.result_html_dir,
-                                            args.save_file_dir)
+                                            args.save_file_dir, private_credentials)
                 LOGGER.info('Starting to parse files in sdo directory')
                 capability.parse_and_dump_sdo()
                 index += 1
@@ -144,13 +145,14 @@ if __name__ == "__main__":
                             if args.run_integrity:
                                 prepare_vendor = prepare.Prepare("prepare",
                                                                  yangcatalog_api_prefix)
-                            capability = cap.Capability(filename, index,
-                                                        prepare_vendor,
-                                                        integrity, args.api,
-                                                        sdo, args.json_dir,
-                                                        args.result_html_dir,
-                                                        args.save_file_dir,
-                                                        args.run_integrity)
+                                capability = cap.Capability(filename, index,
+                                                            prepare_vendor,
+                                                            integrity, args.api,
+                                                            sdo, args.json_dir,
+                                                            args.result_html_dir,
+                                                            args.save_file_dir,
+                                                            private_credentials,
+                                                            args.run_integrity)
                             if 'ietf-yang-library' in pattern:
                                 capability.parse_and_dump_yang_lib()
                             else:

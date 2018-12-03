@@ -5,7 +5,7 @@ from tools.utility import yangParser
 import tools.utility.log as log
 from tools.utility.util import get_curr_dir
 
-LOGGER = log.get_logger('dependencies')
+LOGGER = log.get_logger('dependencies', '/home/miroslav/log/populate/yang.log')
 
 
 def search_dependencies(base):

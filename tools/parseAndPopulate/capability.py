@@ -14,7 +14,7 @@ from tools.parseAndPopulate.loadJsonFiles import LoadFiles
 from tools.parseAndPopulate.modules import Modules
 from tools.utility.util import get_curr_dir
 
-LOGGER = log.get_logger(__name__)
+LOGGER = log.get_logger(__name__, '/home/miroslav/log/populate/yang.log')
 
 github_raw = 'https://raw.githubusercontent.com/'
 
@@ -35,7 +35,7 @@ def find_first_file(directory, pattern, pattern_with_revision):
 
 class Capability:
     def __init__(self, hello_message_file, index, prepare, integrity_checker,
-                 api, sdo, json_dir, html_result_dir, save_file_to_dir,
+                 api, sdo, json_dir, html_result_dir, save_file_to_dir, credentials,
                  run_integrity=False):
         LOGGER.debug('Running constructor')
         self.run_integrity = run_integrity
@@ -112,7 +112,7 @@ class Capability:
 
         self.parsed_jsons = None
         if not run_integrity:
-            self.parsed_jsons = LoadFiles(self.split)
+            self.parsed_jsons = LoadFiles(credentials)
 
     def initialize(self, impl):
         if impl['module-list-file']['path'] in self.hello_message_file:
@@ -191,7 +191,6 @@ class Capability:
                                            self.prepare.name_revision_organization,
                                            schema, self.to)
                             self.prepare.add_key_sdo_module(yang)
-
 
     # parse capability xml and save to file
     def parse_and_dump_yang_lib(self):

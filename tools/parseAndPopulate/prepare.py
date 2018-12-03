@@ -2,7 +2,7 @@ import json
 
 import tools.utility.log as log
 
-LOGGER = log.get_logger(__name__)
+LOGGER = log.get_logger(__name__, '/home/miroslav/log/populate/yang.log')
 
 
 class Prepare:

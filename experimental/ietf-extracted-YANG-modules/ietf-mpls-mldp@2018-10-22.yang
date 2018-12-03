@@ -1,0 +1,465 @@
+module ietf-mpls-mldp {
+  yang-version 1.1;
+
+  namespace "urn:ietf:params:xml:ns:yang:ietf-mpls-mldp";
+  prefix "mldp";
+
+  import ietf-inet-types {
+    prefix "inet";
+    reference "RFC 6991: Common YANG Data Types";
+  }
+
+  import ietf-interfaces {
+    prefix "if";
+    reference "RFC 8343: A YANG Data Model for Interface Management";
+  }
+
+  import ietf-mpls-ldp {
+    prefix "ldp";
+    reference "RFC XXXX: A YANG Data Model for MPLS LDP";
+// RFC Editor: replace the XXXX with actual LDP YANG RFC number at
+// time of publication and remove this note.
+  }
+
+  import ietf-routing {
+    prefix "rt";
+    reference
+      "RFC 8349: A YANG Data Model for Routing Management (NMDA
+       version)";
+  }
+
+  import ietf-routing-types {
+    prefix "rt-types";
+    reference
+      "RFC 8294: Common YANG Data Types for the Routing Area";
+  }
+
+  organization
+    "IETF MPLS Working Group";
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/mpls/>
+     WG List:  <mailto:mpls@ietf.org>
+
+     Editor:   Kamran Raza
+               <mailto:skraza@cisco.com>
+     Editor:   Sowmya Krishnaswamy
+               <mailto:krishnaswamy.sowmya@gmail.com>
+
+     Editor:   Xufeng Liu
+               <mailto:xufeng.liu.ietf@gmail.com>
+
+     Editor:   Santosh Esale
+               <mailto:sesale@juniper.net>
+
+     Editor:   Loa Andersson
+               <mailto:loa@pi.nu>
+
+     Editor:   Jeff Tantsura
+               <mailto:jefftant.ietf@gmail.com>";
+
+  description
+    "This YANG module defines the essential components for the
+     management of Multi-Protocol Label Switching (MPLS) Multipoint
+     LDP (mLDP).
+
+     Copyright (c) 2018 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Simplified BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (http://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX; see the
+     RFC itself for full legal notices.";
+
+     // RFC Editor: replace XXXX with actual RFC number and remove
+     // this note
+
+  revision 2018-10-22 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX: Base YANG Data Model for MPLS mLDP";
+     // RFC Editor: replace XXXX with actual RFC number and remove
+     // this note
+  }
+
+  /*
+   * Typedefs
+   */
+  typedef multipoint-type {
+    type enumeration {
+      enum p2mp {
+        description "Point to multipoint";
+      }
+      enum mp2mp {
+        description "Multipoint to multipoint";
+      }
+    }
+    description
+      "The type of a multipoint LSP: either Point to multipoint
+       (p2mp) or Multipoint to multipoint (mp2mp)";
+  }
+
+  /*
+   * Groupings
+   */
+  grouping mldp-capabilities {
+    description
+      "A grouping describing the protocol capabilities of mLDP";
+    container p2mp {
+      description
+        "Configuration and state information for the
+         point-to-multipoint capability";
+      leaf enable {
+        type boolean;
+        description
+          "'true' to enable the point-to-multipoint capability";
+      }
+    }
+    container mp2mp {
+      description
+        "Configuration and state information for the
+         multipoint-to-multipoint capability";
+      leaf enable {
+        type boolean;
+        description
+          "'true' to enable the multipoint-to-multipoint capability";
+      }
+    }
+    container make-before-break {
+      description
+        "Configuration and state information for the
+         make-before-break capability.";
+      leaf enable {
+        type boolean;
+        description
+          "'true' to enable the make-before-break capability";
+      }
+      leaf switchover-delay {
+        type uint16;
+        units seconds;
+        description
+          "Switchover delay in seconds";
+      }
+      leaf timeout {
+        type uint16;
+        units seconds;
+        description
+          "Timeout in seconds";
+      }
+    }
+  } // mldp-capabilities
+
+  grouping  mldp-binding-label-peer-state-attributes {
+    description
+      "mLDP label binding per peer attributes";
+    leaf direction {
+      type ldp:downstream-upstream;
+      description
+        "Downstream or upstream";
+    }
+    leaf peer {
+      type leafref {
+        path
+          "/rt:routing/rt:control-plane-protocols/"
+        + "ldp:mpls-ldp/ldp:peers/ldp:peer/ldp:lsr-id";
+      }
+      description
+        "LDP peer from which this binding is received,
+         or to which this binding is advertised.";
+    }
+    leaf advertisement-type {
+      type ldp:advertised-received;
+      description
+        "Advertised or received";
+    }
+    leaf label {
+      type rt-types:mpls-label;
+      description
+        "Advertised (outbound) or received (inbound) label";
+    }
+    leaf mbb-role {
+      when "../direction = 'upstream'" {
+        description
+          "This leaf is used for upstream only.";
+      }
+      type enumeration {
+        enum none {
+          description "Make-Before-Break (MBB) is not enabled";
+        }
+        enum active {
+          description "This LSP is active.";
+        }
+        enum inactive {
+          description "This LSP is inactive.";
+        }
+      }
+      description
+        "The MBB status of this LSP";
+    }
+  } // mldp-binding-label-peer-state-attributes
+
+  grouping  mldp-binding-label-state-attributes {
+    description
+      "mLDP label binding attributes";
+    list peer {
+      key "direction peer advertisement-type";
+      description
+        "List of advertised and received peers";
+      uses mldp-binding-label-peer-state-attributes;
+    } // peer
+  } // mldp-binding-label-state-attributes
+
+  /*
+   * Configuration data and operational state data nodes
+   */
+  augment "/rt:routing/rt:control-plane-protocols/"
+    + "ldp:mpls-ldp/ldp:global/ldp:capability" {
+    description "Augmentation for MLDP global capability";
+    container mldp {
+      description
+        "This container contains the configruation and state
+         information for multipoint LDP capabilities.";
+      uses mldp-capabilities;
+    }
+  }
+
+  /*
+   * Operational state data nodes
+   */
+  augment "/rt:routing/rt:control-plane-protocols/"
+    + "ldp:mpls-ldp/ldp:peers/ldp:peer/ldp:received-peer-state/"
+    + "ldp:capability" {
+    description
+      "Augmentation for MLDP received peer state capability";
+    container mldp {
+      description
+        "Operational state information for the protocol capabilities
+         of mLDP";
+
+      container p2mp {
+        description
+          "Operational state information for the point-to-multipoint
+           capability";
+        leaf enable {
+          type boolean;
+          description
+            "'true' to enable the point-to-multipoint capability";
+        }
+      }
+      container mp2mp {
+        description
+          "Operational state information for the
+           multipoint-to-multipoint capability";
+        leaf enable {
+          type boolean;
+          description
+            "'true' to enable the multipoint-to-multipoint
+             capability";
+        }
+      }
+      container make-before-break {
+        description
+          "Operational state information for the make-before-break
+           capability";
+        leaf enable {
+          type boolean;
+          description
+            "'true' to enable the make-before-break capability";
+        }
+      }
+    } // mldp
+  }
+
+  /*
+   * Global augmentation
+   */
+  augment "/rt:routing/rt:control-plane-protocols/"
+    + "ldp:mpls-ldp/ldp:global" {
+    description "MLDP global augmentation.";
+    container mldp {
+      description
+        "mLDP attributes at per instance level. Defining
+         attributes here does not enable any MP capabilities.
+         MP capabilities need to be explicitly enabled under
+         container capability.";
+
+      leaf enable {
+        type boolean;
+        description
+          "'true' to enable mLDP";
+      }
+
+      container address-families {
+        description
+          "Per address family parameters";
+
+        container ipv4 {
+          description
+              "IPv4 information";
+          container roots {
+            config false;
+            description
+              "IPv4 multicast LSP roots";
+            list root {
+              key "root-address";
+              description
+                "List of roots for configured multicast LSPs";
+
+              leaf root-address {
+                type inet:ipv4-address;
+                description
+                  "Root address.";
+              }
+
+              leaf is-self {
+                type boolean;
+                description
+                  "I am the root node.";
+              }
+
+              list reachability {
+                key "address interface";
+                description
+                  "A next-hop for reachability to root,
+                   as a RIB view";
+                leaf address {
+                  type inet:ipv4-address;
+                  description
+                    "The next-hop address to reach root";
+                }
+                leaf interface {
+                  type if:interface-ref;
+                  description
+                    "Interface connecting to next-hop";
+                }
+                leaf peer {
+                  type leafref {
+                    path
+                      "../../../../../../../../ldp:peers/"
+                      + "ldp:peer/ldp:lsr-id";
+                  }
+                  description
+                    "LDP peer from which this next-hop can be
+                     reached";
+                }
+              }
+
+              container bindings {
+                description
+                  "mLDP FEC to label bindings";
+                container opaque-element-lspid {
+                  description
+                    "The type of opaque value element is the generic
+                     LSP identifier";
+                  reference
+                    "RFC6388: Label Distribution Protocol
+                     Extensions for Point-to-Multipoint and
+                     Multipoint-to-Multipoint Label Switched
+                     Paths.";
+                  list fec-label {
+                    key
+                      "lsp-id";
+                    description
+                      "List of FEC to label bindings";
+                    leaf lsp-id {
+                      type uint32;
+                      description "ID to identify the LSP";
+                    }
+                    leaf multipoint-type {
+                      type multipoint-type;
+                      description
+                        "The type of mutipoint: p2mp or mp2mp";
+                    }
+                    uses mldp-binding-label-state-attributes;
+                  } // fec-label
+                } // opaque-element-lspid
+              } // bindings
+            } // list root
+          } // roots
+
+          container configured-leaf-lsps {
+            description
+              "Configured multicast LSPs.";
+            container opaque-element-lspid {
+              description
+                "The type of opaque value element is
+                 the generic LSP identifier";
+              reference
+                "RFC6388: Label Distribution Protocol
+                 Extensions for Point-to-Multipoint and
+                 Multipoint-to-Multipoint Label Switched
+                 Paths.";
+              list fec-label {
+                key
+                  "root-address lsp-id";
+                description
+                  "List of FEC to label bindings.";
+                leaf root-address {
+                  type inet:ipv4-address;
+                  description
+                    "Root address";
+                }
+                leaf lsp-id {
+                  type uint32;
+                  description "ID to identify the LSP";
+                }
+                leaf multipoint-type {
+                  type multipoint-type;
+                  description
+                    "The type of mutipoint: p2mp or mp2mp";
+                }
+              } // fec-label
+            } // opaque-element-lspid
+          } // configured-leaf-lsps
+        } // ipv4
+      } // list address-family
+    } // mldp
+  }
+
+  /*
+   * Notifications
+   */
+  notification mpls-mldp-fec-event {
+    description
+      "Notification event for a change of FEC status";
+    leaf event-type {
+      type ldp:oper-status-event-type;
+      description "Event type";
+    }
+    choice opaque-element {
+      description
+        "The type of opaque value element";
+      case opaque-element-lspid {
+        container opaque-element-lspid {
+          description
+            "The type of opaque value element is
+             the generic LSP identifier";
+          reference
+            "RFC6388: Label Distribution Protocol
+             Extensions for Point-to-Multipoint and
+             Multipoint-to-Multipoint Label Switched
+             Paths.";
+          leaf root-address {
+            type inet:ip-address;
+            description
+              "Root address.";
+          }
+          leaf lsp-id {
+            type uint32;
+            description "ID to identify the LSP";
+          }
+          leaf multipoint-type {
+            type multipoint-type;
+            description
+              "The type of mutipoint: p2mp or mp2mp";
+          }
+        } // container opaque-element-lspid
+      }
+    }
+  }
+}

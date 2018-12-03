@@ -9,11 +9,11 @@ from numpy.f2py.auxfuncs import throw_error
 import tools.utility.log as lo
 from tools.utility import yangParser
 
-LOGGER = lo.get_logger('api')
+LOGGER = lo.get_logger('util')
 
 
 def get_curr_dir(f):
-    LOGGER.info('{}'.format(os.getcwd()))
+    LOGGER.debug('{}'.format(os.getcwd()))
     return os.getcwd()
 
 

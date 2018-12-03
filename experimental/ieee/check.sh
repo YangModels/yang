@@ -4,11 +4,11 @@
 # all standard modules are on its internal module path.
 #
 base_dir="`pwd`/experimental/ieee/"
-to_check="802.1 802.3"
+to_check="802.1 802.3 1588"
 
 # relax constraint for now
 # add --ietf if you want to do strict IETF checking
-pyang_flags="--verbose -p ../../../standard/ietf/RFC/ -p ../../../standard/ieee/draft/ -p ../../../standard/ieee/802.1/ -p ../../../standard/ieee/802.3/ "
+pyang_flags="--verbose -p ../../../standard/ietf/RFC/ -p ../../../standard/ieee/draft/ -p ../../../standard/ieee/802.1/ -p ../../../standard/ieee/802.3/ -p ../../../experimental/ieee/1588/ "
 
 checkDir () {
     echo Checking yang files in $1

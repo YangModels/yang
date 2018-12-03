@@ -1,20 +1,18 @@
 import ConfigParser
 import argparse
-import json
 import os
 import subprocess
 import tarfile
-import urllib
 import urllib2
 from datetime import datetime
 
-from numpy.f2py.auxfuncs import throw_error
+import requests
 
 import tools.utility.log as log
 from tools.utility import yangParser
 from tools.utility.util import get_curr_dir
 
-LOGGER = log.get_logger('draftPullLocal')
+LOGGER = log.get_logger('draftPullLocal', '/home/miroslav/log/jobs/yang.log')
 
 def get_latest_revision(f):
     stmt = yangParser.parse(f)
@@ -24,24 +22,6 @@ def get_latest_revision(f):
         return None
 
     return rev.arg
-
-def load_json_from_url(url):
-    failed = True
-    loaded_json = None
-    tries = 10
-    while failed:
-        try:
-            response = urllib2.urlopen(url).read()
-            loaded_json = json.loads(response)
-            failed = False
-        except:
-            tries -= 1
-            if tries == 0:
-                failed = False
-            pass
-    if tries == 0:
-        raise throw_error('Couldn`t open a json file from url: ' + url)
-    return loaded_json
 
 
 def check_name_no_revision_exist(directory):
@@ -81,8 +61,10 @@ def check_early_revisions(directory):
                         revisions.append(datetime(year, month, day))
                     except Exception:
                         LOGGER.error('Failed to process revision for {}: (rev: {})'.format(f2, revision))
+                        if month == 2 and day == 29:
+                            revisions.append(datetime(year, month, 28))
         if len(revisions) == 0:
-            return
+            continue
         latest = revisions.index(max(revisions))
         files_to_delete.remove(files_to_delete[latest])
         for fi in files_to_delete:
@@ -109,16 +91,19 @@ if __name__ == "__main__":
     protocol = config.get('General-Section', 'protocol-api')
     notify = config.get('DraftPullLocal-Section', 'notify-index')
     save_file_dir = config.get('DraftPullLocal-Section', 'save-file-dir')
-
-    LOGGER.info('Loading all files from http://www.claise.be/IETFYANGDraft.json')
-    ietf_draft_json = load_json_from_url('http://www.claise.be/IETFYANGDraft.json')
-
-    response = urllib.urlretrieve('http://www.claise.be/YANG-RFC.tar', './rfc.tar')
-
-    tar = tarfile.open('./rfc.tar')
-    tar.extractall(get_curr_dir(__file__) + '/../../standard/ietf/RFC')
-    tar.close()
-    os.remove('./rfc.tar')
+    private_credentials = config.get('General-Section', 'private-secret').split(' ')
+    LOGGER.info('Loading all files from https://new.yangcatalog.org/private/IETFDraft.json')
+    ietf_draft_json = requests.get('https://new.yangcatalog.org/private/IETFDraft.json'
+                                   , auth=(private_credentials[0], private_credentials[1])).json()
+    response = requests.get('https://new.yangcatalog.org/private/YANG-RFC.tgz'
+                            , auth=(private_credentials[0], private_credentials[1]))
+    zfile = open(get_curr_dir(__file__) + '/rfc.tgz', 'wb')
+    zfile.write(response.content)
+    zfile.close()
+    tgz = tarfile.open(get_curr_dir(__file__) + '/rfc.tgz')
+    tgz.extractall(get_curr_dir(__file__) + '/../../standard/ietf/RFC')
+    tgz.close()
+    os.remove(get_curr_dir(__file__) + '/rfc.tgz')
     check_name_no_revision_exist(get_curr_dir(__file__) + '/../../standard/ietf/RFC/')
     check_early_revisions(get_curr_dir(__file__) + '/../../standard/ietf/RFC/')
     with open("log.txt", "wr") as f:
