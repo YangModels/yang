@@ -1,4 +1,4 @@
-(1) The "experimental/ieee" branch is intended for IEEE work that does not yet have a Project Authorization Request (PAR).
+﻿(1) The "experimental/ieee" branch is intended for IEEE work that does not yet have a Project Authorization Request (PAR).
 
 (2) The "standard/ieee" branch is intended for approved PARs, for drafts as well as published standards.
 
@@ -7,11 +7,6 @@
 
 
 IEEE Copyright policy:
-
-<<<<<<< HEAD
-=======
- 
->>>>>>> 388092e4bc31755fb535c2239d5c42b7c643102b
 
 - All files contained within this
 sub-directory are considered to be intended as IEEE Contributions.
