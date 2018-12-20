@@ -25,6 +25,7 @@ module ietf-ospf {
     reference "RFC 8294 - Common YANG Data Types for the
                Routing Area";
   }
+
   import iana-routing-types {
     prefix "iana-rt-types";
     reference "RFC 8294 - Common YANG Data Types for the
@@ -70,7 +71,6 @@ module ietf-ospf {
                <mailto:ivandean@gmail.com>
      Author:   Kiran Agrahara Sreenivasa
                <mailto:kk@employees.org";
-
   description
      "This YANG module defines the generic configuration and
       operational state for the OSPF protocol common to all
@@ -95,7 +95,7 @@ module ietf-ospf {
        This version of this YANG module is part of RFC XXXX;
        see the RFC itself for full legal notices.";
 
-  revision 2018-12-10 {
+  revision 2018-12-16 {
     description
       "Initial revision.";
     reference
@@ -167,7 +167,6 @@ module ietf-ospf {
     reference "RFC 3623 - Graceful OSPF Restart
                RFC 5187 - OSPFv3 Graceful Restart";
   }
-
   feature admin-control {
     description
       "Administrative control of the protocol state.";
@@ -194,7 +193,10 @@ module ietf-ospf {
 
   feature te-rid {
     description
-      "TE Router-ID.";
+      "Support configuration of the Traffic Engineering (TE)
+       Router-ID, i.e., the Router Address described in Section
+       2.4.1 of RFC3630 or the Router IPv6 Address TLV described
+       in Section 3 of RFC5329.";
     reference "RFC 3630 - Traffic Engineering (TE) Extensions
                to OSPF Version 2
                RFC 5329 - Traffic Engineering (TE) Extensions
@@ -207,11 +209,29 @@ module ietf-ospf {
     reference "RFC 5443 - LDP IGP Synchronization";
   }
 
+  feature ospfv2-authentication-trailer {
+    description
+      "Use OSPFv2 authentication trailer for OSPFv2
+       authentication.";
+    reference "RFC 5709 - Supporting Authentication
+               Trailer for OSPFv2
+               RFC 7474 - Security Extension for OSPFv2 When
+               Using Manual Key Management";
+  }
+
   feature ospfv3-authentication-ipsec {
     description
       "Use IPsec for OSPFv3 authentication.";
     reference "RFC 4552 - Authentication/Confidentiality
               for OSPFv3";
+  }
+
+  feature ospfv3-authentication-trailer {
+    description
+      "Use OSPFv3 authentication trailer for OSPFv3
+       authenticatiom.";
+    reference "RFC 7166 - Supporting Authentication
+               Trailer for OSPFv3";
   }
 
   feature fast-reroute {
@@ -505,6 +525,7 @@ module ietf-ospf {
     description
       "OSPFv3 Unknown LSA type";
   }
+
   identity lsa-log-reason {
     description
       "Base identity for an LSA log reason.";
@@ -553,6 +574,7 @@ module ietf-ospf {
     description
       "Area ID type.";
   }
+
   typedef route-type {
     type enumeration {
       enum intra-area {
@@ -827,6 +849,30 @@ module ietf-ospf {
       "Fletcher 16-bit checksum in hex-string format 0xXXXX.";
      reference "RFC 905 - ISO Transport Protocol specification
                 ISO DP 8073";
+  }
+
+  typedef ospfv2-auth-trailer-rfc-version {
+    type enumeration {
+      enum rfc5709 {
+        description
+          "Support OSPF Authentication Trailer as
+           described in RFC 5709";
+        reference "RFC 5709 - OSPFv2 HMAC-SHA Cryptographic
+                  Authentication";
+
+      }
+      enum rfc7474 {
+        description
+          "Support OSPF Authentication Trailer as
+           described in RFC 7474";
+        reference
+          "RFC 7474 - Security Extension for OSPFv2
+           When Using Manual Key Management Authentication";
+
+      }
+    }
+    description
+      "OSPFv2 Authentication Trailer Support";
   }
 
   grouping tlv {
@@ -2486,8 +2532,53 @@ module ietf-ospf {
       description "Authentication configuration.";
       choice auth-type-selection {
         description
-          "Options for OSPFv3 authentication configuration.";
-        case auth-ipsec {
+          "Options for OSPFv2/OSPFv3 authentication
+           configuration.";
+        case ospfv2-auth {
+          when "derived-from-or-self(../../../../../../rt:type, "
+            +  "'ospf:ospfv2')" {
+            description "Applied to OSPFv2 only.";
+          }
+          leaf ospfv2-auth-trailer-rfc {
+            if-feature ospfv2-authentication-trailer;
+            type ospfv2-auth-trailer-rfc-version;
+            description
+              "Version of OSFPv2 authentication trailer support -
+               RFC 5709 or RFC 7474";
+          }
+          choice ospfv2-auth-specification {
+            description
+              "Key chain or explicit key parameter specification";
+            case auth-key-chain {
+              if-feature key-chain;
+              leaf ospfv2-key-chain {
+                type key-chain:key-chain-ref;
+                description
+                  "key-chain name.";
+              }
+            }
+            case auth-key-explicit {
+              leaf ospfv2-key-id {
+                type uint32;
+                description
+                  "Key Identifier";
+              }
+              leaf ospfv2-key {
+                type string;
+                description
+                  "Key string in ASCII format.";
+              }
+              leaf ospfv2-crypto-algorithm {
+                type identityref {
+                  base key-chain:crypto-algorithm;
+                }
+                description
+                  "Cryptographic algorithm associated with key.";
+              }
+            }
+          }
+        }
+        case ospfv3-auth-ipsec {
           when "derived-from-or-self(../../../../../../rt:type, "
             +  "'ospf:ospfv3')" {
             description "Applied to OSPFv3 only.";
@@ -2499,26 +2590,42 @@ module ietf-ospf {
                 "Security Association (SA) name.";
           }
         }
-        case auth-trailer-key-chain {
-          if-feature key-chain;
-          leaf key-chain {
-            type key-chain:key-chain-ref;
-             description
-              "key-chain name.";
-            }
+        case ospfv3-auth-trailer {
+          when "derived-from-or-self(../../../../../../rt:type, "
+            +  "'ospf:ospfv3')" {
+            description "Applied to OSPFv3 only.";
           }
-        case auth-trailer-key {
-          leaf key {
-            type string;
+          if-feature ospfv3-authentication-trailer;
+          choice ospfv3-auth-specification {
             description
-              "Key string in ASCII format.";
-          }
-          leaf crypto-algorithm {
-            type identityref {
-              base key-chain:crypto-algorithm;
+              "Key chain or explicit key parameter specification";
+            case auth-key-chain {
+              if-feature key-chain;
+              leaf ospfv3-key-chain {
+                type key-chain:key-chain-ref;
+                description
+                  "key-chain name.";
+              }
             }
-            description
-              "Cryptographic algorithm associated with key.";
+            case auth-key-explicit {
+              leaf ospfv3-sa-id {
+                type uint16;
+                description
+                  "Security Association (SA) Identifier";
+              }
+              leaf ospfv3-key {
+                type string;
+                description
+                  "Key string in ASCII format.";
+              }
+              leaf ospfv3-crypto-algorithm {
+                type identityref {
+                  base key-chain:crypto-algorithm;
+                }
+                description
+                  "Cryptographic algorithm associated with key.";
+              }
+            }
           }
         }
       }
@@ -2556,7 +2663,6 @@ module ietf-ospf {
       description
         "Interface type.";
     }
-
     leaf passive {
       type boolean;
       description
@@ -2665,6 +2771,7 @@ module ietf-ospf {
                  YANG Data Model for Bidirectional Forwarding
                  Detection (BFD)";
     }
+
     uses interface-fast-reroute-config;
     uses interface-common-config;
     uses interface-physical-link-config;
@@ -3516,7 +3623,6 @@ module ietf-ospf {
          "Interface cost for this topology.";
     }
   }
-
   grouping multi-topology-interface-state {
     description
       "OSPF multi-topology operational state.";
@@ -3805,7 +3911,6 @@ module ietf-ospf {
       }
     }
   }
-
   augment "/rt:routing/rt:control-plane-protocols/"
         + "rt:control-plane-protocol/ospf:ospf" {
     when "derived-from(../rt:type, 'ospf:ospf-protocol')" {
@@ -3854,7 +3959,6 @@ module ietf-ospf {
       }
     }
   }
-
   augment "/rt:routing/rt:control-plane-protocols/"
         + "rt:control-plane-protocol/ospf:ospf/"
         + "ospf:areas/ospf:area/ospf:interfaces/ospf:interface" {
@@ -3951,7 +4055,6 @@ module ietf-ospf {
         description
           "OSPF protocol instance which information for neighbors
            are to be cleared.
-
            If the referenced OSPF instance doesn't exist, then
            this operation SHALL fail with error-tag 'data-missing'
            and error-app-tag
@@ -4000,7 +4103,6 @@ module ietf-ospf {
   /*
    * Notifications
    */
-
   grouping notification-instance-hdr {
     description
      "This grouping describes common instance specific
