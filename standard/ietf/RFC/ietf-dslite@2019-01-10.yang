@@ -1,0 +1,354 @@
+module ietf-dslite {
+ yang-version 1.1;
+ namespace "urn:ietf:params:xml:ns:yang:ietf-dslite";
+ prefix dslite;
+
+ import ietf-inet-types {
+   prefix inet;
+   reference
+     "Section 4 of RFC 6991";
+ }
+ import ietf-interfaces {
+   prefix if;
+   reference
+     "RFC 8343: A YANG Data Model for Interface Management";
+ }
+ import iana-if-type {
+   prefix ianaift;
+   reference
+     "RFC 7224: IANA Interface Type YANG Module";
+ }
+ import ietf-nat {
+   prefix nat;
+   reference
+     "RFC 8512: A YANG Module for Network Address Translation (NAT)
+                and Network Prefix Translation (NPT)";
+ }
+ import ietf-yang-types {
+   prefix yang;
+   reference
+     "Section 3 of RFC 6991";
+ }
+
+ organization
+   "IETF Softwire Working Group";
+ contact
+   "WG Web:   <https://datatracker.ietf.org/wg/softwire/>
+    WG List:  <mailto:softwires@ietf.org>
+
+    Editor:  Mohamed Boucadair
+             <mailto:mohamed.boucadair@orange.com>
+
+    Author:  Christian Jacquenet
+             <mailto:christian.jacquenet@orange.com>
+
+    Author:  Senthil Sivakumar
+             <mailto:ssenthil@cisco.com>";
+
+ description
+   "This module is a YANG module for DS-Lite AFTR and B4
+    implementations.
+
+    Copyright (c) 2018 IETF Trust and the persons identified as
+    authors of the code.  All rights reserved.
+
+    Redistribution and use in source and binary forms, with or
+    without modification, is permitted pursuant to, and subject
+    to the license terms contained in, the Simplified BSD License
+    set forth in Section 4.c of the IETF Trust's Legal Provisions
+    Relating to IETF Documents
+    (http://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC 8513; see
+    the RFC itself for full legal notices.";
+
+ revision 2019-01-10 {
+   description
+     "Initial revision.";
+   reference
+     "RFC 8513: A YANG Data Model for Dual-Stack Lite (DS-Lite)";
+ }
+
+ identity dslite {
+   base ianaift:tunnel;
+   description
+     "DS-Lite tunnel.";
+ }
+
+ /*
+  * Features
+  */
+
+ feature b4 {
+   description
+     "The B4 element is a function implemented on a dual-stack-capable
+      node, either a directly connected device or Customer Premises
+      Equipment (CPE), that creates a tunnel to an AFTR.";
+   reference
+     "Section 5 of RFC 6333";
+ }
+ feature aftr {
+   description
+     "An AFTR element is the combination of an IPv4-in-IPv6 tunnel
+      endpoint and an IPv4-IPv4 NAT implemented on the same node.";
+   reference
+     "Section 6 of RFC 6333";
+ }
+
+ /*
+  * Augments
+  */
+
+ augment "/if:interfaces/if:interface" {
+   when 'derived-from(if:type, "dslite")';
+   description
+     "Augments Interface module with DS-Lite parameters.
+
+      IANA interface types are maintained at this registry:
+      <https://www.iana.org/assignments/ianaiftype-mib/>.
+
+      tunnel (131),       -- Encapsulation interface";
+   leaf ipv6-address {
+     type inet:ipv6-address;
+     description
+       "IPv6 address of the local DS-Lite endpoint (AFTR or B4).";
+     reference
+       "RFC 6333: Dual-Stack Lite Broadband Deployments Following
+                  IPv4 Exhaustion";
+   }
+   leaf ipv4-address {
+     type inet:ipv4-address;
+     description
+       "IPv4 address of the local DS-Lite AFTR or B4.
+
+        192.0.0.1 is reserved for the AFTR element, while
+        192.0.0.0/29 is reserved for the B4 element.
+
+        This address can be used to report ICMP problems and will
+        appear in traceroute outputs.";
+     reference
+       "RFC 6333: Dual-Stack Lite Broadband Deployments Following
+                  IPv4 Exhaustion";
+   }
+   leaf aftr-ipv6-addr {
+     if-feature "b4";
+     type inet:ipv6-address;
+     description
+       "Indicates the AFTR's IPv6 address to be used by a B4
+        element.";
+     reference
+       "RFC 6333: Dual-Stack Lite Broadband Deployments Following
+                  IPv4 Exhaustion";
+   }
+   leaf tunnel-mtu {
+     type uint16;
+     description
+       "Configures a tunnel MTU.
+
+        RFC 6908 specifies that since fragmentation and reassembly
+        are not optimal, the operator should do everything possible
+        to eliminate the need for them.  If the operator uses simple
+        IPv4-in-IPv6 softwire, it is recommended that the MTU size
+        of the IPv6 network between the B4 and the AFTR account
+        for the additional overhead (40 bytes).";
+     reference
+       "RFC 6908: Deployment Considerations for Dual-Stack Lite";
+   }
+   leaf v6-v4-dscp-preservation {
+     type boolean;
+     description
+       "Copies the DSCP value from the IPv6 header, and vice versa.
+
+        According to Section 2.10 of RFC 6908, operators should
+        use the uniform model by provisioning the network such
+        that the AFTR/B4 copies the DSCP value in the IPv4 header
+        to the Traffic Class field in the IPv6 header, after the
+        IPv4-in-IPv6 encapsulation.";
+     reference
+       "Section 2.10 of RFC 6908";
+   }
+ }
+
+ augment "/nat:nat/nat:instances/nat:instance/nat:policy" {
+   when "derived-from-or-self(/nat:nat/nat:instances/nat:instance"
+      + "/nat:type, 'nat:napt44')"
+      + " and /nat:nat/nat:instances/nat:instance/"
+      + "nat:per-interface-binding='dslite'";
+   if-feature "aftr";
+   description
+     "Augments the NAPT44 module with AFTR parameters.";
+   leaf max-softwires-per-subscriber {
+     type uint8;
+     default "1";
+     description
+       "Configures the maximum softwires per subscriber feature.
+
+        A subscriber is uniquely identified by means
+        of a subscriber-mask (subscriber-mask-v6).
+
+        This policy aims to prevent a misbehaving subscriber from
+        mounting several DS-Lite softwires that would consume
+        additional AFTR resources (e.g., get more external ports
+        if the quota was enforced on a per-softwire basis and
+        consume extra processing due to a large number of active
+        softwires).";
+     reference
+       "Section 4 of RFC 7785";
+   }
+   leaf state-migrate {
+     type boolean;
+     default "true";
+     description
+       "State migration is enabled by default.
+
+        In the event a new IPv6 address is assigned to the B4 element,
+        the AFTR should migrate existing state to be bound to the new
+        IPv6 address.  This operation ensures that traffic destined to
+        the previous B4's IPv6 address will be redirected to the newer
+        B4's IPv6 address.  The destination IPv6 address for tunneling
+        return traffic from the AFTR should be the last seen as the
+        B4's IPv6 source address from the user device (e.g., CPE).
+
+        The AFTR uses the subscriber-mask-v6 to determine whether two
+        IPv6 addresses belong to the same CPE (e.g., if the
+        subscriber-mask-v6 is set to 56, the AFTR concludes that
+        2001:db8:100:100::1 and 2001:db8:100:100::2 belong to the same
+        CPE assigned with 2001:db8:100:100::/56).";
+     reference
+       "RFC 7785: Recommendations for Prefix Binding in the Context
+                  of Softwire Dual-Stack Lite";
+   }
+   leaf b4-address-change-limit {
+     type uint32;
+     units "seconds";
+     default "1800";
+     description
+       "Minimum number of seconds between a successive B4's IPv6
+        address change from the same prefix.
+
+        Changing the source B4's IPv6 address may be used as an attack
+        vector.  Packets with a new B4's IPv6 address from the same
+        prefix should be rate-limited.
+
+        It is recommended that this rate limit be set to 30 minutes;
+        other values can be set on a per-deployment basis.";
+     reference
+       "RFC 7785: Recommendations for Prefix Binding in the Context
+                  of Softwire Dual-Stack Lite";
+   }
+   container mss-clamping {
+     description
+       "MSS rewriting configuration to avoid IPv6 fragmentation.";
+     leaf enable {
+       type boolean;
+       description
+         "Enable/disable MSS rewriting feature.";
+     }
+     leaf mss-value {
+       type uint16;
+       units "octets";
+       description
+         "Sets the MSS value to be used for MSS rewriting.";
+     }
+   }
+ }
+
+ augment "/nat:nat/nat:instances/nat:instance"
+       + "/nat:mapping-table/nat:mapping-entry" {
+   when "derived-from-or-self(/nat:nat/nat:instances/nat:instance"
+      + "/nat:type, 'nat:napt44')"
+      + "and /nat:nat/nat:instances/nat:instance"
+      + "/nat:per-interface-binding='dslite'";
+   if-feature "aftr";
+   description
+     "Augments the NAPT44 mapping table with DS-Lite specifics.";
+   container b4-ipv6-address {
+     description
+       "Records the IPv6 address used by a B4 element and the last
+        time that address changed.";
+     leaf address {
+       type inet:ipv6-address;
+       description
+         "Corresponds to the IPv6 address used by a B4 element.";
+       reference
+         "RFC 6333: Dual-Stack Lite Broadband Deployments Following
+                    IPv4 Exhaustion";
+     }
+     leaf last-address-change {
+       type yang:date-and-time;
+       description
+         "Records the last time that the address changed.";
+     }
+   }
+   leaf v6-dscp {
+     when "/if:interfaces/if:interface"
+        + "/dslite:v6-v4-dscp-preservation = 'true'";
+     type inet:dscp;
+     description
+       "DSCP value used at the softwire level (i.e., IPv6 header).";
+   }
+   leaf internal-v4-dscp {
+     when "/if:interfaces/if:interface"
+        + "/dslite:v6-v4-dscp-preservation = 'true'";
+     type inet:dscp;
+     description
+       "DSCP value of the encapsulated IPv4 packet.";
+   }
+   leaf external-v4-dscp {
+     when "/if:interfaces/if:interface"
+        + "/dslite:v6-v4-dscp-preservation = 'true'";
+     type inet:dscp;
+     description
+       "DSCP value of the translated IPv4 packet as marked by
+        the AFTR.";
+   }
+ }
+
+ augment "/nat:nat/nat:instances/nat:instance"
+       + "/nat:statistics/nat:mappings-statistics" {
+   if-feature "aftr";
+   description
+     "Indicates the number of active softwires.";
+   leaf active-softwires {
+     type yang:gauge32;
+     description
+       "The number of currently active softwires on the AFTR
+        instance.";
+   }
+ }
+
+ /*
+  * Notifications
+  */
+
+ notification b4-address-change-limit-policy-violation {
+   if-feature "aftr";
+   description
+     "Generates notifications when a B4 unsuccessfully attempts
+      to change the IPv6 address in a time shorter than the value
+      of b4-address-change-limit.
+      Notifications are rate-limited (notify-interval).";
+   leaf id {
+     type leafref {
+       path "/nat:nat/nat:instances/nat:instance/nat:id";
+     }
+     mandatory true;
+     description
+       "NAT instance identifier.";
+   }
+   leaf policy-id {
+     type leafref {
+       path "/nat:nat/nat:instances/nat:instance/nat:policy/nat:id";
+     }
+     mandatory true;
+     description
+       "Policy identifier.";
+   }
+   leaf address {
+     type inet:ipv6-address;
+     mandatory true;
+     description
+       "B4's IPv6 address.";
+   }
+ }
+}
