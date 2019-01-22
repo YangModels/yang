@@ -1,0 +1,305 @@
+module odl-interface {
+    namespace "urn:opendaylight:genius:interfacemanager";
+
+    prefix "odlif";
+
+    import ietf-interfaces {
+        prefix if;
+    }
+
+    import yang-ext {
+        prefix ext;
+    }
+
+    import iana-if-type {
+        prefix ianaift;
+    }
+
+    import ietf-inet-types {
+        prefix inet;
+        revision-date "2013-07-15";
+    }
+
+    import opendaylight-inventory {
+        prefix inv; revision-date 2013-08-19;
+    }
+
+    import opendaylight-l2-types { prefix ethertype; revision-date "2013-08-27";}
+
+    revision "2016-04-06" {
+        description "ODL Interface Manager Module";
+    }
+
+    identity stacked-vlan {
+        base if:interface-type;
+        reference "Q-in-Q interface";
+    }
+
+    identity mpls {
+        base if:interface-type;
+        reference "MPLS interface";
+    }
+
+    identity tunnel-type-base {
+        description "Base identity for all tunnel-types";
+    }
+
+    identity tunnel-type-vxlan {
+        description "Tunnel type for vxlan tunnels";
+        base tunnel-type-base;
+    }
+
+    identity tunnel-type-vxlan-gpe {
+        description "Tunnel type for vxlan-gpe";
+        base tunnel-type-base;
+    }
+
+    identity tunnel-type-gre {
+        description "Tunnel type for gre tunnels";
+        base tunnel-type-base;
+    }
+
+    identity tunnel-type-mpls-over-gre {
+        description "Tunnel type for mpls over gre tunnels";
+        base tunnel-type-base;
+    }
+
+    identity tunnel-type-logical-group {
+        description "Aggregation group of multiple tunnel endpoints between two DPNs";
+        base tunnel-type-base;
+    }
+
+    identity tunnel-monitoring-type-base {
+        description "Base identity for all tunnel-monitoring-types";
+    }
+
+    identity tunnel-monitoring-type-lldp {
+        description "Tunnel monitoring using lldp";
+        base tunnel-monitoring-type-base;
+    }
+
+    identity tunnel-monitoring-type-bfd {
+        description "Tunnel monitoring using bfd support on OVS";
+        base tunnel-monitoring-type-base;
+    }
+
+    grouping tunnel-optional-params {
+        leaf tunnel-source-ip-flow {
+            description "Use local_ip=flow for this tunnel";
+            type boolean;
+            default false;
+        }
+        leaf tunnel-remote-ip-flow {
+            description "Use remote_ip=flow for this tunnel";
+            type boolean;
+            default false;
+        }
+
+        leaf weight {
+            type uint16;
+            default 1;
+            description "Bucket weight if tunnel belongs to OF select group";
+        }
+
+        list tunnel-options {
+            key "tunnel-option";
+            leaf tunnel-option {
+                description "Tunnel Option name";
+                type string;
+            }
+            leaf value {
+                description "Option value";
+                type string;
+            }
+        }
+    }
+
+    grouping monitor-params {
+        leaf monitor-enabled {
+            type boolean;
+            default false;
+        }
+
+        leaf monitor-interval {
+            type uint32;
+            default 10000;
+        }
+
+        leaf monitor-protocol {
+            type identityref {
+                base tunnel-monitoring-type-base;
+            }
+            default tunnel-monitoring-type-bfd;
+        }
+
+        list monitor-config {
+            key "monitor-config-key";
+            leaf monitor-config-key {
+                type string;
+            }
+            leaf monitor-config-value {
+                type string;
+            }
+        }
+    }
+
+    /* Overridding of OVS Split-Horizon Protection */
+    augment "/if:interfaces/if:interface" {
+        ext:augment-identifier "split-horizon";
+        leaf override-split-horizon-protection {
+            type boolean;
+            default "false";
+            description "represents whether to override OVS split horizon protection on this port.";
+        }
+    }
+
+    augment "/if:interfaces/if:interface" {
+        ext:augment-identifier "parent-refs";
+        leaf datapath-node-identifier {
+            type uint64;
+            description "can be a physical switch identifier (optional)";
+        }
+
+        leaf parent-interface {
+            type string;
+            description "can be a physical switch port or virtual switch port e.g. neutron port";
+        }
+
+        list node-identifier {
+            key "topology-id";
+            description "an identifier of the dependant underlying configuration protocol";
+            leaf "topology-id" {
+                type string;
+                description "can be ovsdb configuration protocol";
+            }
+            leaf "node-id" {
+                type string;
+                description "can be hwvtep configuration protocol";
+            }
+        }
+    }
+
+    /* interface type specific properties */
+
+    /* VLAN logical port */
+    augment "/if:interfaces/if:interface" {
+        ext:augment-identifier "if-l2vlan";
+        when "if:type = 'ianaift:l2vlan'";
+        leaf vlan-id {
+            type ethertype:vlan-id;
+        }
+
+        leaf l2vlan-mode {
+            description "The VLAN mode of the L2Vlan Interface.";
+            type enumeration {
+                enum "access" {
+                    value 1;
+                    description
+                        "The VLAN mode access.";
+                }
+                enum "native-tagged" {
+                    value 2;
+                    description
+                        "The VLAN mode native-tagged.";
+                }
+                enum "native-untagged" {
+                    value 3;
+                    description
+                        "The VLAN mode native-untagged.";
+                }
+                enum "trunk" {
+                    value 4;
+                    description
+                        "The VLAN mode trunk.";
+                }
+                enum "trunk-member" {
+                    value 5;
+                    description
+                        "The VLAN mode trunk-member.";
+                }
+                enum "transparent" {
+                    value 6;
+                    description
+                        "The VLAN mode transparent.";
+                }
+            }
+            default "trunk";
+        }
+    }
+
+    /* Q-in-Q logical port */
+    augment "/if:interfaces/if:interface" {
+        ext:augment-identifier "if-stacked-vlan";
+        when "if:type = 'stacked-vlan'";
+        leaf stacked_vlan-id {
+            type uint16 {
+                range "1..4094";
+            }
+        }
+    }
+
+    augment "/if:interfaces/if:interface" {
+        ext:augment-identifier "if-tunnel";
+        when "if:type = 'ianaift:tunnel'";
+
+        leaf internal {
+            type boolean;
+            default "false";
+            description
+              "represents whether this is an internal or external tunnel.";
+        }
+
+        leaf tunnel-interface-type {
+            type identityref {
+                base tunnel-type-base;
+            }
+        }
+
+        leaf tunnel-source {
+            type inet:ip-address;
+            description "Local Endpoint IP address";
+        }
+
+        leaf tunnel-destination {
+            type inet:ip-address;
+            description "Remote Endpoint IP address";
+        }
+
+        leaf tunnel-gateway {
+            type inet:ip-address;
+            description "gateway IP address";
+        }
+
+        uses tunnel-optional-params;
+        uses monitor-params;
+    }
+
+    /* MPLS logical port */
+    augment "/if:interfaces/if:interface" {
+        ext:augment-identifier "if-mpls";
+        when "if:type = 'mpls'";
+        leaf-list labelStack {
+            type uint32 {
+                range "15..1048575";
+            }
+        }
+        leaf numLabels{
+            type uint8 {
+                range "1..7";
+            }
+        }
+    }
+
+    /* Port to external network */
+    augment "/if:interfaces/if:interface" {
+        ext:augment-identifier "if-external";
+        when "if:type = 'ianaift:l2vlan'";
+
+        leaf external {
+            type boolean;
+            default "true";
+            description
+              "represents whether port belongs to external network.";
+        }
+    }
+}

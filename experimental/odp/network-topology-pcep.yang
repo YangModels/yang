@@ -1,0 +1,323 @@
+module network-topology-pcep {
+    // vi: set et smarttab sw=4 tabstop=4:
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:topology:pcep";
+    prefix "pn";
+
+    import ietf-inet-types { prefix inet; revision-date 2013-07-15; }
+    import network-topology { prefix nt; revision-date 2013-10-21; }
+    import odl-network-topology { prefix ont; revision-date 2014-01-13; }
+    import pcep-types { prefix pcep; revision-date 2018-11-09; }
+    import rsvp { prefix rsvp; revision-date 2015-08-20; }
+
+    organization "Cisco Systems, Inc.";
+    contact "Robert Varga <rovarga@cisco.com>";
+
+    description
+        "This module contains the PCEP extensions to base topology model. It
+        exposes the LSPs for which a particular node is the head end.
+
+        This module exposes three programming instructions,add-lsp,
+        remove-lsp and update-lsp, which map to actively-stateful PCEP
+        operations using PCInitiate and PCUpd messages to initiate,
+        destroy and udpate LSP configuration. The lifecycle of these
+        instructions follows draft-crabbe-pce-pce-initiated-lsp and
+        draft-ietf-pce-stateful-pce, completing execution once the head-end
+        router has acknowledged operation success. Should the router become
+        disconnected, the instruction resolve to Cancelled if the message
+        has not been sent into the TCP socket, or Failed it they have.
+
+        Copyright (c)2013 Cisco Systems, Inc. All rights reserved.
+
+        This program and the accompanying materials are made available
+        under the terms of the Eclipse Public License v1.0 which
+        accompanies this distribution, and is available at
+        http://www.eclipse.org/legal/epl-v10.html";
+
+    revision "2018-11-09" {
+        description
+            "P2MP extension.";
+        reference "RFC8306";
+    }
+
+    revision 2017-10-25 {
+        description "Add release-connection rpc";
+    }
+
+    revision "2013-10-24" {
+        description
+            "Initial revision.";
+        reference "";
+    }
+
+    typedef pcc-sync-state {
+        type enumeration {
+            enum initial-resync {
+                description
+                    "Initial state resynchronization is being performed.";
+            }
+            enum incremental-sync {
+                description
+                    "Incremental state resynchronization is being performed.";
+            }
+            enum triggered-initial-sync {
+                description
+                     "Triggered initial state resynchronization is being performed.";
+            }
+            enum pcep-triggered-resync {
+                description
+                    "Pcep triggered state resynchronization is being performed.";
+            }
+            enum synchronized {
+                description
+                    "State synchronization has been achieved.";
+            }
+        }
+    }
+
+    grouping topology-pcep-type {
+        container topology-pcep {
+            presence "indicates a PCEP-aware topology";
+        }
+    }
+
+    augment "/nt:network-topology/nt:topology/nt:topology-types" {
+        uses topology-pcep-type;
+    }
+
+    grouping pcep-client-attributes {
+        description "Data present in a node which is a PCEP client (PCC).";
+
+        container path-computation-client {
+            description
+                "PCC-related run-time information. This container is only
+                present when the node is connected through PCEP in a PCC
+                role.";
+            config false;
+
+            leaf ip-address {
+                description
+                    "IP address which the node used to connected to the PCE.
+                    There are no guarantees as to reachability of the address,
+                    nor its relationship to other control, management, or
+                    data plane addresses.";
+
+                type inet:ip-address;
+            }
+
+            container stateful-tlv {
+
+            }
+
+            leaf state-sync {
+                type pcc-sync-state;
+                when "../stateful-tlv";
+            }
+
+            list reported-lsp {
+                leaf name {
+                    type string;
+                }
+                key name;
+
+                list path {
+                    leaf lsp-id {
+                        type rsvp:lsp-id;
+                        mandatory true;
+                    }
+                    key lsp-id;
+
+                    uses pcep:path-definition;
+                }
+                uses lsp-metadata;
+            }
+        }
+    }
+
+    augment "/nt:network-topology/nt:topology/nt:node" {
+        when "../../nt:topology-types/topology-pcep";
+
+        uses pcep-client-attributes;
+    }
+
+    typedef failure-type {
+        description
+            "Enumeration of all the distinct failure modes that can
+            happen while servicing a request towards the PCC.";
+
+        type enumeration {
+            enum unsent {
+                description
+                    "The request failed before it was sent to the PCC.
+                    PCC's state is guaranteed not to reflect state
+                    transition implied by the request. This typically
+                    happens if the request is syntactically invalid,
+                    the target PCC is not connected or disconnects
+                    while the request is enqueued.";
+            }
+            enum no-ack {
+                description
+                    "The request has been sent to the PCC, but either the
+                    session went down before we have received confirmation
+                    of the request being received by the PCC, or the request
+                    timed-out waiting for response from PCC. PCC's state is
+                    unknown -- the request may or may not be reflected
+                    in its internal state. The caller should not make
+                    any hard assumptions about PCC state until it reconnects
+                    and state synchronization completes.";
+            }
+            enum failed {
+                description
+                    "The request has been seen by the PCC, where it failed
+                    for some external reason. The caller can assume the
+                    state transition has not taken place, but is advised
+                    to examine the attached error list to gain a deeper
+                    understanding of the failure cause.";
+            }
+        }
+    }
+
+    grouping node-id {
+        leaf node {
+            type nt:node-ref;
+            mandatory true;
+        }
+    }
+
+    grouping lsp-id {
+        uses node-id;
+
+        leaf name {
+            type string;
+            mandatory true;
+        }
+    }
+
+    grouping operation-result {
+        leaf failure {
+            type failure-type;
+        }
+
+        list error {
+            when "../failure = failed";
+            uses pcep:pcep-error-object;
+        }
+    }
+
+    grouping lsp-metadata {
+
+        container metadata {
+            description
+                "Container for external metadata attached to the LSP. Contents of this container
+                are not propagated onto the router itself, so it is persisted only while the LSP
+                is present.";
+        }
+    }
+
+    grouping add-lsp-args {
+        uses lsp-id;
+
+        container arguments {
+
+            uses pcep:endpoints-object;
+
+            uses pcep:path-definition;
+
+            uses lsp-metadata;
+        }
+    }
+
+    rpc add-lsp {
+        input {
+            uses ont:network-topology-reference;
+            uses add-lsp-args;
+        }
+        output {
+            uses operation-result;
+        }
+    }
+
+    grouping remove-lsp-args {
+        uses lsp-id;
+    }
+
+    rpc remove-lsp {
+        input {
+            uses ont:network-topology-reference;
+            uses remove-lsp-args;
+        }
+        output {
+            uses operation-result;
+        }
+    }
+
+    grouping update-lsp-args {
+        uses lsp-id;
+
+        container arguments {
+
+            uses pcep:path-definition;
+
+            uses lsp-metadata;
+        }
+    }
+
+    rpc update-lsp {
+        input {
+            uses ont:network-topology-reference;
+            uses update-lsp-args;
+        }
+        output {
+            uses operation-result;
+        }
+    }
+
+    grouping ensure-lsp-operational-args {
+        uses lsp-id;
+
+        container arguments {
+
+        }
+    }
+
+    rpc ensure-lsp-operational {
+        description
+            "Ensure that the target LSP is provisioned and has specified
+            operational status.";
+
+        input {
+            uses ont:network-topology-reference;
+            uses ensure-lsp-operational-args;
+        }
+        output {
+            uses operation-result;
+        }
+    }
+
+    grouping trigger-sync-args {
+        uses lsp-id {
+          refine name {
+            mandatory false;
+          }
+        }
+    }
+
+    rpc trigger-sync {
+        input {
+            uses ont:network-topology-reference;
+            uses trigger-sync-args;
+        }
+        output {
+            uses operation-result;
+        }
+    }
+
+    rpc tear-down-session {
+        description "Closes the session between PCE and PCC.";
+        input {
+            uses ont:network-topology-reference;
+            uses node-id;
+        }
+    }
+}
+

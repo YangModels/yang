@@ -1,0 +1,231 @@
+module aliveness-monitor {
+    namespace "urn:opendaylight:genius:alivenessmonitor";
+    prefix alivenessmon;
+
+    import ietf-inet-types {
+        prefix inet;
+        revision-date "2013-07-15";
+    }
+
+    import ietf-yang-types {
+        prefix yang;
+        revision-date "2013-07-15";
+    }
+
+    revision "2016-04-11" {
+        description "YANG model describes methods for monitoring endpoints.";
+    }
+
+    typedef monitor-protocol-type {
+        type enumeration {
+             enum arp;
+             enum lldp;
+             enum bfd;
+             enum ipv6-nd;
+         }
+    }
+
+    typedef monitoring-mode {
+        type enumeration {
+            enum one-one;
+        }
+    }
+
+    grouping endpoint {
+        choice endpoint-type {
+            case ip-address {
+                leaf ip-address { type inet:ip-address; }
+            }
+            case interface {
+                 leaf mac-address { type yang:phys-address; }
+                 leaf interface-ip { type inet:ip-address; }
+                 leaf interface-name { type string; }
+            }
+            case host-name {
+                 leaf host-name { type string; }
+            }
+        }
+    }
+
+    grouping monitor-profile-params {
+        leaf monitor-interval { type uint32; } //Monitoring interval in milli-seconds
+        leaf monitor-window { type uint32; } //Number M of consecutive intervals to consider for monitoring
+        leaf failure-threshold { type uint32; } //Number N of missing messages in window to detect failure ("N out of M")
+        leaf protocol-type { type monitor-protocol-type; }
+        uses bfd-params;
+    }
+
+    grouping bfd-params {
+        leaf min-rx {
+            description "The shortest interval, in milliseconds, at which this BFD session offers to receive BFD control messages. Defaults to 1000";
+            type uint32;
+        }
+        leaf min-tx {
+           description "The shortest interval, in milliseconds, at which this BFD session is willing to transmit BFD control messages. Defaults to 100";
+           type uint32;
+        }
+        leaf decay_min_rx {
+            description "An alternate receive interval, in milliseconds, that must be greater than or equal to bfd:min_rx. This
+                         feature may be disabled by setting a value of 0";
+            type uint32;
+        }
+        leaf forwarding_if_rx {
+            description "either true or false. True  to consider the interface capable of packet I/O as long as it continues to receive any  packets  (not  just  BFD  packets)";
+            type string;
+        }
+        leaf cpath_down {
+            description "Set to true to notify the remote endpoint that traffic should not be forwarded to this system for some reason other than a
+                         connectivity failure on the interface being monitored. Defaults to false";
+            type string;
+        }
+        leaf check_tnl_key {
+            description "either true or false. Set to true to make BFD accept only control messages with a tunnel key of zero.
+                         By default, BFD accepts control messages with any tunnel key.";
+            type string;
+        }
+    }
+
+    grouping monitor-params {
+        leaf mode { type monitoring-mode; }
+        container source { uses endpoint; }
+        container destination { uses endpoint; }
+        leaf profile-id { type uint32; }
+    }
+
+    // RPC Methods
+    rpc monitor-profile-create {
+        input {
+            container profile {
+                uses monitor-profile-params;
+            }
+        }
+        output {
+            leaf profile-id { type uint32; }
+        }
+    }
+
+    rpc monitor-profile-get {
+            input {
+                container profile {
+                    uses monitor-profile-params;
+                }
+            }
+            output {
+                leaf profile-id { type uint32; }
+            }
+        }
+
+    rpc monitor-start {
+        input {
+            container config {
+                uses monitor-params;
+            }
+        }
+        output {
+            leaf monitor-id { type uint32; }
+        }
+    }
+
+    rpc monitor-pause {
+        input {
+            leaf monitor-id { type uint32; }
+        }
+    }
+
+    rpc monitor-unpause {
+        input {
+            leaf monitor-id { type uint32; }
+        }
+    }
+
+
+    rpc monitor-stop {
+        input {
+            leaf monitor-id { type uint32; }
+        }
+    }
+
+    rpc monitor-profile-delete {
+        input {
+            leaf profile-id { type uint32; }
+        }
+    }
+
+    // YANG Notifications
+    typedef liveness-state {
+         type enumeration {
+             enum up;
+             enum down;
+             enum unknown;
+         }
+    }
+
+    grouping liveness-event-state {
+        leaf monitor-id { type uint32; }
+        leaf monitor-state { type liveness-state; }
+    }
+
+    notification monitor-event {
+        container event-data {
+           uses liveness-event-state;
+        }
+    }
+
+    //Operational Model
+    container monitor-profiles {
+        config false;
+        list monitor-profile {
+            key "id";
+            leaf id { type uint32; }
+            uses monitor-profile-params;
+        }
+    }
+
+    container monitor-configs {
+        config false;
+        list monitoring-info {
+            key "id";
+            leaf id { type uint32; }
+            uses monitor-params;
+        }
+    }
+
+    typedef monitor-status {
+         type enumeration {
+             enum started;
+             enum paused;
+             enum stopped;
+         }
+    }
+
+    container monitoring-states {
+        config false;
+        list monitoring-state {
+            key "monitor-key";
+            leaf monitor-key { type string; } //Key to identify monitor-id from packet-in
+            leaf monitor-id { type uint32; }
+            leaf response-pending-count { type uint32; }
+            leaf request-count { type uint32; }
+            leaf state { type liveness-state; }
+            leaf status { type monitor-status; }
+        }
+    }
+
+    container monitorid-key-map {
+        config false;
+        list monitorid-key-entry {
+            key "monitor-id";
+            leaf monitor-id { type uint32; }
+            leaf monitor-key { type string; }
+        }
+    }
+
+    container interface-monitor-map {
+        config false;
+        list interface-monitor-entry {
+            key "interface-name";
+            leaf interface-name { type string; }
+            leaf-list monitor-ids { type uint32; }
+        }
+    }
+}

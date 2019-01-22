@@ -1,0 +1,294 @@
+module ietf-network-topology {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-network-topology";
+  prefix nt;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-network {
+    prefix nw;
+    reference
+      "RFC 8345: A YANG Data Model for Network Topologies";
+  }
+
+  organization
+    "IETF I2RS (Interface to the Routing System) Working Group";
+
+  contact
+    "WG Web:    <https://datatracker.ietf.org/wg/i2rs/>
+     WG List:   <mailto:i2rs@ietf.org>
+
+     Editor:    Alexander Clemm
+                <mailto:ludwig@clemm.org>
+
+     Editor:    Jan Medved
+                <mailto:jmedved@cisco.com>
+
+     Editor:    Robert Varga
+                <mailto:robert.varga@pantheon.tech>
+
+     Editor:    Nitin Bahadur
+                <mailto:nitin_bahadur@yahoo.com>
+
+     Editor:    Hariharan Ananthakrishnan
+                <mailto:hari@packetdesign.com>
+
+     Editor:    Xufeng Liu
+                <mailto:xufeng.liu.ietf@gmail.com>";
+
+  description
+    "This module defines a common base model for a network topology,
+     augmenting the base network data model with links to connect
+     nodes, as well as termination points to terminate links
+     on nodes.
+
+     Copyright (c) 2018 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Simplified BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 8345;
+     see the RFC itself for full legal notices.";
+
+  revision 2018-02-26 {
+    description
+      "Initial revision.";
+    reference
+      "RFC 8345: A YANG Data Model for Network Topologies";
+  }
+
+  typedef link-id {
+    type inet:uri;
+    description
+      "An identifier for a link in a topology.  The precise
+       structure of the link-id will be up to the implementation.
+       The identifier SHOULD be chosen such that the same link in a
+       real network topology will always be identified through the
+       same identifier, even if the data model is instantiated in
+       separate datastores.  An implementation MAY choose to capture
+       semantics in the identifier -- for example, to indicate the
+       type of link and/or the type of topology of which the link is
+       a part.";
+  }
+
+  typedef tp-id {
+    type inet:uri;
+    description
+      "An identifier for termination points on a node.  The precise
+       structure of the tp-id will be up to the implementation.
+       The identifier SHOULD be chosen such that the same termination
+       point in a real network topology will always be identified
+       through the same identifier, even if the data model is
+       instantiated in separate datastores.  An implementation MAY
+       choose to capture semantics in the identifier -- for example,
+       to indicate the type of termination point and/or the type of
+       node that contains the termination point.";
+  }
+
+  grouping link-ref {
+    description
+      "This grouping can be used to reference a link in a specific
+       network.  Although it is not used in this module, it is
+       defined here for the convenience of augmenting modules.";
+    leaf link-ref {
+      type leafref {
+        path "/nw:networks/nw:network[nw:network-id=current()/../"+
+          "network-ref]/nt:link/nt:link-id";
+        require-instance false;
+      }
+      description
+        "A type for an absolute reference to a link instance.
+         (This type should not be used for relative references.
+         In such a case, a relative path should be used instead.)";
+    }
+    uses nw:network-ref;
+  }
+
+  grouping tp-ref {
+    description
+      "This grouping can be used to reference a termination point
+       in a specific node.  Although it is not used in this module,
+       it is defined here for the convenience of augmenting
+       modules.";
+    leaf tp-ref {
+      type leafref {
+        path "/nw:networks/nw:network[nw:network-id=current()/../"+
+          "network-ref]/nw:node[nw:node-id=current()/../"+
+          "node-ref]/nt:termination-point/nt:tp-id";
+        require-instance false;
+      }
+      description
+        "A type for an absolute reference to a termination point.
+         (This type should not be used for relative references.
+         In such a case, a relative path should be used instead.)";
+    }
+    uses nw:node-ref;
+  }
+
+  augment "/nw:networks/nw:network" {
+    description
+      "Add links to the network data model.";
+    list link {
+      key "link-id";
+      description
+        "A network link connects a local (source) node and
+         a remote (destination) node via a set of the respective
+         node's termination points.  It is possible to have several
+         links between the same source and destination nodes.
+         Likewise, a link could potentially be re-homed between
+         termination points.  Therefore, in order to ensure that we
+         would always know to distinguish between links, every link
+         is identified by a dedicated link identifier.  Note that a
+         link models a point-to-point link, not a multipoint link.";
+      leaf link-id {
+        type link-id;
+        description
+          "The identifier of a link in the topology.
+           A link is specific to a topology to which it belongs.";
+      }
+      container source {
+        description
+          "This container holds the logical source of a particular
+           link.";
+        leaf source-node {
+          type leafref {
+            path "../../../nw:node/nw:node-id";
+            require-instance false;
+          }
+          description
+            "Source node identifier.  Must be in the same topology.";
+        }
+        leaf source-tp {
+          type leafref {
+            path "../../../nw:node[nw:node-id=current()/../"+
+              "source-node]/termination-point/tp-id";
+            require-instance false;
+          }
+          description
+            "This termination point is located within the source node
+             and terminates the link.";
+        }
+      }
+
+      container destination {
+        description
+          "This container holds the logical destination of a
+           particular link.";
+        leaf dest-node {
+          type leafref {
+            path "../../../nw:node/nw:node-id";
+          require-instance false;
+          }
+          description
+            "Destination node identifier.  Must be in the same
+             network.";
+        }
+        leaf dest-tp {
+          type leafref {
+            path "../../../nw:node[nw:node-id=current()/../"+
+              "dest-node]/termination-point/tp-id";
+            require-instance false;
+          }
+          description
+            "This termination point is located within the
+             destination node and terminates the link.";
+        }
+      }
+      list supporting-link {
+        key "network-ref link-ref";
+        description
+          "Identifies the link or links on which this link depends.";
+        leaf network-ref {
+          type leafref {
+            path "../../../nw:supporting-network/nw:network-ref";
+          require-instance false;
+          }
+          description
+            "This leaf identifies in which underlay topology
+             the supporting link is present.";
+        }
+
+        leaf link-ref {
+          type leafref {
+            path "/nw:networks/nw:network[nw:network-id=current()/"+
+              "../network-ref]/link/link-id";
+            require-instance false;
+          }
+          description
+            "This leaf identifies a link that is a part
+             of this link's underlay.  Reference loops in which
+             a link identifies itself as its underlay, either
+             directly or transitively, are not allowed.";
+        }
+      }
+    }
+  }
+  augment "/nw:networks/nw:network/nw:node" {
+    description
+      "Augments termination points that terminate links.
+       Termination points can ultimately be mapped to interfaces.";
+    list termination-point {
+      key "tp-id";
+      description
+        "A termination point can terminate a link.
+         Depending on the type of topology, a termination point
+         could, for example, refer to a port or an interface.";
+      leaf tp-id {
+        type tp-id;
+        description
+          "Termination point identifier.";
+      }
+      list supporting-termination-point {
+        key "network-ref node-ref tp-ref";
+        description
+          "This list identifies any termination points on which a
+           given termination point depends or onto which it maps.
+           Those termination points will themselves be contained
+           in a supporting node.  This dependency information can be
+           inferred from the dependencies between links.  Therefore,
+           this item is not separately configurable.  Hence, no
+           corresponding constraint needs to be articulated.
+           The corresponding information is simply provided by the
+           implementing system.";
+
+        leaf network-ref {
+          type leafref {
+            path "../../../nw:supporting-node/nw:network-ref";
+          require-instance false;
+          }
+          description
+            "This leaf identifies in which topology the
+             supporting termination point is present.";
+        }
+        leaf node-ref {
+          type leafref {
+            path "../../../nw:supporting-node/nw:node-ref";
+          require-instance false;
+          }
+          description
+            "This leaf identifies in which node the supporting
+             termination point is present.";
+        }
+        leaf tp-ref {
+          type leafref {
+            path "/nw:networks/nw:network[nw:network-id=current()/"+
+              "../network-ref]/nw:node[nw:node-id=current()/../"+
+              "node-ref]/termination-point/tp-id";
+            require-instance false;
+          }
+          description
+            "Reference to the underlay node (the underlay node must
+             be in a different topology).";
+        }
+      }
+    }
+  }
+}

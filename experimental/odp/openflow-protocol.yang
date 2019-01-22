@@ -1,0 +1,1438 @@
+/*
+ * Copyright (c) 2013 Pantheon Technologies s.r.o. and others. All rights reserved.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License v1.0 which accompanies this distribution,
+ * and is available at http://www.eclipse.org/legal/epl-v10.html
+ */
+
+ module openflow-protocol {
+    namespace "urn:opendaylight:openflow:protocol";
+    prefix "ofproto";
+
+    import ietf-yang-types {prefix yang;}
+
+    import openflow-types {prefix oft;}
+    import openflow-extensible-match { prefix oxm;}
+    import openflow-instruction { prefix ofinstruction;}
+    import openflow-action {prefix ofaction;}
+
+    revision "2013-07-31" {
+        description "#NOT_PUBLISHED# OpenFlow 1.3 - protocol objects model";
+    }
+
+    // Generic Structures
+        grouping port-grouping {
+            reference "ofp_port";
+            leaf port-no {
+                type uint32;
+            }
+            leaf hw-addr {
+                type yang:mac-address;
+            }
+            leaf name {
+                type string;
+            }
+            leaf config {
+                description "Bitmap of OFPPC_* flags.";
+                type oft:port-config;
+            }
+            leaf state {
+                description "Bitmap of OFPPS_* flags.";
+                type oft:port-state;
+            }
+            leaf current-features {
+                description "Current features.";
+                type oft:port-features;
+            }
+            leaf advertised-features {
+                description "Features being advertised by the port.";
+                type oft:port-features;
+            }
+            leaf supported-features {
+                description "Features supported by the port.";
+                type oft:port-features;
+            }
+            leaf peer-features {
+                description "Features advertised by peer.";
+                type oft:port-features;
+            }
+            leaf curr-speed {
+                description "Current port bitrate in kbps.";
+                type uint32;
+                units "kbps";
+            }
+            leaf max-speed {
+                description "Max port bitrate in kbps";
+                type uint32;
+                units "kbps";
+            }
+
+            // OF1.0 structures
+            leaf config-v10 {
+                type oft:port-config-v10;
+            }
+            leaf state-v10 {
+                type oft:port-state-v10;
+            }
+            leaf current-features-v10 {
+                description "Current features.";
+                type oft:port-features-v10;
+            }
+            leaf advertised-features-v10 {
+                description "Features being advertised by the port.";
+                type oft:port-features-v10;
+            }
+            leaf supported-features-v10 {
+                description "Features supported by the port.";
+                type oft:port-features-v10;
+            }
+            leaf peer-features-v10 {
+                description "Features advertised by peer.";
+                type oft:port-features-v10;
+            }
+        }
+
+        grouping buckets-grouping {
+                list buckets-list {
+                    uses bucket-grouping;
+                }
+            }
+
+            grouping bucket-grouping {
+                description "Bucket for use in groups.";
+                leaf weight {
+                    description "Relative weight of bucket. Only
+                                defined for select groups.";
+                    type uint16;
+                }
+                leaf watch-port {
+                    description "Port whose state affects whether this
+                                bucket is live. Only required for fast
+                                failover groups.";
+                    type oft:port-number;
+                }
+                leaf watch-group {
+                    description "Group whose state affects whether this
+                                bucket is live. Only required for fast
+                                failover groups.";
+                    type uint32;
+                }
+
+                uses ofaction:actions-grouping;
+            }
+
+        container table-features-properties-container {
+            uses table-features-properties-grouping;
+        }
+
+        grouping table-features-properties-grouping {
+            list table-feature-properties {
+                config false;
+                leaf type {
+                    type oft:table-features-prop-type;
+                }
+            }
+        }
+
+    // # MESSAGE Structures
+        /* Immutable messages. */
+            grouping ofHeader {
+                reference "ofp_header struct in Openflow Switch 1.3 Spec";
+                leaf version {
+                    type uint8;
+                    description "OpenFlow version";
+                }
+                leaf xid {
+                    type uint32;
+                    description "Transaction ID";
+                }
+            }
+            grouping ofHelloElementHeader {
+                reference "ofpt_hello_elem_header struct in Openflow Switch 1.3 Spec";
+                leaf type {
+                    type oft:hello-element-type;
+                    //reference "OpenFlow Header element type - OFPHET_*";
+                }
+            }
+            grouping hello {
+                reference "OFPT_HELLO message in Openflow Switch 1.3 Spec";
+                /* Symmetric message */
+                uses ofHeader;
+
+                list elements {
+                    uses ofHelloElementHeader;
+
+                    leaf-list version-bitmap {
+                        type boolean;
+                    }
+                }
+            }
+            grouping error {
+                reference "OFPT_ERROR message in Openflow Switch 1.3 Spec";
+                /* Symmetric message */
+                uses ofHeader;
+
+                leaf type {
+                    type uint16;
+                }
+                leaf code {
+                    type uint16;
+                }
+                leaf type-string {
+                    type string;
+                }
+                leaf code-string {
+                    type string;
+                }
+                leaf data {
+                    type binary;
+                }
+            }
+            grouping echo-request {
+                reference "OFPT_ECHO_REQUEST message in Openflow Switch 1.3 Spec";
+                /* Symmetric message */
+                uses ofHeader;
+
+                leaf data {
+                    type binary;
+                }
+            }
+            grouping echo-reply {
+                reference "OFPT_ECHO_REPLY message in Openflow Switch 1.3 Spec";
+                /* Symmetric message */
+                uses ofHeader;
+
+                leaf data {
+                    type binary;
+                }
+            }
+
+            grouping experimenter-core {
+                description "General experimenter message content suitable for symmetric and multipart message";
+                leaf experimenter {
+                    type oft:experimenter-id;
+                }
+                leaf exp_type {
+                    type uint32;
+                }
+                choice experimenter-data-of-choice {
+                    // to be augmented by vendors
+                }
+            }
+            grouping experimenter-of-message {
+                reference "OFPT_EXPERIMENTER message in Openflow Switch 1.3 Spec";
+                /* Symmetric message */
+                uses ofHeader;
+                uses experimenter-core;
+            }
+
+        /* Switch configuration messages. */
+            grouping features-request {
+                reference "OFPT_FEATURES_REQUEST message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+                uses ofHeader;
+            }
+            grouping features-reply {
+                reference "OFPT_FEATURES_REPLY message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+                uses ofHeader;
+
+                leaf datapathId {
+                    type uint64;
+                }
+                leaf buffers {
+                    type uint32;
+                }
+                leaf tables {
+                    type uint8;
+                }
+                leaf auxiliaryId {
+                    type uint8;
+                }
+                leaf capabilities {
+                    type oft:capabilities;
+                }
+                leaf reserved {
+                    type uint32;
+                }
+                // OF1.0 structures
+                leaf capabilities-v10 {
+                    type oft:capabilities-v10;
+                }
+                leaf actions-v10 {
+                    type oft:action-type-v10;
+                }
+                list phy-port {
+                    uses port-grouping;
+                }
+            }
+            grouping get-config-request {
+                reference "OFPT_GET_CONFIG_REQUEST message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+                uses ofHeader;
+            }
+            grouping get-config-reply {
+                reference "OFPT_GET_CONFIG_REPLY message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+                uses ofHeader;
+
+                leaf flags {
+                    type oft:switch-config-flag;
+                }
+                leaf miss-send-len {
+                    type uint16;
+                }
+            }
+            grouping set-config {
+                reference "OFPT_SET_CONFIG message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+
+                uses ofHeader;
+
+                leaf flags {
+                    type oft:switch-config-flag;
+                }
+                leaf miss-send-len {
+                    type uint16;
+                }
+            }
+        /* Asynchronous messages. */
+            grouping packet-in {
+                reference "OFPT_PACKET_IN message in Openflow Switch 1.3 Spec";
+                /* Async message */
+
+                uses ofHeader;
+
+                leaf buffer-id {
+                    // ID assigned by datapath.
+                    type uint32;
+                }
+                leaf total-len {
+                    // Full length of frame.
+                    type uint16;
+                }
+                leaf reason {
+                    // Reason packet is being sent (one of OFPR_*)
+                    type oft:packet-in-reason;
+                }
+                leaf table-id {
+                    // ID of the table that was looked up
+                    type oft:table-id;
+                }
+                leaf cookie {
+                    // Cookie of the flow entry that was looked up.
+                    type uint64;
+                }
+                uses oxm:match-grouping;
+
+                leaf data {
+                    type binary;
+                }
+
+                // OF1.0 structures
+                leaf in-port {
+                    type uint16;
+                }
+            }
+            grouping flow-removed {
+                reference "OFPT_FLOW_REMOVED message in Openflow Switch 1.3 Spec";
+                /* Async message */
+                uses ofHeader;
+
+                leaf cookie {
+                    type uint64;
+                }
+                leaf priority {
+                    type uint16;
+                }
+                leaf reason {
+                    type oft:flow-removed-reason;
+                }
+                leaf table-id {
+                    type oft:table-id;
+                }
+                leaf duration-sec {
+                    type uint32;
+                }
+                leaf duration-nsec {
+                    type uint32;
+                }
+                leaf idle-timeout {
+                    type uint16;
+                }
+                leaf hard-timeout {
+                    type uint16;
+                }
+                leaf packet-count {
+                    type uint64;
+                }
+                leaf byte-count {
+                    type uint64;
+                }
+                uses oxm:match-grouping;
+
+                // OF1.0 structures
+                uses oxm:match-v10-grouping;
+            }
+            grouping port-status {
+                reference "OFPT_PORT_STATUS message in Openflow Switch 1.3 Spec";
+
+                uses ofHeader;
+
+                uses port-grouping;
+
+                leaf reason {
+                    type oft:port-reason;
+                }
+            }
+        /* Controller command messages. */
+            grouping packet-out {
+                reference "OFPT_PACKET_OUT message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+
+                uses ofHeader;
+
+                uses ofaction:actions-grouping;
+                leaf data {
+                    type binary;
+                }
+                leaf buffer-id {
+                    type uint32;
+                }
+                leaf in-port {
+                    type oft:port-number;
+                }
+            }
+            grouping flow-mod {
+                reference "OFPT_FLOW_MOD message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+
+                uses ofHeader;
+
+                leaf cookie {
+                    type uint64;
+                }
+                leaf cookie-mask {
+                    type uint64;
+                }
+                leaf table-id {
+                    type oft:table-id;
+                }
+                leaf command {
+                    type oft:flow-mod-command;
+                }
+                leaf idle-timeout {
+                    type uint16;
+                }
+                leaf hard-timeout {
+                    type uint16;
+                }
+                leaf priority {
+                    type uint16;
+                }
+                leaf buffer-id {
+                    type uint32;
+                }
+                leaf out-port {
+                    type oft:port-number;
+                }
+                leaf out-group {
+                    type uint32;
+                }
+                leaf flags {
+                    type oft:flow-mod-flags;
+                }
+                uses oxm:match-grouping;
+
+                uses ofinstruction:instructions-grouping;
+
+                // OF1.0 structures
+                leaf flags-v10 {
+                    type oft:flow-mod-flags-v10;
+                }
+                uses oxm:match-v10-grouping;
+                uses ofaction:actions-grouping;
+            }
+            grouping group-mod {
+                reference "OFPT_GROUP_MOD message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+
+                uses ofHeader;
+
+                leaf command {
+                    type oft:group-mod-command;
+                }
+                leaf type {
+                    type oft:group-type;
+                }
+                leaf group-id {
+                    type oft:group-id;
+                }
+
+                uses buckets-grouping;
+            }
+
+            grouping port-mod {
+                reference "OFPT_PORT_MOD message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+
+                uses ofHeader;
+
+                leaf port-no {
+                    type oft:port-number;
+                }
+                leaf hw-address {
+                    type yang:mac-address;
+                }
+                leaf config {
+                    type oft:port-config;
+                }
+                leaf mask {
+                    type oft:port-config;
+                }
+                leaf advertise {
+                    type oft:port-features;
+                }
+                // OF1.0 structures
+                leaf config-v10 {
+                    type oft:port-config-v10;
+                }
+                leaf mask-v10 {
+                    type oft:port-config-v10;
+                }
+                leaf advertise-v10 {
+                    type oft:port-features-v10;
+                }
+            }
+            grouping table-mod {
+                reference "OFPT_TABLE_MOD message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+
+                uses ofHeader;
+
+                leaf table-id {
+                    type oft:table-id;
+                }
+                leaf config {
+                    type oft:table-config;
+                }
+            }
+
+        /* Multipart messages. */
+            grouping multipart-request {
+                reference "OFPT_MULTIPART_REQUEST message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+
+                uses ofHeader;
+
+                leaf type {
+                    type oft:multipart-type;
+                }
+                leaf flags {
+                    type oft:multipart-request-flags;
+                }
+                choice multipart-request-body {
+                    case multipart-request-desc-case {
+                        container multipart-request-desc {
+                            leaf empty {
+                                type empty;
+                            }
+                        }
+                    }
+                    case multipart-request-flow-case {
+                        container multipart-request-flow {
+                            leaf table-id {
+                                type uint8;
+                            }
+                            leaf out-port {
+                                type uint32;
+                            }
+                            leaf out-group {
+                                type uint32;
+                            }
+                            leaf cookie {
+                                type uint64;
+                            }
+                            leaf cookie-mask {
+                                type uint64;
+                            }
+                            uses oxm:match-grouping;
+
+                            // OF1.0 structures
+                            uses oxm:match-v10-grouping;
+                        }
+                    }
+                    case multipart-request-aggregate-case {
+                        container multipart-request-aggregate {
+                            leaf table-id {
+                                type uint8;
+                            }
+                            leaf out-port {
+                                type uint32;
+                            }
+                            leaf out-group {
+                                type uint32;
+                            }
+                            leaf cookie {
+                                type uint64;
+                            }
+                            leaf cookie-mask {
+                                type uint64;
+                            }
+                            uses oxm:match-grouping;
+
+                            // OF1.0 structures
+                            uses oxm:match-v10-grouping;
+                        }
+                    }
+                    case multipart-request-table-case {
+                        container multipart-request-table {
+                            leaf empty {
+                                type empty;
+                            }
+                        }
+                    }
+                    case multipart-request-port-stats-case {
+                        container multipart-request-port-stats {
+                            leaf port-no {
+                                type uint32;
+                            }
+                        }
+                    }
+                    case multipart-request-queue-case {
+                        container multipart-request-queue {
+                            leaf port-no {
+                                type uint32;
+                            }
+                            leaf queue-id {
+                                type uint32;
+                            }
+                        }
+                    }
+                    case multipart-request-group-case {
+                        container multipart-request-group {
+                            leaf group-id {
+                                type oft:group-id;
+                            }
+                        }
+                    }
+                    case multipart-request-group-desc-case {
+                        container multipart-request-group-desc {
+                            leaf empty {
+                                type empty;
+                            }
+                        }
+                    }
+                    case multipart-request-group-features-case {
+                        container multipart-request-group-features {
+                            leaf empty {
+                                type empty;
+                            }
+                        }
+                    }
+                    case multipart-request-meter-case {
+                        container multipart-request-meter {
+                            leaf meter-id {
+                                type oft:meter-id;
+                            }
+                        }
+                    }
+                    case multipart-request-meter-config-case {
+                        container multipart-request-meter-config {
+                            leaf meter-id {
+                                type oft:meter-id;
+                            }
+                        }
+                    }
+                    case multipart-request-meter-features-case {
+                        container multipart-request-meter-features {
+                            leaf empty {
+                                type empty;
+                            }
+                        }
+                    }
+                    case multipart-request-table-features-case {
+                        container multipart-request-table-features {
+                            list table-features {
+                                leaf table-id {
+                                    type uint8;
+                                }
+                                leaf name {
+                                    type string;
+                                }
+                                leaf metadata-match {
+                                    type uint64;
+                                }
+                                leaf metadata-write {
+                                    type uint64;
+                                }
+                                leaf config {
+                                    type oft:table-config;
+                                }
+                                leaf max-entries {
+                                    type uint32;
+                                }
+                                uses table-features-properties-grouping;
+                            }
+                        }
+                    }
+                    case multipart-request-port-desc-case {
+                        container multipart-request-port-desc {
+                            leaf empty {
+                                type empty;
+                            }
+                        }
+                    }
+                    case multipart-request-experimenter-case {
+                        container multipart-request-experimenter {
+                            uses experimenter-core;
+                        }
+                    }
+                }
+            }
+            grouping multipart-reply {
+                reference "OFPT_MULTIPART_REPLY message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+
+                uses ofHeader;
+
+                leaf type {
+                    type oft:multipart-type;
+                }
+                leaf flags {
+                    type oft:multipart-request-flags;
+                }
+                choice multipart-reply-body {
+                    case multipart-reply-desc-case {
+                        container multipart-reply-desc {
+                            leaf mfr_desc {
+                                type string;
+                            }
+                            leaf hw_desc {
+                                type string;
+                            }
+                            leaf sw_desc {
+                                type string;
+                            }
+                            leaf serial_num {
+                                type string;
+                            }
+                            leaf dp_desc {
+                                type string;
+                            }
+                        }
+                    }
+                    case multipart-reply-flow-case {
+                        container multipart-reply-flow {
+                            list flow-stats {
+                                leaf table-id {
+                                    type uint8;
+                                }
+                                leaf duration-sec {
+                                    type uint32;
+                                }
+                                leaf duration-nsec {
+                                    type uint32;
+                                }
+                                leaf priority {
+                                    type uint16;
+                                }
+                                leaf idle-timeout {
+                                    type uint16;
+                                }
+                                leaf hard-timeout {
+                                    type uint16;
+                                }
+                                leaf flags {
+                                    type oft:flow-mod-flags;
+                                }
+                                leaf cookie {
+                                    type uint64;
+                                }
+                                leaf packet-count {
+                                    type uint64;
+                                }
+                                leaf byte-count {
+                                    type uint64;
+                                }
+                                uses oxm:match-grouping;
+
+                                uses ofinstruction:instructions-grouping;
+
+                                // OF1.0 structures
+                                uses oxm:match-v10-grouping;
+                                uses ofaction:actions-grouping;
+                            }
+                        }
+                    }
+                    case multipart-reply-aggregate-case {
+                        container multipart-reply-aggregate {
+                            leaf packet-count {
+                                type uint64;
+                            }
+                            leaf byte-count {
+                                type uint64;
+                            }
+                            leaf flow-count {
+                                type uint32;
+                            }
+                        }
+                    }
+                    case multipart-reply-table-case {
+                        container multipart-reply-table {
+                            list table-stats {
+                                leaf table-id {
+                                    type uint8;
+                                }
+                                leaf active-count {
+                                    type uint32;
+                                }
+                                leaf lookup-count {
+                                    type uint64;
+                                }
+                                leaf matched-count {
+                                    type uint64;
+                                }
+
+                                // OF1.0 structures
+                                leaf name {
+                                    type string;
+                                }
+                                leaf wildcards {
+                                    type oft:flow-wildcards-v10;
+                                }
+                                leaf nw-src-mask {
+                                    type uint8;
+                                }
+                                leaf nw-dst-mask {
+                                    type uint8;
+                                }
+                                leaf max-entries {
+                                    type uint32;
+                                }
+                            }
+                        }
+                    }
+                    case multipart-reply-port-stats-case {
+                        container multipart-reply-port-stats {
+                            list port-stats {
+                                leaf port-no {
+                                    type uint32;
+                                }
+                                leaf rx-packets {
+                                    type uint64;
+                                }
+                                leaf tx-packets {
+                                    type uint64;
+                                }
+                                leaf rx-bytes {
+                                    type uint64;
+                                }
+                                leaf tx-bytes {
+                                    type uint64;
+                                }
+                                leaf rx-dropped {
+                                    type uint64;
+                                }
+                                leaf tx-dropped {
+                                    type uint64;
+                                }
+                                leaf rx-errors {
+                                    type uint64;
+                                }
+                                leaf tx-errors {
+                                    type uint64;
+                                }
+                                leaf rx-frame-err {
+                                    type uint64;
+                                }
+                                leaf rx-over-err {
+                                    type uint64;
+                                }
+                                leaf rx-crc-err {
+                                    type uint64;
+                                }
+                                leaf collisions {
+                                    type uint64;
+                                }
+                                leaf duration-sec {
+                                    type uint32;
+                                }
+                                leaf duration-nsec {
+                                    type uint32;
+                                }
+                            }
+                        }
+                    }
+                    case multipart-reply-queue-case {
+                        container multipart-reply-queue {
+                            list queue-stats {
+                                leaf port-no {
+                                    type uint32;
+                                }
+                                leaf queue-id {
+                                    type uint32;
+                                }
+                                leaf tx-bytes {
+                                    type uint64;
+                                }
+                                leaf tx-packets {
+                                    type uint64;
+                                }
+                                leaf tx-errors {
+                                    type uint64;
+                                }
+                                leaf duration-sec {
+                                    type uint32;
+                                }
+                                leaf duration-nsec {
+                                    type uint32;
+                                }
+                            }
+                        }
+                    }
+                    case multipart-reply-group-case {
+                        container multipart-reply-group {
+                            list group-stats {
+                                leaf group-id {
+                                    type oft:group-id;
+                                }
+                                leaf ref-count {
+                                    type uint32;
+                                }
+                                leaf packet-count {
+                                    type uint64;
+                                }
+                                leaf byte-count {
+                                    type uint64;
+                                }
+                                leaf duration-sec {
+                                    type uint32;
+                                }
+                                leaf duration-nsec {
+                                    type uint32;
+                                }
+                                list bucket-stats {
+                                    leaf packet-count {
+                                        type uint64;
+                                    }
+                                    leaf byte-count {
+                                        type uint64;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    case multipart-reply-group-desc-case {
+                        container multipart-reply-group-desc {
+                            list group-desc {
+                                leaf type {
+                                    type oft:group-type;
+                                }
+                                leaf group-id {
+                                    type oft:group-id;
+                                }
+                                uses buckets-grouping;
+                            }
+                        }
+                    }
+                    case multipart-reply-group-features-case {
+                        container multipart-reply-group-features {
+                            leaf types {
+                                type oft:group-types;
+                            }
+                            leaf capabilities {
+                                type oft:group-capabilities;
+                            }
+                            leaf-list max_groups {
+                                type uint32;
+                            }
+                            leaf-list actions-bitmap {
+                                type oft:action-type;
+                            }
+                        }
+                    }
+                    case multipart-reply-meter-case {
+                        container multipart-reply-meter {
+                            list meter-stats {
+                                leaf meter-id {
+                                    type oft:meter-id;
+                                }
+                                leaf flow-count {
+                                    type uint32;
+                                }
+                                leaf packet-in-count {
+                                    type uint64;
+                                }
+                                leaf byte-in-count {
+                                    type uint64;
+                                }
+                                leaf duration-sec {
+                                    type uint32;
+                                }
+                                leaf duration-nsec {
+                                    type uint32;
+                                }
+                                list meter-band-stats {
+                                    leaf packet-band-count {
+                                        type uint64;
+                                    }
+                                    leaf byte-band-count {
+                                        type uint64;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    case multipart-reply-meter-config-case {
+                        container multipart-reply-meter-config {
+                            list meter-config {
+                                leaf flags {
+                                    type oft:meter-flags;
+                                }
+                                leaf meter-id {
+                                    type oft:meter-id;
+                                }
+                                list bands {
+                                    uses meter-band-header;
+                                }
+                            }
+                        }
+                    }
+                    case multipart-reply-meter-features-case {
+                        container multipart-reply-meter-features {
+                            leaf max-meter {
+                                type uint32;
+                            }
+                            leaf band-types {
+                                type oft:meter-band-type-bitmap;
+                            }
+                            leaf capabilities {
+                                type oft:meter-flags;
+                            }
+                            leaf max-bands {
+                                type uint8;
+                            }
+                            leaf max-color {
+                                type uint8;
+                            }
+                        }
+                    }
+                    case multipart-reply-table-features-case {
+                        container multipart-reply-table-features {
+                            list table-features {
+                                leaf table-id {
+                                    type uint8;
+                                }
+                                leaf name {
+                                    type string;
+                                }
+                                leaf metadata-match {
+                                    type binary;
+                                }
+                                leaf metadata-write {
+                                    type binary;
+                                }
+                                leaf config {
+                                    type oft:table-config;
+                                }
+                                leaf max-entries {
+                                    type uint32;
+                                }
+                                uses table-features-properties-grouping;
+                            }
+                        }
+                    }
+                    case multipart-reply-port-desc-case {
+                        container multipart-reply-port-desc {
+                            list ports {
+                                uses port-grouping;
+                            }
+                        }
+                    }
+                    case multipart-reply-experimenter-case {
+                        container multipart-reply-experimenter {
+                            uses experimenter-core;
+                        }
+                    }
+                }
+            }
+            /* Barrier messages. */
+            grouping barrier-request {
+                reference "OFPT_BARRIER_REQUEST message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+                uses ofHeader;
+            }
+            grouping barrier-reply {
+                reference "OFPT_BARRIER_REPLY message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+                uses ofHeader;
+            }
+        /* Queue Configuration messages. */
+            grouping queue-get-config-request {
+                reference "OFPT_QUEUE_GET_CONFIG_REQUEST message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+
+                uses ofHeader;
+
+                leaf port {
+                    type oft:port-number;
+                }
+            }
+            grouping queue-get-config-reply {
+                reference "OFPT_QUEUE_GET_CONFIG_REPLY message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+
+                uses ofHeader;
+
+                leaf port {
+                    type oft:port-number;
+                }
+                list queues {
+                    uses packet-queue;
+                }
+            }
+            grouping packet-queue {
+                leaf queue-id {
+                    type oft:queue-id;
+                }
+                leaf port {
+                    type oft:port-number;
+                }
+                uses queue-property-header;
+            }
+            container queue-prop-container {
+                uses queue-property-header;
+            }
+            grouping queue-property-header {
+                list queue-property {
+                    config false;
+                    leaf property {
+                        type oft:queue-properties;
+                    }
+                }
+            }
+            /* Controller role change request messages. */
+            grouping role-request {
+                reference "OFPT_ROLE_REQUEST message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+
+                uses ofHeader;
+
+                leaf role {
+                    type oft:controller-role;
+                }
+                leaf generation-id {
+                    type uint64;
+                }
+            }
+            grouping role-reply {
+                reference "OFPT_ROLE_REPLY message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+
+                uses ofHeader;
+
+                leaf role {
+                    type oft:controller-role;
+                }
+                leaf generation-id {
+                    type uint64;
+                }
+            }
+            /* Asynchronous message configuration. */
+            grouping get-async-request {
+                reference "OFPT_GET_ASYNC_REQUEST message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+
+                uses ofHeader;
+            }
+            grouping get-async-reply {
+                reference "OFPT_GET_ASYNC_REPLY message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+
+                uses ofHeader;
+                uses async-body-grouping;
+            }
+            grouping set-async {
+                reference "OFPT_SET_ASYNC message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+
+                uses ofHeader;
+                uses async-body-grouping;
+            }
+
+            grouping async-body-grouping {
+                list packet-in-mask {
+                    leaf-list mask {
+                        type oft:packet-in-reason;
+                    }
+                }
+                list port-status-mask {
+                    leaf-list mask {
+                        type oft:port-reason;
+                    }
+                }
+                list flow-removed-mask {
+                    leaf-list mask {
+                        type oft:flow-removed-reason;
+                    }
+                }
+            }
+            /* Meters and rate limiters configuration messages. */
+            grouping meter-mod {
+                reference "OFPT_METER_MOD message in Openflow Switch 1.3 Spec";
+                /* Controller/switch message */
+
+                uses ofHeader;
+
+                leaf command {
+                    type oft:meter-mod-command;
+                }
+                leaf flags {
+                    type oft:meter-flags;
+                }
+                leaf meter-id {
+                    type oft:meter-id;
+                }
+                list bands {
+                    uses meter-band-header;
+                }
+            }
+
+            container meter-band-container {
+                uses meter-band-header;
+            }
+            grouping meter-band-header {
+                choice meter-band {
+                    case meter-band-drop-case {
+                        container meter-band-drop {
+                            uses meter-band-commons;
+                        }
+                    }
+                    case meter-band-dscp-remark-case {
+                        container meter-band-dscp-remark {
+                            uses meter-band-commons;
+                            leaf prec-level {
+                                type uint8;
+                            }
+                        }
+                    }
+                    case meter-band-experimenter-case {
+                        container meter-band-experimenter {
+                            uses meter-band-commons;
+                        }
+                    }
+                }
+            }
+
+            grouping meter-band-commons {
+                leaf type {
+                    type oft:meter-band-type;
+                }
+                leaf rate {
+                    type uint32;
+                }
+                leaf burst-size {
+                    type uint32;
+                }
+            }
+
+            /* Immutable messages. */
+            notification hello-message {
+                uses hello;
+                reference "OFPT_HELLO message in Openflow Switch 1.3 Spec";
+
+                /* Symmetric message */
+            }
+            notification error-message {
+                uses error;
+                reference "OFPT_ERROR message in Openflow Switch 1.3 Spec";
+
+                /* Symmetric message */
+            }
+            notification echo-request-message {
+                uses echo-request;
+                reference "OFPT_ECHO_REQUEST message in Openflow Switch 1.3 Spec";
+
+                /* Symmetric message */
+            }
+            notification experimenter-message {
+                description "Experimenter request message from device.";
+                uses experimenter-of-message;
+                reference "OFPT_EXPERIMENTER message in Openflow Switch 1.3 Spec";
+                // TODO:: does switch send this when understood experimenter msg from lib?
+                /* Symmetric message */
+            }
+    // # Notification and RPCs
+        /* Symmetric RPC. */
+            rpc echo {
+                input {
+                    uses echo-request;
+                }
+                /* Controller/switch message */
+                output {
+                    uses echo-reply;
+                }
+            }
+
+            rpc echo-reply {
+                input {
+                    uses echo-reply;
+                }
+            }
+
+            rpc hello {
+                input {
+                    uses hello;
+                }
+            }
+
+            rpc experimenter {
+                description "Send experimenter message to device, reply is not solicitated.";
+                input {
+                    uses experimenter-of-message;
+                }
+            }
+
+        /* Switch configuration messages. */
+            rpc get-features {
+                input {
+                    uses features-request;
+                }
+                /* Controller/switch message */
+                output {
+                    uses features-reply;
+                }
+            }
+
+            rpc get-config {
+                input {
+                    uses get-config-request;
+                }
+                output {
+                    uses get-config-reply;
+                }
+                /* Controller/switch message */
+            }
+
+            rpc set-config {
+                input {
+                    uses set-config;
+                }
+                /* Controller/switch message */
+            }
+        /* Asynchronous messages. */
+            notification packet-in-message {
+                uses packet-in;
+
+             /* Async message */
+            }
+            notification flow-removed-message {
+                uses flow-removed;
+
+                /* Async message */
+            }
+            notification port-status-message {
+                uses port-status;
+
+            } /* Async message */
+
+        /* Controller command messages. */
+            rpc packet-out {
+                input {
+                    uses packet-out;
+                }
+                /* Controller/switch message */
+            }
+            rpc flow-mod {
+                input {
+                    uses flow-mod;
+                }
+                /* Controller/switch message */
+            }
+            rpc group-mod {
+                input {
+                    uses group-mod;
+                }
+                /* Controller/switch message */
+            }
+            rpc port-mod {
+                input {
+                    uses port-mod;
+                }
+            } /* Controller/switch message */
+
+            rpc table-mod {
+                input {
+                    uses table-mod;
+                }
+            } /* Controller/switch message */
+
+        /* Multipart messages. */
+
+            rpc multipart-request {
+                input {
+                    uses multipart-request;
+                }
+            }
+
+             /* Controller/switch message */
+            notification multipart-reply-message {
+                uses multipart-reply;
+                // notification because of multiple following responses
+            } /* Controller/switch message */
+
+
+            /* Barrier messages. */
+            rpc barrier {
+                input {
+                    uses barrier-request;
+                }
+                output {
+                    uses barrier-reply;
+                }
+            }
+        /* Queue Configuration messages. */
+            rpc get-queue-config {
+                input {
+                    uses queue-get-config-request;
+                }
+                output {
+                    uses queue-get-config-reply;
+                }
+            }
+
+        /* Controller role change request messages. */
+            rpc role-request {
+                input {
+                    uses role-request;
+                }
+                output {
+                    uses role-reply;
+                }
+            } /* Controller/switch message */
+
+        /* Asynchronous message configuration. */
+            rpc get-async {
+                input {
+                    uses get-async-request;
+                }
+                output {
+                    uses get-async-reply;
+                }
+            }
+             /* Controller/switch message */
+            rpc set-async {
+                input {
+                    uses set-async;
+                }
+
+            }
+        /* Meters and rate limiters configuration messages. */
+            rpc meter-mod {
+                input {
+                    uses meter-mod;
+                }
+            } /* Controller/switch message */
+}

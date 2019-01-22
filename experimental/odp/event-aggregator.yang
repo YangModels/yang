@@ -1,0 +1,131 @@
+module event-aggregator {
+    // FIXME: this module needs to be split up to concepts and API
+    //        as the concepts are shared with the other model in this
+    //        package.
+    yang-version 1;
+    namespace "urn:cisco:params:xml:ns:yang:messagebus:eventaggregator";
+    prefix "eventaggregator";
+
+    organization "Cisco Systems, Inc.";
+    contact "Robert Gallas";
+
+    description
+        "Module implementing message but RPC.
+
+        Copyright (c)2014 Cisco Systems, Inc. All rights reserved.
+
+        This program and the accompanying materials are made available
+        under the terms of the Eclipse Public License v1.0 which
+        accompanies this distribution, and is available at
+        http://www.eclipse.org/legal/epl-v10.html";
+
+    revision "2014-12-02" {
+        description "Initial revision";
+    }
+
+    typedef pattern {
+        type string {
+            length 1..max;
+        }
+
+        // FIXME: make this a regular expression
+        description "A match pattern. Specifically this is a wildcard pattern.";
+    }
+
+    typedef notification-pattern {
+        type pattern;
+        description
+            "Pattern for matching candidate notification types. This pattern is to be
+            applied against the concatenation of the namespace of the module which
+            defines that particular notification, followed by a single colon, and
+            then followed by notification identifier, as supplied in the argument to
+            the notification statement.";
+    }
+
+    typedef topic-id {
+        type string {
+            length 1..max;
+        }
+        description
+            "A topic identifier. It uniquely defines a topic as seen by the the user
+            of this model's RPCs";
+    }
+
+    // FIXME: we would really like to share instances here, but that requires some sort
+    //        of sane reference counting. The reason for sharing is the data path part
+    //        of notification delivery -- multiple creators of topics can still share
+    //        a single data path.
+    rpc create-topic {
+        description
+            "Create a new topic. A topic is an aggregation of several notification
+            types from a set of nodes. Each successful invocation results in a unique
+            topic being created. The caller is responsible for removing the topic
+            once it is no longer needed.";
+
+        input {
+            leaf notification-pattern {
+                type notification-pattern;
+                mandatory true;
+                description
+                    "Pattern matching notification which should be forwarded into this
+                    topic.";
+            }
+
+            leaf node-id-pattern {
+                type pattern;
+                mandatory true;
+                description
+                    "Pattern for matching candidate event source nodes when looking
+                    for contributors to the topic. The pattern will be applied against
+                    /network-topology/topology/node/node-id";
+            }
+        }
+
+        output {
+            leaf topic-id {
+                type topic-id;
+                mandatory true;
+            }
+        }
+    }
+
+    rpc destroy-topic {
+        description
+            "Destroy a topic. No further messages will be delivered to it.";
+
+        input {
+            leaf topic-id {
+                type topic-id;
+                mandatory true;
+            }
+        }
+    }
+
+    notification topic-notification {
+        description
+            "Notification of an event occuring on a particular node. This notification
+            acts as an encapsulation for the event being delivered.";
+
+        leaf topic-id {
+            type topic-id;
+            mandatory true;
+            description
+                "Topic to which this event is being delivered.";
+        }
+
+        leaf node-id {
+            // FIXME: should be topology node ID
+            type string;
+            mandatory true;
+            description
+                "Node ID of the node which generated the event.";
+        }
+
+        anyxml payload {
+            mandatory true;
+            description
+                "Encapsulated notification. The format is the XML representation of
+                a notification according to RFC6020 section 7.14.2.";
+        }
+    }
+}

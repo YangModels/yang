@@ -1,0 +1,839 @@
+module v3po {
+  yang-version 1;
+  namespace "urn:opendaylight:params:xml:ns:yang:v3po";
+  prefix "v3po";
+
+  revision "2016-12-14" {
+    description
+      "This revision adds the following new features:
+       - ingress/egress ACLs support
+       - moved ACL definitions to vpp-acl module
+       - updated l2 container constraint (permit IP address on BVI interface)
+       - added PID of vpp process to vpp-state
+       - added support for Loopback interfaces
+       - added support for port mirroring";
+  }
+
+  revision "2015-01-05" {
+    description "Initial revision of v3po model";
+  }
+
+  import iana-if-type {
+    prefix "ianaift";
+  }
+  import ietf-interfaces {
+    prefix "if";
+  }
+  import ietf-yang-types {
+    prefix "yang";
+  }
+  import ietf-inet-types {
+    prefix "inet";
+  }
+  import ietf-ip {
+    prefix "ip";
+  }
+  import yang-ext {
+    prefix "ext";
+  }
+  import vpp-classfier-acl {
+    prefix "vpp-classfier-acl";
+  }
+
+  typedef bridge-domain-ref {
+    type leafref {
+      path "/vpp/bridge-domains/bridge-domain/name";
+    }
+    description
+      "This type is used by to reference a bridge domain table";
+  }
+
+  typedef bridged-virtual-interface-ref {
+    type leafref {
+      path "/if:interfaces/if:interface/l2/bridged-virtual-interface";
+    }
+    description
+      "This type is used by to reference a bridged virtual interface";
+  }
+
+  identity vxlan-tunnel {
+    base if:interface-type;
+  }
+
+  identity gre-tunnel {
+    base if:interface-type;
+  }
+
+  identity vhost-user {
+    base if:interface-type;
+  }
+
+  identity tap {
+    base if:interface-type;
+  }
+
+  identity loopback {
+    base if:interface-type;
+  }
+
+  identity l2-fib-action {
+    description "Base identity for l2-fib actions";
+  }
+
+  identity l2-fib-forward {
+    base l2-fib-action;
+    description
+      "Forwards packet with configured mac address";
+  }
+
+  identity l2-fib-filter {
+    base l2-fib-action;
+    description
+      "Drops packet with configured mac address";
+  }
+
+  typedef l2-fib-action {
+    type identityref {
+      base "l2-fib-action";
+    }
+    description "Identifies a specific L2 FIB action";
+  }
+
+  typedef vxlan-vni {
+    // FIXME: should be in a vxlan-specific model
+    description "VNI used in a VXLAN tunnel";
+    type uint32 {
+      range "0..16777215";
+    }
+  }
+
+  typedef vhost-user-role {
+    type enumeration {
+      enum "server";
+      enum "client";
+    }
+  }
+
+  identity vxlan-gpe-tunnel {
+    base if:interface-type;
+  }
+
+  typedef vxlan-gpe-vni {
+    description "VNI used in a VXLAN-GPE tunnel";
+    type uint32 {
+      range "0..16777215";
+    }
+  }
+
+  typedef vxlan-gpe-next-protocol {
+    type enumeration {
+      enum "ipv4" {
+        value 1;
+      }
+      enum "ipv6" {
+        value 2;
+      }
+      enum "ethernet" {
+        value 3;
+      }
+      enum "nsh" {
+        value 4;
+      }
+    }
+  }
+
+
+  typedef span-state {
+    type enumeration {
+      enum "receive" {
+        value "1";
+        description
+            "Receive (Rx) SPAN—The goal of receive (or ingress) SPAN
+             is to monitor as much as possible all the packets received by the source interface.
+             A copy of each packet received by the source is sent to the destination port for that SPAN session.
+             You can monitor a series or range of ingress ports in a SPAN session.";
+      }
+
+      enum "transmit" {
+        value "2";
+        description
+            "Transmit (Tx) SPAN—The goal of transmit (or egress) SPAN is to monitor as much as possible all the packets
+             sent by the source interface after all modification and processing is performed by the switch.
+             A copy of each packet sent by the source is sent to the destination port for that SPAN session.
+             The copy is provided after the packet is modified. Monitors a range of egress ports in a SPAN session.";
+      }
+
+      enum "both" {
+        value "3";
+        description
+            "In a SPAN session, you can monitor a series or range of ports for both received and sent packets.";
+      }
+    }
+  }
+
+  grouping bridge-domain-attributes {
+    leaf flood {
+      type boolean;
+      default true;
+      description
+      "Enable/disable L2 flooding.";
+    }
+    leaf forward {
+      type boolean;
+      default true;
+      description
+      "Enable/disable L2 forwarding.";
+    }
+    leaf learn {
+      type boolean;
+      default true;
+      description
+      "Enable/disable L2 learning.";
+    }
+    leaf unknown-unicast-flood {
+      type boolean;
+      default true;
+    }
+    leaf arp-termination {
+      type boolean;
+      default false;
+    }
+
+    container arp-termination-table {
+      when "../v3po:arp-termination = 'true'";
+
+      // TODO(HONEYCOMB-133): add support for read (after VPP-230 is done)
+      list arp-termination-table-entry {
+        key "ip-address phys-address";
+        leaf ip-address {
+          // FIXME: change to ip-address-no-zone after https://bugs.opendaylight.org/show_bug.cgi?id=6413 is resolved
+          type inet:ip-address;
+        }
+        leaf phys-address {
+          type yang:phys-address;
+        }
+      }
+    }
+  }
+
+  // TODO express constraints for L2 FIB entries in YANG if possible
+  grouping l2-fib-attributes {
+    container l2-fib-table {
+      list l2-fib-entry {
+        key "phys-address";
+
+        leaf phys-address {
+          type yang:phys-address;
+        }
+
+        leaf outgoing-interface {
+          // either filter must be specified or interface(can't be both)
+          when "../action != 'l2-fib-filter'";
+          type if:interface-ref;
+          // mandatory true; - when is not actually resolved, so mandatory can't be in place
+          description
+            "One of interfaces assigned to the FIB table's bridge-domain.";
+        }
+        leaf static-config {
+          type boolean;
+          default false;
+          description
+            "Static entries cannot be overridden by mac learning.";
+        }
+        leaf action {
+          type l2-fib-action;
+          mandatory true;
+          description
+            "L2 FIB action. For filter action, entry must be configured as static.";
+        }
+        leaf bridged-virtual-interface {
+          when "../action = 'forward'";
+          type boolean;
+          config false; // FIXME setting bvi is currently not supported by VPP's binary api
+        }
+      }
+    }
+  }
+
+  grouping interface-tag {
+    leaf tag {
+      type string {
+        length 1..63;
+      }
+      description
+        "ASCII string placeholder for interface metadata. Value is stored in vpp,
+         and returned in read requests. No processing involved.";
+    }
+  }
+
+  grouping tap-interface-base-attributes {
+    leaf tap-name {
+      type string{
+        pattern "[a-zA-Z0-9\-;.+@$#^&*!_()=\[\]]*";
+      }
+    }
+    uses interface-tag;
+  }
+
+  grouping tap-interface-config-attributes {
+    leaf mac {
+      type yang:phys-address;
+      mandatory false;
+      description "Mac address to be set for the tap interface. Random will be used if not configured";
+    }
+
+    leaf device-instance {
+      type uint32;
+      mandatory false;
+      description "Custom device instance. Autogenerated will be used if not configured";
+    }
+  }
+
+  grouping loopback-interface-base-attributes {
+    leaf mac {
+      type yang:phys-address;
+      mandatory false;
+      description "Mac address of the loopback interface";
+    }
+  }
+
+  grouping ethernet-base-attributes {
+    leaf mtu {
+      type uint16 {
+        range "64..9216";
+      }
+      units "octets";
+      default 9216;
+      description
+      "The size, in octets, of the largest packet that the
+       hardware interface will send and receive.";
+    }
+  }
+
+  grouping routing-base-attributes {
+    leaf ipv4-vrf-id {
+      type uint32;
+    }
+    leaf ipv6-vrf-id {
+      type uint32;
+    }
+    description
+      "Defines VRF tables used for ipv4 and ipv6 traffic";
+  }
+
+  grouping ethernet-state-attributes {
+    leaf manufacturer-description {
+      type string;
+      config false;
+    }
+    leaf duplex {
+      type enumeration {
+        enum "half";
+        enum "full";
+      }
+      config false;
+    }
+  }
+
+  grouping vhost-user-interface-base-attributes {
+    leaf socket {
+      type string {
+        length 1..255;
+      }
+    }
+    leaf role {
+      type vhost-user-role;
+      default "server";
+    }
+    uses interface-tag;
+    description "vhost-user settings";
+  }
+
+  grouping vhost-user-interface-config-attributes {
+    leaf device-instance {
+      type uint32;
+      mandatory false;
+      description "Custom device instance. Autogenerated will be used if not configured";
+    }
+    description "vhost-user settings";
+  }
+
+  grouping vhost-user-interface-state-attributes {
+    leaf features {
+      type uint64;
+      config false;
+    }
+    leaf virtio-net-hdr-size {
+      type uint32;
+      config false;
+    }
+    leaf num-memory-regions {
+      type uint32;
+      config false;
+    }
+    leaf connect-error {
+      type string;
+      config false;
+    }
+  }
+
+  /*
+   * Defines the supported decap node for vxlan.
+   */
+  identity decap-node {
+    description
+    "Define the supported decap node";
+  }
+  identity l2-input {
+    base decap-node;
+    description
+    "The next decap node is l2-input";
+  }
+  identity nsh-proxy {
+    base decap-node;
+    description
+    "The next decap node is nsh-proxy";
+  }
+  typedef vxlan-decap-node {
+    type identityref {
+      base "decap-node";
+    }
+  }
+  grouping vxlan-base-attributes {
+    // FIXME: this should be in an vxlan-specific extension
+    leaf src {
+      /*mandatory true;*/
+      type inet:ip-address;
+    }
+    leaf dst {
+      /*mandatory true;*/
+      type inet:ip-address;
+    }
+    leaf vni {
+      /*mandatory true;*/
+      type vxlan-vni;
+    }
+    leaf encap-vrf-id {
+      type uint32;
+    }
+    leaf decap-next {
+      type vxlan-decap-node;
+      default "l2-input";
+    }
+  }
+
+  grouping gre-base-attributes {
+    leaf src {
+      /*mandatory true;*/
+      type inet:ip-address;
+    }
+    leaf dst {
+      /*mandatory true;*/
+      type inet:ip-address;
+    }
+    leaf outer-fib-id {
+      type uint32;
+    }
+  }
+
+  grouping vxlan-gpe-base-attributes {
+    leaf local {
+      /*mandatory true;*/
+      type inet:ip-address;
+    }
+    leaf remote {
+      /*mandatory true;*/
+      type inet:ip-address;
+    }
+    leaf vni {
+      /*mandatory true;*/
+      type vxlan-gpe-vni;
+    }
+    leaf next-protocol {
+      type vxlan-gpe-next-protocol;
+    }
+    leaf encap-vrf-id {
+      type uint32;
+    }
+    leaf decap-vrf-id {
+      type uint32;
+    }
+  }
+
+  grouping l2-base-attributes {
+      description
+      "Parameters for configuring Layer2 features on interfaces.";
+
+      choice interconnection {
+        case xconnect-based {
+          leaf xconnect-outgoing-interface {
+            /* Don't allow selection of this interface */
+            must "../../if:name != current()";
+            type if:interface-ref; // todo use interface-state-ref for operational data?
+            description
+              "L2 xconnect mode";
+          }
+        }
+        case bridge-based {
+          leaf bridge-domain {
+            type bridge-domain-ref;
+            mandatory true;
+            description
+              "Interfaces in a bridge-domain forward packets to other
+               interfaces in the same bridge-domain based on
+               destination mac address.";
+          }
+          leaf split-horizon-group {
+            when "../bridge-domain";
+            type uint8 {
+              range "0..255";
+            }
+            default 0; //no split horizon group
+            description
+              "Interface's split-horizon group. Interfaces in the same
+               bridge-domain and split-horizon group can not forward
+               packets between each other. ";
+          }
+          leaf bridged-virtual-interface {
+            when "../bridge-domain";
+            type boolean;
+            default false;
+            description
+              "Interface forward packets in the bridge-domain
+               associated with the BVI.";
+          }
+        }
+      }
+  }
+
+  grouping proxy-arp-attributes {
+        description
+        "Parameters for configuring Proxy ARP on interfaces.";
+
+      leaf vrf-id {
+        type uint32;
+        default 0;
+      }
+      leaf low-addr {
+          type inet:ipv4-address;
+      }
+      leaf high-addr {
+          type inet:ipv4-address;
+      }
+  }
+
+  grouping span-attributes {
+    description "Parameters of the SPAN feature";
+
+    container mirrored-interfaces {
+      list mirrored-interface {
+        key "iface-ref";
+        leaf iface-ref {
+          type if:interface-ref; // todo use interface-state-ref for operational data?
+        }
+
+        leaf state {
+          type span-state;
+          mandatory true;
+        }
+      }
+    }
+  }
+
+  augment /if:interfaces/if:interface {
+    ext:augment-identifier "vpp-interface-augmentation";
+
+    // FIXME using ietf-interfaces model for vpp interfaces makes it hard to implement because:
+    // 1. The link between interface type and this augmentation is unclear
+    // 2. Only this augmentation with combination of ifc type is trigger to do something for vpp, what if user only configures base interface stuff ? + We need to get leaves defined by ietf-interfaces when we are processing this augment
+    // 3. The ietf-interfaces model does not define groupings which makes types reuse difficult
+
+    container tap {
+      when "../if:type = 'v3po:tap'";
+      uses tap-interface-base-attributes;
+      uses tap-interface-config-attributes;
+    }
+
+    container loopback {
+      presence "Presence of this container indicates loopback nature of the interface";
+      when "../if:type = 'v3po:loopback'";
+      uses loopback-interface-base-attributes;
+    }
+
+    container ethernet {
+      when "../if:type = 'ianaift:ethernetCsmacd'";
+      uses ethernet-base-attributes;
+    }
+
+    container routing {
+      uses routing-base-attributes;
+    }
+
+    container vhost-user {
+      when "../if:type = 'v3po:vhost-user'";
+      uses vhost-user-interface-base-attributes;
+      uses vhost-user-interface-config-attributes;
+    }
+
+    container vxlan {
+      when "../if:type = 'v3po:vxlan-tunnel'";
+      uses vxlan-base-attributes;
+    }
+
+    container gre {
+      when "../if:type = 'v3po:gre-tunnel'";
+      uses gre-base-attributes;
+    }
+
+    container l2 {
+      must "bridged-virtual-interface = 'true' or " +
+           "(not (../if:ipv4[if:enabled = 'true']/if:address/if:ip) and " +
+           "not (../if:ipv6[if:enabled = 'true']/if:address/if:ip))";
+
+      uses l2-base-attributes;
+    }
+
+    container vxlan-gpe {
+      when "../if:type = 'v3po:vxlan-gpe-tunnel'";
+
+      uses vxlan-gpe-base-attributes;
+    }
+
+    container proxy-arp {
+      uses proxy-arp-attributes;
+    }
+
+    container acl {
+      container ingress {
+        uses vpp-classfier-acl:acl-base-attributes;
+      }
+      container egress {
+        uses vpp-classfier-acl:acl-base-attributes;
+      }
+    }
+
+    container ietf-acl {
+      container ingress {
+        uses vpp-classfier-acl:ietf-acl-base-attributes;
+      }
+      container egress {
+        uses vpp-classfier-acl:ietf-acl-base-attributes;
+      }
+    }
+
+    container span {
+      uses span-attributes;
+    }
+  }
+
+  container vpp {
+    description
+    "VPP config data";
+
+    container bridge-domains {
+      list bridge-domain {
+        key "name";
+
+        leaf name {
+          type string;
+        }
+
+        uses bridge-domain-attributes;
+        uses l2-fib-attributes;
+
+        description
+          "bridge-domain configuration";
+      }
+    }
+  }
+
+  augment /if:interfaces-state/if:interface {
+    ext:augment-identifier "vpp-interface-state-augmentation";
+
+    leaf description {
+      type string;
+    }
+
+    container tap {
+      when "../if:type = 'v3po:tap'";
+      uses tap-interface-base-attributes;
+    }
+
+    container ethernet {
+      when "../if:type = 'ianaift:ethernetCsmacd'";
+      uses ethernet-base-attributes;
+      uses ethernet-state-attributes;
+    }
+
+    container routing {
+      uses routing-base-attributes;
+    }
+
+    container vhost-user {
+      when "../if:type = 'v3po:vhost-user'";
+      uses vhost-user-interface-base-attributes;
+      uses vhost-user-interface-state-attributes;
+    }
+
+    container vxlan {
+      when "../if:type = 'v3po:vxlan-tunnel'";
+      uses vxlan-base-attributes;
+    }
+    container vxlan-gpe {
+      when "../if:type = 'v3po:vxlan-gpe-tunnel'";
+
+      uses vxlan-gpe-base-attributes;
+    }
+
+    container gre {
+      when "../if:type = 'gre-tunnel'";
+      uses gre-base-attributes;
+    }
+
+    container l2 {
+      must "bridged-virtual-interface = 'true' or " +
+           "(not (../if:ipv4[if:enabled = 'true']/if:address/if:ip) and " +
+           "not (../if:ipv6[if:enabled = 'true']/if:address/if:ip))";
+
+      uses l2-base-attributes;
+    }
+
+    container proxy-arp {
+      uses proxy-arp-attributes;
+    }
+
+    container acl {
+      container ingress {
+        uses vpp-classfier-acl:acl-base-attributes;
+      }
+      container egress {
+        uses vpp-classfier-acl:acl-base-attributes;
+      }
+    }
+
+    container ietf-acl {
+      container ingress {
+        uses vpp-classfier-acl:ietf-acl-base-attributes;
+      }
+      container egress {
+        uses vpp-classfier-acl:ietf-acl-base-attributes;
+      }
+    }
+
+    container span {
+      uses span-attributes;
+    }
+  }
+
+  augment /if:interfaces-state/if:interface/if:statistics {
+    ext:augment-identifier "vpp-interface-statistics-augmentation";
+    leaf in-errors-no-buf {
+      type yang:counter64;
+    }
+    leaf in-errors-miss {
+      type yang:counter64;
+    }
+    leaf out-discards-fifo-full {
+      type yang:counter64;
+    }
+  }
+
+  container vpp-state {
+    config false;
+
+    description
+      "VPP operational data";
+
+    container bridge-domains {
+      // FIXME: Should this live in bridge-domain.yang in a modular fashion ?
+      list bridge-domain {
+
+        key "name";
+        leaf name {
+          type string;
+        }
+
+        uses bridge-domain-attributes;
+        uses l2-fib-attributes;
+
+        description
+          "bridge-domain operational data";
+      }
+    }
+
+    container version {
+      leaf name {
+        type string;
+      }
+      leaf build-directory {
+        type string;
+      }
+      leaf build-date {
+        type string;
+      }
+      leaf branch {
+        type string;
+      }
+      leaf pid {
+        type uint32;
+        description
+          "PID of the vpp process";
+      }
+      description
+      "vlib version info";
+    }
+  }
+
+  // VPP Notifications
+
+  typedef interface-status {
+    type enumeration {
+      enum up {
+        value 1;
+      }
+      enum down {
+        value 0;
+      }
+    }
+  }
+
+  typedef interface-name-or-index {
+    type union {
+      type string;
+      type uint32;
+    }
+  }
+
+  notification interface-state-change {
+    leaf name {
+        type interface-name-or-index;
+    }
+
+    leaf admin-status {
+        type interface-status;
+    }
+
+    leaf oper-status {
+        type interface-status;
+    }
+  }
+
+  notification interface-deleted {
+    leaf name {
+        type interface-name-or-index;
+    }
+  }
+
+  rpc cli-inband {
+    input {
+      leaf cmd {
+        type string;
+      }
+    }
+    output {
+      leaf reply {
+        type string;
+      }
+    }
+  }
+}

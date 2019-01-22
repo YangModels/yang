@@ -1,0 +1,422 @@
+module ebgp {
+
+  yang-version "1";
+
+  // namespace
+  namespace "urn:ericsson:params:xml:ns:yang:ebgp";
+
+  prefix "ericsson-bgp";
+
+  // import some basic inet types
+  import ietf-inet-types { prefix inet; revision-date "2013-07-15"; }
+
+  // meta
+  organization
+    "Ericsson Bangalore";
+
+  contact
+    "Ericsson Bangalore";
+
+  description
+    "BGP configuration model for Ericsson's implementation of
+    Opendaylight L3VPN";
+
+  revision "2015-09-01" {
+  }
+
+
+  typedef tcp-md5-signature-password-type {
+    type string {
+      length 1..80;
+    } // subtype string
+    description
+      "The shared secret used by TCP MD5 Signature Option.  The length is
+       limited to 80 chars because A) it is identified by the RFC as current
+       practice and B) it is the maximum length accepted by Quagga
+       implementation.";
+    reference "RFC 2385";
+  } // typedef tcp-md5-signature-password-type
+
+
+  grouping tcp-security-option-grouping {
+    description "TCP security options.";
+    choice tcp-security-option {
+      description "The tcp security option in use, if any.";
+
+      case tcp-md5-signature-option {
+        description "The connection uses TCP MD5 Signature Option.";
+        reference "RFC 2385";
+        leaf tcp-md5-signature-password {
+          type tcp-md5-signature-password-type;
+          description "The shared secret used to sign the packets.";
+        } // leaf tcp-md5-signature-password
+      } // case tcp-md5-signature-option
+
+    } // choice tcp-security-option
+  } // grouping tcp-security-option-grouping
+
+
+ container bgp {
+  config "true";
+  container config-server {
+    leaf host {
+      type inet:ipv4-address;
+      mandatory "true";
+    }
+    leaf port {
+      type uint32;
+      mandatory "true";
+    }
+  }
+
+  container as-id {
+    leaf local-as {
+      type uint32;
+      mandatory "true";
+    }
+    leaf router-id {
+      type inet:ip-address;
+    }
+    leaf stalepath-time {
+      type uint32;
+      default 360;
+    }
+    leaf announce-fbit {
+      type boolean;
+    }
+    leaf keepalive {
+        type         uint32;
+        description  "BGP keepalive timer value";
+        default      60;
+    }
+    leaf holdtime {
+        type         uint32;
+        description  "BGP hold time value";
+        default      180;
+    }
+  }
+
+  container graceful-restart {
+    leaf stalepath-time {
+      type uint32;
+      mandatory "true";
+    }
+  }
+
+  container logging {
+    leaf file {
+      type string;
+    }
+    leaf level {
+      type string;
+    }
+  }
+
+  list neighbors {
+    key "address";
+    leaf address {
+      type inet:ipv4-address;
+      mandatory "true";
+    }
+    leaf remote-as {
+      type uint32;
+      mandatory "true";
+    }
+    uses tcp-security-option-grouping;
+    container ebgp-multihop {
+      leaf nhops {
+        type uint32;
+      }
+      leaf peer-ip {
+        type leafref {
+          path "/ericsson-bgp:bgp/neighbors/address";
+        }
+      }
+    }
+    container update-source {
+      leaf source-ip {
+        type inet:ipv4-address;
+      }
+      leaf peer-ip {
+        type leafref {
+          path "/ericsson-bgp:bgp/neighbors/address";
+        }
+      }
+    }
+    list address-families {
+      key "afi safi";
+      leaf afi {
+        type uint32;
+        mandatory "true";
+      }
+      leaf safi {
+        type uint32;
+        mandatory "true";
+      }
+      leaf peer-ip {
+        type leafref {
+          path "/ericsson-bgp:bgp/neighbors/address";
+        }
+      }
+    } //addr-families
+  } // neighbhors
+
+  list networks {
+    key "rd prefix-len";
+    leaf rd {
+      type string;
+    }
+    leaf prefix-len {
+      type string;
+    }
+    leaf afi {
+      type uint32;
+    }
+    leaf macaddress {
+      description "Mac address of the advertised host.";
+      type string;
+    }
+    leaf bgp_control_plane_type{
+      description "Specifies the route type";
+      type bgp_control_plane_type;
+      mandatory "true";
+    }
+    leaf nexthop {
+      type inet:ipv4-address;
+    }
+    leaf label {
+      type uint32;
+    }
+    leaf ethtag {
+      description "Ethernet Tag Id to Identify a broadcast domain in an EVPN Instance";
+      type uint32;
+    }
+    leaf esi {
+      description "Ethernet Segment Identifier.";
+      type string;
+    }
+    leaf encap-type {
+      description "Encapsulation types supported as per RFC 5512.";
+      type encap_type;
+    }
+    leaf routermac {
+      description "Gateway Mac Address for the advertised host.";
+      type string;
+    }
+    leaf l3vni {
+      description "VxLAN Identifier.";
+      type uint32;
+    }
+
+    leaf l2vni {
+      type uint32;
+      description "l2vni for EVPN RT2 route advertisement";
+    }
+
+  } // networks
+
+  list vrfs {
+    key "rd";
+    leaf rd {
+      type string;
+    }
+    list address-families-vrf {
+      key "afi safi";
+      leaf afi {
+        type uint32;
+        mandatory "true";
+      }
+      leaf safi {
+        type uint32;
+        mandatory "true";
+      }
+    }
+    leaf-list import-rts {
+      type string;
+    }
+    leaf-list export-rts {
+      type string;
+    }
+  }
+
+  typedef layer_type
+    {
+      description
+        "This value represents the layer to which
+        a VRF entry belongs to in IP protocol.";
+      type enumeration
+      {
+        enum LAYER_2
+        {
+          value "1";
+          description "VRF represents a MAC-VRF.";
+        }
+        enum LAYER_3
+        {
+          value "2";
+          description "VRF represents an IP-VRF.";
+        }
+      }
+    }
+
+  typedef address_family
+    {
+      description
+        "This value represents the address family
+        a VRF entry supports";
+      type enumeration
+      {
+        enum IPV_4
+        {
+          value "1";
+          description "VRF represents IPv4 VRF.";
+        }
+        enum IPV_6
+        {
+          value "2";
+          description "VRF represents an IPv6-VRF.";
+        }
+        enum L2VPN
+        {
+          value "3";
+          description "VRF represents a MAC-VRF.";
+        }
+      }
+    }
+
+  typedef encap_type
+  {
+    description
+      "Encapsulation types supported as per
+      RFC 5512 - The BGP Encapsulation Subsequent
+      Address Family Identifier (SAFI) and the
+      BGP Tunnel Encapsulation Attribute";
+    type enumeration
+    {
+      enum L2TPV3_OVER_IP
+      {
+        value "1";
+        description "L2TPV3_OVER_IP";
+      }
+      enum GRE
+      {
+        value "2";
+        description "GRE";
+      }
+      enum IP_IN_IP
+      {
+        value "7";
+        description "IP_IN_IP";
+      }
+      enum VXLAN
+      {
+        value "8";
+        description "VXLAN";
+      }
+      enum MPLS
+      {
+        value "10";
+        description "MPLS";
+        }
+    }
+  }
+
+  typedef bgp_control_plane_type
+  {
+    description
+      "protocol type - used to know which route type is referred to";
+    type enumeration
+    {
+      enum PROTOCOL_LU
+      {
+        value "1";
+        description "PROTOCOL_LU";
+      }
+      enum PROTOCOL_L3VPN
+      {
+        value "2";
+        description "PROTOCOL_L3VPN";
+      }
+      enum PROTOCOL_EVPN
+      {
+        value "3";
+        description "PROTOCOL_EVPN";
+      }
+      enum PROTOCOL_ANY
+      {
+        value "4";
+        description "PROTOCOL_ANY";
+      }
+    }
+  }
+
+  leaf vpn-type
+  {
+    description
+      "The type of the VPN Instance.
+      L3 indicates it is an L3VPN.
+      L2 indicates it is EVPN";
+    type enumeration
+    {
+      enum l3
+      {
+        value "0";
+        description "L3VPN";
+      }
+      enum l2
+      {
+        value "1";
+        description "EVPN";
+      }
+    }
+    default "l3";
+  }
+
+  list multipath {
+
+     key "afi safi";
+
+     leaf afi {
+       type uint32;
+       mandatory "true";
+     }
+
+     leaf safi {
+       type uint32;
+       mandatory "true";
+     }
+
+     leaf multipath-enabled {
+       type boolean;
+       mandatory "true";
+     }
+  } //multipath
+
+  list vrfMaxpath {
+       key "rd";
+
+       leaf rd {
+         type string;
+       }
+
+       leaf maxpaths {
+         type uint16;
+       }
+  } //vrfMaxpaths
+
+  container dcgw-tep-list {
+      list dcgw-tep {
+          key          "dc-gw-ip";
+          description  "mapping: DC-Gwy ip <> TEP ip";
+
+          leaf dc-gw-ip {
+              type string;
+          }
+          leaf-list tep-ips {
+              type string;
+          }
+      }
+  }
+
+ } // bgp
+}

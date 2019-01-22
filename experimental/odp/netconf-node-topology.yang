@@ -1,0 +1,367 @@
+module netconf-node-topology {
+    namespace "urn:opendaylight:netconf-node-topology";
+    prefix "nettop";
+
+    import network-topology { prefix nt; revision-date 2013-10-21; }
+    import yang-ext { prefix ext; revision-date "2013-07-09";}
+    import ietf-inet-types { prefix inet; revision-date "2013-07-15"; }
+
+    revision "2015-01-14" {
+        description "Initial revision of Topology model";
+    }
+
+    augment "/nt:network-topology/nt:topology/nt:topology-types" {
+        container topology-netconf {
+            presence "The presence of the container node indicates a network
+                      of NETCONF devices";
+        }
+    }
+
+    grouping username-password {
+        leaf username {
+            type string;
+        }
+
+        leaf password {
+            type string;
+        }
+    }
+
+    grouping netconf-node-credentials {
+        choice credentials {
+            config true;
+            case login-password {
+                description "Deprecated way of storing credentials, unencrypted.";
+
+                status deprecated;
+                uses username-password;
+            }
+            case login-pw {
+                description "login-password credentials, encrypted.";
+
+                container login-password {
+                    uses username-password;
+                }
+            }
+            case login-pw-unencrypted {
+                description "login-password credentials, not encrypted.";
+
+                container login-password-unencrypted {
+                    uses username-password;
+                }
+            }
+            case key-auth {
+                description "key-based authentication, use the id for the pair thats stored in the keystore.";
+
+                container key-based {
+                    leaf key-id {
+                        type string;
+                    }
+
+                    leaf username {
+                        type string;
+                    }
+                }
+            }
+        }
+    }
+
+    grouping netconf-node-connection-parameters {
+
+        leaf host {
+            type inet:host;
+        }
+
+        leaf port {
+            type inet:port-number;
+        }
+
+        leaf tcp-only {
+            config true;
+            type boolean;
+        }
+
+        container protocol {
+            config true;
+            leaf name {
+                type enumeration {
+                    enum SSH;
+                    enum TLS;
+                }
+                default SSH;
+            }
+
+            choice specification {
+                case tls-case {
+                   container tls {
+                       leaf-list excluded-versions {
+                           type string;
+                           description "A list of TLS version names provided in JDK that are not supported by the
+                                        target netconf device, eg, the netopeer2 simulator does not support the
+                                        SSLv2Hello. Most of the time, this list need not be set";
+                       }
+                   }
+                }
+            }
+        }
+
+        leaf schemaless {
+            type boolean;
+            default false;
+        }
+
+        container yang-module-capabilities {
+            config true;
+            leaf override {
+                type boolean;
+                default false;
+                description "Whether to override or merge this list of capabilities with capabilities from device";
+            }
+
+            leaf-list capability {
+                type string;
+                description "Set a list of capabilities to override capabilities provided in device's hello message.
+                             Can be used for devices that do not report any yang modules in their hello message";
+            }
+        }
+
+        container non-module-capabilities {
+            config true;
+            leaf override {
+                type boolean;
+                default false;
+                description "Whether to override or merge this list of non-module based capabilities with non-module
+                             based capabilities from device";
+            }
+
+            leaf-list capability {
+                type string;
+                description "Set a list of non-module based capabilities to override or merge non-module capabilities
+                             provided in device's hello message. Can be used for devices that do not report or
+                             incorrectly report non-module based capabilities in their hello message";
+            }
+        }
+
+        leaf reconnect-on-changed-schema {
+            config true;
+            type boolean;
+            default false;
+            description "If true, the connector would auto disconnect/reconnect when schemas are changed in the remote device.
+                         The connector subscribes (right after connect) to base netconf notifications and listens for netconf-capability-change notification";
+        }
+
+        leaf connection-timeout-millis {
+            description "Specifies timeout in milliseconds after which connection must be established.";
+            config true;
+            type uint32;
+            default 20000;
+        }
+
+        leaf default-request-timeout-millis {
+            description "Timeout for blocking operations within transactions.";
+            config true;
+            type uint32;
+            default 60000;
+        }
+
+        leaf max-connection-attempts {
+            description "Maximum number of connection retries. Non positive value or null is interpreted as infinity.";
+            config true;
+            type uint32;
+            default 0; // retry forever
+        }
+
+        leaf between-attempts-timeout-millis {
+            description "Initial timeout in milliseconds to wait between connection attempts. Will be multiplied by sleep-factor with every additional attempt";
+            config true;
+            type uint16;
+            default 2000;
+        }
+
+        leaf sleep-factor {
+            config true;
+            type decimal64 {
+                fraction-digits 1;
+            }
+            default 1.5;
+        }
+
+        // Keepalive configuration
+        leaf keepalive-delay {
+            config true;
+            type uint32;
+            default 120;
+            description "Netconf connector sends keepalive RPCs while the session is idle, this delay specifies the delay between keepalive RPC in seconds
+                         If a value <1 is provided, no keepalives will be sent";
+        }
+
+        leaf concurrent-rpc-limit {
+            config true;
+            type uint16;
+            default 0;
+            description "Limit of concurrent messages that can be send before reply messages are received.
+                         If value <1 is provided, no limit will be enforced";
+        }
+
+        leaf actor-response-wait-time {
+                    config true;
+                    type uint16 {
+                      range "1..max";
+                    }
+                    default 5;
+                    description "Time that slave actor will wait for response from master.";
+        }
+
+        container odl-hello-message-capabilities {
+            config true;
+            leaf-list capability {
+                type inet:uri;
+                description "Certain devices are non-accepting of ODL's hello message.  This allows specification of
+                             a custom ODL hello message based on a list of supported capabilities.";
+            }
+        }
+    }
+
+    grouping netconf-node-connection-status {
+
+        leaf connection-status {
+            config false;
+            type enumeration {
+                enum connecting;
+                enum connected;
+                enum unable-to-connect;
+            }
+        }
+
+        container clustered-connection-status {
+            config false;
+            list node-status {
+                leaf node {
+                    type string;
+                }
+                leaf status {
+                    type enumeration {
+                        enum connected;
+                        enum unavailable;
+                        enum failed;
+                    }
+                }
+            }
+            leaf netconf-master-node {
+                config false;
+                type string;
+            }
+        }
+
+        leaf connected-message {
+            config false;
+            type string;
+        }
+
+        container available-capabilities {
+            config false;
+            list available-capability {
+                leaf capability {
+                    type string;
+                }
+                leaf capability-origin {
+                    type enumeration {
+                        enum user-defined;
+                        enum device-advertised;
+                    }
+                }
+            }
+        }
+
+        container unavailable-capabilities {
+            config false;
+            list unavailable-capability {
+                leaf capability {
+                    type string;
+                }
+
+                leaf failure-reason {
+                    type enumeration {
+                        enum missing-source;
+                        enum unable-to-resolve;
+                    }
+                }
+            }
+        }
+
+        container pass-through {
+            when "../connection-status = connected";
+            description
+                "When the underlying node is connected, its NETCONF context
+                is available verbatim under this container through the
+                mount extension.";
+        }
+
+    }
+
+    grouping netconf-schema-storage {
+        leaf schema-cache-directory {
+            config true;
+            type string;
+            default "schema";
+            description "The destination schema repository for yang files relative to the cache directory.  This may be specified per netconf mount
+                         so that the loaded yang files are stored to a distinct directory to avoid potential conflict.";
+        }
+
+        container yang-library {
+            leaf yang-library-url {
+                config true;
+                type inet:uri;
+                description "Yang library to be plugged as additional source provider into the shared schema repository";
+            }
+
+            // credentials for basic http authentication
+            leaf username {
+                config true;
+                type string;
+            }
+
+            leaf password {
+                config true;
+                type string;
+            }
+        }
+    }
+
+    grouping netconf-node-fields {
+
+        uses netconf-node-credentials;
+
+        uses netconf-node-connection-parameters;
+
+        uses netconf-node-connection-status;
+
+        uses netconf-schema-storage;
+
+    }
+
+    rpc create-device {
+        input {
+            uses netconf-node-fields;
+            leaf node-id {
+                type string;
+            }
+        }
+    }
+
+    rpc delete-device {
+        input {
+            leaf node-id {
+                type string;
+            }
+        }
+    }
+
+    augment "/nt:network-topology/nt:topology/nt:node" {
+        when "../../nt:topology-types/topology-netconf";
+        ext:augment-identifier "netconf-node";
+
+        uses netconf-node-fields;
+    }
+
+}

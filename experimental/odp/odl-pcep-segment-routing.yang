@@ -1,0 +1,270 @@
+module odl-pcep-segment-routing {
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:pcep:segment:routing";
+    prefix "pcep-sr";
+
+    import pcep-types { prefix pcep; revision-date 2018-11-09; }
+    import pcep-message { prefix msg; revision-date 2018-11-09; }
+    import odl-pcep-ietf-stateful07 { prefix stateful; revision-date 2018-11-09; }
+    import odl-pcep-ietf-initiated00 { prefix crabbe; revision-date 2018-11-09; }
+    import ietf-inet-types { prefix inet; revision-date 2013-07-15; }
+    import network-topology { prefix nt; revision-date 2013-10-21; }
+    import network-topology-pcep { prefix pn; revision-date 2018-11-09; }
+
+    organization "Cisco Systems, Inc.";
+    contact "Milos Fabian <milfabia@cisco.com>";
+
+    description
+        "This module contains the data model of PCEP Extensions for Segment Routing,
+        draft-ietf-pce-segment-routing-01.
+
+        Copyright (c)2015 Cisco Systems, Inc. All rights reserved.
+
+        This program and the accompanying materials are made available
+        under the terms of the Eclipse Public License v1.0 which
+        accompanies this distribution, and is available at
+        http://www.eclipse.org/legal/epl-v10.html";
+
+    revision "2018-11-09" {
+        description
+            "P2MP extension.";
+        reference "RFC8306";
+    }
+
+    revision 2017-10-25 {
+        description "Update network-topology-pcep revision";
+    }
+
+    revision "2015-01-12" {
+        description
+            "Upgrade from draft-sivabalan-pce-segment-routing-02.";
+        reference "http://tools.ietf.org/html/draft-ietf-pce-segment-routing-01";
+    }
+
+    grouping sr-pce-capability-tlv {
+        description "SR-PCE-CAPABILITY TLV";
+        reference "http://tools.ietf.org/html/draft-ietf-pce-segment-routing-01#section-5.1.1";
+
+        container sr-pce-capability {
+            uses pcep:tlv;
+            leaf msd {
+                description "Maximum SID Depth";
+                type uint8;
+                default 0;
+            }
+        }
+    }
+
+    augment "/msg:open/msg:open-message/msg:open/msg:tlvs" {
+        reference "http://tools.ietf.org/html/draft-ietf-pce-segment-routing-01#section-5.1";
+        uses sr-pce-capability-tlv;
+    }
+
+    augment "/msg:pcerr/msg:pcerr-message/msg:error-type/msg:session-case/msg:session/msg:open/msg:tlvs" {
+        reference "http://tools.ietf.org/html/draft-ietf-pce-segment-routing-01#section-5.1";
+        uses sr-pce-capability-tlv;
+    }
+
+    typedef sid-type {
+        reference "http://tools.ietf.org/html/draft-ietf-pce-segment-routing-01#section-5.3.1";
+        type enumeration {
+            enum ipv4-node-id {
+                value 1;
+            }
+            enum ipv6-node-id {
+                value 2;
+            }
+            enum ipv4-adjacency {
+                value 3;
+            }
+            enum ipv6-adjacency {
+                value 4;
+            }
+            enum unnumbered {
+                value 5;
+            }
+        }
+    }
+
+    grouping sr-subobject {
+        description "Common grouping for both SR-ERO and SR-RRO subobjects as they share the same content representation.";
+        leaf c-flag {
+            type boolean;
+            default false;
+        }
+        leaf m-flag {
+            type boolean;
+            default false;
+        }
+        leaf sid-type {
+            type sid-type;
+        }
+        leaf sid {
+            description "Segment Identifier";
+            type uint32;
+        }
+        choice nai {
+            reference "http://tools.ietf.org/html/draft-ietf-pce-segment-routing-01#section-5.3.2";
+            description "Node or Adjacency Identifier";
+            case ip-node-id {
+                when "../sid-type = 'ipv4-node-id' or ../sid-type = 'ipv6-node-id'";
+                description "IP Node ID";
+                leaf ip-address {
+                    type inet:ip-address-no-zone;
+                    mandatory true;
+                }
+            }
+            case ip-adjacency {
+                when "../sid-type = 'ipv4-adjacency' or ../sid-type = 'ipv6-adjacency'";
+                description "IP Adjacency";
+                leaf local-ip-address {
+                    type inet:ip-address-no-zone;
+                    mandatory true;
+                }
+                leaf remote-ip-address {
+                    type inet:ip-address-no-zone;
+                    mandatory true;
+                }
+            }
+            case unnumbered-adjacency {
+                when "../sid-type = 'unnumbered'";
+                description "Unnumbered Adjacency with IPv4 NodeIDs";
+                leaf local-node-id {
+                    type uint32;
+                    mandatory true;
+                }
+                leaf local-interface-id {
+                    type uint32;
+                    mandatory true;
+                }
+                leaf remote-node-id {
+                    type uint32;
+                    mandatory true;
+                }
+                leaf remote-interface-id {
+                    type uint32;
+                    mandatory true;
+                }
+            }
+        }
+    }
+
+    // kept both groupings in case draft changes and they won't be equal
+    grouping sr-ero-subobject {
+        reference "http://tools.ietf.org/html/draft-ietf-pce-segment-routing-01#section-5.3.1";
+        uses sr-subobject;
+    }
+
+    grouping sr-rro-subobject {
+        reference "http://tools.ietf.org/html/draft-ietf-pce-segment-routing-01#section-5.4";
+        uses sr-subobject;
+    }
+
+    //ERO augmentations
+    augment "/msg:pcrep/msg:pcrep-message/msg:replies/msg:result/msg:success-case/msg:success/msg:paths/msg:ero/msg:subobject/msg:subobject-type" {
+        case sr-ero-type {
+            uses sr-ero-subobject;
+        }
+    }
+
+    //stateful07
+    augment "/crabbe:pcinitiate/crabbe:pcinitiate-message/crabbe:requests/crabbe:ero/crabbe:subobject/crabbe:subobject-type" {
+        case sr-ero-type {
+            uses sr-ero-subobject;
+        }
+    }
+
+    augment "/stateful:pcrpt/stateful:pcrpt-message/stateful:reports/stateful:path/stateful:ero/stateful:subobject/stateful:subobject-type" {
+        case sr-ero-type {
+            uses sr-ero-subobject;
+        }
+    }
+
+    augment "/stateful:pcupd/stateful:pcupd-message/stateful:updates/stateful:path/stateful:ero/stateful:subobject/stateful:subobject-type" {
+        case sr-ero-type {
+            uses sr-ero-subobject;
+        }
+    }
+
+    //nt-pcep
+    augment "/pn:add-lsp/pn:input/pn:arguments/pn:ero/pn:subobject/pn:subobject-type" {
+        case sr-ero-type {
+            uses sr-ero-subobject;
+        }
+    }
+
+    augment "/pn:update-lsp/pn:input/pn:arguments/pn:ero/pn:subobject/pn:subobject-type" {
+        case sr-ero-type {
+            uses sr-ero-subobject;
+        }
+    }
+
+    augment "/nt:network-topology/nt:topology/nt:node/pn:path-computation-client/pn:reported-lsp/pn:path/pn:ero/pn:subobject/pn:subobject-type" {
+        case sr-ero-type {
+            uses sr-ero-subobject;
+        }
+    }
+
+    //RRO augmentations
+    augment "/msg:pcreq/msg:pcreq-message/msg:requests/msg:segment-computation/msg:p2p/msg:reported-route/msg:rro/msg:subobject/msg:subobject-type" {
+        case sr-rro-type {
+            uses sr-rro-subobject;
+        }
+    }
+
+    augment "/msg:pcreq/msg:pcreq-message/msg:requests/msg:segment-computation/msg:p2p/msg:rro/msg:subobject/msg:subobject-type" {
+        case sr-rro-type {
+            uses sr-rro-subobject;
+        }
+    }
+
+    augment "/msg:pcrep/msg:pcrep-message/msg:replies/msg:result/msg:failure-case/msg:rro/msg:subobject/msg:subobject-type" {
+        case sr-rro-type {
+            uses sr-rro-subobject;
+        }
+    }
+
+    augment "/msg:pcrep/msg:pcrep-message/msg:replies/msg:result/msg:success-case/msg:success/msg:paths/msg:rro/msg:subobject/msg:subobject-type" {
+        case sr-rro-type {
+            uses sr-rro-subobject;
+        }
+    }
+
+    //stateful07
+    augment "/crabbe:pcinitiate/crabbe:pcinitiate-message/crabbe:requests/crabbe:rro/crabbe:subobject/crabbe:subobject-type" {
+        case sr-rro-type {
+            uses sr-rro-subobject;
+        }
+    }
+
+    augment "/stateful:pcrpt/stateful:pcrpt-message/stateful:reports/stateful:path/stateful:rro/stateful:subobject/stateful:subobject-type" {
+        case sr-rro-type {
+            uses sr-rro-subobject;
+        }
+    }
+
+    augment "/stateful:pcupd/stateful:pcupd-message/stateful:updates/stateful:path/stateful:rro/stateful:subobject/stateful:subobject-type" {
+        case sr-rro-type {
+            uses sr-rro-subobject;
+        }
+    }
+
+    //nt-pcep
+    augment "/pn:add-lsp/pn:input/pn:arguments/pn:rro/pn:subobject/pn:subobject-type" {
+        case sr-rro-type {
+            uses sr-rro-subobject;
+        }
+    }
+
+    augment "/pn:update-lsp/pn:input/pn:arguments/pn:rro/pn:subobject/pn:subobject-type" {
+        case sr-rro-type {
+            uses sr-rro-subobject;
+        }
+    }
+
+    augment "/nt:network-topology/nt:topology/nt:node/pn:path-computation-client/pn:reported-lsp/pn:path/pn:rro/pn:subobject/pn:subobject-type" {
+        case sr-rro-type {
+            uses sr-rro-subobject;
+        }
+    }
+}

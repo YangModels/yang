@@ -1,0 +1,351 @@
+module elan {
+
+    namespace "urn:opendaylight:netvirt:elan";
+    prefix elan;
+
+    import yang-ext {prefix ext; revision-date "2013-07-09";}
+
+    import ietf-interfaces {
+        prefix if;
+    }
+    import ietf-inet-types {
+        prefix inet;
+        revision-date "2013-07-15";
+    }
+    import ietf-yang-types {
+        prefix yang;
+    }
+
+
+    revision "2015-06-02" {
+        description "elan module";
+    }
+
+    /*
+    * elan instance view.
+    */
+    container elan-instances {
+        description
+           "elan instances configuration parameters. Elan instances support both the VLAN and VNI based elans.";
+
+        list elan-instance {
+            max-elements "unbounded";
+            min-elements "0";
+            key "elan-instance-name";
+            description
+                "Specifies the name of the elan instance. It is a string of 1 to 31
+                 case-sensitive characters.";
+            leaf elan-instance-name {
+                type string;
+                description "The name of the elan-instance.";
+            }
+            leaf elan-tag {
+                type    uint32;
+                description "ELAN unique identifier which is unique across all the tenants.
+                             This will be created internally and if provided, the value will be discarded.";
+            }
+            leaf segment-type {
+                description "Optional. Network segment type. It's mandatory when there are external
+                                devices participating in the ELAN";
+                type identityref {
+                    base segment-type-base;
+                }
+            }
+            leaf segmentation-id {
+                type uint32;
+                description "Optional. Isolated segment on the physical network. For example,
+                                if segment-type is vlan, this ID is a vlan identifier. If segment-type
+                                is vxlan, this ID is a vni";
+            }
+            leaf physical-network-name {
+                type string;
+                description "Optional. The name of the physical network attached to the ELAN.";
+            }
+            leaf external {
+                description "indicates whether this is an external network";
+                type boolean;
+                default false;
+            }
+            leaf mac-timeout {
+                type uint32 {
+                    range "0..65535";
+                }
+                description "MAC Table entry ageing time in seconds.
+                             A value of 0 will indicate that the MAC will never expire.";
+            }
+            leaf description {
+                description
+                    "A textual description of elan instance, the elan instance description
+                    helps users memorize the elan instance.";
+
+                type string {
+                    length "1..254";
+                }
+            }
+            list elan-segments {
+                description "List of provider network(s) associated with this ELAN.";
+                key segmentation-index;
+                leaf segmentation-index {
+                    description "A hidden counter to act as a key, because segmentation id
+                    is not required.";
+                    type uint32;
+                }
+                leaf physical-network-name {
+                    description "Optional. The name of the physical network attached to the ELAN.";
+                    type string;
+                }
+                leaf segment-type {
+                    description "Optional. Network segment type. It's mandatory when there are external
+                                devices participating in the ELAN";
+                    type identityref {
+                        base segment-type-base;
+                    }
+                }
+                leaf segmentation-id {
+                    description "Optional. Isolated segment on the physical network. For example,
+                                if segment-type is vlan, this ID is a vlan identifier. If segment-type
+                                is vxlan, this ID is a vni";
+                    type uint32;
+                }
+            }
+            list external-teps {
+                description "Optional. The external tep ips of the nodes where this elan is present";
+                key tep-ip;
+                leaf tep-ip {
+                    type inet:ip-address;
+                }
+                leaf nodeid {
+                    type string;
+                }
+            }
+        }
+    }
+
+  /*
+   * Binding Interfaces to a elan Instance.
+   */
+  container elan-interfaces {
+    description
+        "elan is enabled on interfaces.";
+
+    list elan-interface  {
+        key "name";
+        max-elements "unbounded";
+        min-elements "0";
+        leaf name {
+            type leafref {
+                path "/if:interfaces/if:interface/if:name";
+            }
+        }
+        leaf elan-instance-name {
+            mandatory true;
+            type string;
+        }
+
+        list static-mac-entries {
+            key "mac-address";
+            leaf mac-address {
+                type yang:phys-address;
+            }
+            leaf ip-prefix {
+                type inet:ip-address;
+            }
+        }
+
+        leaf description {
+            description
+                "A textual description of elan port, the elan port description
+                helps users memorize the elan port.";
+
+            type string {
+                 length "1..254";
+            }
+        }
+    }
+  }
+
+    /* operational data stores */
+  container elan-state {
+    config false;
+    description
+      "operational state of elans.";
+
+    list elan {
+        key "name";
+        description "The list of interfaces on the device.";
+        max-elements "unbounded";
+        min-elements "0";
+        leaf name {
+            type string;
+            description
+              "The name of the elan-instance.";
+        }
+        leaf-list elan-interfaces{
+            type leafref {
+                path "/if:interfaces/if:interface/if:name";
+            }
+            description "Interfaces connected to this elan instance.";
+        }
+    }
+  }
+
+  grouping forwarding-entries {
+    description "Details of the MAC entries";
+
+    list mac-entry {
+      key "mac-address";
+      description "Details of a MAC address";
+      max-elements "unbounded";
+      min-elements "0";
+
+      leaf mac-address {
+          type yang:phys-address;
+      }
+
+      leaf interface {
+         type leafref {
+             path "/if:interfaces/if:interface/if:name";
+         }
+      }
+
+      leaf controllerLearnedForwardingEntryTimestamp {
+        type uint64;
+      }
+
+      leaf isStaticAddress {
+        type boolean;
+      }
+
+      leaf ip-prefix {
+        type inet:ip-address;
+      }
+    }
+  }
+
+  container elan-forwarding-tables {
+    config false;
+    description
+      "MAC tables for each elan instance";
+
+    list mac-table {
+        max-elements "unbounded";
+        min-elements "0";
+        key "elan-instance-name";
+        description
+            "Specifies the name of the elan instance. It is a string of 1 to 31
+             case-sensitive characters.";
+
+        leaf elan-instance-name {
+            type string;
+            description
+              "The name of the elan-instance.";
+        }
+
+        uses forwarding-entries;
+    }
+  }
+
+    container elan-interface-forwarding-entries {
+        config false;
+
+        list elan-interface-mac {
+            key "elan-interface";
+            description "All the MAC addresses learned on a particular elan interface";
+            max-elements "unbounded";
+            min-elements "0";
+            leaf elan-interface {
+                type leafref {
+                    path "/if:interfaces/if:interface/if:name";
+                }
+            }
+
+            uses forwarding-entries;
+        }
+    }
+
+    container elan-dpn-interfaces {
+        config false;
+
+        list elan-dpn-interfaces-list {
+            key "elan-instance-name";
+            description "All the dpns of this elan and all the ports of the corresponding dpns";
+            max-elements "unbounded";
+            min-elements "0";
+
+            leaf elan-instance-name {
+                type string;
+                description "The name of the elan-instance.";
+            }
+
+            list dpn-interfaces {
+                key "dp-id";
+                description "A DPN in which the elan spans across";
+                max-elements "unbounded";
+                min-elements "0";
+
+                leaf dp-id {
+                    type uint64;
+                }
+
+                leaf-list interfaces {
+                    type leafref {
+                        path "/if:interfaces/if:interface/if:name";
+                    }
+                }
+            }
+        }
+    }
+
+    container elan-tag-name-map {
+        config false;
+
+        list elan-tag-name {
+            key elan-tag;
+            leaf elan-tag {
+                type uint32;
+            }
+
+            leaf name {
+                type string;
+                description
+                "The name of the elan-instance.";
+            }
+        }
+    }
+
+    augment "/elan:elan-instances/elan:elan-instance" {
+        ext:augment-identifier "evpn-augmentation";
+        leaf evpn-name {
+            type string;
+        }
+
+        leaf l3vpn-name {
+            type string;
+        }
+    }
+
+    identity segment-type-base {
+        description "Base entity for all network segment types";
+    }
+
+    identity segment-type-flat {
+        description "Flat network segment type";
+        base segment-type-base;
+    }
+
+    identity segment-type-vlan {
+        description "VLAN network segment type";
+        base segment-type-base;
+    }
+
+    identity segment-type-vxlan {
+        description "VxLAN network segment type";
+        base segment-type-base;
+    }
+
+    identity segment-type-gre {
+        description "GRE network segment type";
+        base segment-type-base;
+    }
+
+}

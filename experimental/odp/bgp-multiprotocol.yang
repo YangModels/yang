@@ -1,0 +1,192 @@
+module bgp-multiprotocol {
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:bgp-multiprotocol";
+    prefix "bgp-mp";
+
+    import ietf-inet-types { prefix inet; revision-date 2013-07-15; }
+    import bgp-message { prefix bgp-msg; revision-date 2018-03-29; }
+    import bgp-types { prefix bgp-t; revision-date 2018-03-29; }
+    import yang-ext { prefix ext; revision-date 2013-07-09; }
+
+    organization "Cisco Systems, Inc.";
+    contact "Dana Kutenicsova <dkutenic@cisco.com>";
+
+    description
+        "This module contains the base data model of a BGP message.
+        It rolls up the definitions contained in RFC4271
+        and draft-ietf-idr-ls-distribution-03.
+
+        Copyright (c)2013 Cisco Systems, Inc. All rights reserved.
+
+        This program and the accompanying materials are made available
+        under the terms of the Eclipse Public License v1.0 which
+        accompanies this distribution, and is available at
+        http://www.eclipse.org/legal/epl-v10.html";
+
+    revision "2018-03-29" {
+        description "Add RFC6514 Extended communities under bgp type.";
+    }
+
+    revision "2017-12-07" {
+        description "Add support for add-path in base BGP NLRI.";
+    }
+
+    revision "2013-09-19" {
+        description
+            "Split off basic types";
+    }
+
+    revision "2013-09-18" {
+        description
+            "Initial revision.";
+        reference "RFC4760";
+    }
+
+    typedef send-receive {
+        type enumeration {
+            enum receive { value 1; }
+            enum send { value 2; }
+            enum both { value 3; }
+        }
+    }
+
+    grouping bgp-table-type {
+        leaf afi {
+            type identityref {
+                base bgp-t:address-family;
+            }
+        }
+        leaf safi {
+            type identityref {
+                base bgp-t:subsequent-address-family;
+            }
+        }
+    }
+
+    grouping bgp-add-path-table-type {
+        uses bgp-table-type;
+        leaf send-receive {
+            type send-receive;
+        }
+    }
+
+    grouping destination {
+        choice destination-type {
+            // to be augmented
+        }
+    }
+
+    grouping mp-capabilities {
+        container multiprotocol-capability {
+            reference "http://tools.ietf.org/html/rfc4760#section-8";
+            uses bgp-table-type;
+        }
+        container graceful-restart-capability {
+            presence "indicates a graceful restart capability";
+
+            reference "http://tools.ietf.org/html/rfc4724#section-3";
+
+            leaf restart-flags {
+                type bits {
+                    bit restart-state {
+                        position 0;
+                        }
+                    }
+                mandatory true;
+            }
+
+            leaf restart-time {
+                type uint16 {
+                    range 0..4095;
+                }
+                units seconds;
+                default 0;
+            }
+
+            list tables {
+                uses bgp-table-type;
+                key "afi safi";
+
+                leaf afi-flags {
+                    type bits {
+                        bit forwarding-state {
+                            position 0;
+                        }
+                    }
+                    mandatory true;
+                }
+            }
+        }
+        container ll-graceful-restart-capability {
+            reference "https://tools.ietf.org/html/draft-uttaro-idr-bgp-persistence-04";
+
+            list tables {
+                uses bgp-table-type;
+                key "afi safi";
+
+                leaf afi-flags {
+                    type bits {
+                        bit forwarding-state {
+                            position 0;
+                        }
+                    }
+                    mandatory true;
+                }
+                leaf long-lived-stale-time {
+                    type uint32 {
+                        range 0..16777215;
+                    }
+                    units seconds;
+                    default 0;
+                }
+            }
+        }
+        container add-path-capability {
+            reference "http://tools.ietf.org/html/draft-ietf-idr-add-paths-13#section-4";
+            list address-families {
+                uses bgp-add-path-table-type;
+            }
+        }
+        container route-refresh-capability {
+            presence "Route refresh capability";
+            reference "http://tools.ietf.org/html/rfc2918";
+        }
+    }
+
+    augment "/bgp-msg:open/bgp-msg:bgp-parameters/bgp-msg:optional-capabilities/bgp-msg:c-parameters" {
+        uses mp-capabilities;
+    }
+
+    augment "/bgp-msg:update/bgp-msg:attributes" {
+        ext:augment-identifier attributes-1;
+        container mp-reach-nlri {
+            reference "http://tools.ietf.org/html/rfc4760#section-3";
+
+            uses bgp-table-type;
+            uses bgp-t:next-hop;
+
+            container advertized-routes {
+                uses destination;
+            }
+        }
+    }
+
+    augment "/bgp-msg:update/bgp-msg:attributes" {
+        ext:augment-identifier attributes-2;
+        container mp-unreach-nlri {
+            reference "http://tools.ietf.org/html/rfc4760#section-4";
+
+            uses bgp-table-type;
+
+            container withdrawn-routes {
+                uses destination;
+            }
+        }
+    }
+
+    notification route-refresh {
+        description "ROUTE-REFRESH message";
+        reference "https://tools.ietf.org/html/rfc2918#section-3";
+        uses bgp-table-type;
+    }
+}

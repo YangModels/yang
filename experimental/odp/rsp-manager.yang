@@ -1,0 +1,176 @@
+module rendered-service-path-manager {
+
+    namespace "urn.cisco.params:xml:ns:rsp-manager";
+
+    prefix "rsp-manager";
+
+    import sfc-common {
+        prefix sfc-common;
+        revision-date 2015-10-17;
+    }
+
+    import ietf-inet-types {
+      prefix inet;
+      revision-date 2013-07-15;
+    }
+
+    import service-function {
+        prefix sfc-sf;
+        revision-date 2014-07-01;
+    }
+
+    import service-function-forwarder {
+        prefix sfc-sff;
+        revision-date 2014-07-01;
+    }
+
+    description
+        "This module defines rendered service path manager capabilities";
+
+    revision "2016-04-21" {
+        description
+            "Initial revision.";
+    }
+
+    typedef service-function-in-chain {
+        type string;
+        description
+            "Combination of service function name in concrete service
+            chain";
+    }
+
+    // rsp hop provided by rsp manager
+    grouping rsp-hop-info {
+        container service-function-data {
+            uses sfc-sf:service-function-base;
+        }
+        container service-function-forwarder-data {
+            uses sfc-sff:service-function-forwarder-base;
+        }
+        leaf service-index {
+            type uint8;
+        }
+        choice next-hop {
+            case local-sff-case {
+                leaf local-sff {
+                    description
+                        "Next hop is on the same node/service function forwarder
+                        as the current hop. All necessary data for next hop are
+                        alredy in the list of hops for specific rendered service
+                        path.";
+                    type empty;
+                }
+            }
+            case remote-sff-case {
+                container remote-sff {
+                    description
+                        "Next hop is on different node/service function forwarder";
+                    uses sfc-sff:service-function-forwarder-base;
+                }
+            }
+            case last-hop-case {
+                leaf last-hop {
+                    description
+                        "This is the last hop of chain";
+                    type empty;
+                }
+            }
+        }
+    }
+
+    // RSP manager
+    container rsp-manager-data {
+        list renderer {
+            description
+                "Contains all available renderers with appropriate data.
+                Every renderer gets its own part (hops) of rendered service
+                path to resolve, configure devices and inform RSP manager
+                about result.";
+            key renderer-name;
+            leaf renderer-name {
+                type sfc-common:renderer-name;
+            }
+            list rendered-service-path {
+                description
+                    "List of PARTIAL rendered service chains. Each RSP contains
+                    another list of hops chosen for specific renderer to configure";
+                key rsp-name;
+                leaf rsp-name {
+                    type sfc-common:rsp-name;
+                }
+                leaf path-id {
+                    type uint32;
+                }
+                list hop-to-configure {
+                    description
+                        "Contains all necessary data to identify service function
+                        forwarder and other SFC entities, their place in rendered
+                        service path and info about what to do in next hop";
+                    key hop-number;
+                    leaf hop-number {
+                        type uint8;
+                    }
+                    uses rsp-hop-info;
+                }
+            }
+        }
+    }
+
+    // Responsible nodes
+    container managed-nodes-by-renderer {
+        config false;
+        description
+            "Contains list of all nodes/devices which particular renderer can manage
+            and configure.";
+        list renderer-nodes {
+            key renderer-name;
+            leaf renderer-name {
+                type sfc-common:renderer-name;
+            }
+            container nodes {
+                description
+                    "List of nodes managed by renderer";
+                list node {
+                    key node-name;
+                    leaf node-name {
+                        type sfc-common:sn-name;
+                    }
+                    leaf ip-mgmt-address {
+                        type inet:ip-address;
+                    }
+                }
+            }
+        }
+    }
+
+    // Renderer status
+    container renderer-path-states {
+        description
+            "When renderer's task provided by rendered service path manager is completed,
+            renderer reports back to rsp manager whether task was completed or not.";
+        config false;
+        list renderer-path-state {
+            key renderer-name;
+            leaf renderer-name {
+                type sfc-common:renderer-name;
+            }
+            container configured-rendered-paths {
+                description "trace all rendered service paths which renderer obtains
+                    and tracks status info";
+                list configured-rendered-path {
+                    key rsp-name;
+                    leaf rsp-name {
+                        type sfc-common:rsp-name;
+                    }
+                    leaf path-status {
+                        type enumeration {
+                            enum in-progress;
+                            enum success;
+                            enum failure;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,280 @@
+module policy-service {
+    yang-version 1;
+    namespace "urn:opendaylight:netvirt:policy";
+    prefix "policy";
+
+    import ietf-interfaces { prefix if; }
+
+    import ietf-access-control-list { prefix ietf-acl; }
+
+    import aclservice { prefix acl; }
+
+    import yang-ext { prefix ext; }
+
+    import opendaylight-l2-types { prefix ethertype; revision-date "2013-08-27"; }
+
+    description
+        "Policy Service module";
+
+    revision "2017-02-07" {
+        description
+                "Initial revision";
+    }
+
+    identity policy-acl {
+        base ietf-acl:acl-base;
+    }
+
+    augment "/ietf-acl:access-lists/ietf-acl:acl/"
+    + "ietf-acl:access-list-entries/ietf-acl:ace/ietf-acl:matches" {
+        ext:augment-identifier "ingress-interface";
+        when "/ietf-acl:access-lists/ietf-acl:acl/ietf-acl:acl-type = 'policy:policy-acl'";
+        leaf name {
+            type if:interface-ref;
+        }
+
+        leaf vlan-id {
+            type ethertype:vlan-id;
+        }
+    }
+
+    augment "/ietf-acl:access-lists/ietf-acl:acl/"
+    + "ietf-acl:access-list-entries/ietf-acl:ace/ietf-acl:matches" {
+        ext:augment-identifier "service";
+        when "/ietf-acl:access-lists/ietf-acl:acl/ietf-acl:acl-type = 'policy:policy-acl'";
+        leaf service-type {
+            type identityref {
+                base service-type-base;
+            }
+        }
+
+        leaf service-name {
+            type string;
+        }
+    }
+
+    augment "/ietf-acl:access-lists/ietf-acl:acl/"
+    + "ietf-acl:access-list-entries/ietf-acl:ace/ietf-acl:actions" {
+        ext:augment-identifier "set-policy-classifier";
+        when "/ietf-acl:access-lists/ietf-acl:acl/ietf-acl:acl-type = 'policy:policy-acl'";
+        leaf policy-classifier {
+            type leafref {
+                path "/policy-profiles/policy-profile/policy-classifier";
+            }
+        }
+
+        leaf direction {
+            type identityref {
+                base acl:direction-base;
+            }
+        }
+    }
+
+    container underlay-networks {
+        list underlay-network {
+            key "network-name";
+            leaf network-name {
+                type string;
+            }
+
+            leaf network-access-type {
+                type identityref {
+                    base access-network-base;
+                }
+            }
+
+            leaf bandwidth {
+                type uint64;
+                description "Maximum bandwidth. Units in byte per second";
+            }
+
+            list dpn-to-interface {
+                config false;
+                key "dp-id";
+                leaf dp-id {
+                    type uint64;
+                }
+
+                list tunnel-interface {
+                    key "interface-name";
+                    leaf interface-name {
+                        type string;
+                    }
+
+                    leaf remote-dp-id {
+                        type uint64;
+                    }
+                }
+            }
+
+            list policy-profile {
+                config false;
+                key "policy-classifier";
+                leaf policy-classifier {
+                    type string;
+                }
+            }
+        }
+    }
+
+    container underlay-network-groups {
+        list underlay-network-group {
+            key "group-name";
+            leaf group-name {
+                type string;
+            }
+
+            list underlay-network {
+                key "network-name";
+                leaf network-name {
+                    type leafref {
+                        path "/underlay-networks/underlay-network/network-name";
+                    }
+                }
+
+                leaf weight {
+                    type uint16;
+                    default 1;
+                }
+            }
+
+            leaf bandwidth {
+                type uint64;
+                description "Maximum bandwidth of the group. Units in byte per second";
+            }
+        }
+    }
+
+    container policy-profiles {
+        list policy-profile {
+            key "policy-classifier";
+            leaf policy-classifier {
+                type string;
+            }
+
+            list policy-route {
+                key "route-name";
+                leaf route-name {
+                    type string;
+                }
+
+                choice route {
+                    case basic-route {
+                        leaf network-name {
+                            type leafref {
+                                path "/underlay-networks/underlay-network/network-name";
+                            }
+                        }
+                    }
+
+                    case route-group {
+                        leaf group-name {
+                            type leafref {
+                                path "/underlay-network-groups/underlay-network-group/group-name";
+                            }
+                        }
+                    }
+                }
+            }
+
+            list policy-acl-rule {
+                config false;
+                key "acl-name";
+                leaf acl-name {
+                    type leafref {
+                        path "/ietf-acl:access-lists/ietf-acl:acl/ietf-acl:acl-name";
+                    }
+                }
+
+                list ace-rule {
+                    key "rule-name";
+                    leaf rule-name {
+                        type leafref {
+                            path "/ietf-acl:access-lists/ietf-acl:acl/ietf-acl:access-list-entries/ietf-acl:ace/ietf-acl:rule-name";
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    container policy-route-counters {
+        config false;
+
+        list underlay-network-counters {
+            key "network-name";
+            leaf network-name {
+                type leafref {
+                    path "/underlay-networks/underlay-network/network-name";
+                }
+            }
+
+            list dpn-counters {
+                key "dp-id";
+                leaf dp-id {
+                    type uint64;
+                }
+
+                leaf counter {
+                    type uint32;
+                }
+            }
+
+            list path-counters {
+                key "source-dp-id destination-dp-id";
+                leaf source-dp-id {
+                    type uint64;
+                }
+
+                leaf destination-dp-id {
+                    type uint64;
+                }
+
+                leaf counter {
+                    type uint32;
+                }
+            }
+        }
+    }
+
+    identity service-type-base {
+        description "Base identity for service type";
+    }
+
+    identity l3vpn-service-type {
+        base service-type-base;
+    }
+
+    identity l2vpn-service-type {
+        base service-type-base;
+    }
+
+    identity access-network-base {
+        description "Base identity for access network type";
+    }
+
+    identity mpls-access-network {
+        base access-network-base;
+    }
+
+    identity docsis-access-network {
+        base access-network-base;
+    }
+
+    identity pon-access-network {
+        base access-network-base;
+    }
+
+    identity dsl-access-network {
+        base access-network-base;
+    }
+
+    identity umts-access-network {
+        base access-network-base;
+    }
+
+    identity lte-access-network {
+        base access-network-base;
+    }
+}
+

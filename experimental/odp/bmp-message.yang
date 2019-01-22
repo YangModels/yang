@@ -1,0 +1,608 @@
+module bmp-message {
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:bmp-message";
+    prefix "bmp-msg";
+
+    import bgp-message { prefix bgp-msg; revision-date 2018-03-29; }
+    import bgp-multiprotocol { prefix bgp-mp; revision-date 2018-03-29; }
+    import ietf-inet-types { prefix inet; revision-date 2013-07-15; }
+    import ietf-yang-types { prefix yang; revision-date 2013-07-15; }
+    import bgp-types { prefix bgp-t; revision-date 2018-03-29; }
+
+    organization "Cisco Systems, Inc.";
+    contact "Milos Fabian <milfabia@cisco.com>";
+
+    description
+        "This module contains the base data model of a BMP messages.
+        It rolls up the definitions contained in RFC7854.
+
+        Copyright (c)2015 Cisco Systems, Inc. All rights reserved.
+
+        This program and the accompanying materials are made available
+        under the terms of the Eclipse Public License v1.0 which
+        accompanies this distribution, and is available at
+        http://www.eclipse.org/legal/epl-v10.html";
+
+   reference
+        "https://tools.ietf.org/html/rfc7854";
+
+    revision "2018-03-29" {
+        description "Add support for add-path for all afi/safi.";
+    }
+
+    revision "2017-12-07" {
+        description "Add support for add-path in base BGP NLRI.";
+    }
+
+    revision "2015-05-12" {
+        description
+            "Initial revision.";
+    }
+
+    typedef reason {
+        type enumeration {
+            enum administratively-closed {
+                value 0;
+                description
+                    "Session administratively closed.";
+            }
+            enum unspecified {
+                value 1;
+                description
+                    "Unspecified reason.";
+            }
+            enum out-of-resources {
+                value 2;
+                description
+                    "Out of resources. The router has exhausted
+                     resources available for the BMP session.";
+            }
+            enum redundant-connection {
+                value 3;
+                description
+                    "Redundant connection. The router has determined
+                     that this connection is redundant with another one.";
+            }
+            enum permanently-closed {
+                value 4;
+                description
+                    "Session permanently administratively closed,
+                     will not be re-initiated.  Monitoring station should reduce
+                     (potentially to 0) the rate at which it attempts
+                     reconnection to the monitored router.";
+            }
+        }
+    }
+
+    typedef adj-rib-in-type {
+        type enumeration {
+            enum pre-policy {
+                value 0;
+            }
+            enum post-policy {
+                value 1;
+            }
+        }
+        description
+            "If set to 1, indicates that the message reflects
+             the post-policy Adj-RIB-In (i.e., it reflects the application
+             of inbound policy).  It is set to 0 if the message reflects the
+             pre-policy Adj-RIB-In.";
+    }
+
+    typedef peer-type {
+        type enumeration {
+            enum global {
+                value 0;
+                description "Global Instance Peer.";
+            }
+            enum l3vpn {
+                value 1;
+                description "RD Instance Peer.";
+            }
+            enum local {
+                value 2;
+                description "Local Instance Peer";
+            }
+        }
+    }
+
+    typedef mirror-information-code {
+        type enumeration {
+            enum errored-pdu {
+                value 0;
+            }
+            enum message-lost {
+                value 1;
+            }
+        }
+    }
+
+    grouping tlv {
+        description
+            "Common marker for all BMP TLVs.";
+    }
+
+    grouping string-tlv {
+        container string-tlv {
+            uses tlv;
+            leaf string-info {
+                type string;
+            }
+            description
+                "Type = 0: String. The Information field contains a free-form
+                 UTF-8 string whose length is given by the Information Length
+                 field. Inclusion of this TLV is optional.
+                 Multiple String TLVs MAY be included in the message.";
+        }
+    }
+
+    grouping description-tlv {
+        container description-tlv {
+            uses tlv;
+            leaf description {
+                type string;
+                mandatory true;
+            }
+            description
+                "Type = 1: sysDescr. The Information field contains an ASCII
+                 string whose value MUST be set to be equal to the value of the
+                 sysDescr MIB-II [RFC1213] object.  Inclusion of this TLV is
+                 mandatory.";
+        }
+    }
+
+    grouping name-tlv {
+        container name-tlv {
+            uses tlv;
+            leaf name {
+                type string;
+                mandatory true;
+            }
+            description
+                "Type = 2: sysName. The Information field contains a ASCII
+                 string whose value MUST be set to be equal to the value of the
+                 sysName MIB-II [RFC1213] object.  Inclusion of this TLV is
+                 mandatory.";
+        }
+    }
+
+    grouping string-informations {
+        list string-information {
+            uses string-tlv;
+        }
+    }
+
+    grouping initiation-tlvs {
+        uses string-informations;
+        uses description-tlv;
+        uses name-tlv;
+        description
+            "TLVs containing information about the monitored router";
+    }
+
+    grouping reason-tlv {
+        container reason-tlv {
+            uses tlv;
+            leaf reason {
+                type reason;
+                mandatory true;
+            }
+            description
+                "Type = 1: Reason. The Information field contains a two-byte
+                 code indicating the reason the connection was terminated.  Some
+                 reasons may have further TLVs associated with them.  Inclusion
+                 of this TLV is not optional.";
+        }
+    }
+
+    grouping termination-tlvs {
+        uses string-informations;
+        uses reason-tlv;
+        description
+            "TLVs containing information about the reason for the
+             termination.";
+    }
+
+    grouping mirror-information-tlv {
+        container mirror-information-tlv {
+            uses tlv;
+            leaf code {
+                type mirror-information-code;
+            }
+            description
+                "Type = 1: Information. A two-byte code that provides information
+                 about the mirrored message or message stream.";
+        }
+    }
+
+    grouping mirror-pdu-tlvs {
+       container pdu-update-tlv {
+           uses tlv;
+           uses bgp-msg:update-message;
+       }
+       container pdu-open-tlv {
+           uses tlv;
+           uses bgp-msg:open-message;
+       }
+       description
+           "BGP Message.  A BGP PDU.  This PDU may or may not be an
+           Update message.  If the BGP Message TLV occurs in the Route
+           Mirroring message, it MUST occur last in the list of TLVs.";
+    }
+
+    grouping mirror-tlvs {
+        uses mirror-information-tlv;
+        uses mirror-pdu-tlvs;
+    }
+
+    grouping mirror {
+        container tlvs {
+            uses mirror-tlvs;
+        }
+    }
+
+    grouping count-tlv {
+        uses tlv;
+        leaf count {
+            type yang:counter32;
+        }
+    }
+
+    grouping gauge-tlv {
+        uses tlv;
+        leaf count {
+            type yang:gauge64;
+        }
+    }
+
+    grouping afi-safi-gauge-tlv {
+        uses tlv;
+        uses bgp-mp:bgp-table-type;
+        leaf count {
+            type yang:gauge64;
+        }
+    }
+
+    grouping stat-tlvs {
+        container rejected-prefixes-tlv {
+            uses count-tlv;
+            description
+                "Stat Type = 0: (32-bit Counter) Number of prefixes rejected by
+                 inbound policy.";
+        }
+        container duplicate-prefix-advertisements-tlv {
+            uses count-tlv;
+            description
+                "Stat Type = 1: (32-bit Counter) Number of (known) duplicate prefix
+                 advertisements.";
+        }
+        container duplicate-withdraws-tlv {
+            uses count-tlv;
+            description
+                "Stat Type = 2: (32-bit Counter) Number of (known) duplicate
+                 withdraws.";
+        }
+        container invalidated-cluster-list-loop-tlv {
+            uses count-tlv;
+            description
+                "Stat Type = 3: (32-bit Counter) Number of updates invalidated due
+                 to CLUSTER_LIST loop.";
+        }
+        container invalidated-as-path-loop-tlv {
+            uses count-tlv;
+            description
+                "Stat Type = 4: (32-bit Counter) Number of updates invalidated due
+                 to AS_PATH loop.";
+        }
+        container invalidated-originator-id-tlv {
+            uses count-tlv;
+            description
+                "Stat Type = 5: (32-bit Counter) Number of updates invalidated due
+                 to ORIGINATOR_ID.";
+        }
+        container invalidated-as-confed-loop-tlv {
+            uses count-tlv;
+            description
+                "Stat Type = 6: (32-bit Counter) Number of updates invalidated due
+                 to AS_CONFED loop.";
+        }
+        container adj-ribs-in-routes-tlv {
+            uses gauge-tlv;
+            description
+                "Stat Type = 7: (64-bit Gauge) Number of routes in Adj-RIBs-In.";
+        }
+        container loc-rib-routes-tlv {
+            uses gauge-tlv;
+            description
+                "Stat Type = 8: (64-bit Gauge) Number of routes in Loc-RIB.";
+        }
+        description
+            "Each counter is encoded as a TLV.";
+        container per-afi-safi-adj-rib-in-tlv {
+            uses afi-safi-gauge-tlv;
+            description
+                "Stat Type = 9: Number of routes in per-AFI/SAFI Adj-RIB-In.  The
+                 value is structured as: AFI (2 bytes), SAFI (1 byte), followed by
+                 a 64-bit Gauge.";
+        }
+        container per-afi-safi-loc-rib-tlv {
+            uses afi-safi-gauge-tlv;
+            description
+                "Stat Type = 10: Number of routes in per-AFI/SAFI Loc-RIB.  The
+                value is structured as: AFI (2 bytes), SAFI (1 byte), followed by
+                a 64-bit Gauge.";
+        }
+        container updates-treated-as-withdraw-tlv {
+            uses count-tlv;
+            description
+                "Stat Type = 11: (32-bit Counter) Number of updates subjected to
+                treat-as-withdraw treatment. ";
+        }
+        container prefixes-treated-as-withdraw-tlv {
+            uses count-tlv;
+            description
+                "Stat Type = 12: (32-bit Counter) Number of prefixes subjected to
+                treat-as-withdraw treatment. ";
+        }
+        container duplicate-updates-tlv {
+            uses count-tlv;
+            description
+            "Stat Type = 13: (32-bit Counter) Number of duplicate update
+            messages received. ";
+        }
+    }
+
+    grouping timestamp {
+        leaf timestamp-sec {
+            type yang:timestamp;
+            default 0;
+            description
+                "Timestamp with seconds precision.";
+        }
+        leaf timestamp-micro {
+            type yang:timestamp;
+            default 0;
+            description
+                "Timestamp with microseconds precision.";
+        }
+        description
+            "The time when the encapsulated routes were received
+             (one may also think of this as the time when they were installed
+             in the Adj-RIB-In), expressed in seconds and microseconds since
+             midnight (zero hour), January 1, 1970 (UTC).  If zero, the time is
+             unavailable.  Precision of the timestamp is implementation-
+             dependent.";
+    }
+
+    grouping peer {
+        leaf type {
+            type peer-type;
+            mandatory true;
+        }
+        leaf peer-distinguisher {
+            type union {
+                type bgp-t:route-distinguisher;
+                type binary {
+                    length 8;
+                }
+            }
+            description
+                "This field is present to distinguish peers that
+                 belong to one address domain from the other.";
+        }
+        leaf address {
+            type inet:ip-address;
+            mandatory true;
+            description
+                "The remote IP address associated with the TCP
+                 session over which the encapsulated PDU was received.  It is 4
+                 bytes long if an IPv4 address is carried in this field (with most
+                 significant bytes zero filled) and 16 bytes long if an IPv6
+                 address is carried in this field.";
+        }
+        leaf as {
+            type inet:as-number;
+            mandatory true;
+            description
+                "The Autonomous System number of the peer from which the
+                 encapsulated PDU was received.  If a 16 bit AS number is stored in
+                 this field [RFC4893], it should be padded with zeroes in the most
+                 significant bits.";
+        }
+        leaf bgp-id {
+            type inet:ipv4-address;
+            mandatory true;
+            description
+                "The BGP Identifier of the peer from which the
+                 encapsulated PDU was received.";
+        }
+    }
+
+    grouping peer-header {
+        container peer-header {
+            uses peer;
+            uses timestamp;
+            leaf adj-rib-in-type {
+                type adj-rib-in-type;
+                mandatory true;
+            }
+            leaf ipv4 {
+                type boolean;
+                mandatory true;
+                description
+                    "Indicates if peer's address is IPv4. If set to false address is IPv6.";
+            }
+        }
+        description
+            "The per-peer header follows the common header for most BMP messages.
+              The rest of the data in a BMP message is dependent on the Message
+              Type field in the common header.";
+        reference
+            "https://tools.ietf.org/html/rfc7854#section-4.2";
+    }
+
+    grouping stat {
+        container tlvs {
+            uses stat-tlvs;
+        }
+    }
+
+    grouping open-msg {
+        uses bgp-msg:open-message {
+            augment "bgp-parameters/optional-capabilities/c-parameters" {
+                uses bgp-mp:mp-capabilities;
+            }
+        }
+    }
+
+    grouping peer-up {
+        leaf local-address {
+            type inet:ip-address;
+            mandatory true;
+            description
+                "The local IP address associated with the peering
+                 TCP session.";
+        }
+        leaf local-port {
+            type inet:port-number;
+            mandatory true;
+            description
+                "The local port number associated with the peering TCP
+                 session.";
+        }
+        leaf remote-port {
+            type inet:port-number;
+            mandatory true;
+            description
+                "The remote port number associated with the peering
+                 TCP session.";
+        }
+        container sent-open {
+            uses open-msg;
+            description
+                "The full OPEN message transmitted by the
+                 monitored router to its peer.";
+        }
+        container received-open {
+            uses open-msg;
+            description
+                "The full OPEN message received by the
+                 monitored router from its peer.";
+        }
+        container information {
+            uses string-informations;
+        }
+    }
+
+    grouping peer-down {
+        leaf local-system-closed {
+            type boolean;
+            mandatory true;
+            description
+                "If set true, the local system closed the session.
+                 Otherwise the remote system closed the session.";
+        }
+        choice data {
+            container notification {
+                uses bgp-msg:notify-message;
+                description
+                    "BGP PDU containing the BGP
+                     NOTIFICATION message as received from the peer.";
+            }
+            leaf fsm-event-code {
+                type uint16;
+                default 0;
+                description
+                    "Containing the code corresponding to the FSM Event which caused
+                     the system to close the session.
+                     Two bytes both set to zero are used to indicate that no relevant
+                     Event code is defined.";
+            }
+        }
+    }
+
+    grouping initiation {
+        container tlvs {
+            uses initiation-tlvs;
+        }
+    }
+
+    grouping termination {
+        container tlvs {
+            uses termination-tlvs;
+        }
+    }
+
+    notification initiation-message {
+        uses initiation;
+        description
+            "The initiation message provides a means for the monitored router to
+             inform the monitoring station of its vendor, software version, and so on.";
+        reference
+            "https://tools.ietf.org/html/rfc7854#section-4.3";
+    }
+
+    notification termination-message {
+        uses termination;
+        description
+            "The termination message provides a way for a monitored router to
+             indicate why it is terminating a session.";
+        reference
+            "https://tools.ietf.org/html/rfc7854#section-4.5";
+    }
+
+    notification route-monitoring-message {
+        uses peer-header;
+        container update {
+            uses bgp-msg:update-message;
+        }
+        description
+            "Route Monitoring messages are used for initial synchronization of
+             ADJ-RIBs-In.  They are also used for ongoing monitoring of received
+             advertisements and withdraws.";
+        reference
+            "https://tools.ietf.org/html/rfc7854#section-4.6";
+    }
+
+    notification route-mirroring-message {
+        uses peer-header;
+        uses mirror;
+        description
+            "Route Mirroring messages are used for verbatim duplication of
+             messages as received.";
+        reference
+            "https://tools.ietf.org/html/rfc7854#section-4.7";
+    }
+
+    notification stats-reports-message {
+        uses peer-header;
+        uses stat;
+        description
+            "These messages contain information that could be used by the
+             monitoring station to observe interesting events that occur on the
+             router.";
+        reference
+            "https://tools.ietf.org/html/rfc7854#section-4.8";
+    }
+
+    notification peer-down-notification {
+        uses peer-header;
+        uses peer-down;
+        description
+            "This message is used to indicate that a peering session was
+             terminated.";
+        reference
+            "https://tools.ietf.org/html/rfc7854#section-4.9";
+    }
+
+    notification peer-up-notification {
+        uses peer-header;
+        uses peer-up;
+        description
+            "The Peer Up message is used to indicate that a peering session has
+             come up (i.e., has transitioned into ESTABLISHED state).";
+        reference
+            "https://tools.ietf.org/html/rfc7854#section-4.10";
+    }
+}

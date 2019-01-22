@@ -1,0 +1,307 @@
+module odl-mappingservice {
+
+    yang-version 1;
+    namespace "urn:opendaylight:lfm:mappingservice";
+    prefix "mappingservice";
+
+    import ietf-inet-types { prefix inet; revision-date 2013-07-15; }
+    import yang-ext { prefix ext; revision-date 2013-07-09; }
+    import odl-lisp-proto { prefix lisp-proto; revision-date 2015-11-05; }
+
+    contact "Lorand Jakab <lojakab@cisco.com";
+
+    description
+        "An MD-SAL based implementation of a LISP Map-Server database";
+
+    revision "2015-09-06" {
+        description "Renamed and moved module to mappingservice.api.";
+    }
+
+    typedef mapping-origin {
+        description "The originating entity of an EID-to-RLOC mapping";
+        type enumeration {
+            enum northbound;
+            enum southbound;
+        }
+    }
+
+    typedef vni-uri {
+        description "VNI as a string lookup key in a URI";
+        type inet:uri;
+    }
+
+    typedef eid-uri {
+        description "EID as a string lookup key in a URI";
+        type inet:uri;
+    }
+
+    typedef xtr-id-uri {
+        description "xTR-ID as a string lookup key in a URI";
+        type inet:uri;
+    }
+
+    typedef mapping-change {
+        description "Type of mapping update";
+        type enumeration {
+            enum created;
+            enum updated;
+            enum removed;
+        }
+    }
+
+    identity vni-context {
+        description "A classifier for virtual-network-identifier elements which allows direct access to a particular element in the data tree.";
+    }
+
+    identity eid-context {
+        description "A classifier for endpoint-id elements which allows direct access to a particular element in the data tree.";
+    }
+
+    identity xtrid-context {
+        description "A classifier for xtr-id elements which allows direct access to a particular element in the data tree.";
+    }
+
+    grouping mapping-authkey-list {
+        list mapping-authkey-item {
+            key "mapping-authkey-item-id";
+            leaf mapping-authkey-item-id {
+                type string;
+            }
+            uses lisp-proto:mapping-authkey-container;
+        }
+    }
+
+    grouping eid-authkey-list {
+        list eid-authkey-item {
+            key "eid-authkey-item-id";
+            leaf eid-authkey-item-id {
+                type string;
+            }
+            uses lisp-proto:eid-container;
+            uses lisp-proto:mapping-authkey-container;
+        }
+    }
+
+    grouping db-instance {
+        description "Describes the mappings belonging to the same Virtual Network Identifier";
+        leaf vni {
+            description "The 24-bit Virtual Network Identifier";
+            type vni-uri;
+        }
+        list mapping {
+            description "A list of EID-to-RLOC mappings within the same Instance ID";
+            key "eid-uri origin";
+            ext:context-instance "eid-context";
+            leaf eid-uri {
+                type eid-uri;
+            }
+            leaf origin {
+                description "Mapping origin";
+                type mapping-origin;
+            }
+            leaf-list site-id {
+                description "Site ID";
+                type lisp-proto:site-id;
+            }
+            uses lisp-proto:mapping-record-container;
+            list xtr-id-mapping {
+                description "A list of xTR-IDs with their associated mappings";
+                config false;
+                key "xtr-id-uri";
+                ext:context-instance "xtrid-context";
+                leaf xtr-id-uri {
+                    type xtr-id-uri;
+                }
+                uses lisp-proto:mapping-record-container;
+            }
+        }
+        list authentication-key {
+            description "A list of authentication keys for EID prefixes within the same Virtual Network Identifier";
+            key "eid-uri";
+            ext:context-instance "eid-context";
+            leaf eid-uri {
+                type eid-uri;
+            }
+            uses lisp-proto:eid-container;
+            uses lisp-proto:mapping-authkey-container;
+        }
+    }
+
+    container mapping-database {
+        description "The LISP EID-to-RLOC mapping database";
+        list virtual-network-identifier {
+            description "A list of Virtual Network Identifiers";
+            key "vni";
+            ext:context-instance "vni-context";
+            uses db-instance;
+        }
+        container last-updated {
+            config false;
+            leaf last-updated {
+                description "Last database update timestamp (in milliseconds since January 1, 1970, 00:00:00 GMT)";
+                type int64;
+            }
+        }
+    }
+
+    rpc add-key {
+        input {
+            uses lisp-proto:eid-container;
+            uses lisp-proto:mapping-authkey-container;
+        }
+    }
+
+    rpc get-key {
+        input {
+            uses lisp-proto:eid-container;
+        }
+        output {
+            uses lisp-proto:mapping-authkey-container;
+        }
+    }
+
+    rpc update-key {
+        input {
+            uses lisp-proto:eid-container;
+            uses lisp-proto:mapping-authkey-container;
+        }
+    }
+
+    rpc remove-key {
+        input {
+            uses lisp-proto:eid-container;
+        }
+    }
+
+    rpc add-mapping {
+        input {
+            uses lisp-proto:mapping-record-container;
+        }
+    }
+
+    rpc get-mapping {
+        input {
+            uses lisp-proto:eid-container;
+        }
+        output {
+            uses lisp-proto:mapping-record-container;
+        }
+    }
+
+    rpc get-mapping-with-xtr-id {
+        input {
+            uses lisp-proto:eid-container;
+            leaf xtr-id {
+                type lisp-proto:xtr-id;
+            }
+        }
+        output {
+            uses lisp-proto:mapping-record-container;
+        }
+    }
+
+    rpc update-mapping {
+        input {
+            uses lisp-proto:mapping-record-container;
+        }
+    }
+
+    rpc remove-mapping {
+        input {
+            uses lisp-proto:eid-container;
+        }
+    }
+
+    rpc add-keys {
+        input {
+            uses eid-authkey-list;
+        }
+    }
+
+    rpc get-keys {
+        input {
+            uses lisp-proto:eid-list;
+        }
+        output {
+            uses eid-authkey-list;
+        }
+    }
+
+    rpc update-keys {
+        input {
+            uses eid-authkey-list;
+        }
+    }
+
+    rpc remove-keys {
+        input {
+            uses lisp-proto:eid-list;
+        }
+    }
+
+    rpc add-mappings {
+        input {
+            uses lisp-proto:mapping-record-list;
+        }
+    }
+
+    rpc get-mappings {
+        input {
+            uses lisp-proto:eid-list;
+        }
+        output {
+            uses lisp-proto:mapping-record-list;
+        }
+    }
+
+    rpc update-mappings {
+        input {
+            uses lisp-proto:mapping-record-list;
+        }
+    }
+
+    rpc remove-mappings {
+        input {
+            uses lisp-proto:eid-list;
+        }
+    }
+
+    rpc get-all-keys {
+        output {
+            uses eid-authkey-list;
+        }
+    }
+
+    rpc get-all-mappings {
+        output {
+            uses lisp-proto:mapping-record-list;
+        }
+    }
+
+    rpc remove-all-keys {
+    }
+
+    rpc remove-all-mappings {
+    }
+
+    rpc remove-all-operational-content {
+    }
+
+    notification mapping-changed {
+        description "Notification sent when a mapping is changed";
+        leaf change-type {
+            description "The type of change";
+            type mapping-change;
+        }
+        uses lisp-proto:mapping-record-container;
+        uses lisp-proto:eid-container;
+        list subscriber-item {
+            description "The list of subscribers to be notified of this change.";
+            uses lisp-proto:subscriber-data-grouping;
+        }
+        list dst-subscriber-item {
+            description "For Src/Dst EIDs, The list of the Dst subscribers to be notified of this change.";
+            uses lisp-proto:subscriber-data-grouping;
+        }
+    }
+}

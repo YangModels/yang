@@ -1,0 +1,379 @@
+module programming {
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:programming";
+    prefix "pgm";
+
+    import ietf-inet-types { prefix inet; revision-date 2013-07-15; }
+
+    organization "Cisco Systems, Inc.";
+    contact "Robert Varga <rovarga@cisco.com>";
+
+    description
+        "This module contains the basic programming model.
+
+        From the architecture perspective, the programming model is
+        used to drive the state of the controller and, by extension,
+        its underlying network from one state to another, usually
+        through some interim states.
+
+        The core concept of this model is that of an instruction. An
+        instruction is always an atomic, undivisible amount of work,
+        resulting in a well-defined state transition. More complex
+        state transitions are always broken up to a set of such
+        instructions. As a general rule, instructions should be
+        designed such that their implementations can guarantee them
+        either happening completely or not happening at all.
+
+        Instruction scheduling is governed by explicit dependencies,
+        where an instruction may only be a candidate for execution if
+        all of its dependencies have completed successfully. If there
+        are multiple candidate instructions, the scheduler is free
+        to decide on the order of execution, it may even execute them
+        in parallel. If two instructions become candidates and cannot
+        be executed in parallel, the scheduler should execute them in
+        the order in which they have been submitted.
+
+        The programming model does not rely on rollback capability
+        being present in the network. Instead it recognizes that this
+        failure results in a new state, which needs to be picked up
+        by the entity driving the change and a new set of state
+        transitions needs to be devised. Technology-specific modules
+        should rely on this assumption and should not attempt complex
+        recovery schemes, which could result in more indeterminism
+        being introduced in the state.
+
+        The final assumption of the model is that each instruction has
+        a specific deadline by which it needs to complete. The rationale
+        is that the entity driving the state has to make some progress
+        and not be stuck indefinitely on one transition. Furthermore
+        the model assumes the realization that there is a failure in
+        making progress in the scheduler, such that the instruction
+        stream can be predictably cut without introducing new race
+        windows in the recovery path.
+
+        A summary of the model is the following: the scheduler operates
+        on a directed acyclic graph of instructions which places limits
+        on which interim states may be visited while the system
+        transitions from a state measured at a point in time into the
+        intended state. The graph may be expanded to include new nodes,
+        allowing for futher submissions in a manner consistent with
+        optimistic prediction of future state.
+
+        Copyright (c)2013 Cisco Systems, Inc. All rights reserved.
+
+        This program and the accompanying materials are made available
+        under the terms of the Eclipse Public License v1.0 which
+        accompanies this distribution, and is available at
+        http://www.eclipse.org/legal/epl-v10.html";
+
+    revision "2015-07-20" {
+        description
+            "Introduce instruction queue id.";
+    }
+
+    revision "2013-09-30" {
+        description
+            "Initial revision.";
+        reference "";
+    }
+
+    typedef nanotime {
+        description
+            "Absolute number of nanoseconds since the start of the
+            UNIX epoch.";
+        type uint64;
+        units nanoseconds;
+    }
+
+    typedef instruction-id {
+        description
+            "Instruction identifier. It is assigned by the entity
+            generating the instruction and is required to be unique
+            during the lifetime of the instruction.";
+        type inet:uri;
+    }
+
+    typedef instruction-status {
+        description
+            "Each instruction submitted to the scheduler undergoes
+            a lifecycle with the distinct states defined by this
+            enumeration. The instruction starts in queued state
+            and progresses from there to one of the terminal
+            states: cancelled, failed or successful.";
+
+        type enumeration {
+            enum queued {
+                description
+                    "Its immediate prerequisite intructions
+                    have not been resolved. The instruction
+                    can be cancelled. If any of its
+                    prerequisites moves to Unknown, Failed or
+                    Cancelled state, the instruction itself
+                    moves into Cancelled state. Once all of
+                    the dependencies move into Successful
+                    state, this instruction moves into
+                    Scheduled state. If this instruction's
+                    deadline passes, it transitions into
+                    Cancelled state.";
+            }
+            enum scheduled {
+                description
+                    "All of instruction's prerequisites have
+                    been successful and this instruction is
+                    ready to be executed, but the resources
+                    needed for its execution are not ready.
+                    The instruction can be Cancelled. If this
+                    instruction's deadline passes, it
+                    transitions into Failed state.";
+            }
+            enum executing {
+                description
+                    "The instruction is being executed. It
+                    cannot be Cancelled on request. If the
+                    execution does not complete within the
+                    specified deadline, this instruction
+                    moves into Unknown state. If the
+                    instruction's execution completes within
+                    the deadline, it moves into Successful,
+                    Failed or Cancelled state, based on the
+                    effects it has had on state.";
+            }
+            enum cancelled {
+                description
+                    "The instruction has never executed, or
+                    has been executing but all its effects
+                    have been rolled back. System state is
+                    such as if the instruction never
+                    executed.";
+            }
+            enum failed {
+                description
+                    "The instruciton has failed to execute
+                    completely, but some of its effects may
+                    have been recorded in the state. A full
+                    state resynchronization is required to
+                    recover from this failure, and even then
+                    an operator intervention may be required
+                    (if, for example the effect is not
+                    representable in exposed abstractions).";
+            }
+            enum successful {
+                description
+                    "The instruction has executed competely
+                    and its effects have been recorded in
+                    state.";
+            }
+            enum unknown {
+                description
+                    "The instruction has failed to execute
+                    within the deadline allocated to it.
+                    It's effects on the state are unknown
+                    at this point, but can be assumed to
+                    either atomically happen or not-happen.
+                    This state is transient and the
+                    instruction will eventually (at some
+                    indeterminate point in the future) enter
+                    either Successful, Failed or Cancelled
+                    state.";
+            }
+        }
+    }
+
+    grouping instruction-queue {
+        description
+            "The bare minimum run-time information which should be
+            exposed by an implementation of the instruction
+            scheduler defined in this model";
+
+        leaf instruction-queue-id {
+            type string;
+        }
+
+        list instruction {
+            description
+                "List of all instructions known to the
+                scheduler.";
+            config false;
+
+            leaf id {
+                type instruction-id;
+            }
+            key id;
+
+            leaf status {
+                type instruction-status;
+                mandatory true;
+            }
+
+            leaf deadline {
+                type nanotime;
+                mandatory true;
+            }
+        }
+    }
+
+    identity cancel-failure {
+        description
+            "The base identity of various reasons for an
+            instruction cancellation to fail.";
+    }
+
+    identity unknown-instruction {
+        description
+            "The specified instruction ID has not been found
+            in the queue.";
+        base cancel-failure;
+    }
+
+    identity uncancellable-instruction {
+        description
+            "The specified instruction is in process of being
+            executed and cannot be cancelled. Wait for the
+            execution process to complete.";
+        base cancel-failure;
+    }
+
+    rpc cancel-instruction {
+        input {
+            leaf id {
+                type instruction-id;
+                mandatory true;
+            }
+        }
+
+        output {
+            leaf failure {
+                type identityref {
+                    base cancel-failure;
+                }
+            }
+        }
+    }
+
+    rpc clean-instructions {
+        description
+            "Attempt to clean out a certain set of instructions.
+            Instructions flushed this way need to be in a terminal
+            state, e.g. Successful, Failed or Cancelled. Instructions
+            which were not cleaned are reported in the output of
+            this RPC.";
+        input {
+            leaf-list id {
+                type instruction-id;
+                min-elements 1;
+            }
+        }
+
+        output {
+            leaf-list unflushed {
+                type instruction-id;
+            }
+        }
+    }
+
+    identity submit-failure {
+        description
+            "The base identity of various reasons for an
+            instruction submission to fail.";
+    }
+
+    identity duplicate-instruction-id {
+        description
+            "Instruction ID clashes with an instruction with an
+            already-queued instruction. Assign a new identifier
+            or wait for the enqueued instruction to complete.";
+        base submit-failure;
+    }
+
+    identity too-many-instructions {
+        description
+            "Instruction queue size exceeded.";
+        base submit-failure;
+    }
+
+    identity unknown-precondition-id {
+        description
+            "One of the instruction IDs specified in the
+            precondition list is unknown.";
+        base submit-failure;
+    }
+
+    identity dead-on-arrival {
+        description
+            "The instruction was submitted after its deadline has
+            passed, or one of its dependencies resolved as
+            non-sunccessful.";
+        base submit-failure;
+    }
+
+    grouping submit-instruction-input {
+        description
+            "Minimum required arguments needed for submitting an
+            instruction into the scheduler. This grouping needs to
+            be used by concrete RPC definitions which are routed
+            to the scheduler.";
+
+        leaf id {
+            type instruction-id;
+            mandatory true;
+        }
+
+        leaf deadline {
+            type nanotime;
+            mandatory true;
+        }
+
+        leaf-list preconditions {
+            type instruction-id;
+        }
+    }
+
+    grouping submit-instruction-output {
+        choice result {
+            case failure-case {
+                container failure {
+                    leaf type {
+                        type identityref {
+                            base submit-failure;
+                        }
+                        mandatory true;
+                    }
+
+                    leaf-list failed-preconditions {
+                        when "../type = dead-on-arrival";
+                        type instruction-id;
+                    }
+                }
+            }
+        }
+    }
+
+    list instructions-queue {
+        key "instruction-queue-id";
+        uses instruction-queue;
+    }
+
+    notification instruction-status-changed {
+        leaf id {
+            description "Instruction identifier.";
+            type instruction-id;
+            mandatory true;
+        }
+
+        leaf status {
+            description "New status of the instruction.";
+            type instruction-status;
+            mandatory true;
+        }
+
+        container details {
+            description
+                "More details about the instruction state.";
+
+            leaf-list unmet-dependencies {
+                when "../../status = cancelled";
+                type instruction-id;
+            }
+        }
+    }
+}

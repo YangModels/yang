@@ -1,0 +1,254 @@
+module bgp-message {
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:bgp-message";
+    prefix "bgp-msg";
+
+    import ietf-inet-types { prefix inet; revision-date 2013-07-15; }
+    import bgp-types { prefix bgp-t; revision-date 2018-03-29; }
+    import network-concepts { prefix netc; revision-date 2013-11-25; }
+
+    organization "Cisco Systems, Inc.";
+    contact "Dana Kutenicsova <dkutenic@cisco.com>";
+
+    description
+        "This module contains the base data model of a BGP message.
+        It rolls up the definitions contained in RFC4271 and RFC4893.
+
+        Copyright (c)2013 Cisco Systems, Inc. All rights reserved.
+
+        This program and the accompanying materials are made available
+        under the terms of the Eclipse Public License v1.0 which
+        accompanies this distribution, and is available at
+        http://www.eclipse.org/legal/epl-v10.html";
+
+    revision "2018-03-29" {
+        description "Add RFC6514 Extended communities under bgp type.";
+    }
+
+    revision "2017-12-07" {
+        description "Add support for add-path in base BGP NLRI.";
+    }
+
+    revision "2013-09-19" {
+        description
+            "Split off basic types";
+    }
+
+    revision "2013-09-18" {
+        description
+            "Initial revision.";
+        reference "RFC4271, RFC4893";
+    }
+
+    typedef protocol-version {
+        type uint8 {
+            range 1..7;
+        }
+    }
+
+    typedef path-id {
+        type uint32;
+        default 0;
+        description
+            "Identifier of a single path. The identifier does not
+             carry any semantic meaning beyond uniquely identifying
+             a path. Default 0 value is reserved for non supported add-path key representation.";
+    }
+
+    grouping path-id-grouping {
+        leaf path-id {
+            type path-id;
+        }
+    }
+
+    grouping originator-id {
+        leaf originator {
+            type inet:ipv4-address;
+        }
+    }
+
+    grouping cluster-id {
+        leaf-list cluster {
+            type bgp-t:cluster-identifier;
+            ordered-by user;
+        }
+    }
+
+    grouping ipv4-prefix-and-path-id {
+        leaf prefix {
+            type inet:ipv4-prefix;
+        }
+        uses path-id-grouping;
+    }
+
+    notification open {
+        uses open-message;
+    }
+
+    grouping open-message {
+        description "Open Message";
+        reference "http://tools.ietf.org/html/rfc4271#section-4.2";
+        leaf version {
+            type protocol-version;
+            default 4;
+        }
+        leaf my-as-number {
+            type uint16;
+            default 23456;
+        }
+        leaf hold-timer {
+            type uint16;
+            mandatory true;
+        }
+        leaf bgp-identifier {
+            type inet:ipv4-address;
+            mandatory true;
+        }
+        list bgp-parameters {
+            list optional-capabilities {
+                reference "http://tools.ietf.org/html/rfc5492#section-4";
+                container c-parameters {
+                    container as4-bytes-capability {
+                        reference "http://tools.ietf.org/html/rfc6793";
+                        leaf as-number {
+                            type inet:as-number;
+                        }
+                    }
+                    container bgp-extended-message-capability {
+                        reference "https://www.ietf.org/archive/id/draft-ietf-idr-bgp-extended-messages-11.txt";
+                        presence "Indicates peer is able to send/receive 64K messages";
+                    }
+                }
+            }
+        }
+    }
+
+    grouping path-attributes {
+        reference "http://tools.ietf.org/html/rfc4271#section-5";
+        container attributes {
+            container origin {
+                reference "http://tools.ietf.org/html/rfc4271#section-5.1.1";
+                leaf value {
+                    type bgp-t:bgp-origin;
+                    mandatory true;
+                }
+            }
+            container as-path {
+                reference "http://tools.ietf.org/html/rfc4271#section-5.1.2";
+                list segments {
+                    uses bgp-t:as-path-segment;
+                }
+            }
+            uses bgp-t:next-hop;
+            container multi-exit-disc {
+                reference "http://tools.ietf.org/html/rfc4271#section-5.1.4";
+                leaf med {
+                    type uint32;
+                }
+            }
+            container local-pref {
+                reference "http://tools.ietf.org/html/rfc4271#section-5.1.5";
+                leaf pref {
+                    type uint32;
+                }
+            }
+            container atomic-aggregate {
+                reference "http://tools.ietf.org/html/rfc4271#section-5.1.6";
+                presence "Atomic Aggregate attribute is present.";
+            }
+            container aggregator {
+                uses bgp-t:bgp-aggregator;
+            }
+            list communities {
+                uses bgp-t:community;
+            }
+            list extended-communities {
+                uses bgp-t:extended-community;
+            }
+            container originator-id {
+                uses originator-id;
+            }
+            container cluster-id {
+                uses cluster-id;
+            }
+            container aigp {
+                container aigp-tlv {
+                    leaf metric {
+                        type netc:accumulated-igp-metric;
+                    }
+                }
+            }
+            list unrecognized-attributes {
+                key type;
+                leaf partial {
+                    type boolean;
+                    mandatory true;
+                }
+                leaf transitive {
+                    type boolean;
+                    mandatory true;
+                }
+                leaf type {
+                    type uint8;
+                    mandatory true;
+                }
+                leaf value {
+                    type binary {
+                        length 0..65535;
+                    }
+                    mandatory true;
+                }
+            }
+            container bgp-prefix-sid {
+                list bgp-prefix-sid-tlvs {
+                    choice bgp-prefix-sid-tlv {
+                        reference "https://tools.ietf.org/html/draft-ietf-idr-bgp-prefix-sid-02";
+                        // to be augmented
+                    }
+                }
+            }
+        }
+    }
+
+    notification update {
+        uses update-message;
+    }
+
+    grouping update-message {
+        description "Update Message";
+        reference "http://tools.ietf.org/html/rfc4271#section-4.3";
+        uses path-attributes;
+        list withdrawn-routes {
+            uses ipv4-prefix-and-path-id;
+        }
+        list nlri {
+            uses ipv4-prefix-and-path-id;
+        }
+    }
+
+    notification keepalive {
+        description "Keepalive Message";
+        reference "http://tools.ietf.org/html/rfc4271#section-4.4";
+    }
+
+    notification notify {
+        uses notify-message;
+    }
+
+    grouping notify-message {
+        description "Notification Message";
+        reference "http://tools.ietf.org/html/rfc4271#section-4.5";
+
+        leaf error-code {
+            type uint8;
+            mandatory true;
+        }
+        leaf error-subcode {
+            type uint8;
+            mandatory true;
+        }
+        leaf data {
+            type binary;
+        }
+    }
+}

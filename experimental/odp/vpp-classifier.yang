@@ -1,0 +1,215 @@
+module vpp-classifier {
+  yang-version 1;
+  namespace "urn:opendaylight:params:xml:ns:yang:vpp:classifier";
+  prefix "vpp-classifier";
+
+  revision "2016-12-14" {
+    description
+      "This revision adds the following new features:
+        - updates order of union types for opaque-index";
+  }
+
+  revision "2015-06-03" {
+    description
+      "Initial revision of model for VPP packet classifier.
+      The model can be used ony to implement ACLs.
+      Other classify table usages are not supported yet,
+      see https://jira.fd.io/browse/VPP-203 for details.";
+    reference
+      "https://wiki.fd.io/view/VPP/Introduction_To_N-tuple_Classifiers";
+  }
+
+  import ietf-yang-types {
+    prefix "yang";
+  }
+
+  typedef classify-table-ref {
+    type leafref {
+      path "/vpp-classifier:vpp-classifier/classify-table/name";
+    }
+    description
+      "This type is used by data models that need to reference
+       configured classify tables.";
+  }
+
+  typedef packet-handling-action {
+    type enumeration {
+      enum "deny" {
+        // by VPP convention, first neighbour node (at index 0) is a drop node
+        value 0;
+      }
+      enum "permit" {
+        value -1; // indicates that the next node not set
+      }
+    }
+  }
+
+  typedef vpp-node-name {
+    type string;
+  }
+
+  typedef vpp-node {
+    type union {
+      type packet-handling-action;
+      type vpp-node-name;
+    }
+    description
+      "Defines VPP node reference using packet handling action or relative node name
+       (if definition in terms of packet handling action is not possible).";
+  }
+
+  typedef opaque-index {
+    type union {
+      type uint32;
+      type vpp-node;
+    }
+    description
+      "Defines opaque-index type - metadata that can be attached to session-hit packets.
+       Vpp nodes can't be referenced by index, because node indexes might change after vpp restart.";
+  }
+
+  grouping classify-session-attributes {
+    description
+      "Defines classify session attributes that are mapped to classify_add_del_session
+       and classify_session_details messages parameters.";
+
+    leaf hit_next {
+      type vpp-node;
+      mandatory true;
+      description
+        "Vpp node to which packet will be send when it produces a match.";
+    }
+    leaf opaque_index {
+      type opaque-index;
+    }
+    leaf advance {
+      type int32;
+      default 0;
+      description
+        "Nodes like ip4/6-classify use the parameter to \"consume\" networking layer.
+        Example: tunnel decapsulation.";
+    }
+  }
+
+  grouping classify-table-base-attributes {
+    description
+      "Defines classify table attributes that are mapped to classify_add_del_table message parameters.";
+
+    leaf classifier-node {
+      type vpp-node-name;
+      description
+        "Name of VPP node the table is defined for.";
+    }
+    leaf nbuckets {
+      mandatory true;
+      type uint32;
+      description
+        "Used by classifier hashing algorithm. It is not possible to resize the bucket array,
+        therefore suggested value is approximate number of expected entries.";
+    }
+    leaf skip_n_vectors {
+      type uint32;
+      default 0;
+      description
+        "Number of 16 byte vectors to be skipped before applying mask.";
+    }
+    leaf next_table {
+      type classify-table-ref;
+      description
+        "Reference to the next classify table. Required when multiple table chaining is used.";
+    }
+    leaf miss_next {
+      mandatory true;
+      type vpp-node;
+      description
+        "Vpp node to which packet will be send when it falis to produce a match";
+    }
+    leaf mask {
+      type yang:hex-string;
+      mandatory true;
+      description
+        "Defines match mask (multiple of 16 bytes)";
+    }
+
+    list classify-session {
+      key "match";
+
+      leaf match {
+        type yang:hex-string;
+        description
+          "Defines actual value to be matched that is
+           a byte vector, which length is multiple of 16 bytes";
+
+        must "string-length(match) = string-length(../../mask)" {
+          error-message
+            "Match length is not equal to classify table mask length.";
+          description
+            "Match length must be equal to classify table mask length.";
+        }
+      }
+
+      uses classify-session-attributes;
+    }
+  }
+
+  grouping classify-table-config-attributes {
+    description
+      "Defines classify table config only attributes (present in classify_add_del_table message
+       but not in classify_table_info_reply).";
+
+    // TODO(HC2VPP-10): move to classify-table-base-attributes
+    // after https://jira.fd.io/browse/VPP-208 is fixed
+    leaf memory_size {
+      type uint32;
+      // mandatory true; // TODO(HC2VPP-10): uncomment
+      description
+        "Memory size for classify table and its entries.";
+    }
+  }
+
+  grouping classify-table-operational-attributes {
+    description
+      "Defines classify table operational attributes (present in classify_table_info_reply message
+       but not in classify_add_del_table).";
+
+    leaf active_sessions {
+      type uint32;
+      config false;
+      description
+        "Number of sessions defined for the classify table.";
+    }
+  }
+
+  container vpp-classifier {
+    list classify-table {
+      key "name";
+
+      leaf name {
+        type string;
+        description
+          "Hides classify table identifier managed by vpp.";
+      }
+
+      uses classify-table-base-attributes;
+      uses classify-table-config-attributes;
+    }
+  }
+
+  container vpp-classifier-state {
+    config false;
+
+    list classify-table {
+      key "name";
+
+      leaf name {
+        type string;
+        description
+          "Hides classify table identifier managed by vpp.";
+      }
+
+      uses classify-table-base-attributes;
+      uses classify-table-operational-attributes;
+    }
+  }
+
+}

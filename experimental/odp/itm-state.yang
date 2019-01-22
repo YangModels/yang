@@ -1,0 +1,318 @@
+module itm-state {
+
+      namespace "urn:opendaylight:genius:itm:op";
+
+      prefix itm-state;
+
+      import ietf-interfaces {
+          prefix if;
+      }
+
+      import ietf-yang-types {
+          prefix yang;
+      }
+
+      import ietf-inet-types {
+          prefix inet;
+          revision-date "2013-07-15";
+      }
+      import odl-interface {
+          prefix odlif; revision-date "2016-04-06";
+      }
+
+
+      description "This YANG module defines operation part of the model.";
+
+      revision "2016-04-06";
+
+        /* Operational state */
+
+      identity tep-type-base {
+          description "Base TEP device type";
+      }
+
+      identity tep-type-internal {
+          base tep-type-base;
+          description "TEP type internal e.g. Compute OVS";
+      }
+
+      identity tep-type-external {
+          base tep-type-base;
+          description "TEP type external e.g. DC Gateway";
+      }
+
+      identity tep-type-hwvtep {
+          base tep-type-base;
+          description "TEP type Hwvtep e.g. TOR devices";
+      }
+
+      typedef tep-type {
+          type identityref {
+              base tep-type-base;
+          }
+          description "This type is used to refer to an TEP Device Type.";
+      }
+
+      grouping tep-info-attributes {
+          leaf tep-device-type {
+              type identityref {
+                  base tep-type-base;
+              }
+          }
+          leaf tep-device-id {
+              type string; //dpnid or node-id
+          }
+          leaf tep-ip {
+              type inet:ip-address; //dpnid or node-id
+          }
+      }
+
+      typedef tunnel-oper-status {
+          type enumeration {
+               enum up;
+               enum down;
+               enum unknown;
+               enum ignore;
+           }
+      }
+
+      container dpn-endpoints {
+          list DPN-TEPs-info {
+          key "DPN-ID";
+
+          leaf DPN-ID {
+              type uint64;
+          }
+          leaf up {
+              type boolean;
+              config false;
+          }
+
+          /* Minimum 1 port. We may for now support only two ports */
+          list tunnel-end-points {
+              ordered-by user;
+              key "portname VLAN-ID ip-address tunnel-type"; /* Multiple tunnels on the same physical port but on different VLAN can be supported */
+
+              leaf portname {
+                  type string;
+              }
+              leaf VLAN-ID {
+                  type uint16;
+              }
+              leaf ip-address {
+                  type inet:ip-address;
+              }
+              leaf subnet-mask {
+                  type inet:ip-prefix;
+              }
+              leaf gw-ip-address {
+                  type inet:ip-address;
+              }
+              list tz-membership {
+                  key "zone-name";
+                  leaf zone-name {
+                      type string;
+                  }
+              }
+              leaf interface-name {
+                  type string;
+              }
+              leaf tunnel-type {
+                  type identityref {
+                      base odlif:tunnel-type-base;
+                  }
+              }
+              leaf option-of-tunnel {
+                  description "Use flow based tunnels for remote-ip";
+                  type boolean;
+                  default false;
+              }
+              leaf option-tunnel-tos {
+                  description "Value of ToS bits to be set on the encapsulating
+                      packet. The value of 'inherit' will copy the DSCP value
+                      from inner IPv4 or IPv6 packets.  When ToS is given as
+                      a numberic value, the least significant two bits will
+                      be ignored.";
+                  type string {
+                      length "1..8";
+                  }
+              }
+          }
+       }
+    }
+
+
+    container tunnel-list {
+        list internal-tunnel {
+
+            key  "source-DPN destination-DPN transport-type";
+
+            leaf source-DPN {
+                type uint64;
+            }
+
+            leaf destination-DPN {
+                type uint64;
+            }
+
+            leaf transport-type {
+                type identityref {
+                    base odlif:tunnel-type-base;
+                }
+            }
+
+            /* logical-group interface id */
+
+            leaf-list tunnel-interface-names {
+                type string;
+            }
+        }
+    }
+
+    container external-tunnel-list {
+        list external-tunnel {
+            key  "source-device destination-device transport-type";
+
+            leaf source-device {
+                type string; //dpnid or node-id
+            }
+
+            leaf destination-device {
+                type string; //dpn-id or node-id or ip
+            }
+
+            leaf transport-type {
+                 type identityref {
+                     base odlif:tunnel-type-base;
+                 }
+            }
+
+            /* logical-group interface id */
+
+            leaf tunnel-interface-name {
+                 type string;
+            }
+
+        }
+    }
+
+    container tunnels_state {
+        config false;
+        list state-tunnel-list {
+            key  "tunnel-interface-name";
+
+            leaf tunnel-interface-name {
+                type string;
+            }
+
+            leaf tunnel-state {
+                type boolean;
+                config false;
+                status deprecated;
+            }
+
+            leaf oper-state { type tunnel-oper-status; }
+
+            container src-info {
+                uses tep-info-attributes;
+            }
+
+            container dst-info {
+                uses tep-info-attributes;
+            }
+
+            leaf transport-type {
+                type identityref {
+                    base odlif:tunnel-type-base;
+                }
+            }
+
+            leaf port-number {
+                type string;
+            }
+
+            leaf if-index {
+                type uint16;
+            }
+        }
+    }
+
+    container dpn-teps-state {
+        list dpns-teps {
+            key "source-dpn-id";
+            leaf source-dpn-id {
+                type uint64;
+                mandatory true;
+            }
+
+            leaf ip-address {
+                type inet:ip-address;
+            }
+
+            leaf tunnel-type {
+                type identityref {
+                    base odlif:tunnel-type-base;
+                }
+                mandatory true;
+            }
+
+            /* Remote DPNs to which this DPN-Tep has a tunnel */
+            list remote-dpns {
+                key "destination-dpn-id";
+                leaf destination-dpn-id {
+                    type uint64;
+                    mandatory true;
+                }
+
+                leaf option-of-tunnel {
+                    description "Use flow based tunnels for remote-ip";
+                    type boolean;
+                    default false;
+                }
+
+                leaf tunnel-name {
+                    type string;
+                    mandatory true;
+                }
+
+                /* This will later be changed to monitor profile id */
+                /* The monitor profile will contain monitoring related params */
+                leaf monitoring-enabled {
+                    type boolean;
+                    mandatory true;
+                }
+
+                leaf monitoring-interval {
+                    type uint16 {
+                        range "1000..30000";
+                    }
+                    mandatory true;
+                }
+
+                leaf internal {
+                    type boolean;
+                    mandatory true;
+                    description "represents whether this is an internal or external tunnel.";
+                }
+            }
+        }
+    }
+
+    container monitoring-ref-count {
+        config false;
+        description "The container for maintaing the reference count for monitoring requests
+                      between a src and dst DPN pair.";
+        list monitored-tunnels {
+            key "source-dpn destination-dpn";
+            leaf source-dpn {
+                type uint64;
+            }
+            leaf destination-dpn {
+                type uint64;
+            }
+            leaf reference-count {
+                type uint16;
+            }
+        }
+    }
+}

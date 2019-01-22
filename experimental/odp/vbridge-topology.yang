@@ -1,0 +1,174 @@
+module vbridge-topology {
+    // vi: set et smarttab sw=4 tabstop=4:
+
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:vbridge:topology";
+    prefix "vbridge";
+
+    organization "Cisco Systems, Inc.";
+
+    contact "Robert Varga <rovarga@cisco.com>";
+
+    description
+        "Base model describing a virtual bridge domain mapped expressed
+        as a network topology. Implementations of this model are expected
+        to map this topology onto an underlay transport/management topology,
+        such as a NETCONF topology talking to forwarding boxes
+
+        Copyright (c) 2016 Cisco Systems, Inc. and others.  All rights reserved.
+
+        This program and the accompanying materials are made available under the
+        terms of the Eclipse Public License v1.0 which accompanies this distribution,
+        and is available at http://www.eclipse.org/legal/epl-v10.html";
+
+    revision "2016-01-29" {
+        description "Initial cut";
+    }
+
+    import network-topology { prefix nt; revision-date 2013-10-21; }
+    import odl-external-reference { prefix extref; }
+    import v3po { prefix "v3po"; revision-date "2017-06-07"; }
+    import yang-ext { prefix ext; revision-date "2013-07-09"; }
+
+    identity tunnel-type {
+        description "Type of tunneling technology";
+    }
+
+    typedef tunnel-type-ref {
+        description "Reference to a tunneling technology";
+        type identityref {
+            base tunnel-type;
+        }
+    }
+
+    augment "/nt:network-topology/nt:topology/nt:topology-types" {
+        ext:augment-identifier "topology-types-vbridge-augment";
+        container vbridge-topology {
+            presence "Indicates that this topology is a virtual bridge domain topology";
+        }
+    }
+
+    augment "/nt:network-topology/nt:topology" {
+        ext:augment-identifier "topology-vbridge-augment";
+        when "./nt:topology-types/vbridge-topology";
+
+        // Pointer to the NETCONF topology which supports this bridge domain
+        // FIXME: must "../../nt:underlay-topology";
+
+        leaf tunnel-type {
+            description "Tunnel technology to use for encapsulation";
+            type tunnel-type-ref;
+        }
+
+        choice tunnel-parameters {
+            description "Empty container which will be augmented with
+                         parameters specific to a particular underlay
+                         tunnel technology";
+        }
+
+        uses v3po:bridge-domain-attributes;
+    }
+
+    augment "/nt:network-topology/nt:topology/nt:node" {
+        ext:augment-identifier "node-vbridge-augment";
+        when "../nt:topology-types/vbridge-topology";
+
+
+        container bridge-member {
+            presence "Indicates this node is part of the bridge domain";
+
+            // Pointer to the NETCONF node which supports this bridge member
+            must "../../nt:supporting-node";
+
+            // FIXME: this is implementation specific, depends on whether
+            // the underlay has an a concept of a bridge domain.
+            leaf supporting-bridge-domain {
+                description
+                    "Reference to the network element bridge domain, which has
+                    been configured to support this virtual bridge domain on
+                    this bridge member.
+
+                    This reference needs to be resolved against the supporting
+                    node's configuration data store.";
+                config false;
+                type extref:external-reference;
+            }
+        }
+    }
+
+    augment "/nt:network-topology/nt:topology/nt:node/nt:termination-point" {
+        ext:augment-identifier "termination-point-vbridge-augment";
+        when "../bridge-member";
+
+        choice interface-type {
+            leaf user-interface {
+                description
+                    "Reference to the network element interface, which is
+                    configured to be a member of this virtual bridge domain.
+
+                    This reference needs to be resolved against the supporting
+                    node's configuration data store.";
+                type extref:external-reference;
+                mandatory true;
+            }
+            leaf tunnel-interface {
+                description
+                    "Reference to the network element interface, which is
+                    configured to on the member to support exchange of packet
+                    passing through this virtual bridge domain towards other
+                    domain members.
+
+                    This reference needs to be resolved against the supporting
+                    node's configuration data store.";
+                config false;
+                type extref:external-reference;
+                mandatory true;
+            }
+        }
+    }
+
+    augment "/nt:network-topology/nt:topology" {
+        ext:augment-identifier "topology-vbridge-cfg-augment";
+        when "class = 'vbridge-startup-config'";
+
+        container vbridge-startup-config {
+            presence "Label for startup config.";
+            description "Topology used for displaying startup
+            VBridge nodes configuration defined in ODL.";
+        }
+    }
+
+    augment "/nt:network-topology/nt:topology/nt:node/nt:termination-point" {
+        ext:augment-identifier "termination-point-vbridge-cfg-augment";
+        when "../../vbridge-startup-config";
+
+        choice interface-type-cfg {
+            case virtual-domain-carrier-case {
+                container virtual-domain-carrier {
+                    presence "Label for startup config.";
+                    description
+                        "Reference to the physical network element interface, which
+                         can be used as a super interface for VLAN sub-interfaces
+                         or which IP address can be specified as a source or destination
+                         of encapsulated VXLAN traffic.";
+                    config false;
+                }
+            }
+        }
+    }
+
+    augment "/nt:network-topology/nt:topology/nt:link" {
+        when "../nt:topology-types/vbridge-topology";
+        ext:augment-identifier "link-vbridge-augment";
+        leaf tunnel {
+            description
+                "Reference to the network element tunnel interface supporting
+                cross-connect between two bridge members.
+
+                This reference needs to be resolved against the supporting
+                node's operational data store.";
+            config false;
+            type extref:external-reference;
+        }
+    }
+}

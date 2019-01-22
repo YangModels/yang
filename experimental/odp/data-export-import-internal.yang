@@ -1,0 +1,156 @@
+module data-export-import-internal {
+    yang-version 1;
+    namespace "urn:opendaylight:daexim-internal";
+    prefix "internal";
+
+    import data-export-import {
+        prefix daexim;
+        revision-date 2016-09-21;
+    }
+
+    organization
+        "Brocade BSC Team";
+
+    contact
+        "Anton Ivanov <mailto:aivanov@brocade.com>
+         David Spence <mailto:dspence@brocade.com>
+         Shaleen Saxena <mailto:ssaxena@brocade.com>
+         Richard Kosegi <mailto:rkosegi@brocade.com>";
+
+    description
+        "This module contains YANG definitions for internal implementation of
+         the data export and import public API.
+
+         Copyright (c) 2016 Brocade Communications Systems, Inc. All rights reserved.
+
+         This program and the accompanying materials are made available
+         under the terms of the Eclipse Public License v1.0 which
+         accompanies this distribution, and is available at
+         http://www.eclipse.org/legal/epl-v10.html";
+
+    revision "2016-09-21" {
+        description "Initial revision.";
+    }
+
+    typedef ipc-type {
+        description "A message type for internal (IPC) control messages.";
+        type enumeration {
+            enum schedule {
+                description "A control message to schedule export.";
+                value 0;
+            }
+            enum cancel {
+                description "A control message to cancel export.";
+                value 1;
+            }
+        }
+    }
+
+    container import-operation-result {
+        config false;
+        description
+            "The result of the last attempted import operation, with associated
+             failure reason.";
+        uses daexim:arg-result;
+        uses daexim:arg-reason;
+    }
+
+    container daexim {
+        config false;
+        container daexim-control {
+            description
+                "Export control, used to dispatch IPC to all node instances.
+
+                 When `task-type` is `schedule` then `run-at` must be specified
+                 and `inclusions` and/or `exclusions` may be specified.  If
+                 both `inclusions` and `exclusions` are specified, then a module
+                 is only exported if it is included and not also excluded.
+
+                 When `task-type` is `cancel` then `run-at`, `inclusions` and `exclusions`
+                 are ignored. If there is an export running or scheduled then
+                 `cancel` cancels it and resets status to its initial state.";
+            leaf task-type {
+                type ipc-type;
+            }
+            leaf run-at {
+                description
+                    "The time, in absolute UTC time, at which to run the export,
+                     as determined by the node handling the `schedule-export`
+                     request.";
+                type daexim:absolute-time;
+            }
+            leaf run-on-node {
+                description
+                    "Name of node where the export should be executed.";
+                type string;
+            }
+            leaf strict-data-consistency {
+                description
+                    "Indicates if strict data consistency needs to be
+                     maintained while exporting data. This value determines
+                     how data is read from the datastore during export -
+                     in one shot (true) or in smaller chunks (false).";
+                type boolean;
+                default true;
+            }
+            uses daexim:split-by-module-options;
+            uses daexim:inclusions;
+            uses daexim:exclusions;
+        }
+
+        grouping node-status {
+            leaf import-status {
+                description
+                    "The import task status of the corresponding node.";
+                type daexim:status;
+                mandatory true;
+            }
+            leaf export-status {
+                description
+                    "The export task status of the corresponding node.";
+                type daexim:status;
+                mandatory true;
+            }
+            leaf export-result {
+                description
+                    "A human-readable string describing the cause, if this
+                     export task failed.";
+                type string;
+            }
+            leaf import-result {
+                description
+                    "A human-readable string describing the cause, if this
+                     import task failed.";
+                type string;
+            }
+            leaf imported-at {
+                description "The restore time in absolute UTC time.";
+                type daexim:absolute-time;
+            }
+            leaf last-import-change {
+                description "Timestamp in absolute UTC time when import status was last changed.";
+                type daexim:absolute-time;
+            }
+            leaf last-export-change {
+                description "Timestamp in absolute UTC time when export status was last changed.";
+                type daexim:absolute-time;
+            }
+            uses daexim:files;
+        }
+
+        container daexim-status {
+            description
+                "Data export/import, used to communicate task status.";
+            list node-status {
+                key "node-name";
+                description "The nodes where the export is to be executed.";
+                leaf node-name {
+                    description "Node name as used in cluster configuration";
+                    type string;
+                    mandatory true;
+                }
+                uses node-status;
+            }
+        }
+    }
+}

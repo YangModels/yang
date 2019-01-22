@@ -1,0 +1,561 @@
+module data-export-import {
+    yang-version 1;
+    namespace "urn:opendaylight:daexim";
+    prefix "daexim";
+
+    import ietf-yang-types {
+        prefix yang;
+        revision-date 2013-07-15;
+    }
+
+    organization
+        "Brocade BSC Team";
+
+    contact
+        "Anton Ivanov <mailto:aivanov@brocade.com>
+         David Spence <mailto:dspence@brocade.com>
+         Shaleen Saxena <mailto:ssaxena@brocade.com>
+         Richard Kosegi <mailto:rkosegi@brocade.com>";
+
+    description
+        "This module defines the data store export and import public API.
+
+         Copyright (c) 2016 Brocade Communications Systems, Inc. All rights reserved.
+
+         This program and the accompanying materials are made available
+         under the terms of the Eclipse Public License v1.0 which
+         accompanies this distribution, and is available at
+         http://www.eclipse.org/legal/epl-v10.html
+
+         This feature is used to export the system data tree state, or part of,
+         to the system's file system. It may also be used to import the system
+         data tree state, or part of, from the system's file system.
+
+         Connected devices whose data trees are accessed via a mount point of
+         this system are not considered part of the system for the purposes of
+         export. This mechanism does not export the data trees of such devices.
+
+         Where a logical system comprises more than one physical node, export
+         files may be produced on one or more of the physical nodes. When
+         importing to a logical system, files may be required to be present on
+         one or more of the physical nodes.
+
+         The `schedule-export` RPC is used to export at a specified time in the
+         future. The server clock (the clock of the host which handles this
+         module's RPC requests) is the authoritative time source for this module.
+         All times are specified as either absolute UTC or a relative offset from
+         the server clock; all time comparisons are performed against the server
+         clock.
+
+         By default the whole system data state will be exported. Whole data
+         subtrees for a data store can be excluded from an export, with each
+         data subtree specified by module name. (This is the smallest unit of
+         exclusion: it is not possible to specify that only part of a module be
+         excluded for a data store.) A whole data store can be excluded from an
+         export by specifying a wildcard value for the module name.
+
+         Excluding part of the system from an export may result in a partial
+         loss of integrity for the data in the exported files. For example, if
+         we have two modules, m1 and m2, where m2 has a leafref whose value
+         points to a data node in m1, and m1 is excluded, then the exported data
+         will contain a leafref which points to a node absent from the exported
+         files.
+
+         An export outputs a models declaration file and one or more data files.
+         An implementation may export all data for a data store into one file
+         representing the whole data store, may split the data by module into
+         several files, or some combination of both. If data for a module is
+         exported into both a base file and a module-specific file, then the
+         module-specific data overrides the base data.
+
+         The filename format for the models declaration file is:
+
+            '<prefix>_models.json'
+
+         The filename formats for data files are:
+
+            '<prefix>_data_<store>?_<module>?.json'
+            '<prefix>_data_<store>?_<module@revision>?.json'
+
+         Within these formats:
+
+            '<prefix>' is a fixed string which has the same value for a related
+            set of models declaration and data files;
+
+            '<store>' is the name of the data store to which the data relates;
+
+            '<module>' is the name of the module to which the data relates;
+
+            '<module@revision>' is the name and revision of the module to which
+            the data relates.
+
+         A models declaration file contains a JSON-encoded list of models, with
+         each model specified as an object with string values for 'module',
+         'revision-date' and 'namespace' (module name, revision and namespace
+         respectively.)
+
+         A data file contains a JSON-encoded object representing the data for a
+         store, optionally scoped to a module. The format of the object is as
+         per draft-ietf-netmod-yang-json.
+
+         An import takes input from the set of locally available files, which
+         are named and structured as per export.
+
+         When importing, a models declaration file declares the models that are
+         required in order to load the data files. This file is used by the
+         `immediate-import` RPC in order to check that the required models are
+         already loaded before any data modifications are made. If desired, this
+         test may be skipped.
+
+         When importing data to a data store, the `immediate-import` RPC may be
+         instructed to first clear all existing data from that store. Data is
+         then imported to the data store from file. All data modifications for a
+         data store are performed in a transaction, with one transaction per
+         data store. The transaction ensures that inter-module data dependencies
+         within a data store are respected. Data is imported such that data from
+         files with a <module> part or a <module@revision> part overrides any
+         data from a base file (one which does not specify a <module> part or a
+         <module@revision> part.)";
+
+    revision "2016-09-21" {
+        description "Initial revision.";
+    }
+
+    typedef absolute-time {
+        description "A type for absolute time values.";
+        type yang:date-and-time {
+            pattern '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z';
+        }
+    }
+    typedef relative-time {
+        description "A type for relative time values.";
+        type yang:timeticks;
+    }
+
+    typedef data-store {
+        description
+            "A data store is specified as a string whose value is either a
+             formally declared enum label, or another string value which may be
+             supported by the implementation (but not formally declared in this
+             module.)";
+        reference
+            "RFC 6020: YANG - A Data Modeling Language
+             Section 4.2.3. State Data";
+        type union {
+            type enumeration {
+                enum config {
+                    value 0;
+                    description "The config data store.";
+                }
+                enum operational {
+                    value 1;
+                    description "The operational data store.";
+                }
+            }
+            type string;
+        }
+    }
+
+    typedef data-store-scope {
+        description
+            "A type for communicating the scope of an operation that applies to
+             a set of data stores.";
+        type enumeration {
+            enum none {
+                value 0;
+                description
+                    "No data stores are in scope for this operation.";
+            }
+            enum all {
+                value 1;
+                description
+                    "All data stores are in scope for this operation.";
+            }
+            enum data {
+                value 2;
+                description
+                    "Only data stores for which data is supplied are in scope
+                     for this operation.";
+            }
+        }
+    }
+
+    typedef status {
+        description
+            "A type for communicating the status of the export or export task.";
+        type enumeration {
+            enum initial {
+                value 0;
+                description
+                    "An export has not been scheduled yet or a task has not yet
+                     started.";
+            }
+            enum scheduled {
+                value 1;
+                description "An export or import task is scheduled to run.";
+            }
+            enum in-progress {
+                value 2;
+                description "An export or import task is in progress.";
+            }
+            enum complete {
+                value 3;
+                description "An export or import task completed successfully.";
+            }
+            enum boot-import-scheduled {
+                value 4;
+                description "An automatic-on-boot import will start as soon as the system is fully ready.";
+            }
+            enum boot-import-in-progress {
+                value 5;
+                description "An automatic-on-boot import is in progress.";
+            }
+            enum skipped {
+                value 6;
+                description "An export or task was skipped.";
+            }
+            enum inconsistent {
+                value -1;
+                description
+                    "An export completed successfully, however a transaction was
+                     executed while the export was in progress.";
+            }
+            enum failed {
+                value -2;
+                description "An export or import task did not complete successfully.";
+            }
+            enum boot-import-failed {
+                value -3;
+                description "An automatic-on-boot import failed.";
+            }
+        }
+    }
+
+    typedef wildcard-star {
+        description
+            "A wildcard expression used to match everything in scope.";
+        type string {
+            pattern '\*';
+        }
+    }
+
+    grouping arg-result {
+        leaf result {
+            description
+                "A return value of true indicates that the request completed or
+                 was actioned successfully: otherwise, the request failed.";
+            mandatory true;
+            type boolean;
+        }
+    }
+
+    grouping arg-reason {
+        leaf reason {
+            description
+                "A human-readable string indicating why a request could not be
+                 completed or actioned successfully.";
+            type string;
+        }
+    }
+
+    grouping operation-status {
+        leaf status {
+            description "A human-readable string describing the cause, if this
+            task failed.";
+            type status;
+        }
+        uses arg-reason;
+    }
+
+    grouping inclusions {
+        list included-modules {
+            description
+                "A list of module name, data store pairs to be included in an
+                 export.";
+            key "module-name data-store";
+            leaf module-name {
+                description
+                    "The name of the module to be included.";
+                mandatory true;
+                type yang:yang-identifier;
+            }
+            leaf data-store {
+                description
+                    "The data store to include for the corresponding module name.";
+                mandatory true;
+                type data-store;
+            }
+        }
+    }
+
+    grouping exclusions {
+        list excluded-modules {
+            description
+                "A list of module name, data store pairs to be excluded from an
+                 export.
+
+                 If any module name is specified using the wildcard string value,
+                 then all modules are excluded for that data store.
+
+                 To exclude all data stores for a specific module, specify a
+                 separate list item for each data store, with each item using the
+                 same module name.";
+            key "module-name data-store";
+            leaf module-name {
+                description
+                    "The name of the module to exclude, or the wildcard string
+                     value when excluding all modules.";
+                mandatory true;
+                type union {
+                    type yang:yang-identifier;
+                    type wildcard-star;
+                }
+            }
+            leaf data-store {
+                description
+                    "The data store to exclude for the corresponding module name.";
+                mandatory true;
+                type data-store;
+            }
+        }
+    }
+
+    grouping files {
+        leaf model-file {
+            description "The filename of the models declaration file.";
+            type string;
+        }
+        leaf-list data-files {
+            description "The filenames of the output data files.";
+            type string;
+        }
+    }
+
+    grouping split-by-module-options {
+        leaf split-by-module {
+            description
+                "In context of data export, this flag indicate if exported data
+                should be split by module into separate files.";
+            type boolean;
+            default false;
+        }
+    }
+
+    rpc schedule-export {
+        description
+            "A request to export the system at a specific time in the future.
+             The `run-at` time may be specified as either an absolute UTC
+             time or a relative offset from the server clock. Attempts to
+             schedule an export in the past will be rejected.
+
+             Both `inclusions` and/or `exclusions` may be specified.
+             If only `inclusions` are specified, then only those explicitly
+             'whitelisted' module/store pairs are exported, and no other ones.
+             If only only `exclusions` are specified, then all modules are exported
+             except the 'blacklisted' module/store pairs.
+             If both `inclusions` and `exclusions` are specified, then a module
+             is only exported if it is included (whilelisted) but not also excluded (blacklisted).
+
+             Each file that is written will contain a JSON-encoded object that
+             contains module data from the corresponding data store: module data
+             is not included in the object for any module identified in the
+             exclusion list. (Each file that is written will contain at least an
+             empty JSON object.)";
+        input {
+            leaf run-at {
+                description
+                    "The time, as either an absolute UTC time or a relative
+                     offset from the server clock, at which to run the export.";
+                mandatory true;
+                type union {
+                    type absolute-time;
+                    type relative-time;
+                }
+            }
+            leaf local-node-only {
+                description
+                    "Indicates if export should be performed only on
+                     the node receiving this request.";
+                type boolean;
+            }
+            leaf strict-data-consistency {
+                description
+                    "Indicates if strict data consistency needs to be
+                     maintained while exporting data. This value determines
+                     how data is read from the datastore during export -
+                     in one shot (true) or in smaller chunks (false).";
+                type boolean;
+                default true;
+            }
+            uses split-by-module-options;
+            uses inclusions;
+            uses exclusions;
+        }
+        output {
+            uses arg-result;
+            uses arg-reason;
+        }
+    }
+
+    rpc status-export {
+        description
+            "A request to check export status.
+
+             If `status` has the value 'initial' then an export has not been
+             scheduled.
+
+             If `status` has the value 'scheduled' then `run-at` indicates
+             the time at which the next export will run.
+
+             If `status` has the value `in-progress` then: `run-at` indicates
+             the time at which the running export was scheduled to start; and,
+             `tasks` indicates activities that have been undertaken, that are
+             currently being executed and that will be performed. As such,
+             `tasks` serves as an indicator of activity progress and success.
+
+             If `status` has any other value then: `run-at` indicates the
+             time at which the last export was scheduled to start; and, `tasks`
+             indicates the activities that were undertaken.
+
+             If the `status` for any node in `nodes` is 'failed', then the
+             corresponding `reason` may be used to communicate any identified
+             cause.";
+        output {
+            uses operation-status;
+            leaf run-at {
+                description "The export time in absolute UTC time.";
+                type absolute-time;
+            }
+            list nodes {
+                description "A list of nodes and their status.";
+                key "node-name";
+                leaf node-name {
+                    description "The name of the node.";
+                    mandatory true;
+                    type string;
+                }
+                leaf last-change {
+                    description "Timestamp in absolute UTC time when export status was last changed.";
+                    type absolute-time;
+                }
+                uses operation-status;
+                uses files;
+            }
+        }
+    }
+
+    rpc cancel-export {
+        description
+            "A request to cancel export.
+
+             To cancel the export the server stops any running tasks (where
+             possible, immediately), clears any scheduled export time value and
+             releases associated resources.
+
+             This RPC may be called at any time, whether there is an export in
+             progress, scheduled or not yet scheduled. The returned result is
+             true when the server has successfully cleared tasks, state and
+             resources: false on failure to do so. (Note that if there is no
+             export scheduled or running, then there is nothing for the server
+             to clear. Therefore the return result is true as the server cannot
+             fail.)";
+        output {
+            uses arg-result;
+            uses arg-reason;
+        }
+    }
+
+    rpc immediate-import {
+        description
+            "A request to import data from files already present in the file
+             system.";
+        input {
+            leaf check-models {
+                description
+                    "If this flag is true then the server must read the models
+                     declaration file and check that all declared models are
+                     loaded before performing any data modifications. If the
+                     application cannot read the models declaration file, the
+                     file has bad content, or any declared model is not loaded,
+                     then no data modifications are performed and a result of
+                     false is returned.
+
+                     If this flag is false then this check is skipped. (If a
+                     models declaration file is present it is ignored.)";
+                type boolean;
+                default true;
+            }
+            leaf clear-stores {
+                description
+                    "This flag allows for the existing data in data stores to be
+                     deleted before restoring data from data files. When this
+                     flag's value is 'all', all data in all stores is deleted.
+                     When this flag's value is 'data', all data in the stores
+                     for which data files are supplied is deleted. When this
+                     flag's value is 'none', then no data is deleted.";
+                type data-store-scope;
+                default all;
+            }
+            leaf strict-data-consistency {
+                description
+                    "Indicates if strict data consistency needs to be
+                     maintained while importing data. This value determines
+                     how data is written to the datastore during import -
+                     in one shot (true) or in smaller chunks (false).";
+                type boolean;
+                default true;
+            }
+            leaf file-name-filter {
+                description
+                    "This pattern can be used to filter import data files.
+                     Value must be valid regular expression.
+                     When this pattern is not specified or it is empty string
+                     then all files matching daexim naming format are accepted
+                     for import. Otherwise files are accepted for import only
+                     if they match this regular expression (path is not taken
+                     into account, only file name).";
+                type string;
+            }
+        }
+        output {
+            uses arg-result;
+            uses arg-reason;
+        }
+    }
+
+    rpc status-import {
+        description
+            "A request to check last import status.
+
+             If `status` has the value 'initial' then a import has not taken
+             place.
+
+             For all other values of status `imported-at` indicates
+             the time at which the restore has taken place.
+
+             List `nodes` holds status about restore operation on per-node basis.
+            ";
+        output {
+            uses operation-status;
+            list nodes {
+                description "A list of nodes and their status.";
+                key "node-name";
+                leaf node-name {
+                    description "The name of the node.";
+                    mandatory true;
+                    type string;
+                }
+                leaf imported-at {
+                    description "The restore time in absolute UTC time.";
+                    type absolute-time;
+                }
+                leaf last-change {
+                    description "Timestamp in absolute UTC time when import status was last changed.";
+                    type absolute-time;
+                }
+                uses operation-status;
+                uses files;
+            }
+        }
+    }
+}

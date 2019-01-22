@@ -1,0 +1,163 @@
+module vpp-classfier-acl {
+  yang-version 1;
+  namespace "urn:opendaylight:params:xml:ns:yang:vpp:classfier:acl";
+  prefix "vpp-classfier-acl";
+
+  revision "2016-12-14" {
+    description
+      "Initial revision of vpp-classfier-acl model.";
+  }
+
+  import ietf-access-control-list {
+    prefix "acl";
+  }
+
+  import vpp-classifier {
+    prefix "vpp-classifier";
+  }
+
+  import yang-ext {
+    prefix "ext";
+  }
+
+  import ietf-packet-fields {
+    prefix packet-fields;
+  }
+
+  identity mixed-acl {
+    base acl:acl-base;
+    description
+      "ACL that can match on any of L2/L3/L4 fields.";
+  }
+
+  typedef interface-mode {
+    type enumeration {
+      enum "l2";
+      enum "l3";
+    }
+  }
+
+  grouping acl-base-attributes {
+    description
+      "Defines references to classify tables.
+       At least one table reference should be specified.";
+    container l2-acl {
+      leaf classify-table {
+        type vpp-classifier:classify-table-ref;
+        description
+          "An L2 ACL table";
+      }
+    }
+    container ip4-acl {
+      leaf classify-table {
+        type vpp-classifier:classify-table-ref;
+        description
+          "An IPv4 ACL table";
+      }
+    }
+    container ip6-acl {
+      leaf classify-table {
+        type vpp-classifier:classify-table-ref;
+        description
+          "An IPv6 ACL table";
+      }
+    }
+  }
+
+  grouping ietf-acl-base-attributes {
+    description
+      "Provides limited support for ietf-acl model.";
+
+    container access-lists {
+      description
+        "Defines references to ietf-acl lists.
+        ACLs are translated into classify tables and sessions when assigned to interface.
+
+        In case of L2 interfaces, acls are translated into a chain of classify tables and assigned as L2 table.
+        In case of L3 interfaces, acls are translated into ip4 and ip6 chains (eth only rules go to both chains,
+        rest - depending on ip-version).
+        User ordering is preserved in both cases.
+
+        Assignment update/delete removes all created tables and sessions and repeats process described above.
+        Update/delete of ACL lists referenced here is not permitted (assignment needs to be removed first).
+
+        Read is supported only for acls that were created and assigned by Honeycomb agent
+        (corresponding metadata is present).
+
+        Extensions:
+        - mixing ACEs of different type in one list is permited
+        - mixing L2/L3/L4 rules in one ACE is permited
+
+        Limitations (due to vpp limitations):
+        - egress rules are currently ignored (HONEYCOMB-234)
+        - L4 rules support is limited (every <src,dst> port pair from provided ranges is translated to single classify
+        session; which can very slow or even crash vpp if ranges are big, see HONEYCOMB-260)
+        - ace-ip-version needs to be provided for all aces (consequence of posibility to mix ACEs of different types,
+          and vpp classfier api limitation: common header fields for IP4/IP6 have different offsets)
+        - L2 rules on L3 interfaces are applied only to IP traffic (vpp classfier limitation)
+        - vlan tags are supported only for sub-interfaces defined as exact-match";
+
+      list acl {
+        key "type name";
+        ordered-by user;
+
+        leaf type {
+          type acl:acl-type;
+        }
+
+        leaf name {
+          type acl:access-control-list-ref;
+        }
+      }
+
+      leaf default-action {
+        type enumeration {
+          enum "deny";
+          enum "permit";
+         }
+         default "deny";
+        description
+          "Default action applied to packet that does not match any of rules defined in assigned ACLs.
+           It is translated to single classify table and applied at the end of assigned chains.";
+      }
+
+      leaf mode {
+        type interface-mode;
+        default l3;
+        description
+          "The way ACLs are translated depends on the interface mode.
+           In case of L2 interfaces (bridge/interconnection)
+           classify tables are assigned as l2_table using input_acl_set_interface (ether type matching is automatically
+           added in case of L3 rules).
+           In case of L3 interfaces, classify tables are assigned as ip4/ip6 tables.
+
+           It is the user responsibility to choose mode that matches target interface.
+           ";
+      }
+    }
+  }
+
+  augment /acl:access-lists/acl:acl/acl:access-list-entries/acl:ace/acl:matches/acl:ace-type {
+    ext:augment-identifier "vpp-classfier-acl-type-augmentation";
+    case ace-ip-and-eth {
+      description
+        "Access List entry that can define both ip and eth rules.";
+      container ace-ip-and-eth-nodes {
+
+        choice ace-ip-version {
+          description
+            "IP version used in this Access List Entry.";
+          mandatory true;
+          case ace-ipv4 {
+            uses packet-fields:acl-ipv4-header-fields;
+          }
+          case ace-ipv6 {
+            uses packet-fields:acl-ipv6-header-fields;
+          }
+        }
+        uses packet-fields:acl-ip-header-fields;
+        uses packet-fields:acl-eth-header-fields;
+      }
+    }
+  }
+}

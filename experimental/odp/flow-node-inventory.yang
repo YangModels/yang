@@ -3,82 +3,87 @@ module flow-node-inventory {
     prefix flownode;
 
     import yang-ext {prefix ext; revision-date "2013-07-09";}
-    import ietf-inet-types {prefix inet; revision-date "2010-09-24";}
+    import ietf-inet-types {prefix inet; revision-date "2013-07-15";}
+    import ietf-yang-types {prefix yang; revision-date "2013-07-15";}
     import opendaylight-port-types {prefix port;revision-date "2013-09-25";}
     import opendaylight-inventory {prefix inv;revision-date "2013-08-19";}
     import opendaylight-table-types {prefix table;revision-date "2013-10-26";}
     import opendaylight-flow-types {prefix flow;revision-date "2013-10-26";}
     import opendaylight-group-types {prefix group;revision-date "2013-10-18";}
     import opendaylight-meter-types {prefix meter;revision-date "2013-09-18";}
-    
+    import opendaylight-multipart-types { prefix multipart; revision-date "2017-01-12"; }
+
+    description "Flow Capable Node extensions to the Inventory model";
+
     revision "2013-08-19" {
-        description "Flow Capable Node extensions to the Inventory model";
+        description "added descriptions";
     }
-    
+
     identity feature-capability {
     }
-    
+
     identity flow-feature-capability-flow-stats {
-        description "Flow statistics"; 
-        base feature-capability;      
+        description "Flow statistics";
+        base feature-capability;
     }
-    
+
     identity flow-feature-capability-table-stats {
         description "Table statistics";
-        base feature-capability;        
+        base feature-capability;
     }
-    
+
     identity flow-feature-capability-port-stats {
         description "Port statistics";
-        base feature-capability;        
+        base feature-capability;
     }
-    
+
     identity flow-feature-capability-stp {
         description "802.1d spanning tree";
-        base feature-capability;        
+        base feature-capability;
     }
-    
+
     identity flow-feature-capability-reserved {
         description "Reserved, must be zero";
-        base feature-capability;        
+        base feature-capability;
     }
-    
+
     identity flow-feature-capability-ip-reasm {
         description "Can reassemble IP fragments";
-        base feature-capability;        
+        base feature-capability;
     }
-    
+
     identity flow-feature-capability-queue-stats {
         description "Queue statistics";
-        base feature-capability;        
+        base feature-capability;
     }
-    
+
     identity flow-feature-capability-arp-match-ip {
         description "Match IP addresses in ARP pkts";
-        base feature-capability;        
+        base feature-capability;
     }
-    
+
     identity flow-feature-capability-group-stats {
         description "Group statistics";
-        base feature-capability;        
+        base feature-capability;
     }
-    
+
     identity flow-feature-capability-port-blocked {
         description "Switch will block looping ports";
-        base feature-capability;        
+        base feature-capability;
     }
-    
+
     grouping feature {
+        description "Features supported by openflow device.";
         leaf support-state {
             type inv:support-type;
         }
     }
 
     grouping queue {
-         leaf queue-id {
+        leaf queue-id {
             type uint32;
             description "id for the specific queue";
-            mandatory true; 
+            mandatory true;
         }
         container properties {
             leaf minimum-rate {
@@ -91,41 +96,70 @@ module flow-node-inventory {
     }
 
     typedef flow-id {
+        description "MD-SAL identifier of openflow flow. ";
         type inet:uri;
     }
 
     grouping tables {
+        description "Openflow table structure. Here flows are contained.";
         list table {
-            key "id"; 
-    
+            key "id";
+
             leaf id {
                     type uint8;
-            }            
-    
-            uses table:table-features;
-    
+            }
+
             list flow {
-                key "id"; 
-    
+                key "id";
+
                 leaf id {
                     type flow-id;
-                }           
-    
+                }
+
+                uses flow:flow;
+            }
+            // BE-RECON: Modification for including stale-flow for Reconciliation
+            list stale-flow {
+                key "id";
+
+                leaf id {
+                    type flow-id;
+                }
+
                 uses flow:flow;
             }
         }
     }
-    
+
     grouping meters {
+        description "Openflow meter list.";
         list meter {
             key "meter-id";
             uses meter:meter;
         }
+        // BE-RECON: Modification for including stale-flow for Reconciliation
+        list stale-meter {
+            key "meter-id";
+            uses meter:meter;
+        }
     }
-    
-    
-    grouping flow-node {
 
+    grouping ip-address-grouping {
+        description "Additional ip address info referring to device interface which connects to controller";
+        leaf ip-address {
+            description "IP address of a flow capable node.";
+            type inet:ip-address;
+        }
+    }
+
+    grouping port-number-grouping {
+        leaf port-number {
+            description "Port number of a flow capable node.";
+            type inet:port-number;
+        }
+    }
+
+    grouping desc {
         leaf manufacturer {
             type string;
         }
@@ -141,12 +175,18 @@ module flow-node-inventory {
         leaf description {
             type string;
         }
+    }
 
+    grouping flow-node {
+        description "Openflow node structure = device";
+        uses desc;
         uses tables;
+        uses table:table-features;
         uses group:groups;
         uses meters;
-        // TODO: ports
-        
+        uses ip-address-grouping;
+        uses port-number-grouping;
+
         container supported-match-types {
             list match-type {
 		key "match";
@@ -154,10 +194,10 @@ module flow-node-inventory {
                 leaf match {
                     type string; // FIXME: Add identity
                 }
-                
+
             }
         }
-        
+
         container supported-instructions {
             list instruction-type {
 		key "instruction";
@@ -178,55 +218,119 @@ module flow-node-inventory {
                 }
             }
         }
-        
+
         container switch-features {
-            
+
             leaf max_buffers {
                 type uint32;
             }
-            
+
             leaf max_tables {
                 type uint8;
             }
-            
+
             leaf-list capabilities {
                 type identityref {
                     base feature-capability;
                 }
             }
-            
+
         }
     }
-    
-    grouping flow-node-connector {
 
+    grouping flow-node-connector {
+        description "Wrapper of openflow port. TODO::simplify/rename";
+        leaf reason {
+            type port:port-reason;
+        }
         uses port:flow-capable-port;
+    }
+
+    grouping snapshot-gathering-status-grouping {
+        description "Basic info about snapshot gathering - timestamps of begin, end.";
+
+        container snapshot-gathering-status-start {
+            description "gathering start mark";
+            leaf begin {
+                type yang:date-and-time;
+            }
+        }
+
+        container snapshot-gathering-status-end {
+            description "gathering end mark + result";
+            leaf end {
+                type yang:date-and-time;
+            }
+            leaf succeeded {
+                type boolean;
+            }
+        }
     }
 
     augment "/inv:nodes/inv:node" {
         ext:augment-identifier "flow-capable-node";
+        description "Top attach point of openflow node into node inventory tree.";
         uses flow-node;
     }
 
     augment "/inv:nodes/inv:node/inv:node-connector" {
         ext:augment-identifier "flow-capable-node-connector";
+        description "Openflow port into inventory tree.";
         uses flow-node-connector;
     }
 
     augment "/inv:node-updated" {
         ext:augment-identifier "flow-capable-node-updated";
+        description "Openflow node into node notification.";
         uses flow-node;
     }
 
     augment "/inv:node-updated/inv:node-connector" {
         //ext:identical-augment "flow-capable-node-connector";
         ext:augment-identifier "flow-capable-node-connector-update-fields";
-        uses flow-node-connector;
-    }
-    
-    augment "/inv:node-connector-updated" {
-        ext:augment-identifier "flow-capable-node-connector-updated";
+        description "Openflow port into node notification.";
         uses flow-node-connector;
     }
 
+    augment "/inv:node-connector-updated" {
+        ext:augment-identifier "flow-capable-node-connector-updated";
+        description "Openflow port into node-connector notification.";
+        uses flow-node-connector;
+    }
+
+    augment "/inv:nodes/inv:node/table" {
+        ext:augment-identifier "flow-hash-id-mapping";
+    description "Flow is identified by match and priority on device. So Operational/DS
+        has to simulate that behavior and contract between FlowId and match+priority
+        identification should represent Flow hashCode. Flow has to contain only
+        match priority and flowCookie for create a hashCode";
+        list flow-hash-id-map {
+            key "hash";
+            leaf hash {
+                type string;
+            }
+            leaf flow-id {
+                type flow-id;
+            }
+        }
+    }
+
+    augment "/inv:nodes/inv:node" {
+        ext:augment-identifier "flow-capable-statistics-gathering-status";
+        description "Placeholder for timestamp of device status snapshot.
+            This is contructed by asynchronous process.";
+        uses snapshot-gathering-status-grouping;
+    }
+
+    augment "/multipart:multipart-reply/multipart:multipart-reply-body" {
+        case multipart-reply-desc {
+            uses desc;
+        }
+    }
+
+    augment "/multipart:multipart-request/multipart:multipart-request-body" {
+        case multipart-request-desc {
+            // Empty request case
+        }
+    }
 }
