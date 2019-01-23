@@ -5,5 +5,5 @@ A small number of YANG models supported in IOS-XE 16.9.3 has a few differences b
 You can find the per-platform deviations with deltas in the following locations:
 
 * [cbr](cbr)
-* [cat3k_9k](cat3k_9k)
+* [ngwc](ngwc)
 * [isr4k](isr4k)
