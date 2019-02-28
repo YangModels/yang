@@ -100,6 +100,10 @@ Capability Statement: [capability-cbr.xml](capability-cbr.xml)
 
 * cisco-ia.yang 
 * cisco-routing-ext.yang 
+
+#### Errata
+
+The Cisco-IOS-XE-pnp.yang model is advertised in all the capabilities but not supported till 17.1 release.
  
 ### Compliance With "pyang --lint"
 
