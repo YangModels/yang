@@ -38,7 +38,7 @@ Capability Statement: [capability-cat9500.xml](capability-cat9500.xml)
 #### CBR-8
 Capability Statement: [capability-cbr.xml](capability-cbr.xml)
 
-### Major Namespace and Model Changes In 16.9.3
+### Major Model Changes In 16.9.3
 
 16.9.3 model changes include the addition of IETF models, new native models and existing native model updates.
 
@@ -103,7 +103,7 @@ Capability Statement: [capability-cbr.xml](capability-cbr.xml)
 
 #### Errata
 
-The Cisco-IOS-XE-pnp.yang model is advertised in all the capabilities but not supported till 17.1 release.
+The Cisco-IOS-XE-pnp.yang model is advertised in all the capabilities but should be considered experimental until IOS XE 17.1.
  
 ### Compliance With "pyang --lint"
 
