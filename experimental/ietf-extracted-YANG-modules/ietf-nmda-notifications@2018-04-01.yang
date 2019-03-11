@@ -1,29 +1,29 @@
 module ietf-nmda-notifications {
   namespace "urn:ietf:params:xml:ns:yang:ietf-nmda-notifications";
-  prefix ndn;
+  prefix nmdan;
+
   import ietf-datastores {
     prefix ds;
   }
   import ietf-inet-types { prefix inet; }
-  import ietf-yang-patch {
-    prefix ypatch;
-  }
-  import ietf-restconf { prefix rc;}
   organization
-    "IETF NETMOD (Network Modeling) Working Group";
+    "IETF NETCONF (Network Configuration Protocol) Working Group";
   contact
-    "WG Web:   <http://tools.ietf.org/wg/netmod/>
-     WG List:  <mailto:netmod@ietf.org>
+    "WG Web:   <http://tools.ietf.org/wg/netconf/>
+     WG List:  <mailto:netconf@ietf.org>
      WG Chair: Kent Watsen
                <mailto:kwatsen@juniper.net>
+     WG Chair: Mahesh Jethanandani
+               <mailto:mjethanandani@gmail.com>
      Editor:   Qin Wu
                <mailto:bill.wu@huawei.com>
      Editor:   Rohit R Ranade
                <mailto:rohitrranade@huawei.com>";
   description
     "This module defines a YANG data model for use with the
-     NETCONF and RESTCONF protocol that allows the client to
-     receive additional common event notifications related to NMDA.
+     NETCONF protocol that allows the NETCONF client to
+     receive additional common NETCONF base event notifications
+      related to NMDA.
      Copyright (c) 2012 IETF Trust and the persons identified as
      the document authors.  All rights reserved.
      Redistribution and use in source and binary forms, with or
@@ -72,153 +72,78 @@ module ietf-nmda-notifications {
       description
         "Address of the remote host for the session.";
     }
-
-   leaf commit-persist-id {
-     type string;
-     description
-       "This parameter is used to identify each commit.
-        The value of this parameter is a token that must be given
-        in the 'persist-id' parameter of <commit> or
-        <cancel-commit> operations in order to confirm or cancel
-        the persistent confirmed commit.
-
-        The token should be a random string.";
-       reference "RFC 6241, Section 8.3.4.1";
-   }
   }
-
-   notification intended-apply-start {
-       description
-         " Generated when a server detects that applied configuration from
-           intended has started. This event will be sent immediately upon
-           any data is written to <running>. A server MAY generate this
-           event for both NETCONF session and non-NETCONF management
-           sessions.";
-       uses common-session-parms;
-     } // notification applied-intended-start
-
-   notification intended-apply-end {
-       description
-         " Generated when a server detects that a applied configuration
-          from intended has complete.  A server MAY optionally generate
-          this event for both NETCONF session and non-NETCONF management
-          sessions.";
-       uses common-session-parms;
-      choice complete-status {
-           description
-             "Report global errors or complete success.
-              If there is no case selected, then errors
-              are reported in the 'edit-status' container.";
-           case global-errors {
-             uses rc:errors;
-             description
-               "This container will be present if global errors that
-                are unrelated to a specific edit occurred.";
-           }
-           leaf ok {
-             type empty;
-             description
-               "This leaf will be present if the request succeeded
-                and there are no errors reported in the 'edit-status'
-                container.";
-           }
-         }
-     } // notification applied-intended-complete
-
-    notification nmda-intended-applied {
+  notification nmda-data-validate {
+    description
+      "Generated when a NETCONF server detects that a
+       Data validation event has occurred.  Indicates the event
+       and the current state of the data validation procedure
+       in progress.";
+    reference "RFC 8342, Section 5";
+    uses common-session-parms;
+    leaf validate-event {
+      type enumeration {
+        enum "start" {
+          description
+            "The data validate procedure has started.";
+        }
+        enum "complete" {
+          description
+            "The data validation procedure has been completed.";
+        }
+      }
+      mandatory true;
       description
-        "Generated when a server detects that a
-         intended configuration applied event has occurred. Indicates
-         the event and the current state of the intended data applying
-          procedure in progress.";
-      reference "RFC 8342, Section 5";
-      uses common-session-parms;
-      leaf applied-event {
-        type enumeration {
-          enum "start" {
-            description
-              "The intended data applying procedure has started.";
-          }
-         enum "transform" {
-             description
-             " <intended> MAY be updated independently of <running>
-               due to configuration transformation.";
-         }
-         enum "synchronizing" {
-             description
-             "The data validation results within <intended> is in
-              progress of synchronizing to <operatonal>.";
-         }
-          enum "complete" {
-            description
-              "The intended data applying procedure has been
-               completed.";
-          }
-        }
-        mandatory true;
-        description
-          "Indicates the event that caused the notification.";
-      }
-     choice applied-status {
-           when "./applied-event = 'complete'";
-           description
-             "Report global errors or complete success.
-              If there is no case selected, then errors
-              are reported in the 'edit-status' container.";
-           case global-errors {
-             uses rc:errors;
-             description
-               "This container will be present if global errors that
-                are unrelated to a specific edit occurred.";
-           }
-          leaf ok {
-            type empty;
-            description
-              "This leaf will be present if the request succeeded
-               and there are no errors reported in the 'edit-status'
-               container.";
-           }
-         }
-
-      list fail-applied-target {
-        leaf datastore {
-          type identityref {
-            base ds:datastore;
-          }
-          default "ds:operational";
+        "Indicates the event that caused the notification.";
+    }
+    leaf validate-result {
+      when "../validate-event = 'complete'";
+      type enumeration {
+        enum "fail" {
           description
-            "Indicates which datastore has changed or which datastore is
-             target of edit-data operation.";
+            "The <intended> configuration fails to be validated
+             before being applied to <operational>, e.g., resources
+             are not available or otherwise not physically present
+             leads to the whole set of <intended>are not applied.";
         }
-        leaf edit-id {
-               type string;
-                description
-                  "Response status is for the 'edit' list entry
-                   with this 'edit-id' value.";
-             }
-        leaf target {
-          type ypatch:target-resource-offset;
+        enum "partial-fail" {
           description
-            "Topmost node associated with the configuration change.
-             A server SHOULD set this object to the node within
-             the datastore that is being altered.  A server MAY
-             set this object to one of the ancestors of the actual
-             node that was changed, or omit this object, if the
-             exact node is not known.";
+            "The <intended> configuration partially fails to be
+             validated before being applied to <operational>,e.g.,
+             resources are not available or otherwise not physically
+             present leads to parts of <intended>are not applied";
         }
-        choice applied-status-choice {
-               description
-                 "A choice between different types of status
-                  responses for each 'edit' entry.";
-               case errors {
-                 uses rc:errors;
-                 description
-                   "The server detected errors associated with the
-                    edit identified by the same 'edit-id' value.";
-               }
-             }
-        description
-          "List for fail applied targets";
+        enum "success" {
+          description
+            "The <intended> configuration is successfully validated
+             before being applied to <operational>.";
+        }
       }
+      description
+        "Result of validate";
+    }
+    list fail-validate-target {
+      leaf datastore {
+        type identityref {
+          base ds:datastore;
+        }
+        default "ds:operational";
+        description
+          "Indicates which datastore has changed or which datastore is
+           target of edit-data operation.";
+      }
+      leaf target {
+        type instance-identifier;
+        description
+          "Topmost node associated with the configuration change.
+           A server SHOULD set this object to the node within
+           the datastore that is being altered.  A server MAY
+           set this object to one of the ancestors of the actual
+           node that was changed, or omit this object, if the
+           exact node is not known.";
+      }
+      description
+        "List for fail validate targets";
     }
   }
+}
