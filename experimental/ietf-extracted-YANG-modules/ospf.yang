@@ -1,0 +1,982 @@
+module ospf {
+  namespace "urn:cisco:params:xml:ns:yang:ospf";
+  // replace with IANA namespace when assigned
+  prefix ospf;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  organization
+    "Cisco Systems
+     170 West Tasman Drive
+     San Jose, CA 95134-1706
+     USA";
+  contact
+    "Derek Yeung myeung@cisco.com
+     Yingzhen Qu yiqu@cisco.com
+     Alexander Clemm alex@cisco.com";
+
+  description
+    "This YANG module defines the generic configuration
+     data for OSPF, which is common across all of the vendor
+     implementations of the protocol. It is intended that the module
+     will be extended by vendors to define vendor-specific
+     OSPF configuration parameters and policies,
+     for example route maps or route policies.
+
+     Terms and Acronyms
+
+     OSPF (ospf): Open Shortest Path First
+
+     IP (ip): Internet Protocol
+     IPv4 (ipv4):Internet Protocol Version 4
+
+     IPv6 (ipv6): Internet Protocol Version 6
+
+     MTU (mtu) Maximum Transmission Unit
+    ";
+
+  revision 2013-10-20 {
+    description
+      "Initial revision.";
+  }
+
+  feature flood-reduction {
+    description
+      "OSPF Flood Reduction.";
+  }
+
+  feature demand-circuit-ignore {
+    description
+      "Ignore demand circuit auto-negotiation requests.";
+  }
+
+  feature security {
+    description
+      "Enable/Disable TTL security.";
+  }
+
+  feature packet-size {
+    description
+        "Customize size of OSPF packets up to MTU.";
+  }
+
+  feature nsf-cisco {
+    description
+      "Enable Cisco Non Stop Forwarding.";
+  }
+
+  feature loopback-config {
+    description
+      "OSPF loopback configuration.";
+  }
+
+  feature max-lsa {
+    description
+      "Maximum number of LSAs OSPF process will receive.";
+  }
+
+  feature maximum-ecmp {
+    description
+      "Maximum number of ECMP paths.";
+  }
+
+  feature nsr {
+    description
+      "Enable NSR.";
+  }
+
+  feature spf {
+    description
+      "SPF configuration";
+  }
+
+  feature nssa-only {
+    description
+      "Limit summary to NSSA areas.";
+  }
+
+  feature nssa-ext-capability {
+    description
+      "Send domain specific capabilities into NSSA.";
+  }
+
+  grouping interface-internal-inherit-config {
+    leaf cost {
+      description
+        "Interface cost.";
+      type uint16 {
+        range "1..65535";
+      }
+    }
+
+    leaf hello-interval {
+      description
+        "Time between HELLO packets.";
+      units seconds;
+      type uint16 {
+        range "1..65535";
+      }
+    }
+
+    leaf dead-interval {
+      description
+        "Interval after which a neighbor is declared dead.";
+      units seconds;
+      type uint16 {
+        range "1..65535";
+      }
+      must "dead-interval > ../hello-interval" {
+           error-app-tag dead-interval-invalid;
+           error-message "The dead interval must be "
+                         + "larger than the hello interval";
+      }
+    }
+
+    leaf retransmit-interval {
+      description
+        "Time between retransmitting lost link state
+         advertisements.";
+      units seconds;
+      type uint16 {
+        range "1..65535";
+      }
+    }
+
+    leaf transmit-delay {
+      description
+        "Estimated time needed to send link-state update.";
+      units seconds;
+      type uint16 {
+        range "1..65535";
+      }
+    }
+  } // interface-internal-inherit-config
+
+  grouping interface-inherit-config {
+    leaf network-type {
+      description
+        "Network type.";
+      type enumeration {
+        enum "broadcast" {
+          description
+            "Specify OSPF broadcast multi-access network.";
+        }
+        enum "non-broadcast" {
+          description
+            "Specify OSPF NBMA network.";
+        }
+        enum "point-to-multipoint" {
+          description
+            "Specify OSPF point-to-multipoint network.";
+        }
+        enum "point-to-point" {
+          description
+            "Specify OSPF point-to-point network.";
+        }
+      }
+    }
+
+    leaf passive {
+      description
+        "Enable/Disable passive.";
+      type boolean;
+    }
+
+    leaf mtu-ignore {
+      description
+        "Enable/Disable ignoring of MTU in DBD packets.";
+      type boolean;
+    }
+
+    leaf flood-reduction-enable {
+      if-feature flood-reduction;
+      type boolean;
+    }
+
+    leaf demand-circuit {
+      description
+        "Enable/Disable demand circuits.";
+      type boolean;
+    }
+
+    leaf demand-circuit-ignore-enable {
+      if-feature demand-circuit-ignore;
+      type boolean;
+    }
+
+    leaf prefix-suppression {
+      description
+        "Suppress advertisement of the prefixes.";
+      type boolean;
+    }
+
+    container ttl-security {
+      if-feature security;
+      leaf enable {
+        type boolean;
+      }
+      leaf hops {
+        type uint8 {
+          range "1..254";
+        }
+      }
+    }
+
+    container packet-size {
+      if-feature packet-size;
+      description
+        "Customize size of OSPF packets up to MTU.";
+      leaf enable {
+        type boolean;
+      }
+      leaf size {
+        type uint16 {
+          range "576..10000";
+        }
+      }
+    }
+
+    container authentication {
+      when "../../../version = 2";
+      description "Configure authentication.";
+      leaf enable {
+        type boolean;
+      }
+      choice authentication-type-selection {
+        case clear-text {
+          description
+            "Use clear-text authentication.";
+          leaf key {
+            type string {
+              length "1..8";
+            }
+          }
+        }
+        case message-digest {
+          description
+            "Use message-digest authentication.";
+          list message-digest-key {
+            key key-id;
+            leaf key-id {
+              type uint8 {
+                range "1..255";
+              }
+            }
+            leaf algorithm {
+              type enumeration {
+                enum "md5";
+              }
+            }
+            leaf key {
+              type string {
+                length "1..8";
+              }
+            }
+          }
+        }
+      }
+    }
+
+    container database-filter {
+      description
+        "Filter OSPF LSA during synchronization and flooding";
+      leaf enable {
+        type boolean;
+      }
+      leaf lsa-type {
+        type enumeration {
+          enum "all";
+        }
+      }
+      leaf direction {
+        type enumeration {
+          enum "out";
+        }
+      }
+    }
+
+    list neighbor {
+      description
+        "Specify a neighbor router.";
+      key ip-address;
+      leaf ip-address {
+        type inet:ip-address;
+      }
+      leaf cost {
+        type uint16 {
+          range "1..65535";
+        }
+      }
+      leaf poll-interval {
+        units seconds;
+        type uint16 {
+          range "1..65535";
+        }
+      }
+      leaf priority {
+        type uint8 {
+          range "1..255";
+        }
+      }
+    }
+
+    container bfd {
+      leaf enable {
+        description
+          "enable bfd.";
+        type boolean;
+      }
+
+      leaf minimum-interval {
+        description
+          "bfd hello interval";
+        type uint16 {
+          range "15..30000";
+        }
+      }
+      leaf multiplier {
+        description
+          "detect multiplier";
+        type uint8 {
+          range "2..50";
+        }
+      }
+    }
+
+    uses interface-internal-inherit-config;
+
+  } // grouping interface-inherit-config
+
+  grouping area-inherit-config {
+    leaf loopback {
+      if-feature loopback-config;
+      description
+        "OSPF loopback configuration.";
+      type enumeration {
+        enum "stub";
+        enum "host";
+      }
+    }
+  } // grouping area-inherit-config
+
+  container ospf-routers {
+    list ospf-router {
+      description
+        "This is a top-level container for the OSPF router.";
+
+      key "version name";
+      leaf version {
+        description
+          "OSPF version.";
+        mandatory true;
+        type uint8 {
+          range "2..3";
+        }
+      }
+
+      leaf name {
+        description
+          "Name, combined with
+           ospf-routers/ospf_router/ospf-afs/ospf-af,
+           identify an OSPF protocol instance.";
+        mandatory true;
+        type string;
+      }
+
+      container ospf-afs {
+        list ospf-af {
+          key "vrf-name afi safi";
+          leaf vrf-name {
+            type string;
+          }
+          leaf afi {
+            type enumeration {
+              enum "ipv4" {
+                description
+                  "IPv4";
+              }
+              enum "ipv6" {
+                description
+                  "IPv6";
+              }
+            }
+          }
+          leaf safi {
+            type enumeration {
+              enum "unicast" {
+                description
+                  "unicast";
+              }
+            }
+          }
+
+          container router-id {
+            description
+              "Specify the router-id for this OSPF process.";
+            leaf enable {
+              type boolean;
+            }
+            choice config-type {
+              case static {
+                leaf ip-address {
+                  type boolean;
+                }
+              }
+               case auto-config {
+                 leaf enable-auto-config {
+                   type boolean;
+                 }
+               }
+             }
+          }
+
+          leaf distance {
+            description
+              "Define an administrative distance.";
+            type uint8 {
+              range "1..255";
+            }
+          }
+
+          container default-originate {
+            description
+              "Control distribution of default route information.";
+            leaf enable {
+              type boolean;
+              default "false";
+            }
+          }
+
+          container auto-cost {
+            description
+              "Calculate OSPF interface cost according to
+               bandwidth.";
+            leaf enable {
+              type boolean;
+            }
+            leaf reference-bandwidth {
+              type uint32 {
+                range "1..4294967";
+              }
+            }
+          }
+          leaf default-metric {
+            description
+              "Calculate OSPF interface cost according to
+               bandwidth.";
+            type uint32 {
+              range "1..16777214";
+            }
+          }
+
+          list summary-prefix {
+            description
+              "Configure IP address summaries";
+            key "prefix";
+            leaf prefix {
+              type inet:ip-prefix;
+            }
+            leaf advertise {
+              type boolean;
+            }
+            leaf tag {
+              type uint32 {
+                range "0..4294967295";
+              }
+            }
+            leaf nssa-only-enable {
+              if-feature nssa-only;
+                    type boolean;
+            }
+          }
+
+          container max-lsa {
+            if-feature max-lsa;
+            description
+              "Maximum number of LSAs OSPF process will
+               receive.";
+            leaf max {
+              description
+                "Maximum number of non self-generated LSAs
+                 this process can receive.";
+              type uint32 {
+                range "1..4294967294";
+              }
+            }
+            leaf threshold {
+              description
+                "Threshold value (%) at which to generate
+                 a warning msg.";
+              type uint8 {
+                  range "1..100";
+                }
+            }
+            leaf warning-only {
+              description
+                "Only give warning message when limit is
+                 exceeded.";
+              type boolean;
+            }
+            leaf ignore-time {
+              description
+                "Number of minutes during which all adjacencies
+                 are suppressed.";
+              type uint16 {
+                range "1..17895";
+              }
+            }
+            leaf ignore-count {
+              description
+                "Count on how many times adjacencies can be
+                 suppressed.";
+              type uint16 {
+                range "1..65534";
+              }
+            }
+            leaf reset-time {
+              description
+                "number of minutes after which ignore-count is
+                 reset to zero.";
+              type uint16 {
+                range "2..35791";
+              }
+            }
+          }
+
+          container maximum {
+            if-feature maximum-ecmp;
+            description
+              "Set OSPF limits.";
+            leaf paths {
+              description
+                "Maximum number of ECMP paths.";
+              type uint16 {
+                range "1..32";
+              }
+            }
+            leaf interfaces {
+              description
+                "Maximum number of interfaces.";
+              type uint16 {
+                range "1..1024";
+              }
+            }
+            container redistributed-prefixes {
+              description
+                "Maximum number of prefixes redistributed.";
+              leaf max {
+                type uint32 {
+                  range "1..4294967295";
+                }
+              }
+              leaf threshold {
+                description
+                  "Threshold value (%) at which to generate
+                   a warning msg.";
+                  type uint8 {
+                        range "1..100";
+                      }
+              }
+              leaf warning-only {
+                description
+                  "Only give warning message when limit is
+                   exceeded.";
+                type boolean;
+              }
+            }
+          }
+
+          container ignore {
+            description
+              "Do not complain about specific event.";
+            leaf-list lsa {
+              type enumeration {
+                enum "mospf";
+              }
+            }
+          }
+
+          container log {
+            description
+              "Log ospf info.";
+            leaf adjacency-changes {
+              type boolean;
+            }
+          }
+
+          container nsr {
+            if-feature nsr;
+            description
+              "Enable NSR.";
+            leaf enable {
+              type boolean;
+            }
+          }
+
+          container nsf {
+            choice nsf-type {
+              case cisco {
+                if-feature nsf-cisco;
+                description
+                  "Enable Cisco Non Stop Forwarding.";
+                leaf cisco-enable {
+                  type boolean;
+                }
+              }
+              case ietf {
+                description
+                  "Enable Cisco Non Stop Forwarding.";
+                leaf ietf-enable {
+                  type boolean;
+                }
+                leaf ietf-helper-enable {
+                  type boolean;
+                }
+              }
+            }
+          }
+
+          container protocol {
+            description
+              "Protocol specific configuration.";
+            leaf shutdown {
+              type boolean;
+            }
+          }
+
+          container spf {
+            if-feature spf;
+            description
+              "SPF configuration";
+            leaf prefix-priority-policy {
+              type string;
+            }
+          }
+          container snmp {
+            description
+              "Adjust ospf snmp parameters";
+            leaf context {
+              type string;
+            }
+          }
+
+          container redistribute {
+            description
+              "Redistribute information from another
+               routing protocol.
+               This grouping is intended to be augmented by
+               vendors to implement vendor-specific protocol
+               redistribution configuration options.";
+            choice protocol {
+              case bgp {
+                leaf enable-bgp {
+                  type boolean;
+                }
+              }
+              case ospf {
+                leaf enable-ospf {
+                  type boolean;
+                }
+              }
+              case isis {
+                leaf enable-isis {
+                  type boolean;
+                }
+              }
+              case connected {
+                leaf enable-connected {
+                  type boolean;
+                }
+              }
+              case eigrp {
+                leaf enable-eigrp {
+                  type boolean;
+                }
+              }
+              case mobile {
+                leaf enable-mobile {
+                  type boolean;
+                }
+              }
+              case static {
+                leaf enable-static {
+                  type boolean;
+                }
+              }
+              case rip {
+                leaf enable-rip {
+                  type boolean;
+                }
+              }
+            }
+          }
+
+          container timers {
+            description
+              "Adjust routing timers.
+               This grouping is intended to be augmented
+               by vendors to implement vendor-specific
+               protocol timers configuration options";
+
+            container lsa {
+              leaf min-arrival {
+                description
+                  "The minimum interval in milliseconds
+                   between accepting the same";
+                units milliseconds;
+                type uint32 {
+                  range "0..600000";
+                }
+              }
+              leaf refresh {
+                description
+                  "The minimum interval in seconds
+                   between refresh";
+                units seconds;
+                type uint32 {
+                  range "1800..2700";
+                }
+              }
+            }
+            container throttle-lsa {
+              leaf delay {
+                description
+                  "Delay to generate first occurance of
+                   LSA in milliseconds";
+                units milliseconds;
+                type uint32 {
+                  range "0..600000";
+                }
+              }
+              leaf min-delay {
+                description
+                  "The Minimum delay between originating
+                   the same LSA in milliseconds";
+                units milliseconds;
+                type uint32 {
+                  range "0..600000";
+                }
+              }
+              leaf max-delay {
+                description
+                  "The Maximum delay between originating
+                   the same LSA in milliseconds";
+                units milliseconds;
+                type uint32 {
+                  range "0..600000";
+                }
+              }
+            }
+
+            container throttle-spf {
+              leaf delay {
+                description
+                  "Delay between receiving a change to
+                   SPF calculation in milliseconds";
+                units milliseconds;
+                type uint32 {
+                  range "0..600000";
+                }
+              }
+              leaf min-delay {
+                description
+                  "Delay between first and second SPF
+                   calculation in milliseconds";
+                units milliseconds;
+                type uint32 {
+                  range "0..600000";
+                }
+              }
+              leaf max-delay {
+                description
+                  "Maximum wait time in milliseconds
+                   for SPF calculations";
+                units milliseconds;
+                type uint32 {
+                  range "0..600000";
+                }
+              }
+            }
+          }
+
+          container mpls {
+            description
+              "OSPF MPLS configuraions.";
+            leaf te-rid {
+              description
+                      "Traffic Engineering stable
+                       IP address for system.";
+              type if:interface-ref;
+            }
+            leaf ldp-sync-enable {
+              description
+                "Enable LDP IGP synchronization.";
+              type boolean;
+            }
+            leaf ldp-autoconfig-enable {
+              description
+                "Enable LDP IGP interface
+                 auto-configuration.";
+              type boolean;
+            }
+          }
+
+          container fast-reroute {
+              leaf fast-reroute-enable {
+              description
+                "IP fast reroute.";
+                type boolean;
+            }
+          }
+
+          container ospf-areas {
+            description
+              "The top level container for the list
+               of areas of the OSPF router.";
+
+            uses area-inherit-config;
+              uses interface-inherit-config;
+
+            list ospf-area {
+              key "area-id";
+              leaf area-id {
+                type uint32;
+              }
+
+              leaf area-notation {
+                description
+                  "Sets the default area notation.";
+                type enumeration {
+                  enum "decimal";
+                  enum "dot";
+                }
+              }
+              choice area-type {
+                case nssa {
+                  description
+                    "Specify area as a NSSA area.";
+                  leaf redistribute {
+                    type boolean;
+                  }
+                  leaf nssa-summary {
+                    type boolean;
+                  }
+                  leaf nssa-ext-capability {
+                    if-feature nssa-ext-capability;
+                    type boolean;
+                  }
+                  container default-information-originate {
+                    description
+                      "Originate Type 7 default into NSSA area.";
+                    leaf metric {
+                      type uint16 {
+                        range "1..65535";
+                      }
+                    }
+                    leaf metric-type {
+                      type uint8 {
+                        range "1..2";
+                      }
+                    }
+                  }
+                }
+                case stub {
+                  description
+                    "Specify area as a stub area.";
+                  leaf stub-summary {
+                    type boolean;
+                  }
+                  leaf stub-ext-capability {
+                    type boolean;
+                  }
+                }
+              }
+
+              leaf default-cost {
+                description
+                  "Set the summary default-cost of a
+                   NSSA/stub area.";
+                type uint32 {
+                  range "1..16777215";
+                }
+              }
+
+              list range {
+                description
+                  "Summarize routes matching
+                   address/mask (border routers only)";
+                key "prefix";
+                leaf prefix {
+                  type inet:ip-prefix;
+                }
+                leaf advertise {
+                  type boolean;
+                }
+                leaf cost {
+                  type uint32 {
+                    range "0..16777214";
+                  }
+                }
+              }
+
+              container virtual-link {
+                description
+                  "Define a virtual link";
+                leaf router-id {
+                  type inet:ip-address;
+                }
+
+                uses interface-internal-inherit-config;
+              }
+
+              container sham-link {
+                leaf local-id {
+                  description
+                    "Address of the local end-point.";
+                  type inet:ip-address;
+                }
+                leaf remote-id {
+                  description
+                    "Address of the remote end-point.";
+                  type inet:ip-address;
+                }
+                    uses interface-internal-inherit-config;
+              }
+
+              container mpls-te-config {
+                leaf mpls-te-enable {
+                  description
+                    "Enable an ospf area to run MPLS
+                     Traffic Engineering.";
+                  type boolean;
+                }
+              }
+
+              container ospf-interfaces {
+                description
+                  "The top level container for the
+                   list of interfaces of the OSPF router.";
+
+                    uses interface-inherit-config;
+
+                list ospf-interface {
+                  key "interface";
+                  leaf interface {
+                    type if:interface-ref;
+                  }
+                  uses interface-inherit-config;
+                } // list ospf-interface
+              } // container ospf-interfaces
+            } // list ospf-area
+          } // container ospf-areas
+        } // container ospf-af
+      } // container ospf-afs
+    } // list ospf-router
+  } // container ospf-routers
+}
