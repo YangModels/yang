@@ -1,0 +1,291 @@
+module ietf-ipsec-ike {
+        yang-version 1.1;
+        namespace "urn:ietf:params:xml:ns:yang:ietf-ipsec-ike";
+        prefix "ipsec-ike";
+
+        import ietf-inet-types { prefix inet; }
+        import ietf-yang-types { prefix yang; }
+
+        import ietf-crypto-types {
+                prefix ct;
+                reference "draft-ietf-netconf-crypto-types-01: Common YANG Data Types for Cryptography";
+        }
+
+        import ietf-ipsec-common {
+                prefix ic;
+                reference "Common Data model for SDN-based IPSec configuration";
+        }
+
+        organization "IETF I2NSF (Interface to Network Security Functions) Working Group";
+
+        contact
+        " Rafael Marin Lopez
+        Dept. Information and Communications Engineering (DIIC)
+        Faculty of Computer Science-University of Murcia
+        30100 Murcia - Spain
+        Telf: +34868888501
+        e-mail: rafa@um.es
+
+        Gabriel Lopez Millan
+        Dept. Information and Communications Engineering (DIIC)
+        Faculty of Computer Science-University of Murcia
+        30100 Murcia - Spain
+        Tel: +34 868888504
+        email: gabilm@um.es
+
+        Fernando Pereniguez Garcia
+        Department of Sciences and Informatics
+        University Defense Center (CUD), Spanish Air Force Academy, MDE-UPCT
+        30720 San Javier - Spain
+        Tel: +34 968189946
+        email: fernando.pereniguez@cud.upct.es
+        ";
+
+        description "Data model for IKE case.";
+
+        revision "2019-03-11" {
+                description "Revision 1.1";
+                reference "";
+        }
+
+        typedef type-autostartup {
+                type enumeration {
+                        enum ADD {description "IPsec configuration is only loaded but not started.";}
+                        enum ON-DEMAND {description "IPsec configuration is loaded and transferred to the NSF's kernel";}
+                        enum START { description "IPsec configuration is loaded and transferred to the NSF's kernel, and the IKEv2 based IPsec SAs are established";}
+                }
+                description "Different policies of when to start an IKEv2 based IPsec SA";
+        }
+
+        typedef auth-protocol-type {
+                type enumeration {
+                        enum IKEv2 { description "Authentication protocol based on IKEv2"; }
+                }
+                description "IKE authentication protocol version";
+        }
+
+        typedef pfs-group {
+                type enumeration {
+                        enum NONE {description "NONE";}
+                        enum 768-bit-MODP {description "768-bit MODP Group";}
+                        enum 1024-bit-MODP {description "1024-bit MODP Group";}
+                        enum 1536-bit-MODP {description "1536-bit MODP Group";}
+                        enum 2048-bit-MODP {description "2048-bit MODP Group";}
+                        enum 3072-bit-MODP {description "3072-bit MODP Group";}
+                        enum 4096-bit-MODP {description "4096-bit MODP Group";}
+                        enum 6144-bit-MODP {description "6144-bit MODP Group";}
+                        enum 8192-bit-MODP {description "8192-bit MODP Group";}
+                }
+                description "PFS group for IPsec rekey";
+        }
+
+        /*################## PAD  ####################*/
+
+        typedef auth-method-type {
+                /* Most implementations also provide XAUTH protocol, others used are: BLISS, P12, NTLM, PIN */
+                type enumeration {
+                        enum pre-shared { description "Select pre-shared key message as the authentication method"; }
+                        enum eap { description "Select EAP as the authentication method"; }
+                        enum digital-signature { description "Select digital signature method";}
+                        enum null {description "null authentication";}
+                }
+                description "Peer authentication method";
+        }
+
+        typedef signature-algorithm-t {
+                type ct:signature-algorithm-ref; // We must reference to "signature-algorithm-ref" but we temporary use hash-algorithm-ref
+                description "This typedef enables referencing to any digital signature algorithm";
+        }
+
+        grouping auth-method-grouping {
+                description "Peer authentication method data";
+
+                container auth-method {
+                        description "Peer authentication method container";
+
+                        leaf auth-m { type auth-method-type; description "Type of authentication method (pre-shared, eap, digital signature, null)"; }
+
+                        container eap-method {
+                                when "../auth-m = 'eap'";
+                                leaf eap-type { type uint8; description "EAP method type"; }
+                                description "EAP method description used when auth method is eap";
+                        }
+
+                        container pre-shared {
+                                when "../auth-m[.='pre-shared' or .='eap']";
+                                leaf secret { type yang:hex-string; description "Pre-shared secret value";}
+                                description "Shared secret value";
+                        }
+
+                        container digital-signature {
+                                when "../auth-m[.='digital-signature' or .='eap']";
+                                leaf ds-algorithm {type signature-algorithm-t; description "Name of the digital signature algorithm";}
+                                leaf raw-public-key {type yang:hex-string; description "RSA raw public key" ;}
+                                leaf key-data { type string; description "RSA private key data - PEM"; }
+                                leaf key-file { type string; description "RSA private key file name "; }
+                                leaf-list ca-data { type string; description "List of trusted CA certs - PEM"; }
+                                leaf ca-file { type string; description "List of trusted CA certs file"; }
+                                leaf cert-data { type string; description "X.509 certificate data - PEM4"; }
+                                leaf cert-file { type string; description "X.509 certificate file"; }
+                                leaf crl-data { type string; description "X.509 CRL certificate data in base64"; }
+                                leaf crl-file { type string; description " X.509 CRL certificate file"; }
+                                leaf oscp-uri { type inet:uri; description "OCSP URI";}
+                                description "RSA signature container";
+                        }
+                }
+        }
+
+        grouping identity-grouping {
+                description "Identification type. It is an union identity";
+                choice identity {
+                        description "Choice of identity.";
+                        leaf ipv4-address { type inet:ipv4-address; description "Specifies the identity as a single four (4) octet IPv4 address. An example is, 10.10.10.10. "; }
+                        leaf ipv6-address { type inet:ipv6-address; description "Specifies the identity as a single sixteen (16) octet IPv6 address. An example is FF01::101, 2001:DB8:0:0:8:800:200C:417A ."; }
+                        leaf fqdn-string { type inet:domain-name; description "Specifies the identity as a Fully-Qualified Domain Name (FQDN) string. An example is: example.com. The string MUST not contain any terminators (e.g., NULL, CR, etc.)."; }
+                        leaf rfc822-address-string { type string; description "Specifies the identity as a fully-qualified RFC822 email address string. An example is, jsmith@example.com. The string MUST not contain any terminators (e.g., NULL, CR, etc.)."; }
+                        leaf dnX509 { type string; description "Specifies the identity as a distinguished name in the X.509 tradition."; }
+                        leaf id_key { type string; description "Key id"; }
+                        leaf id_null { type empty; description "RFC 7619" ; }
+                        leaf user_fqdn { type string; description "User FQDN"; }
+                }
+                leaf my-identifier { type string; mandatory true; description "id used for authentication"; }
+        }
+
+        /*################ end PAD ##################*/
+
+        /*################## IKEv2-grouping ##################*/
+        grouping ike-proposal {
+                description "IKEv2 proposal grouping";
+
+                container ike-sa-lifetime-hard {
+                        description "IKE SA lifetime hard";
+                        uses ic:lifetime;
+                }
+
+                container ike-sa-lifetime-soft {
+                        description "IPsec SA lifetime soft";
+                        uses ic:lifetime;
+                        leaf action {type ic:lifetime-action; description "Action lifetime";}
+                }
+
+                leaf-list ike-sa-authalg { type ic:integrity-algorithm-t; description "Auth algorigthm for IKE SA";}
+                leaf-list ike-sa-encalg { type ic:encryption-algorithm-t; description "Auth algorigthm for IKE SAs";}
+                leaf dh_group { type uint32; mandatory true; description "Group number for Diffie Hellman Exponentiation";}
+                leaf half-open-ike-sa-timer { type uint32; description "Set the half-open IKE SA timeout duration" ; }
+                leaf half-open-ike-sa-cookie-threshold { type uint32; description "Number of half-open IKE SAs that activate the cookie mechanism." ; }
+        }
+
+        grouping ike-child-sa-info {
+                description "IPsec SA Information";
+                leaf-list pfs_groups { type pfs-group; description "If non-zero, require perfect forward secrecy when requesting new SA. The non-zero value is the required group number"; }
+
+                container child-sa-lifetime-soft {
+                        description "IPsec SA lifetime soft";
+                        uses ic:lifetime;
+                        leaf action {type ic:lifetime-action; description "action lifetime";}
+                }
+
+                container child-sa-lifetime-hard {
+                        description "IPsec SA lifetime hard. The action will be to terminate the IPsec SA.";
+                        uses ic:lifetime;
+                }
+        }
+
+        /*################## End IKEv2-grouping ##################*/
+
+        container ikev2 {
+
+                description "Configure the IKEv2 software";
+
+                container pad {
+                        description "Configure Peer Authorization Database (PAD)";
+                        list pad-entry {
+                                key "pad-entry-id";
+                                ordered-by user;
+                                description "Peer Authorization Database (PAD)";
+                                leaf pad-entry-id { type uint64; description "SAD index. ";}
+                                uses identity-grouping;
+                                leaf pad-auth-protocol { type auth-protocol-type; description "IKEv2, etc. ";}
+                                uses auth-method-grouping;
+                        }
+                }
+
+                list ike-conn-entry {
+                        key "conn-name";
+                        description "IKE peer connection information";
+                        leaf conn-name  { type string; mandatory true; description "Name of IKE connection";}
+                        leaf autostartup { type type-autostartup; mandatory true; description "if True: automatically start tunnel at startup; else we do lazy tunnel setup based on trigger from datapath";}
+                        leaf initial-contact {type boolean; default false; description "This IKE SA is the only currently active between the authenticated identities";}
+                        leaf version {
+                                type enumeration {
+                                        enum ikev2 {value 2; description "IKE version 2";}
+                                }
+                                description "IKE version";
+                        }
+
+                        leaf ike-fragmentation { type boolean; description "Whether to use IKEv2 fragmentation as per RFC 7383 (TRUE or FALSE)"; }
+                        uses ike-proposal;
+
+                        container local {
+                                description "Local peer connection information";
+                                leaf local-pad-id { type uint64; description " ";}
+                        }
+
+                        container remote {
+                                description "Remote peer connection information";
+                                leaf remote-pad-id { type uint64; description " ";}
+                        }
+
+                        uses ic:encap;
+
+                        container spd {
+                                description "Configure the Security Policy Database (SPD)";
+                                list spd-entry {
+                                        key "spd-entry-id";
+                                        uses ic:ipsec-policy-grouping;
+                                        ordered-by user;
+                                        description "List of SPD entries";
+                                }
+                        }
+
+                        container ike-sa-state {
+                                container uptime {
+                                        description "IKE service uptime";
+                                        leaf running { type yang:date-and-time;  description "Relative uptime";}
+                                        leaf since   { type yang:date-and-time;  description "Absolute uptime";}
+                                }
+
+                                leaf initiator { type boolean; description "It is acting as initiator in this connection";}
+                                leaf initiator-ikesa-spi {type uint64; description "Initiator's IKE SA SPI";}
+                                leaf responder-ikesa-spi {type uint64; description "Responsder's IKE SA SPI";}
+                                leaf nat-local {type boolean; description "YES, if local endpoint is behind a NAT";}
+                                leaf nat-remote {type boolean; description "YES, if remote endpoint is behind a NAT";}
+                                leaf nat-any {type boolean; description "YES, if both local and remote endpoints are behind a NAT";}
+
+                                uses ic:encap;
+
+                                leaf established {type uint64; description "Seconds the IKE SA has been established";}
+                                leaf rekey-time {type uint64; description "Seconds before IKE SA gets rekeyed";}
+                                leaf reauth-time {type uint64; description "Seconds before IKE SA gets re-authenticated";}
+                                list child-sas {
+                                        container spis{
+                                                description "IPsec SA's SPI '";
+                                                leaf spi-in {type ic:ipsec-spi;  description "Security Parameter Index for inbound IPsec SA";}
+                                                leaf spi-out {type ic:ipsec-spi;  description "Security Parameter Index for the corresponding outbound IPsec SA";}
+                                        }
+                                        description "State data about IKE CHILD SAs";
+                                }
+                                config false;
+                                description "IKE state data";
+                        } /* ike-sa-state */
+                } /* ike-conn-entries */
+
+                container number-ike-sas{
+                        leaf total {type uint32; description "Total number of IKEv2 SAs";}
+                        leaf half-open {type uint32; description "Number of half-open IKEv2 SAs";}
+                        leaf half-open-cookies {type uint32; description "Number of half open IKE SAs with cookie activated" ;}
+                        config false;
+                        description "Number of IKE SAs";
+                }
+        }  /* container ikev2 */
+}

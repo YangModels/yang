@@ -9,10 +9,6 @@ module ietf-te-path-computation {
     prefix "inet";
   }
 
-  import ietf-yang-types {
-    prefix "yang-types";
-  }
-
   import ietf-te {
     prefix "te";
   }
@@ -24,10 +20,10 @@ module ietf-te-path-computation {
   organization
     "Traffic Engineering Architecture and Signaling (TEAS)
      Working Group";
-
   contact
     "WG Web:   <http://tools.ietf.org/wg/teas/>
      WG List:  <mailto:teas@ietf.org>
+
      WG Chair: Lou Berger
                <mailto:lberger@labn.net>
 
@@ -38,7 +34,7 @@ module ietf-te-path-computation {
 
   description "YANG model for stateless TE path computation";
 
-  revision "2018-10-23" {
+  revision "2019-03-11" {
     description
       "Initial revision";
     reference
@@ -60,11 +56,6 @@ module ietf-te-path-computation {
    */
 
   grouping path-info {
-    leaf path-id {
-      type yang-types:uuid;
-      config false;
-      description "path-id ref.";
-    }
     uses te-types:generic-path-properties;
     description "Path computation output information";
   }
@@ -101,6 +92,166 @@ module ietf-te-path-computation {
       "If true, path affinities must be returned in the response.
        If false, returning path affinities in the response is
        optional.";
+    }
+  }
+
+  grouping requested-state {
+    description
+      "Configuration for the transient state used
+       to report the computed path";
+    leaf timer {
+      type uint16;
+      units minutes;
+      default 10;
+      description
+        "The timeout after which the transient state reporting
+         the computed path should be removed.";
+    }
+    leaf transaction-id {
+      type string;
+      description
+        "
+         The transaction-id associated with this path computation
+         to be used for fast deletion of the transient states
+         associated with multiple path computations.
+
+         This transaction-id can be used to explicitly delete all
+         the transient states of all the computed paths associated
+         with the same transaction-id.
+
+         When one path associated with a transaction-id is setup,
+         the transient states of all the other computed paths
+         with the same transaction-id are automatically removed.
+
+         If not specified, the transient state is removed only
+         when the timer expires (when the timer is specified)
+         or not created at all (stateless path computation,
+         when the timer is not specified).
+        ";
+    }
+    leaf tunnel-name {
+      type string;
+      description
+        "
+         The suggested name to be assigned to the te-tunnel
+         instance which is created to report the computed path.
+
+         In case multiple paths are requested with the same
+         suggested name, the server will create only one te-tunnel
+         instance to report all the computed paths
+         with the same suggested name.
+
+         A different name can be assigned by server (e.g., when a
+         te-tunnel with this name already exists).
+        ";
+    }
+    choice path {
+      description
+        "The transient state of the computed path can be reported
+         as a primary or a secondary path of a te-tunnel";
+      case primary {
+        leaf primary-path-name {
+          type string;
+          description
+            "
+             The suggested name to be assigned to the
+             p2p-primary-path instance which is created
+             to report the computed path.
+
+             A different name can be assigned by the server
+             (e.g., when a p2p-primary-path with this name
+             already exists).
+            ";
+        }
+      }
+      case secondary {
+        leaf secondary-path-name {
+          type string;
+          description
+            "
+             The suggested name to be assigned to the
+             p2p-secondary-path instance which is created
+             to report the computed path.
+
+             A different name can be assigned by the server
+             (e.g., when a p2p-secondary-path with this
+             name already exists).
+
+             If not specified, the a p2p-primary-path is created
+             by the server.
+            ";
+        }
+      }
+    }
+  }
+
+  grouping reported-state {
+    description
+      "Information about the transient state created
+       to report the computed path";
+
+    leaf tunnel-ref {
+      type te:tunnel-ref;
+      description
+        "
+         Reference to the tunnel that reports the transient state
+         of the computed path.
+
+         If no transient state is created, this attribute is empty.
+        ";
+    }
+    choice path {
+      description
+        "The transient state of the computed path can be reported
+         as a primary or a secondary path of a te-tunnel";
+      case primary {
+        leaf primary-path-ref {
+          type leafref {
+            path "/te:te/te:tunnels/" +
+                 "te:tunnel[te:name=current()/../tunnel-ref]/" +
+                 "te:p2p-primary-paths/te:p2p-primary-path/" +
+                 "te:name";
+          }
+          must "../tunnel-ref" {
+            description
+              "The primary-path-name can only be reported
+               if also the tunnel is reported
+               to provide the complete reference.";
+          }
+          description
+            "
+             Reference to the p2p-primary-path that reports
+             the transient state of the computed path.
+
+             If no transient state is created,
+             this attribute is empty.
+            ";
+        }
+      }
+      case secondary {
+        leaf secondary-path-ref {
+          type leafref {
+            path "/te:te/te:tunnels/" +
+                 "te:tunnel[te:name=current()/../tunnel-ref]/" +
+                 "te:p2p-secondary-paths/te:p2p-secondary-path/" +
+                 "te:name";
+          }
+          must "../tunnel-ref" {
+            description
+              "The secondary-path-name can only be reported
+               if also the tunnel is reported to provide
+               the complete reference.";
+          }
+          description
+            "
+             Reference to the p2p-secondary-path that reports
+             the transient state of the computed path.
+
+             If no transient state is created,
+             this attribute is empty.
+            ";
+        }
+      }
     }
   }
 
@@ -182,13 +333,14 @@ module ietf-te-path-computation {
       description "resources to be excluded";
       list excludes {
         key index;
+        ordered-by user;
+        leaf index {
+           type uint32;
+           description "XRO subobject index";
+        }
         description
           "List of explicit route objects to always exclude
            from synchronized path computation";
-        leaf index {
-          type uint32;
-          description "XRO subobject index";
-        }
         uses te-types:explicit-route-hop;
       }
     }
@@ -219,6 +371,7 @@ module ietf-te-path-computation {
       choice algorithm {
         description "Optimizations algorithm.";
         case metric {
+          if-feature te-types:path-optimization-metric;
           list optimization-metric {
             key "metric-type";
             description "svec path metric type";
@@ -226,11 +379,18 @@ module ietf-te-path-computation {
           }
         }
         case objective-function {
+          if-feature te-types:path-optimization-objective-function;
           container objective-function {
             description
               "The objective function container that includes
                attributes to impose when computing a TE path";
-            uses te-types:path-objective-function_config;
+            leaf objective-function-type {
+              type identityref {
+                base te-types:objective-function-type;
+              }
+              default te-types:of-minimize-cost-path;
+              description "Objective function entry";
+            }
           }
         }
       }
@@ -288,7 +448,6 @@ module ietf-te-path-computation {
     description
       "Common grouping to define the LSP encoding and
        switching types";
-
     leaf encoding {
       type identityref {
         base te-types:lsp-encoding-types;
@@ -305,10 +464,11 @@ module ietf-te-path-computation {
     }
   }
 
-  grouping end-points {
+  grouping tunnel-p2p-common-params {
     description
-      "Common grouping to define the TE tunnel end-points";
+      "Common grouping to define the TE tunnel parameters";
 
+    uses encoding-and-switching-type;
     leaf source {
       type inet:ip-address;
       description "TE tunnel source address.";
@@ -334,12 +494,12 @@ module ietf-te-path-computation {
     }
   }
 
-  /**
+  /*
    * AUGMENTS TO TE RPC
    */
 
   augment "/te:tunnels-rpc/te:input/te:tunnel-info" {
-    description "statelessComputeP2PPath input";
+    description "Path Computation RPC input";
     list path-request {
       key "request-id";
       description "request-list";
@@ -350,28 +510,36 @@ module ietf-te-path-computation {
           "Each path computation request is uniquely identified
            by the request-id-number.";
       }
+      uses tunnel-p2p-common-params;
       uses te-types:te-topology-identifier;
-      uses end-points;
-      uses encoding-and-switching-type;
-      uses te-types:path-route-objects;
+      uses te-types:path-constraints-route-objects;
       uses te-types:generic-path-constraints;
       uses te-types:generic-path-optimization;
-      uses requested-info;
       uses te:path-access-segment-info;
+      uses requested-info;
+      container requested-state {
+        presence
+          "Request temporary reporting of the computed path state";
+        description
+          "Configures attributes for the temporary reporting of the
+           computed path state (e.g., expiration timer).";
+        uses requested-state;
+      }
     }
     uses synchronization-info;
   }
 
   augment "/te:tunnels-rpc/te:output/te:result" {
-    description "statelessComputeP2PPath output";
+    description "Path Computation RPC output";
     list response {
-      key response-id;
+      key "response-id";
       config false;
       description "response";
       leaf response-id {
         type uint32;
         description
-          "The list key that has to reuse request-id-number.";
+          "The response-id has the same value of the corresponding
+request-id.";
       }
       choice response-type {
         config false;
@@ -382,10 +550,31 @@ module ietf-te-path-computation {
         case path-case {
           container computed-path {
             uses path-info;
+            uses reported-state;
             description "Path computation service.";
           }
         }
       }
+    }
+  }
+
+  augment "/te:tunnels-rpc/te:input/te:tunnel-info" {
+    description "Path Delete RPC input";
+    leaf-list deleted-paths-transaction-id {
+      type string;
+      description
+        "The list of the transaction-id values of the
+         transient states to be deleted";
+    }
+  }
+
+  augment "/te:tunnels-rpc/te:output/te:result" {
+    description "Path Delete RPC output";
+    leaf-list deleted-paths-transaction-id {
+      type string;
+      description
+        "The list of the transaction-id values of the
+         transient states that have been successfully deleted";
     }
   }
 }
