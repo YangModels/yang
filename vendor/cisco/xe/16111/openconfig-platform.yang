@@ -1,0 +1,370 @@
+module openconfig-platform {
+
+  yang-version "1";
+
+  // namespace
+  namespace "http://openconfig.net/yang/platform";
+
+  prefix "oc-platform";
+
+  import openconfig-platform-types { prefix oc-platform-types; }
+  import openconfig-interfaces { prefix oc-if; }
+  import openconfig-extensions { prefix oc-ext; }
+
+
+  // meta
+  organization "OpenConfig working group";
+
+  contact
+    "OpenConfig working group
+    www.openconfig.net";
+
+  description
+    "This module defines a data model for representing a system
+    component inventory, which can include hardware or software
+    elements arranged in an arbitrary structure. The primary
+    relationship supported by the model is containment, e.g.,
+    components containing subcomponents.
+    It is expected that this model reflects every field replacable
+    unit on the device at a minimum (i.e., additional information
+    may be supplied about non-replacable components).
+    Every element in the inventory is termed a 'component' with each
+    component expected to have a unique name and type, and optionally
+    a unique system-assigned identifier and FRU number.  The
+    uniqueness is guaranteed by the system within the device.
+    Components may have properties defined by the system that are
+    modeled as a list of key-value pairs. These may or may not be
+    user-configurable.  The model provides a flag for the system
+    to optionally indicate which properties are user configurable.
+    Each component also has a list of 'subcomponents' which are
+    references to other components. Appearance in a list of
+    subcomponents indicates a containment relationship as described
+    above.  For example, a linecard component may have a list of
+    references to port components that reside on the linecard.
+    This schema is generic to allow devices to express their own
+    platform-specific structure.  It may be augmented by additional
+    component type-specific schemas that provide a common structure
+    for well-known component types.  In these cases, the system is
+    expected to populate the common component schema, and may
+    optionally also represent the component and its properties in the
+    generic structure.
+    The properties for each component may include dynamic values,
+    e.g., in the 'state' part of the schema.  For example, a CPU
+    component may report its utilization, temperature, or other
+    physical properties.  The intent is to capture all platform-
+    specific physical data in one location, including inventory
+    (presence or absence of a component) and state (physical
+    attributes or status).";
+
+  oc-ext:openconfig-version "0.5.0";
+
+  revision "2016-12-22" {
+    description
+      "Added temperature state variable to component";
+    reference "0.5.0";
+  }
+
+  // grouping statements
+
+
+  grouping platform-component-properties-config {
+    description
+      "System-defined configuration data for component properties";
+
+    leaf name {
+      type string;
+      description
+        "System-supplied name of the property -- this is typically
+        non-configurable";
+    }
+
+    leaf value {
+      type union {
+        type string;
+        type boolean;
+        type int64;
+        type uint64;
+        type decimal64 {
+          fraction-digits 2;
+        }
+      }
+      description
+        "Property values can take on a variety of types.  Signed and
+        unsigned integer types may be provided in smaller sizes,
+        e.g., int8, uint16, etc.";
+    }
+  }
+
+  grouping platform-component-properties-state {
+    description
+      "Operational state data for component properties";
+
+    leaf configurable {
+      type boolean;
+      description
+        "Indication whether the property is user-configurable";
+    }
+  }
+
+  grouping platform-component-properties-top {
+    description
+      "Top-level grouping ";
+
+    container properties {
+      description
+        "Enclosing container ";
+
+      list property {
+        key "name";
+        description
+          "List of system properties for the component";
+
+        leaf name {
+          type leafref {
+            path "../config/name";
+          }
+          description
+            "Reference to the property name.";
+        }
+
+        container config {
+          description
+            "Configuration data for each property";
+
+          uses platform-component-properties-config;
+        }
+
+        container state {
+
+          config false;
+
+          description
+            "Operational state data for each property";
+
+          uses platform-component-properties-config;
+          uses platform-component-properties-state;
+        }
+      }
+    }
+  }
+
+  grouping platform-subcomponent-ref-config {
+    description
+      "Configuration data for subcomponent references";
+
+    leaf name {
+      type leafref {
+        path "../../../../../component/config/name";
+      }
+      description
+        "Reference to the name of the subcomponent";
+    }
+  }
+
+  grouping platform-subcomponent-ref-state {
+    description
+      "Operational state data for subcomponent references";
+
+  }
+
+  grouping platform-subcomponent-ref-top {
+    description
+      "Top-level grouping for list of subcomponent references";
+
+    container subcomponents {
+      description
+        "Enclosing container for subcomponent references";
+
+      list subcomponent {
+        key "name";
+        description
+          "List of subcomponent references";
+
+        leaf name {
+          type leafref {
+            path "../config/name";
+          }
+          description
+            "Reference to the name list key";
+        }
+
+        container config {
+          description
+            "Configuration data ";
+
+          uses platform-subcomponent-ref-config;
+        }
+
+        container state {
+
+          config false;
+
+          description
+            "Operational state data ";
+
+          uses platform-subcomponent-ref-config;
+          uses platform-subcomponent-ref-state;
+        }
+      }
+    }
+  }
+
+  grouping platform-component-config {
+    description
+      "Configuration data for components";
+
+    leaf name {
+      type string;
+      description
+        "Device name for the component -- this will not be a
+        configurable parameter on many implementations";
+    }
+  }
+
+  grouping platform-component-state {
+    description
+      "Operational state data for device components.";
+
+    leaf type {
+      type union {
+        type identityref {
+          base oc-platform-types:OPENCONFIG_HARDWARE_COMPONENT;
+        }
+        type identityref {
+          base oc-platform-types:OPENCONFIG_SOFTWARE_COMPONENT;
+        }
+      }
+      description
+        "Type of component as identified by the system";
+    }
+
+    leaf id {
+      type string;
+      description
+        "Unique identifier assigned by the system for the
+        component";
+    }
+
+    leaf description {
+      type string;
+      description
+        "System-supplied description of the component";
+    }
+
+    leaf mfg-name {
+      type string;
+      description
+        "System-supplied identifier for the manufacturer of the
+        component.  This data is particularly useful when a
+        component manufacturer is different than the overall
+        device vendor.";
+    }
+
+    leaf version {
+      type string;
+      description
+        "System-defined version string for a hardware, firmware,
+        or software component.";
+    }
+
+    leaf serial-no {
+      type string;
+      description
+        "System-assigned serial number of the component.";
+    }
+
+    leaf part-no {
+      type string;
+      description
+        "System-assigned part number for the component.  This should
+        be present in particular if the component is also an FRU
+        (field replacable unit)";
+    }
+  }
+
+  grouping platform-component-temp-state {
+    description
+      "Temperature state data for device components";
+
+    container temperature {
+      description
+        "Temperature in degrees Celsius of the component. Values include
+        the instantaneous, average, minimum, and maximum statistics. If
+        avg/min/max statistics are not supported, the target is expected
+        to just supply the instant value";
+
+      uses oc-platform-types:avg-min-max-instant-stats-precision1-celsius;
+    }
+  }
+
+  grouping platform-component-top {
+    description
+      "Top-level grouping for components in the device inventory";
+
+    container components {
+      description
+        "Enclosing container for the components in the system.";
+
+      list component {
+        key "name";
+        description
+          "List of components, keyed by component name.";
+
+        leaf name {
+          type leafref {
+            path "../config/name";
+          }
+          description
+            "References the component name";
+        }
+
+        container config {
+          description
+            "Configuration data for each component";
+
+          uses platform-component-config;
+        }
+
+        container state {
+
+          config false;
+
+          description
+            "Operational state data for each component";
+
+          uses platform-component-config;
+          uses platform-component-state;
+          uses platform-component-temp-state;
+        }
+
+        uses platform-component-properties-top;
+        uses platform-subcomponent-ref-top;
+      }
+    }
+  }
+
+  // data definition statements
+
+  uses platform-component-top;
+
+
+  // augments
+
+  augment "/oc-if:interfaces/oc-if:interface/oc-if:state" {
+    //TODO: add 'when' or other condition to make sure this
+    //leafref points to a component of type PORT.
+    description
+      "Adds a reference from the base interface to the corresponding
+      port component in the device inventory.";
+
+    leaf hardware-port {
+      type leafref {
+        path "/oc-platform:components/oc-platform:component/" +
+          "oc-platform:name";
+      }
+      description
+        "References the hardware port in the device inventory";
+    }
+  }
+
+}

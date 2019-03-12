@@ -1,0 +1,804 @@
+module openconfig-rib-bgp {
+
+  yang-version "1";
+
+  // namespace
+  namespace "http://openconfig.net/yang/rib/bgp";
+
+  prefix "oc-bgprib";
+
+  // import some basic types
+  import ietf-inet-types { prefix inet; }
+  import ietf-yang-types { prefix yang; }
+  import openconfig-bgp-types { prefix oc-bgpt; }
+  import openconfig-extensions { prefix oc-ext; }
+  import openconfig-rib-bgp-types { prefix oc-bgpribt; }
+
+  // meta
+  organization "OpenConfig working group";
+
+  contact
+    "OpenConfig working group
+    www.openconfig.net";
+
+  description
+    "Defines a data model for representing BGP routing table (RIB)
+    contents.  The model supports 5 logical RIBs per address family:
+
+    loc-rib: This is the main BGP routing table for the local routing
+    instance, containing best-path selections for each prefix. The
+    loc-rib table may contain multiple routes for a given prefix,
+    with an attribute to indicate which was selected as the best
+    path.
+
+    adj-rib-in-pre: This is a per-neighbor table containing the NLRI
+    updates received from the neighbor before any local input policy
+    rules or filters have been applied.  This can be considered the
+    'raw' updates from a given neighbor.
+
+    adj-rib-in-post: This is a per-neighbor table containing the
+    routes received from the neighbor that are eligible for
+    best-path selection after local input policy rules have been
+    applied.
+
+    adj-rib-out-pre: This is a per-neighbor table containing routes
+    eligible for sending (advertising) to the neighbor before output
+    policy rules have been applied.
+
+    adj-rib-out-post: This is a per-neighbor table containing routes
+    eligible for sending (advertising) to the neighbor after output
+    policy rules have been applied.";
+
+  oc-ext:openconfig-version "0.2.0";
+
+  revision "2017-03-07" {
+    description
+      "Modified by Cisco for consistency with the
+       openconfig-network-instance model.  Pending
+       final version from OC team";
+  }
+
+  revision "2016-04-11" {
+    description
+      "OpenConfig public release";
+    reference "0.2.0";
+  }
+
+
+  // extension statements
+
+  // feature statements
+
+  // identity statements
+
+  // typedef statements
+
+  // grouping statements
+
+  grouping bgp-base-attributes {
+    description "Route attributes defined by the BGP-4 standard";
+    reference "RFC 4271 - A Border Gateway Protocol 4 (BGP-4)";
+
+//FIXME changed model to all list for next hops, need to do through deviation and augmentation
+   
+     list next-hops {
+      key next-hop;
+      description 
+        "List of available next-hops for this prefix";
+
+       leaf next-hop {
+         type inet:ip-address;
+         description
+           "BGP next hop attribute defining the IP address of the router
+           that should be used as the next hop to the destination";
+       }
+
+       leaf origin {
+         type oc-bgpt:bgp-origin-attr-type;
+         description
+           "BGP attribute defining the origin of the path information.";
+       }
+
+       leaf as-path {
+         type string;
+         //TODO: add a pattern constraint to enforce the format
+         //described in the description statement.
+         description
+           "String representation of the BGP AS path attribute as
+           concatenated AS path segments.  Each segment of the AS_PATH
+           should be formatted as follows based on the segment type
+           (#### denotes a single AS number):
+
+             AS_SEQ: #### #### #####
+             AS_SET: { #### #### }
+             AS_CONFED_SEQUENCE: ( #### #### )
+             AS_CONFED_SET: [ #### #### ]
+
+        AS_PATH segment types are described in RFC 5065.
+
+        In the Adj-RIB-In or Adj-RIB-Out, this leaf should show
+        the received or sent AS_PATH value, respectively.  For
+        example, if the local router is not 4-byte capable, this
+        value should consist of 2-octet ASNs or the AS_TRANS
+        (AS 23456) values received or sent in route updates.
+
+        In the Loc-RIB, this leaf should reflect the effective
+        AS path for the route, e.g., a 4-octet value if the
+        local router is 4-octet capable.";
+
+         reference
+           "RFC 4271 - A Border Gateway Protocol 4 (BGP-4)
+           RFC 6793 - BGP Support for Four-octet AS Number Space
+           RFC 5065 - Autonomous System Confederations for BGP";
+       }
+
+       leaf as4-path {
+         type string;
+         description
+           "This string represents the AS path encoded with 4-octet
+           AS numbers in the optional transitive AS4_PATH attribute.
+           This value is populated with the received or sent attribute
+           in Adj-RIB-In or Adj-RIB-Out, respectively.  It should not
+           be populated in Loc-RIB since the Loc-RIB is expected to
+           store the effective AS-Path in the as-path leaf regardless
+           of being 4-octet or 2-octet.";
+         reference
+           "RFC 6793 - BGP Support for Four-octet AS Number Space";
+       }
+
+       leaf med {
+         type uint32;
+         description
+           "BGP multi-exit discriminator attribute used in BGP route
+           selection process";
+       }
+
+       leaf local-pref {
+         type uint32;
+         description
+           "BGP local preference attribute sent to internal peers to
+           indicate";
+       }
+
+       leaf atomic-aggr {
+         type boolean;
+         description
+           "BGP attribute indicating that the prefix is an atomic
+           aggregate, i.e., the peer selected a less specific
+           route without selecting a more specific route that is
+           included in it.";
+       }
+
+       container aggregator {
+         description
+           "BGP attribute indicating the prefix has been aggregated by
+           the specified AS and router.";
+
+         leaf as {
+           type uint32;
+           description
+             "AS number of the autnonomous system that performed the
+             aggregation.";
+         }
+
+         leaf as4 {
+           type uint32;
+           description
+             "AS number of the autnonomous system that performed the
+             aggregation (4-octet representation).  This value is
+             populated if an upstream router is not 4-octet capable.
+             Its semantics are similar to the AS4_PATH optional
+             transitive attribute";
+           reference
+             "RFC 6793 - BGP Support for Four-octet AS Number Space";
+         }
+
+         leaf address {
+           type inet:ipv4-address;
+           description
+             "IP address of the router that performed the
+             aggregation.";
+         }
+       }
+
+       leaf-list community {
+         type oc-bgpt:bgp-std-community-type;
+         description
+           "List of standard BGP community attributes.";
+       }
+
+       leaf originator-id {
+         type inet:ipv4-address;
+         description
+           "BGP attribute that provides the id as an IPv4 address
+           of the route reflector that created the announcement";
+         reference
+           "RFC 4456 - BGP Route Reflection: An Alternative to Full
+           Mesh Internal BGP (IBGP)";
+       }
+
+       leaf-list cluster-list {
+         type inet:ipv4-address;
+         description
+           "Represents the reflection path that the route has passed.";
+         reference
+           "RFC 4456 - BGP Route Reflection: An Alternative to Full
+           Mesh Internal BGP (IBGP)";
+       }
+
+       leaf-list ext-community {
+         type oc-bgpt:bgp-ext-community-type;
+         description
+           "List of BGP extended community attributes";
+         reference "RFC 4360 - BGP Extended Communities Attribute";
+       }
+
+       leaf aigp {
+         type uint64;
+         description
+           "BGP path attribute representing the accumulated IGP metric
+           for the path";
+         reference
+           "RFC 7311 - The Accumulated IGP Metric Attribute for BGP";
+       }
+
+       leaf path-id {
+         type uint32;
+         description
+           "When the BGP speaker supports advertisement of multiple
+           paths for a prefix, the path identifier is used to
+           uniquely identify a route based on the combination of the
+           prefix and path id.  In the Adj-RIB-In, the path-id value is
+           the value received in the update message.   In the Loc-RIB,
+           if used, it should represent a locally generated path-id
+           value for the corresponding route.  In Adj-RIB-Out, it
+           should be the value sent to a neighbor when add-paths is
+           used, i.e., the capability has been negotiated.";
+         reference
+           "draft-ietf-idr-add-paths - Advertisement of Multiple Paths
+           in BGP";
+       }
+
+       list unknown-attribute {
+         key attr-type;
+         description
+           "This list contains received attributes that are unrecognized
+           or unsupported by the local router.  The list may be empty.";
+
+         leaf attr-type {
+           type uint16;
+           description
+             "2-octet value encoding the attribute flags and the
+             attribute type code";
+           reference
+             "RFC 4271 - A Border Gateway Protocol 4 (BGP-4)";
+         }
+
+         leaf attr-len {
+           type uint16;
+           description
+             "One or two octet attribute length field indicating the
+             length of the attribute data in octets.  If the Extended
+             Length attribute flag in the attribute type field is set,
+             the length field is 2 octets, otherwise it is 1 octet";
+           reference
+             "RFC 4271 - A Border Gateway Protocol 4 (BGP-4)";
+         }
+
+         leaf attr-value {
+           type binary {
+             length 1..65535;
+           }
+           description
+             "Raw attribute value data, not to exceed the length
+             indicated in the attr-len field.  The maximum length
+             of the attribute data is 2^16-1 per the max value of the
+             attr-len field (2 octets).";
+           reference
+             "RFC 4271 - A Border Gateway Protocol 4 (BGP-4)";
+         }
+       }  // End of container aggregator
+
+       leaf last-modified-date {
+         type yang:date-and-time;
+         description
+           "Timestamp of when this path was last changed";
+       }
+
+       leaf last-update-received {
+         type yang:date-and-time;
+         description
+           "Timestamp of when the last BGP update message was received
+           for this path / prefix";
+       }
+
+       leaf valid-route {
+         type boolean;
+         description
+           "Indicates that the route is considered valid by the
+           local router";
+       }
+
+       leaf invalid-reason {
+         type identityref {
+           base oc-bgpribt:INVALID_ROUTE_REASON;
+         }
+         description
+           "If the route is rejected as invalid, this indicates the
+           reason.";
+       }
+
+       leaf best-path {
+         type boolean;
+         description
+           "Current path was selected as the best path.";
+       }
+     }  //end of next-hops list
+  } //end of grouping bgp-base-attributes
+
+  grouping bgp-extended-attributes {
+    description
+      "Additional path attributes defined by various extensions
+      to base BGP-4";
+
+    leaf originator-id {
+      type inet:ipv4-address;
+      description
+        "BGP attribute that provides the id as an IPv4 address
+        of the route reflector that created the announcement";
+      reference
+        "RFC 4456 - BGP Route Reflection: An Alternative to Full
+        Mesh Internal BGP (IBGP)";
+    }
+
+    leaf-list cluster-list {
+      type inet:ipv4-address;
+      description
+        "Represents the reflection path that the route has passed.";
+      reference
+        "RFC 4456 - BGP Route Reflection: An Alternative to Full
+        Mesh Internal BGP (IBGP)";
+    }
+
+    leaf-list ext-community {
+      type oc-bgpt:bgp-ext-community-type;
+      description
+        "List of BGP extended community attributes";
+      reference "RFC 4360 - BGP Extended Communities Attribute";
+    }
+
+    leaf aigp {
+      type uint64;
+      description
+        "BGP path attribute representing the accumulated IGP metric
+        for the path";
+      reference
+        "RFC 7311 - The Accumulated IGP Metric Attribute for BGP";
+    }
+
+    leaf path-id {
+      type uint32;
+      description
+        "When the BGP speaker supports advertisement of multiple
+        paths for a prefix, the path identifier is used to
+        uniquely identify a route based on the combination of the
+        prefix and path id.  In the Adj-RIB-In, the path-id value is
+        the value received in the update message.   In the Loc-RIB,
+        if used, it should represent a locally generated path-id
+        value for the corresponding route.  In Adj-RIB-Out, it
+        should be the value sent to a neighbor when add-paths is
+        used, i.e., the capability has been negotiated.";
+      reference
+        "draft-ietf-idr-add-paths - Advertisement of Multiple Paths
+        in BGP";
+    }
+
+    list unknown-attribute {
+      key attr-type;
+      description
+        "This list contains received attributes that are unrecognized
+        or unsupported by the local router.  The list may be empty.";
+
+      leaf attr-type {
+        type uint16;
+        description
+          "2-octet value encoding the attribute flags and the
+          attribute type code";
+        reference
+          "RFC 4271 - A Border Gateway Protocol 4 (BGP-4)";
+      }
+
+      leaf attr-len {
+        type uint16;
+        description
+          "One or two octet attribute length field indicating the
+          length of the attribute data in octets.  If the Extended
+          Length attribute flag in the attribute type field is set,
+          the length field is 2 octets, otherwise it is 1 octet";
+        reference
+          "RFC 4271 - A Border Gateway Protocol 4 (BGP-4)";
+      }
+
+      leaf attr-value {
+        type binary {
+          length 1..65535;
+        }
+        description
+          "Raw attribute value data, not to exceed the length
+          indicated in the attr-len field.  The maximum length
+          of the attribute data is 2^16-1 per the max value of the
+          attr-len field (2 octets).";
+        reference
+          "RFC 4271 - A Border Gateway Protocol 4 (BGP-4)";
+      }
+    }
+
+  }
+
+  grouping common-route-annotations {
+    description
+      "Data definitions for flags and other information attached
+      to routes";
+
+    leaf last-modified-date {
+      type yang:date-and-time;
+      description
+        "Timestamp of when this path was last changed";
+    }
+
+    leaf last-update-received {
+      type yang:date-and-time;
+      description
+        "Timestamp of when the last BGP update message was received
+        for this path / prefix";
+    }
+
+    leaf valid-route {
+      type boolean;
+      description
+        "Indicates that the route is considered valid by the
+        local router";
+    }
+
+    leaf invalid-reason {
+      type identityref {
+        base oc-bgpribt:INVALID_ROUTE_REASON;
+      }
+      description
+        "If the route is rejected as invalid, this indicates the
+        reason.";
+    }
+
+    leaf best-path {
+      type boolean;
+      description
+        "Current path was selected as the best path.";
+    }
+  }
+
+  grouping common-table-attrs {
+    description
+      "Common attributes attached to all routing tables";
+
+    leaf num-routes {
+      type uint64;
+      description
+        "Number of route entries in the table";
+    }
+  }
+
+  grouping common-route-attrs {
+    description
+      "Common BGP route attributes and annotations";
+
+    container attributes {
+
+      config false;
+      description
+        "Base BGP route attributes associated with this route";
+
+      uses bgp-base-attributes;
+    }
+
+//FIXME    container ext-attributes {
+
+//      config false;
+//      description
+//        "Extended BGP route attributes associated with this
+//        route";
+
+//      uses bgp-extended-attributes;
+//    }
+
+//    uses common-route-annotations;
+
+  }
+
+  grouping ipv4-routes {
+    description
+      "Common grouping for a list of BGP routes for IPv4 unicast";
+
+    container routes {
+      config false;
+      description
+        "Enclosing container for list of routes in the routing
+        table.";
+
+      list route {
+        config false;
+        key prefix;  //FIXME was a leaf in original openconfig-rib-bgp model
+
+        description
+          "List of routes in the table";
+
+        leaf prefix {
+          type inet:ipv4-prefix;
+          description
+            "Prefix for the route";
+        }
+
+        uses common-route-attrs;
+      }
+    }
+  }
+
+  grouping ipv6-routes {
+    description
+      "Common grouping for a list of BGP routes for IPv6 unicast";
+
+    container routes {
+      config false;
+      description
+        "Enclosing container for list of routes in the routing
+        table.";
+
+      list route {
+        config false;
+        key prefix;  //FIXME key was missing in OC model
+
+        description
+          "List of routes in the table";
+
+        leaf prefix {
+          type inet:ipv6-prefix;
+          description
+            "Prefix for the route";
+        }
+
+        uses common-route-attrs;
+      }
+    }
+  }
+
+  grouping ip-rib-top {
+    description
+      "Top-level grouping for IPv4 routing tables";
+
+    container loc-rib {
+      config false;
+      description
+        "Main routing table on the router, containing best-path
+        selections for each prefix.  The loc-rib may contain
+        multiple routes for the same prefix (it is a read-only,
+        unkeyed list).  The best-path leaf should be set to true
+        for the route selected by the best-path selection process.
+        Note that multiple paths may be used or advertised even if
+        only one path is marked as best, e.g., when using BGP
+        add-paths.  An implementation may choose to mark multiple
+        paths in the RIB as best path by setting the flag to true for
+        multiple entries.";
+
+      uses common-table-attrs;
+    }
+
+    container neighbors {
+      config false;
+      description
+        "Enclosing container for neighbor list";
+
+      list neighbor {
+        key neighbor-address;
+        description
+          "List of neighbors (peers) of the local BGP speaker";
+
+        leaf neighbor-address {
+          type inet:ip-address;
+          description
+            "IP address of the BGP neighbor or peer";
+        }
+
+        container adj-rib-in-pre {
+          description
+            "Per-neighbor table containing the NLRI updates
+            received from the neighbor before any local input
+            policy rules or filters have been applied.  This can
+            be considered the 'raw' updates from the neighbor.";
+
+          uses common-table-attrs;
+
+        }
+
+        container adj-rib-in-post {
+          description
+            "Per-neighbor table containing the paths received from
+            the neighbor that are eligible for best-path selection
+            after local input policy rules have been applied.";
+
+          uses common-table-attrs;
+        }
+
+        container adj-rib-out-pre {
+          description
+            "Per-neighbor table containing paths eligble for
+            sending (advertising) to the neighbor before output
+            policy rules have been applied";
+
+          uses common-table-attrs;
+
+        }
+
+        container adj-rib-out-post {
+          description
+            "Per-neighbor table containing paths eligble for
+            sending (advertising) to the neighbor after output
+            policy rules have been applied";
+
+          uses common-table-attrs;
+
+        }
+      }
+    }
+  }
+
+  grouping bgp-rib-top {
+    description
+      "Top-level grouping for the BGP RIB";
+
+    container bgp-rib {
+      config false;
+      description
+        "Top level container for BGP RIBs";
+
+      container afi-safis {
+        config false;
+        description
+          "Enclosing container for address family list";
+
+        list afi-safi {
+          key afi-safi-name;
+          description
+            "list of afi-safi types";
+
+          leaf afi-safi-name {
+            type identityref {
+              base oc-bgpt:AFI_SAFI_TYPE;
+            }
+            description "AFI,SAFI";
+          }
+
+          container ipv4-unicast {
+//FIXME confd can't use prefix abbr            when "../afi-safi-name = 'oc-bgpt:IPV4_UNICAST'" {
+             when "../afi-safi-name = 'oc-bgp-types:IPV4_UNICAST'" {
+             description
+                "Include this container for IPv4 unicast RIB";
+            }
+            description
+              "Routing tables for IPv4 unicast -- active when the
+              afi-safi name is ipv4-unicast";
+
+            uses ip-rib-top;
+          }
+
+          container ipv6-unicast {
+//FIXME confd can't use prefix abbr            when "../afi-safi-name = 'oc-bgpt:IPV6_UNICAST'" {
+             when "../afi-safi-name = 'oc-bgp-types:IPV6_UNICAST'" {
+              description
+                "Include this container for IPv6 unicast RIB";
+            }
+            description
+              "Routing tables for IPv6 unicast -- active when the
+              afi-safi name is ipv6-unicast";
+
+            uses ip-rib-top;
+          }
+        }
+      }
+    }
+  }
+
+
+  // data definition statements
+
+  uses bgp-rib-top;
+
+  // augment statements
+
+  // these augmentations add afi-safi specific data to the general
+  // rib structure.
+
+  // IPv4 augments
+
+  augment "/bgp-rib/afi-safis/afi-safi/ipv4-unicast/loc-rib" {
+    description
+        "Adds the IPv4 route list to the IPv4-unicast tables";
+
+    uses ipv4-routes;
+  }
+
+  augment "/bgp-rib/afi-safis/afi-safi/ipv4-unicast/neighbors/" +
+    "neighbor/adj-rib-in-pre" {
+    description
+        "Adds the IPv4 route list to the IPv4-unicast tables";
+
+    uses ipv4-routes;
+  }
+
+  augment "/bgp-rib/afi-safis/afi-safi/ipv4-unicast/neighbors/" +
+    "neighbor/adj-rib-in-post" {
+    description
+        "Adds the IPv4 route list to the IPv4-unicast tables";
+
+    uses ipv4-routes;
+  }
+
+  augment "/bgp-rib/afi-safis/afi-safi/ipv4-unicast/neighbors/" +
+    "neighbor/adj-rib-out-pre" {
+    description
+      "Adds the IPv4 route list to the IPv4-unicast tables";
+
+    uses ipv4-routes;
+  }
+
+  augment "/bgp-rib/afi-safis/afi-safi/ipv4-unicast/neighbors/" +
+    "neighbor/adj-rib-out-post" {
+    description
+      "Adds the IPv4 route list to the IPv4-unicast tables";
+
+    uses ipv4-routes;
+  }
+
+  // IPv6 augments
+
+  augment "/bgp-rib/afi-safis/afi-safi/ipv6-unicast/loc-rib" {
+    description
+      "Adds the IPv6 route list to the IPv6-unicast tables";
+    uses ipv6-routes;
+  }
+
+  augment "/bgp-rib/afi-safis/afi-safi/ipv6-unicast/neighbors/" +
+    "neighbor/adj-rib-in-pre" {
+    description
+      "Adds the IPv6 route list to the IPv6-unicast tables";
+
+      uses ipv6-routes;
+  }
+
+  augment "/bgp-rib/afi-safis/afi-safi/ipv6-unicast/neighbors/" +
+    "neighbor/adj-rib-in-post" {
+    description
+      "Adds the IPv6 route list to the IPv6-unicast tables";
+
+    uses ipv6-routes;
+  }
+
+  augment "/bgp-rib/afi-safis/afi-safi/ipv6-unicast/neighbors/" +
+    "neighbor/adj-rib-out-pre" {
+    description
+      "Adds the IPv6 route list to the IPv6-unicast tables";
+
+    uses ipv6-routes;
+  }
+
+  augment "/bgp-rib/afi-safis/afi-safi/ipv6-unicast/neighbors/" +
+    "neighbor/adj-rib-out-post" {
+    description
+      "Adds the IPv6 route list to the IPv6-unicast tables";
+
+    uses ipv6-routes;
+  }
+
+  // rpc statements
+
+  // notification statements
+
+}
