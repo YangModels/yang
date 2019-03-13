@@ -21,6 +21,8 @@ Model content may differ based on platform capability. As a convenience, copies 
 Capability Statement: [capability-asr900.xml](capability-asr900.xml)
 #### ASR 1000
 Capability Statement: [capability-asr1k.xml](capability-asr1k.xml)
+#### Catalyst 3650/3850
+Capability Statement: [capability-cat3k.xml](capability-cat3k.xml)
 #### Catalyst 9200
 Capability Statement: [capability-cat9200.xml](capability-cat9200.xml)
 #### Catalyst 9300
