@@ -1,0 +1,1195 @@
+/*---------------------------------------------------------------------------
+ * Cisco-IOS-XR-sysadmin-issu.yang -- ISSU data model.
+ *
+ * September 2016, Phil Connell
+ *
+ * Copyright (c) 2016-2018 by Cisco Systems, Inc.
+ * All rights reserved.
+ *---------------------------------------------------------------------------
+ */
+
+module Cisco-IOS-XR-sysadmin-issu {
+    namespace "http://cisco.com/calvados/Cisco-IOS-XR-sysadmin-issu";
+    prefix "issu";
+
+    /*** LINKAGE (IMPORTS / INCLUDES) ***/
+
+    import tailf-common { prefix tailf; }
+    import ietf-yang-types { prefix ietf-types; }
+
+    /*** META INFORMATION ***/
+
+    organization    "Cisco Systems Inc.";
+
+    contact         "Cisco Systems, Inc.
+                     Customer Service
+
+                     Postal: 170 West Tasman Drive
+                     San Jose, CA 95134
+
+                     Tel: +1 800 553-NETS
+
+                     E-mail: cs-yang@cisco.com";
+
+    description     "This module contains a collection of YANG
+                     definitions for executing and monitoring Cisco IOS-XR
+                     sysadmin ISSU operations.
+
+                     Copyright(c) 2016-2018 by Cisco Systems, Inc.
+                     All rights reserved.";
+
+    revision 2018-08-24 {
+        description "Addition of some more leaves to op_start_output, and " +
+                    "some more options to the op-start-result enum.";
+    }
+
+    revision 2018-03-12 {
+        description "Initial revision";
+    }
+
+    typedef op-start-result {
+        description "Enumeration of errors that can be encountered while " +
+                    "attempting to begin an ISSU operation";
+
+        type enumeration {
+            enum start-success {
+                description "Operation was started successfully";
+            }
+            enum error-operation-in-progress {
+                description "Another ISSU operation is already in progress";
+            }
+            enum activate-error-no-prepare {
+                description "A request to activate the prepared software " +
+                            "was made, but there is no successfully " +
+                            "prepared software";
+            }
+            enum prepare-error-previous-prepare {
+                description "A request to prepare software was made, but " +
+                            "previously prepared software exists";
+            }
+            enum recover-error-unrecoverable {
+                description "The system is in a state that makes in-service " +
+                            "recovery impossible";
+            }
+            enum start-error-internal {
+                description "An internal error occured while attempting to " +
+                            "start the operation";
+            }
+            enum prepare-error-previous-operation-not-committed {
+                description "A previous install operation has not been " +
+                            "committed";
+            }
+            enum prepare-error-already-in-progress {
+                description "An install operation is already in progress";
+            }
+        }
+    }
+
+    typedef op-result {
+        description "Enumeration of errors that can be encountered during " +
+                    "an ISSU operation";
+
+        type enumeration {
+            enum success {
+                description "Operation succeeded";
+            }
+            enum error-input {
+                description "Part or all of the input was invalid";
+            }
+            enum error-orchestration {
+                description "An internal error occurred during ISSU " +
+                            "orchestration";
+            }
+            enum error-install {
+                description "An error occured in the install infrastructure";
+            }
+            enum error-node-redundancy {
+                description "Not all nodes in the system have the required " +
+                            "redundancy to allow an ISSU to proceed";
+            }
+        }
+    }
+
+    typedef issu-notif {
+        description "Enumeration of notifications that features can be " +
+                    "registered for";
+
+        type enumeration {
+            enum notif-sysadmin-op-start {
+                description "A sysadmin ISSU operation is beginning";
+            }
+            enum notif-sysadmin-phase-start {
+                description "A sysadmin ISSU phase is beginning";
+            }
+            enum notif-sysadmin-op-end {
+                description "A sysadmin ISSU operation is ending";
+            }
+        }
+    }
+
+    typedef op-stage {
+        description "Enumeration of stages that the ISSU operation can be in";
+
+        type enumeration {
+            enum prepare-preamble {
+                description "Prechecks and preprocessing";
+            }
+            enum prepare-host {
+                description "Host package preparation";
+            }
+            enum prepare-sysadmin {
+                description "Sysadmin package preparation";
+            }
+            enum prepare-aborting {
+                description "Aborting after encountering an error";
+            }
+            enum prepare-postamble {
+                description "Operation post-processing";
+            }
+            enum prepare-complete {
+                description "All preparation complete";
+            }
+            enum activate-preamble {
+                description "Pre-checks and pre-processing";
+            }
+            enum activate-sysadmin-phase-one {
+                description "Sysadmin activation on first subset of nodes";
+            }
+            enum activate-sysadmin-phase-two {
+                description "Sysadmin activation on second subset of nodes";
+            }
+            enum activate-host {
+                description "Host activation";
+            }
+            enum activate-aborting {
+                description "Aborting after encountering an error, from " +
+                            "which it is not possible to recover";
+            }
+            enum activate-paused {
+                description "Paused after encountering an error from which " +
+                            "it is possible to recover";
+            }
+            enum activate-postamble {
+                description "Post-checks and post-processing";
+            }
+            enum activate-complete {
+                description "All activation complete";
+            }
+        }
+    }
+
+     grouping op-start-output {
+          leaf result {
+            description "Enumeration value representing the result of the " +
+                        "operation start request. In the error case this " +
+                        "is duplicated by failure-enum.";
+            type op-start-result;
+        }
+        leaf failure-enum {
+            description "Enumeration value representing the error case " +
+                        "that was hit. This is only present if the " +
+                        "operation failed to start i.e. when op-initiated " +
+                        "is False.";
+            type op-start-result;
+        }
+        leaf id {
+            description "On success, the ID of the started operation" +
+                        "Duplicate of the operation-id leaf, included for " +
+                        "backwards compatibility.";
+            type uint32;
+        }
+        leaf operation-id {
+            description "On success, the ID of the started operation";
+            type uint32;
+        }
+        leaf op-initiated {
+            description "True if the operation was started sucessfully, " +
+                        "False otherwise";
+            type boolean;
+        }
+        leaf more-details {
+            description "More details on the cause of failure";
+            type string;
+        }
+    }
+
+    container issu {
+        description "ISSU actions and operational state";
+        config false;
+        tailf:cli-incomplete-show-path;
+
+        tailf:action prepare {
+            tailf:actionpoint prepare;
+            tailf:hidden "internal-command";
+            description "Prepare software for ISSU activation, without " +
+                        "changing the running software";
+
+            input {
+                leaf-list packages {
+                    description "Names of packages added to the repository " +
+                                "that are to be prepared";
+                    type string;
+                }
+                leaf-list ids {
+                    description "IDs of previous install operations: " +
+                                "packages added by these operations are to " +
+                                "be prepared";
+                    type uint32;
+                }
+                leaf activate {
+                    description "If true, automatically activate the " +
+                                "software using ISSU once it has been " +
+                                "prepared";
+                    type boolean;
+                    default "false";
+                }
+            }
+
+            output {
+                uses op-start-output;
+            }
+        }
+
+        tailf:action activate {
+            tailf:actionpoint activate;
+            tailf:hidden "internal-command";
+            description "Activate prepared software using ISSU";
+
+            input {}
+
+            output {
+                uses op-start-output;
+            }
+        }
+
+        tailf:action deactivate {
+            tailf:actionpoint deactivate;
+            tailf:hidden "internal-command";
+            description "Deactivate software using ISSU";
+
+            input {
+                leaf-list packages {
+                    description "Names of packages that are currently " +
+                                "active and are to be deactivated";
+                    type string;
+                }
+                leaf-list ids {
+                    description "IDs of previous install operations: " +
+                                "packages added by these operations are to " +
+                                "be prepared";
+                    type uint32;
+                }
+            }
+
+            output {
+                uses op-start-output;
+            }
+        }
+
+        tailf:action recover {
+            tailf:actionpoint recover;
+            tailf:hidden "internal-command";
+            description "Perform an in-service recovery to bring the system " +
+                        "back to its original state after a failed ISSU " +
+                        "activate or deactivate operation. " +
+                        "" +
+                        "This is a continuation of the original activate or " +
+                        "deactivate operation (so in particular it has the " +
+                        "same operation ID)";
+
+            input {}
+
+            output {
+                uses op-start-output;
+            }
+        }
+
+        container status {
+            description "Status of the in-progress or last completed ISSU " +
+                        "operation";
+            config false;
+            tailf:callpoint status;
+            tailf:cli-full-show-path;
+            tailf:cli-show-template
+                "$(complete != false?No :)ISSU operation in progress\n" +
+                "$(operation-type != no-operation?-------\n" +
+                "Operation type$(:)        $(operation-type)\n" +
+                "Operation status$(:)      $(complete == true?complete:$(complete == false?in-progress))\n" +
+                "$(complete != false?Overall:Current) result$(:)        $(result)\n" +
+                "Install ID$(:)            $(id)\n" +
+                "Sysadmin packages$(:)     $(sysadmin-packages)\n" +
+                "Host packages$(:)         $(host-packages)\n" +
+                "$(recover-result?Recovery result$(:)       $(recover-result)\n)" +
+                "$(prepare/stage?\nPrepare\n" +
+                "-------\n" +
+                "Install ID$(:)            $(prepare-id)\n" +
+                "Stage$(:)                 $(prepare/stage)$(prepare/start-time?, $(prepare/start-time))\n" +
+                "$(prepare/stage != prepare-complete?Activity$(:)              $(prepare/activity)$(prepare/activity-start-time?, $(prepare/activity-start-time))\n))" +
+                "$(activate/stage?\nActivate\n" +
+                "-------\n" +
+                "Install ID$(:)            $(activate-id)\n" +
+                "Stage$(:)                 $(activate/stage)$(activate/start-time?, $(activate/start-time))\n" +
+                "$(activate/stage != activate-complete?Activity$(:)              $(activate/activity) $(activate/activity-start-time?, $(activate/activity-start-time))\n" +
+                "$(activate/activity-nodes?On nodes$(:)              $(activate/activity-nodes)\n)" +
+                "$(activate/activity-waiting-for?Waiting for$(:)           $(activate/activity-waiting-for)\n)))" +
+                "$(error/result != success?\nError\n" +
+                "-------\n" +
+                "Result$(:)                $(error/result)\n" +
+                "Stage$(:)                 $(error/stage)\n" +
+                "Error message$(:)         $(error/error-message)\n" +
+                "$(error/details/nodes?Nodes$(:)                 $(error/details/nodes)\n)" +
+                "$(error/details/clients?Clients$(:)               $(error/details/clients)\n)" +
+                "$(error/details/packages?Packages$(:)              $(error/details/packages)\n)" +
+                "$(error/details/operation-ids?Operation IDs$(:)         $(error/details/operation-ids)\n))" +
+                ")\n";
+
+            leaf operation-type {
+                description "Whether the operation is an activate or " +
+                            "deactivate. Both types of operation go through " +
+                            "'prepare' and 'activate' phases." +
+                            "" +
+                            "The difference is the end result: whether the " +
+                            "target packages are made to run, or removed " +
+                            "from the running software.";
+                type enumeration {
+                    enum no-operation {
+                        description "No ISSU operations have been attempted.";
+                    }
+                    enum activate-operation {
+                        description "Overall operation will add or upgrade " +
+                                    "packages in the running software";
+                    }
+                    enum deactivate-operation {
+                        description "Overall operation will remove packages " +
+                                    "from the running software";
+                    }
+                }
+            }
+
+            leaf id {
+                description "ID for the current/latest phase of the operation";
+                type uint32;
+            }
+            leaf prepare-id {
+                description "ID for the prepare phase of the operation";
+                type uint32;
+            }
+            leaf activate-id {
+                description "ID for the activate or deactivate phase of the " +
+                            "operation";
+                type uint32;
+            }
+
+            leaf-list sysadmin-packages {
+                description "Sysadmin packages that are part of the operation";
+                type string;
+            }
+            leaf-list host-packages {
+                description "Host OS packages that are part of the operation";
+                type string;
+            }
+
+            leaf complete {
+                description "Whether or not the operation has completed.";
+                type boolean;
+            }
+            leaf result {
+                description "Whether the operation succeeded or failed, " +
+                            "and the error if any. If in progress, this " +
+                            "reflects the current state.";
+                type op-result;
+            }
+
+            leaf recover-result {
+                description "If a recovery attempt has been completed, an " +
+                            "indication of whether the recovery succeeded " +
+                            "or failed, and the error if any";
+                type op-result;
+            }
+
+            container prepare {
+                description "State specific to the prepare phase";
+
+                leaf stage {
+                    description "Progress of the prepare phase";
+                    type op-stage;
+                }
+                leaf start-time {
+                    description "When this ehase was started";
+                    type ietf-types:date-and-time;
+                }
+                leaf activity {
+                    description "A description of the current orchestration " +
+                                "activity being executed";
+                    type string;
+                }
+                leaf activity-start-time {
+                    description "When the current activity was started";
+                    type ietf-types:date-and-time;
+                }
+            }
+
+            container activate {
+                description "State specific to the activate phase";
+
+                leaf stage {
+                    description "Progress of the activate phase";
+                    type op-stage;
+                }
+                leaf start-time {
+                    description "When this phase was started";
+                    type ietf-types:date-and-time;
+                }
+                leaf activity {
+                    description "A description of the current orchestration " +
+                                "activity being executed";
+                    type string;
+                }
+                leaf-list activity-nodes {
+                    description "Nodes on which the current orchestration " +
+                                "activity is being executed";
+                    type string;
+                }
+                leaf activity-waiting-for {
+                    description "A description of what needs to happen " +
+                                "before the next orchestration activity can " +
+                                "be started";
+                    type string;
+                }
+                leaf activity-start-time {
+                    description "When the current activity was started";
+                    type ietf-types:date-and-time;
+                }
+            }
+
+            container error {
+                description "Details of the first error that was " +
+                            "encountered, if there were any.";
+
+                leaf result {
+                    description "If the operation has completed, an " +
+                                "indication of whether the operation " +
+                                "succeeded or failed, and the error if any";
+                    type op-result;
+                }
+                leaf stage {
+                    description "The stage during which the error was " +
+                                "encountered";
+                    type op-stage;
+                }
+                leaf error-message {
+                    description "Message describing the error.";
+                    type string;
+                }
+                container details {
+                    description "Details specific to the error. Contents " +
+                                "are only filled in if it is relevant to " +
+                                "the error that occured.";
+
+                    leaf-list nodes {
+                        description "A list of the nodes affected by or " +
+                                    "causing the error.";
+                        type string;
+                    }
+                    leaf-list clients {
+                        description "A list of the registered features " +
+                                    "affected by or causing the error.";
+                        type string;
+                    }
+                    leaf-list packages {
+                        description "A list of the packages affected by or " +
+                                    "causing the error.";
+                        type string;
+                    }
+                    leaf-list operation-ids {
+                        description "A list of the operation IDs affected " +
+                                    "by or causing the error.";
+                        type uint32;
+                    }
+                }
+            }
+        }
+
+        container clients {
+            description "Features registered for notifications of ISSU phases";
+            tailf:callpoint clients;
+            tailf:cli-show-template
+                "Clients\n" +
+                "-------\n" +
+                "Announcement:        $(announcement)\n" +
+                "Announcement Status: $(announcement-status)\n" +
+                "Clients:\n" +
+                "$(client|show)\n";
+
+            leaf announcement {
+                description "Type of most recent notification sent to clients";
+                    type issu-notif;
+            }
+            leaf announcement-status {
+                description "Status of most recent notification sent to clients";
+                type enumeration {
+                    enum announce-no-notif {
+                        description "No announcement has yet been sent";
+                    }
+                    enum announce-in-progress {
+                        description "Announcement is in progress, waiting " +
+                                    "for responses";
+                    }
+                    enum announce-success {
+                        description "The announcement has been acknowledged " +
+                                    "by all clients, ISSU may continue";
+                    }
+                    enum announce-veto {
+                        description "One or more features vetoed the " +
+                                    "ISSU operation";
+                    }
+                    enum announce-disconnect {
+                        description "One or more features disconnected " +
+                                    "during the announcement";
+                    }
+                    enum announce-timeout {
+                        description "One or more features timed out " +
+                                    "during the announcement";
+                    }
+                    enum announce-send-error {
+                        description "There was an error ending the " +
+                                    "announcement to one or more features";
+                    }
+                    enum announce-client-error {
+                        description "One or more features has returned an " +
+                                    "error during the ISSU operation";
+                    }
+                }
+            }
+
+            list client {
+                key "name location";
+
+                tailf:cli-show-template
+                "    Name:              $(name)\n" +
+                "    Location:          $(location)\n" +
+                "    Registered for:    $(registered-for)\n" +
+                "    Last notification: $(notif)\n" +
+                "    Response:          $(response)\n" +
+                "    Aborted:           $(aborted)\n" +
+                "    Abort reason:      $(abort-reason)\n" +
+                "    ----\n";
+
+                leaf name {
+                    description "Name of the registered feature";
+                    type string;
+                }
+                leaf location {
+                    description "Node on which the feature process is running";
+                    type string;
+                }
+                leaf-list registered-for {
+                    description "Which notifications the feature is " +
+                                "registered to receive";
+                    type issu-notif;
+                }
+                leaf notif {
+                    description "Type of most recent notification";
+                    type issu-notif;
+                }
+                leaf response {
+                    description "Response from this client to " +
+                                "most recent notification sent to the client";
+                    type enumeration {
+                        enum notif-resp-no-notif {
+                            description "No notification has yet been " +
+                                        "sent";
+                        }
+                        enum notif-resp-pending {
+                            description "No response has yet been sent";
+                        }
+                        enum notif-resp-ack {
+                            description "The notification has been " +
+                                        "acknowledged, ISSU may continue";
+                        }
+                        enum notif-resp-veto {
+                            description "The feature has vetoed the " +
+                                        "ISSU operation";
+                        }
+                        enum notif-resp-disconnect {
+                            description "The feature has disconnected " +
+                                        "during the notification";
+                        }
+                        enum notif-resp-timeout {
+                            description "The feature has timed out during " +
+                                        "the ISSU operation";
+                        }
+                        enum notif-resp-send-error {
+                            description "There was an error ending the " +
+                                        "announcement to the feature";
+                        }
+                        enum notif-resp-client-error {
+                            description "The feature has returned an error " +
+                                        "during the ISSU operation";
+                        }
+                        enum notif-resp-client-abort {
+                            description "The feature has aborted during the " +
+                                        "ISSU operation";
+                        }
+                    }
+                }
+                leaf aborted {
+                    description "Whether the feature has requested that the " +
+                                "current operation be aborted";
+                    type boolean;
+                }
+                leaf abort-reason {
+                    description "Description of the reason for requesting " +
+                                "an abort, if applicable";
+                    type string;
+                }
+            }
+        }
+
+        container internals {
+            description "Internal infrastructure state";
+            tailf:hidden "debug";
+            tailf:callpoint internals;
+
+            container orchestrator {
+                tailf:callpoint orchestrator;
+                description "Orchestrator module internal state";
+                typedef op-request-type {
+                    description "Enumeration of requests that initiate " +
+                                "(part of) an ISSU operation";
+                    type enumeration {
+                        enum operation-request-prepare {
+                            description "Request to execute the prepare " +
+                                        "phase of an operation";
+                        }
+                        enum operation-request-activate {
+                            description "Request to activate prepared " +
+                                        "packages";
+                        }
+                        enum operation-request-deactivate {
+                            description "Request to execute both prepare and "+
+                                        "deactivate phases of an operation";
+                        }
+                        enum operation-request-recover {
+                            description "Recover the system from a failed " +
+                                        "activate or deactivate operation";
+                        }
+                    }
+                }
+                typedef stage-type {
+                    description "Enumeration of possible internal stages in " +
+                                "an operation";
+                    type enumeration {
+                        enum start {
+                            description "Start of operation";
+                        }
+                        enum end {
+                            description "End of operation";
+                        }
+                        enum prepare-inventory-precheck {
+                            description "Inventory precheck";
+                        }
+                        enum prepare-expand-operation-ids {
+                            description "Expand add operation IDs to " +
+                                        "packages";
+                        }
+                        enum prepare-get-metadata {
+                            description "Retrieve package metadata";
+                        }
+                        enum prepare-extract-composite {
+                            description "Extract constituent packages";
+                        }
+                        enum prepare-verify-packages {
+                            description "Verify package contents";
+                        }
+                        enum prepare-host {
+                            tailf:code-name prepare-host-full-list;
+                            description "The host preparation";
+                        }
+                        enum prepare-calvados {
+                            description "The Calvados preparation";
+                        }
+                        enum prepare-deactivate-verify-packages {
+                            description "Verify package contents for " +
+                                        "deactivation";
+                        }
+                        enum prepare-deactivate-calvados {
+                            description "The Calvados preparation for " +
+                                        "deactivation";
+                        }
+                        enum prepare-abort {
+                            description "Abort the prepare operation";
+                        }
+                        enum prepare-clean {
+                            description "Clean-up of prepare operation";
+                        }
+                        enum activate-preamble {
+                            tailf:code-name activate-preamble-full-list;
+                            description "Activation preamble";
+                        }
+                        enum deactivate-preamble {
+                            tailf:code-name deactivate-preamble-full-list;
+                            description "Deactivation preamble";
+                        }
+                        enum activate-calvados-preamble {
+                            description "Calvados-specific activation " +
+                                        "preamble";
+                        }
+                        enum activate-calvados-phase {
+                            description "Activate the Calvados software";
+                        }
+                        enum activate-calvados-phase-reload {
+                            description "Reload Calvados VMs";
+                        }
+                        enum activate-calvados-phase-postamble {
+                            description "Post VM restart checks for " +
+                                        "Calvados";
+                        }
+                        enum activate-calvados-postamble {
+                            description "Post Calvados activation handling";
+                        }
+                        enum activate-host {
+                            tailf:code-name activate-host-full-list;
+                            description "Execute host ISSU";
+                        }
+                        enum activate-postamble {
+                            tailf:code-name activate-postamble-full-list;
+                            description "Post-processing for the " +
+                                        "activate operation";
+                        }
+                        enum deactivate-calvados {
+                            description "Deactivate the Calvados software";
+                        }
+                        enum activate-abort-no-recovery {
+                            description "Abort the activate operation, " +
+                                        "no recovery is necessary";
+                        }
+                        enum activate-abort-unrecoverable {
+                            description "Abort the activate operation, " +
+                                        "no recovery is possible";
+                        }
+                        enum activate-error-pause {
+                            description "Pause following an error";
+                        }
+                        enum activate-calvados-recovery {
+                            description "Rollback to committed Calvados";
+                        }
+                        enum activate-recovery-postamble {
+                            description "Post rollback to committed Calvados";
+                        }
+
+                    }
+                }
+                typedef phase-type {
+                    description "Calvados activate phase";
+                    type enumeration {
+                        enum calvados-activate-phase-one {
+                            description "Phase one of the " +
+                                        "Calvados activate operation";
+                        }
+                        enum calvados-activate-phase-two {
+                            description "Phase two of the " +
+                                        "Calvados activate operation";
+                        }
+                    }
+                }
+                grouping stage-history-type {
+                    list historical-stage {
+                        key "stage-index";
+                        leaf stage-index {
+                            description "Integer stage index";
+                            type uint32;
+                        }
+                        leaf external-stage {
+                            description "External stage of operation";
+                            type op-stage;
+                        }
+                        leaf internal-stage-details {
+                            description "Details of the internal stage";
+                            type string;
+                        }
+                        leaf status {
+                            description "Status of the stage";
+                            type string;
+                        }
+                        leaf error-details {
+                            description "Further error details";
+                            type string;
+                        }
+                        leaf start-time {
+                            description "Start time of stage";
+                            type ietf-types:date-and-time;
+                        }
+                        leaf end-time {
+                            description "End time of stage";
+                            type ietf-types:date-and-time;
+                        }
+                        leaf complete {
+                            description "Is the stage complete?";
+                            type boolean;
+                        }
+                    }
+                }
+                leaf command {
+                    description "Command issued";
+                    type op-request-type;
+                }
+                leaf operation-type {
+                    description "Type of operation: activate or deactivate";
+                    type op-request-type;
+                }
+                leaf current-operation {
+                    description "Operation being performed";
+                    type op-request-type;
+                }
+                leaf issu-completed {
+                    description "True if the overall ISSU operation has " +
+                                "been completed, false otherwise";
+                    type boolean;
+                }
+                leaf operation-id {
+                    description "The ID for the operation";
+                    type uint32;
+                }
+                leaf in-progress {
+                    description "True if an operation is in progress";
+                    type boolean;
+                }
+                container operation-start-details {
+                    leaf-list input-package {
+                        type string;
+                        description "Packages used to initiate the operation";
+                    }
+                    leaf-list input-operation-id {
+                        type uint32;
+                        description "Operation IDs used to initiate operation";
+                    }
+                }
+                container internal-prepare {
+                    leaf operation-id {
+                        type uint32;
+                        description "ID of prepare operation";
+                    }
+                    leaf complete {
+                        description "True if prepare phase complete";
+                        type boolean;
+                    }
+                    leaf current-stage {
+                        description "Current stage of prepare operation, if " +
+                                    "a stage is in progress";
+                        type stage-type;
+                    }
+                    leaf-list host-package {
+                        description "Host packages to be used in the ISSU";
+                        type string;
+                    }
+                    leaf-list calvados-package {
+                        description "Calvados packages to be used in the ISSU";
+                        type string;
+                    }
+                    container prepare-stage-history {
+                        uses stage-history-type;
+                    }
+                }
+                container internal-activate {
+                    leaf operation-id {
+                        type uint32;
+                        description "ID of prepare operation";
+                    }
+                    leaf complete {
+                        description "True if activate phase complete";
+                        type boolean;
+                    }
+                    leaf current-stage {
+                        description "Current stage of activate operation, " +
+                                    "if a stage is in progress";
+                        type stage-type;
+                    }
+                    leaf current-phase {
+                        description "Current phase of activate operation, " +
+                                    "if phase is relevant";
+                        type phase-type;
+                    }
+                    leaf host-prepared {
+                        description "Indicates whether any host packages " +
+                                    "have been prepared";
+                        type boolean;
+                    }
+                    leaf calvados-prepared {
+                        description "Indicates whether any Calvados packages "+
+                                    "have been prepared";
+                        type boolean;
+                    }
+                    leaf-list host-node{
+                        description "Nodes participating in host ISSU";
+                        type string;
+                    }
+                    leaf-list calvados-phase-one-node {
+                        description "Nodes participating in phase one of " +
+                                    "Calvados ISSU";
+                        type string;
+                    }
+                    leaf-list calvados-phase-two-node {
+                        description "Nodes participating in phase two of " +
+                                    "Calvados ISSU";
+                        type string;
+                    }
+                    container activate-stage-history {
+                        uses stage-history-type;
+                    }
+                }
+                container error {
+                    leaf operation-status {
+                        description "Overall status of the operation";
+                        type string;
+                    }
+                    leaf failure-operation {
+                        description "Operation in progress when first error " +
+                                    "was encountered";
+                        type op-request-type;
+                    }
+                    leaf failure-external-stage {
+                        description "Stage being undertaken when first " +
+                                    "failure was encountered";
+                        type stage-type;
+                    }
+                    leaf failure-internal-stage-details {
+                        description "Description of the internal state when " +
+                                    "first error encountered";
+                        type string;
+                    }
+                    leaf error-details {
+                        description "String describing error encountered";
+                        type string;
+                    }
+                    leaf-list failed-node {
+                        description "Nodes on which a failure occurred";
+                        type string;
+                    }
+                    leaf-list failed-package {
+                        description "Packages which caused a failure";
+                        type string;
+                    }
+                    leaf-list failed-operation-id {
+                        description "Operation IDs which caused a failure";
+                        type uint32;
+                    }
+                    leaf-list failed-client {
+                        description "Registered features which caused a " +
+                                    "failure";
+                        type string;
+                    }
+                    leaf recovery-attempted {
+                        description "True if a recovery has been attempted " +
+                                    "or is currently in progress";
+                        type boolean;
+                    }
+                    leaf recovery-status {
+                        description "Status of the recovery operation";
+                        type string;
+                    }
+                }
+            }
+
+            container agents {
+                description "Agent module internal state";
+
+                container requests {
+                    description "Data on requests being processed by Agent " +
+                                "module";
+                    tailf:callpoint requests;
+                    list request {
+                        key "request-index";
+                        leaf request-index {
+                            type uint32;
+                            description "Integer request index";
+                        }
+                        leaf request-type {
+                            description "Type of request";
+                            type enumeration {
+                                enum requests-node-ready {
+                                    description "Node ready request";
+                                }
+                                enum requests-checkpoint {
+                                    description "Checkpoint request";
+                                }
+                                enum requests-post-upgrade-cleanup {
+                                    description "Post-upgrade cleanup request";
+                                }
+                            }
+                        }
+                        choice contents {
+                            case node-ready {
+                            }
+                            case checkpoint {
+                                container checkpoint {
+                                    leaf message-type {
+                                        description "Checkpoint request type";
+                                        type enumeration {
+                                            enum requests-checkpoint-start {
+                                                description "Start request";
+                                            }
+                                            enum requests-checkpoint-end {
+                                                description "End request";
+                                            }
+                                            enum requests-checkpoint-update {
+                                                description "Update request";
+                                            }
+                                        }
+                                    }
+                                    leaf data-length {
+                                        type uint32;
+                                        description "Length of checkpoint " +
+                                                    "data. 0 for start/end " +
+                                                    "requests";
+                                    }
+                                    leaf filename {
+                                        type string;
+                                        description "Filename of associated " +
+                                                    "checkpoint file";
+                                    }
+                                }
+                            }
+                            case post-upgrade-cleanup {
+                            }
+                        }
+                        leaf requests-sent {
+                            type uint32;
+                            description "Number of requests sent. Equal to " +
+                                        "number of expected responses";
+                        }
+                        leaf responses-received {
+                            type uint32;
+                            description "Number of responses received from " +
+                                        "agents";
+                        }
+                        container agents {
+                            list agent {
+                                key "agent-index";
+                                leaf agent-index {
+                                    type uint32;
+                                    description "Integer agent index";
+                                }
+                                leaf node {
+                                    type string;
+                                    description "Node ID";
+                                }
+                                leaf waiting-for-response {
+                                    type boolean;
+                                    description "Indicates whether this " +
+                                                "agent has responded";
+                                }
+                                container response-contents {
+                                    leaf agent-status {
+                                        description "Enum indicating node " +
+                                                    "status";
+                                        type enumeration {
+                                            enum agent-response-ok {
+                                                description "Node is ready/" +
+                                                            "operation " +
+                                                            "successful";
+                                            }
+                                            enum agent-response-error {
+                                                description "Otherwise " +
+                                                            "undefined error";
+                                            }
+                                            enum agent-response-timeout {
+                                                description "Timeout during " +
+                                                            "request";
+                                            }
+                                            enum agent-response-send-failure {
+                                                description "Failed to send " +
+                                                            "request";
+                                            }
+                                        }
+                                    }
+                                    leaf error-details {
+                                        type string;
+                                        description "Further details of " +
+                                                    "error occuring";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                container inventory {
+                    description "Inventory of agents held by Agent module";
+                    tailf:callpoint agent-inventory;
+                    list agent {
+                        key "agent-index";
+                        leaf agent-index {
+                            type uint32;
+                            description "Integer agent index";
+                        }
+                        leaf agent-node {
+                            type string;
+                            description "Agent node ID";
+                        }
+                        leaf reloaded {
+                            type boolean;
+                            description "True if node has been reloaded. " +
+                                        "False otherwise";
+                        }
+                    }
+                }
+
+                container reload-tracking {
+                    description "Reload tracking performed by Agent module";
+                    tailf:callpoint reload-tracking;
+                    leaf in-progress {
+                        description "True if reload tracking in progress";
+                        type boolean;
+                    }
+                    leaf remaining-nodes-count {
+                        description "Number of nodes which have not yet " +
+                                    "reloaded";
+                        type uint32;
+                    }
+                    list node {
+                        key "node-index";
+                        leaf node-index {
+                            type uint32;
+                            description "Integer node index";
+                        }
+                        leaf id {
+                            type string;
+                            description "Node ID";
+                        }
+                        leaf reloaded {
+                            type boolean;
+                            description "True if node has been reloaded. " +
+                                        "False otherwise";
+                        }
+                    }
+                }
+            }
+
+            container inventory-monitor {
+                description "Inventory monitor module internal state";
+
+                container inventory {
+                    description "Inventory of nodes in the system held by " +
+                                "ISSU Director";
+                    tailf:callpoint invmon-inventory;
+
+                    list node {
+                        description "The tree of nodes within the Inventory " +
+                                    "monitor module, keyed by node ID";
+                        key "node";
+
+                        leaf node {
+                            description "Node ID";
+                            type string;
+                        }
+                        leaf ip {
+                            description "Node IP address";
+                            type string;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
