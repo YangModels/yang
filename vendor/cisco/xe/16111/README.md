@@ -10,6 +10,7 @@ The schemas may be retrieved from devices using the NETCONF "get-schema" RPC as 
 
 * ASR 900, 920 and 1000
 * CSR 1000v/ISRv
+* Catalyst 3650/3850
 * Catalyst 9200, 9300, 9400, 9500, 9600 and 9800
 * CBR-8
 * IR 1101 and IE3x00
