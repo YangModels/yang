@@ -187,7 +187,6 @@ listed below. As model content may differ based on platform capabilities, sample
 * Cisco-IOS-XE-wireless-events-oper.yang 
 * Cisco-IOS-XE-wireless-fabric-cfg.yang 
 * Cisco-IOS-XE-wireless-flex-cfg.yang 
-* Cisco-IOS-XE-wireless-fqdn-cfg.yang 
 * Cisco-IOS-XE-wireless-general-cfg.yang 
 * Cisco-IOS-XE-wireless-lisp-agent-oper.yang 
 * Cisco-IOS-XE-wireless-location-cfg.yang 
@@ -198,10 +197,7 @@ listed below. As model content may differ based on platform capabilities, sample
 * Cisco-IOS-XE-wireless-mobility-oper.yang 
 * Cisco-IOS-XE-wireless-mobility-types.yang 
 * Cisco-IOS-XE-wireless-mstream-cfg.yang 
-* Cisco-IOS-XE-wireless-nmsp-oper.yang 
 * Cisco-IOS-XE-wireless-rf-cfg.yang 
-* Cisco-IOS-XE-wireless-rfid-cfg.yang 
-* Cisco-IOS-XE-wireless-rfid-oper.yang 
 * Cisco-IOS-XE-wireless-rogue-cfg.yang 
 * Cisco-IOS-XE-wireless-rogue-oper.yang 
 * Cisco-IOS-XE-wireless-rogue-types.yang 
@@ -253,6 +249,10 @@ listed below. As model content may differ based on platform capabilities, sample
 * Cisco-IOS-XE-wireless-rlan-cfg.yang
 * Cisco-IOS-XE-wireless-tunnel-cfg.yang
 * Cisco-IOS-XE-wireless-tunnel-types.yang
+* Cisco-IOS-XE-wireless-fqdn-cfg.yang 
+* Cisco-IOS-XE-wireless-nmsp-oper.yang 
+* Cisco-IOS-XE-wireless-rfid-cfg.yang 
+* Cisco-IOS-XE-wireless-rfid-oper.yang 
 
 These experimental YANG models are in the early status of design and are likely to change.
 
