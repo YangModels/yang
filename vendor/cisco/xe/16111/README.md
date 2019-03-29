@@ -12,20 +12,14 @@ listed below. As model content may differ based on platform capabilities, sample
 | Platform | Capability File |
 |----------|-----------------|
 | ASR 900 RSP2/RSP3, ASR 920, NCS 520 and NCS 4200 | [capability-asr900.xml](capability-asr900.xml)|
-| ASR 1000 | [capability-asr1k.xml](capability-asr1k.xml) |
-| Catalyst 3650/3850 | [capability-cat3k.xml](capability-cat3k.xml) |
 | Catalyst 9200 | [capability-cat9200.xml](capability-cat9200.xml) |
 | Catalyst 9300 | [capability-cat9300.xml](capability-cat9300.xml) |
 | Catalyst 9400 | [capability-cat9400.xml](capability-cat9400.xml) |
 | Catalyst 9500 | [capability-cat9500.xml](capability-cat9500.xml) |
 | Catalyst 9600 | [capability-cat9600.xml](capability-cat9600.xml) |
-| Catalyst 9800 | [capability-wireless.xml](capability-wireless.xml) |
-| CBR-8 | [capability-cbr.xml](capability-cbr.xml) |
-| CSR1000v, ISRv | [capability-csr1k.xml](capability-csr1k.xml) |
 | IR 1101 | [capability-ir1101.xml](capability-ir1101.xml) |
 | IE 3x00 | [capability-ie3x00.xml](capability-ie3x00.xml) |
-| ISR 1000 | [capability-isr1k.xml](capability-isr1k.xml) |
-| ISR 4000 | [capability-isr4k.xml](capability-isr4k.xml) |
+| ESS 3x00 | [capability-ess3x00.xml](capability-ess3x00.xml) |
 
 
 ### Major Model Changes In 16.11.1
@@ -35,7 +29,6 @@ listed below. As model content may differ based on platform capabilities, sample
 #### Native Models Added
 
 * Cisco-IOS-XE-dapr.yang
-* Cisco-IOS-XE-wireless-mdns-oper.yang
 * Cisco-IOS-XE-yang-interfaces-cfg.yang
 * Cisco-IOS-XE-cable-diag-oper.yang
 
@@ -174,40 +167,6 @@ listed below. As model content may differ based on platform capabilities, sample
 * Cisco-IOS-XE-vservice.yang 
 * Cisco-IOS-XE-vtp.yang 
 * Cisco-IOS-XE-wccp.yang 
-* Cisco-IOS-XE-wireless-access-point-oper.yang 
-* Cisco-IOS-XE-wireless-ap-cfg.yang 
-* Cisco-IOS-XE-wireless-ap-types.yang 
-* Cisco-IOS-XE-wireless-apf-cfg.yang 
-* Cisco-IOS-XE-wireless-client-oper.yang 
-* Cisco-IOS-XE-wireless-client-types.yang 
-* Cisco-IOS-XE-wireless-cts-sxp-cfg.yang 
-* Cisco-IOS-XE-wireless-cts-sxp-oper.yang 
-* Cisco-IOS-XE-wireless-dot11-cfg.yang 
-* Cisco-IOS-XE-wireless-enum-types.yang 
-* Cisco-IOS-XE-wireless-events-oper.yang 
-* Cisco-IOS-XE-wireless-fabric-cfg.yang 
-* Cisco-IOS-XE-wireless-flex-cfg.yang 
-* Cisco-IOS-XE-wireless-general-cfg.yang 
-* Cisco-IOS-XE-wireless-lisp-agent-oper.yang 
-* Cisco-IOS-XE-wireless-location-cfg.yang 
-* Cisco-IOS-XE-wireless-mcast-oper.yang 
-* Cisco-IOS-XE-wireless-mesh-cfg.yang 
-* Cisco-IOS-XE-wireless-mesh-oper.yang 
-* Cisco-IOS-XE-wireless-mobility-cfg.yang 
-* Cisco-IOS-XE-wireless-mobility-oper.yang 
-* Cisco-IOS-XE-wireless-mobility-types.yang 
-* Cisco-IOS-XE-wireless-mstream-cfg.yang 
-* Cisco-IOS-XE-wireless-rf-cfg.yang 
-* Cisco-IOS-XE-wireless-rogue-cfg.yang 
-* Cisco-IOS-XE-wireless-rogue-oper.yang 
-* Cisco-IOS-XE-wireless-rogue-types.yang 
-* Cisco-IOS-XE-wireless-rrm-cfg.yang 
-* Cisco-IOS-XE-wireless-rrm-oper.yang 
-* Cisco-IOS-XE-wireless-rrm-types.yang 
-* Cisco-IOS-XE-wireless-security-cfg.yang 
-* Cisco-IOS-XE-wireless-site-cfg.yang 
-* Cisco-IOS-XE-wireless-types.yang 
-* Cisco-IOS-XE-wireless-wlan-cfg.yang 
 * Cisco-IOS-XE-wsa-types.yang 
 * Cisco-IOS-XE-zone.yang 
 
@@ -236,23 +195,12 @@ listed below. As model content may differ based on platform capabilities, sample
 
 * Cisco-IOS-XE-crypto-oper.yang
 * Cisco-IOS-XE-eigrp-oper.yang
-* Cisco-IOS-XE-mdns-gateway.yang
 * Cisco-IOS-XE-qfp-stats.yang
 * Cisco-IOS-XE-site-manager.yang
-* Cisco-IOS-XE-tunnel-oper.yang
 * Cisco-IOS-XE-umbrella-oper-dp.yang
 * Cisco-IOS-XE-umbrella-oper.yang
 * Cisco-IOS-XE-vrf-oper.yang (On Wireless and IOT platforms)
 * Cisco-IOS-XE-vxlan.yang
-* Cisco-IOS-XE-wireless-ble-mgmt-oper.yang
-* Cisco-IOS-XE-wireless-general-oper.yang
-* Cisco-IOS-XE-wireless-rlan-cfg.yang
-* Cisco-IOS-XE-wireless-tunnel-cfg.yang
-* Cisco-IOS-XE-wireless-tunnel-types.yang
-* Cisco-IOS-XE-wireless-fqdn-cfg.yang 
-* Cisco-IOS-XE-wireless-nmsp-oper.yang 
-* Cisco-IOS-XE-wireless-rfid-cfg.yang 
-* Cisco-IOS-XE-wireless-rfid-oper.yang 
 
 These experimental YANG models are in the early status of design and are likely to change.
 
