@@ -11,7 +11,7 @@
 # be removed.
 #
 platform_dir="vendor/cisco/nx"
-to_check="7.0-3-I7-5 7.0-3-I7-5a 9.2-2"
+to_check="7.0-3-I7-5 7.0-3-I7-6 9.2-3"
 inc_path="."
 pyang_flags="--lax-quote-checks"
 debug="0"

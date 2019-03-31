@@ -7,4 +7,4 @@ A README file may exist in the version subdirectories with any specific notes re
 Further documentation on Cisco's IOS-XE YANG-based interfaces may be found at:
 
 * [Cisco IOS XE 16.3.1 Data Models Configuration Guide for ASR1000](http://www.cisco.com/c/en/us/td/docs/ios-xml/ios/datamodels/configuration/xe-16/data-models-xe-16-book.html)
-* [Cisco IOS XE 16.3.1 Data Models Configuration Guide for Catalyst 3850](http://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst3850/software/release/16-3/configuration_guide/b_163_consolidated_3850_cg/b_163_consolidated_3850_cg_chapter_010100000.html)
+* [Cisco IOS XE 16.3.1 Data Models Configuration Guide for Catalyst 3850](https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst3850/software/release/16-3/configuration_guide/b_163_consolidated_3850_cg/b_163_consolidated_3850_cg_chapter_010100111.html)
