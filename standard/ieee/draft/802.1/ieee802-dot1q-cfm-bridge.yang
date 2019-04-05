@@ -35,9 +35,9 @@ module ieee802-dot1q-cfm-bridge {
     in Virtual Bridged Local Area Networks. This module binds
     the CFM modules to an IEEE 802.1Q Bridge.";
   
-  revision 2018-06-25 {
+  revision 2019-03-28 {
     description
-      "Creation for Task Group review.";
+      "Creation for Working Group review.";
     reference
       "IEEE Std 802.1Q-2018, Bridges and Bridged Networks.";
   }
@@ -65,31 +65,29 @@ module ieee802-dot1q-cfm-bridge {
   
   grouping service-id-grouping {
     description
-      "The list of VIDs, I-SID, or the TE-SID monitored by 
-      this MA, or 0, if the MA is not attached to a VID, or
-      I-SID, or TE-SID. In the case of a list of VIDs, the 
-      first VID in the list is the MAs Primary VID (default 
-      none). The specification of I-SID is allowed only in
-      the case of I- or B- components. The TE-SID is allowed
-      only in the case that PBB-TE is supported.";
+      "The list of VIDs, the I-SID, the TE-SID, or the SEG-ID
+      monitored by tehis MA, if present. In the case that a list
+      of VIDs is specified, the first VID in the list is the MA's
+      Primary VID (default none). The specificaiton of I-SID is 
+      allowed only in the case of I- or B-components. The TE-SID
+      is allowed only in the case that PBB-TE or SPBM is supported.
+      The SEG-ID is allowed only in the case that IPS is supported.";
     choice service-id {
-      default vid;
+      mandatory true;
       description
-        "The service identifiers types";
-      case none {
-        leaf zero {
-          type uint32 {
-            range "0";
+        "The type of service identifier.";
+      case vids {
+        list vid {
+          key "vlan-id";
+          description "A list of VIDs associated with any MHF on the
+            VID, always including that VID. The first VID is the 
+            MA's primary VID. List is empty if no primary VID 
+            specified";
+          leaf vlan-id {
+            type dot1q-types:vlanid;
+            description
+              "The 12-bit VLAN identifier.";
           }
-          description
-            "Represents no service identifier selected.";
-        }
-      }
-      case vid {
-        leaf-list vid {
-          type dot1q-types:vlanid;
-          description
-            "12-Bit identifier VLAN identifier.";
         }
       }
       case isid {
@@ -98,7 +96,7 @@ module ieee802-dot1q-cfm-bridge {
             range "1..16777215";
           }
           description
-            "24-Bit identifier I-SID identifier.";
+            "24-bit I-SID identifier.";
         }
       }
       case tesid {
@@ -127,7 +125,7 @@ module ieee802-dot1q-cfm-bridge {
             range "1..4294967295";
           }
           description
-            "The path-tesid is used as a service selector for SPBM 
+            "The path-tesid is used as a service selector for SPBM
             path MAs.";
         }
       }
@@ -137,7 +135,7 @@ module ieee802-dot1q-cfm-bridge {
             range "1..4294967295";
           }
           description
-            "The group-isid is used as a service selector for SPBM 
+            "The group-isid is used as a service selector for SPBM
             group MAs.";
         }
       }
@@ -153,16 +151,16 @@ module ieee802-dot1q-cfm-bridge {
   
   augment "/dot1q-cfm:cfm" {
     description
-      "Augment the base/common CFM model with CFM IEEE 802.1Qcp 
-      Bridge configuration specific attributes.";
+      "Augment the base/common CFM model with CFM Bridge 
+      specific attributes.";
     
     list cfm-stack {
-      key "port md-level direction service-selector service-id";
+      key "port service-selector service-id md-level direction";
       config false;
       description
         "The CFM Stack contains information about the Maintenance
         Points configured on a particular Bridge Port (or
-        aggregated port). It contains all CFM Stack specific related
+        Aggregation Port). It contains all CFM Stack specific related
         configuration and operational data.
         
         Upon a restart of the system, the system SHALL, if necessary,
@@ -177,7 +175,7 @@ module ieee802-dot1q-cfm-bridge {
         description
           "An interface on which maintenance points might be 
           configured. This object represents the Bridge Port or 
-          aggregated port on which MEPs or MHFs might be 
+          Aggregation Port on which MEPs or MHFs might be 
           configured.";
         reference
           "12.14.2.1.2a of IEEE Std 802.1Q-2018";
@@ -213,28 +211,77 @@ module ieee802-dot1q-cfm-bridge {
           "12.14.2.1.2d of IEEE Std 802.1Q-2018";
       }
       leaf maintenance-group-id {
+        when '../maintenance-point = "mep"' {
+          description
+            "This should only exist if the configured
+            maintenance point is a MEP (and not a MHF).";
+        }
         type leafref {
           path '/dot1q-cfm:cfm/dot1q-cfm:maintenance-group'
-            + '/dot1q-cfm:maintenance-group-id';
+             + '/dot1q-cfm:maintenance-group-id';
         }
-        config false;
+        mandatory true;
         description
-          "The maintenance group to which the Maintenance Points
-          is associated with.";
+          "The maintenance group that the MEP is associated with. If
+          the Maintenance Point is a MHF created due to an entry in
+          the default-md-levels list, it has no associated 
+          maintenance group, and therefore this leaf is not present.";
       }
       leaf mep-id {
+        when '../maintenance-point = "mep"' {
+          description
+            "This should only exist if the configured
+            maintenance-point is a MEP.";
+        }
         type leafref {
           path '/dot1q-cfm:cfm'
-            + '/dot1q-cfm:maintenance-group'
-            + '[dot1q-cfm:maintenance-group-id = current()'
-            + '/../maintenance-group-id]'
-            + '/dot1q-cfm:mep/dot1q-cfm:mep-id';
+             + '/dot1q-cfm:maintenance-group'
+             + '[dot1q-cfm:maintenance-group-id = current()'
+             + '/../maintenance-group-id]'
+             + '/dot1q-cfm:mep/dot1q-cfm:mep-id';
         }
+        mandatory true;
         description
           "The MEP identifier if a MEP is configured. Does not exist
           if the maintenance point is a MHF.";
         reference
           "12.14.2.1.3d of IEEE Std 802.1Q-2018";
+      }
+      leaf md-id {
+        when '../maintenance-point != "mep"' {
+          description
+            "This should only exist if the configured
+            maintenance point is a MHF (and not a MEP).";
+        }
+        type leafref {
+          path '/dot1q-cfm:cfm/dot1q-cfm:maintenance-domain'
+            + '/dot1q-cfm:md-id';
+        }
+        description
+          "The maintenance domain that the MHF is 
+          associated with.  If the MHF is 
+          created due to an entry in the default-md-levels list, 
+          it has no associated maintenance domain, and therefore this
+          leaf is not present.";
+      }
+      leaf ma-id {
+        when '../maintenance-point != "mep"' {
+          description
+            "This should only exist if the configured maintenance
+            point is a MHF (and not a MEP), and it has a
+            Maintenance Domain.";
+        }
+        type leafref {
+          path '/dot1q-cfm:cfm'
+            +'/dot1q-cfm:maintenance-domain'
+            +'[dot1q-cfm:md-id = current()/../md-id]'
+            +'/dot1q-cfm:maintenance-association/dot1q-cfm:ma-id';
+        }
+        description
+          "The maintenance association that the MHF is associated
+          with.  If the MHF is created due to an entry in the 
+          default-md-levels list, it has no associated maintenance
+          association, and therefore this leaf is not present.";
       }
       leaf mac-address {
         type ieee:mac-address;
@@ -244,9 +291,9 @@ module ieee802-dot1q-cfm-bridge {
         reference
           "12.14.2.1.3e of IEEE Std 802.1Q-2018";
       }
-      leaf mp {
+      leaf maintenance-point {
         type cfm-types:mp-type;
-        config false;
+        mandatory true;
         description
           "Indicates the type of maintenance point. That is whether a
           MEP or MHF.";
@@ -256,7 +303,7 @@ module ieee802-dot1q-cfm-bridge {
     }  // cfm-stack
     
     list default-md-level {
-      key "bridge-id component-id primary-service-id service-selector";
+      key "bridge-id component-id service-selector primary-service-id";
       description
         "For each bridge component, the Default MD Level Managed 
         Object controls MHF creation for VIDs that are not attached
@@ -331,7 +378,7 @@ module ieee802-dot1q-cfm-bridge {
           "A Boolean value indicating whether this entry is in effect
           or has been overridden by the existence of a Maintenance
           Association managed object associated with the same VID or
-          I-SID of I- or Bcomponents and MD Level, and on which is
+          I-SID of I- or B-components and MD Level, and on which is
           configured an Up MEP. True if this Maintenance Domain
           managed object is in effect.";
         reference
@@ -376,14 +423,14 @@ module ieee802-dot1q-cfm-bridge {
         description
           "An enumerated value indicating what, if anything, is to be
           included in the Sender ID TLV transmitted by MPs configured
-          in the Default Maintenance Domain..";
+          in the Default Maintenance Domain.";
         reference
           "12.14.3.1.3e, 12.14.3.2.2a of IEEE Std 802.1Q-2018";
       }
     } // default-md-level
     
     list config-error {
-      key "port service-id service-selector";
+      key "port service-selector service-id";
       config false;
       description
         "The CFM Configuration Error List table provides a list of
@@ -428,10 +475,11 @@ module ieee802-dot1q-cfm-bridge {
   }
   
   augment "/dot1q-cfm:cfm/dot1q-cfm:maintenance-group" {
+    when "dot1q-cfm:maintenance-group-id";
     description
       "Augment the maintenance group list object with the
       maintenance association component identifier, since the 
-      maintenance association component is an IEEE 802.1Qcp bridge
+      maintenance association component is an Bridge
       specific attributes.";
     leaf bridge-id {
       type bridge-ref;
@@ -446,53 +494,61 @@ module ieee802-dot1q-cfm-bridge {
           + '[dot1q:name = current()/../cfm-bridge:bridge-id]'
           + '/dot1q:component/dot1q:name';
       }
-      //mandatory true;
+      mandatory true;
       description
         "A reference to the maintenance association component within
         the provided maintenance domain and maintenance association
         values.";
     }
-    leaf service-selector {
-      type cfm-types:service-selector-type;
+    container service-id {
       description
-        "The type of the service selector";
-    }
-    leaf service-id {
-      when "../service-selector";
-      type cfm-types:service-selector-value-type;
-      //mandatory true;
-      description
-        "A vid or isid in an I or B component.";
-      reference
-        "12.14.4.1.2a of IEEE Std 802.1Q-2018";
+        "The service identifier grouping.";
+      uses service-id-grouping;
     }
   }
   
   augment "/dot1q-cfm:cfm/dot1q-cfm:maintenance-group"
         + "/dot1q-cfm:mep" {
+    when "dot1q-cfm:mep-id";
     description
       "Augment the MEP object defined in the ieee802-dot1q-mep
-      (CFM MEP) YANG module with IEEE 802.1Qcp bridge specific
-      attributes.";
+      (CFM MEP) YANG module with Bridge specific attributes.";
     leaf port {
-      when "../../service-selector";
       type port-ref;
-      must '/dot1q-cfm:cfm'
+      must 'not(/dot1q-cfm:cfm'
+         + '/dot1q-cfm:maintenance-group'
+         + '/cfm-bridge:component-name)'
+         + ' or '
+         + '/dot1q-cfm:cfm'
          + '/dot1q-cfm:maintenance-group'
          + '/cfm-bridge:component-name = '
          + '/if:interfaces/if:interface[current() = ./if:name]'
          + '/dot1q:bridge-port/dot1q:component-name' {
         description
-          "The component of the port (Interface) reference must be
-          the same as the bridge and component references by the 
-          maintenance association group.";
+          "If there is a Bridge Component, then the component of the 
+          port (Interface) reference must be the same as the bridge 
+          and component references by the maintenance association
+          group.";
       }
-      //mandatory true;
+      mandatory true;
       description
         "The interface index of the interface (e.g., Bridge 
         Port) to which the MEP is attached.";
       reference
         "12.14.7.1.3b of IEEE Std 802.1Q-2018";
+    }
+    leaf primary-vid {
+      type leafref {
+        path '../../service-id/vid/vlan-id';
+      }
+      description
+        "An integer indicating the Primary VID of the MEP. It
+        is always one of the VIDs assigned to the MEPs MA. If not
+        present, then indicates that either the Primary VID is
+        that of the MEPs MA, or that the MEPs MA is 
+        associated with no VID.";
+      reference
+        "12.14.7.1.3d of IEEE Std 802.1Q-2018"; 
     }
   }
   
