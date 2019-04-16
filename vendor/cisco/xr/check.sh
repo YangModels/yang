@@ -11,7 +11,7 @@
 # should be removed.
 #
 platform_dir="vendor/cisco/xr"
-to_check="623 632 642 651 652"
+to_check="623 632 642 651 652 653"
 debug=0
 
 checkDir () {
