@@ -9,11 +9,12 @@ to_check="802.1 802.3"
 # relax constraint for now
 # add --ietf if you want to do strict IETF checking
 #pyang_flags="--verbose --canonical --max-identifier-length 70 ../../../ietf/RFC/ -p ../../draft/"
-pyang_flags="--verbose ../ietf/RFC/ -p draft/"
+#pyang_flags="--verbose ../ietf/RFC/ -p draft/:published/"
 
 checkDir () 
 {
     #echo Checking yang files in $1
+	pyang_flags="--verbose -p ../../../ietf/RFC/ -p ../../published/$1/ -p ../../published/802/ -p ../../draft/802/"
     exit_status=""
     cwd=`pwd`
     cd "$base_dir/draft/$1"
