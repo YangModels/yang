@@ -83,10 +83,10 @@ As noted above, the check scripts today depend on `pyang`, and, as of writing, t
 The following directories are maintained for YANG models [license note in brackets]:
 
 - **yang/experimental**: contains experimental YANG modules [any]
-- **yang/experimental/ieee**: experimental modules intended for IEEE submission [3]
 - **yang/experimental/ietf**: experimental modules intended for IETF submission [1]
 - **yang/experimental/odp**: experimental modules intended for OpenDaylight submission [2]
 - **yang/standard**: contains standards-track YANG modules [any]
+- **yang/standard/ieee**: standard modules (published or drafts) intended for IEEE submission [3]
 - **yang/standard/ietf**: standard IETF YANG modules [1]
 - **yang/standard/ietf/DRAFT**: work-in-progress IETF YANG modules [1]
 - **yang/standard/ietf/RFC**: completed IETF YANG modules [1]
@@ -127,7 +127,7 @@ The following directories are maintained for tools [license note in brackets]:
    * All issues entered into the trouble ticket system for this directory are considered to be intended as IEEE Contributions.
    * All pull requests submitted for this directory are considered to be intended as IEEE Contributions.
    * All contributions to IEEE standards development (whether for an individual or entity standard) shall meet the requirements outlined in the [IEEE-SA Copyright Policy](https://standards.ieee.org/develop/policies/bylaws/sect6-7.html#7)
-   * Copyright release for YANG modules: Users may freely reproduce the YANG modules contained under /experimental/ieee/ so that they can be used for their intended purpose.
+   * Copyright release for YANG modules: Users may freely reproduce the YANG modules contained under /standard/ieee/ so that they can be used for their intended purpose.
 
 **[4]  Vendor Specific License:**
 
