@@ -240,17 +240,24 @@ listed below. As model content may differ based on platform capabilities, sample
 
 * Cisco-IOS-XE-crypto-oper.yang
 * Cisco-IOS-XE-crypto-pki-oper.yang
+* Cisco-IOS-XE-dialer.yang
 * Cisco-IOS-XE-eigrp-oper.yang
+* Cisco-IOS-XE-ha-oper.yang
+* Cisco-IOS-XE-gir-oper.yang
 * Cisco-IOS-XE-qfp-stats.yang
 * Cisco-IOS-XE-mdns-gateway.yang
+* Cisco-IOS-XE-serial.yang
 * Cisco-IOS-XE-stacking-oper.yang
+* Cisco-IOS-XE-stack-oper
 * Cisco-IOS-XE-site-manager.yang
 * Cisco-IOS-XE-tunnel-oper.yang
 * Cisco-IOS-XE-tunnel-types.yang
 * Cisco-IOS-XE-umbrella-oper-dp.yang
 * Cisco-IOS-XE-umbrella-oper.yang
 * Cisco-IOS-XE-vrf-oper.yang (On Wireless and IOT platforms)
+* Cisco-IOS-XE-voice-oper.yang
 * Cisco-IOS-XE-vxlan.yang
+* Cisco-IOS-XE-wsa-types.yang
 * Cisco-IOS-XE-wireless-ble-mgmt-oper.yang
 * Cisco-IOS-XE-wireless-general-oper.yang
 * Cisco-IOS-XE-wireless-rlan-cfg.yang
