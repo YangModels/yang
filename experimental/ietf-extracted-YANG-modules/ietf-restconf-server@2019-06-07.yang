@@ -75,7 +75,7 @@ module ietf-restconf-server {
      (RFC 8174) when, and only when, they appear in all
      capitals, as shown here.";
 
-  revision 2019-04-29 {
+  revision 2019-06-07 {
     description
       "Initial version";
     reference
@@ -84,12 +84,22 @@ module ietf-restconf-server {
 
   // Features
 
+  feature http-listen {
+    description
+      "The 'http-listen' feature indicates that the RESTCONF server
+       supports opening a port to listen for incoming RESTCONF over
+       TPC client connections, whereby the TLS connections are
+       terminated by an external system.";
+    reference
+      "RFC 8040: RESTCONF Protocol";
+  }
+
   feature https-listen {
     description
       "The 'https-listen' feature indicates that the RESTCONF server
-       supports opening a port to listen for incoming RESTCONF
-       client connections.  This feature exists as HTTPS might not
-       be a mandatory to implement transport in the future.";
+       supports opening a port to listen for incoming RESTCONF over
+       TLS client connections, whereby the TLS connections are
+       terminated by the server itself/";
     reference
       "RFC 8040: RESTCONF Protocol";
   }
@@ -97,9 +107,7 @@ module ietf-restconf-server {
   feature https-call-home {
     description
       "The 'https-call-home' feature indicates that the RESTCONF
-       server supports initiating connections to RESTCONF clients.
-       This feature exists as not all RESTCONF servers may
-       support RESTCONF call home.";
+       server supports initiating connections to RESTCONF clients.";
     reference
       "RFC 8071: NETCONF Call Home and RESTCONF Call Home";
   }
@@ -108,7 +116,190 @@ module ietf-restconf-server {
 
   grouping restconf-server-grouping {
     description
-      "Top-level grouping for RESTCONF server configuration.";
+      "A reusable grouping for configuring a RESTCONF server
+       without any consideration for how underlying transport
+       sessions are established.
+
+       Note that this grouping uses fairly typical descendent
+       node names such that a stack of 'uses' statements will
+       have name conflicts.  It is intended that the consuming
+       data model will resolve the issue (e.g., by wrapping
+       the 'uses' statement in a container called
+       'restconf-server-parameters').  This model purposely does
+       not do this itself so as to provide maximum flexibility
+       to consuming models.";
+
+    container client-identification {  // FIXME: if-feature?
+      description
+        "Specifies a mapping through which clients MAY be identified
+         (i.e., the RESTCONF username) from a supplied certificate.
+         Note that a client MAY alternatively be identified via an
+         HTTP-level authentication schema.  This configuration does
+         not necessitate clients send a certificate (that can be
+         controlled via the ietf-restconf-server module).";
+      container cert-maps {
+        uses x509c2n:cert-to-name;
+        description
+          "The cert-maps container is used by TLS-based RESTCONF
+           servers (even if the TLS sessions are terminated
+           externally) to map the RESTCONF client's presented
+           X.509 certificate to a RESTCONF username.  If no
+           matching and valid cert-to-name list entry can be
+           found, then the RESTCONF server MUST close the
+           connection, and MUST NOT accept RESTCONF messages
+           over it.";
+        reference
+          "RFC 7407: A YANG Data Model for SNMP Configuration.";
+      }
+    }
+  }
+
+  grouping restconf-server-listen-stack-grouping {
+    description
+      "A reusable grouping for configuring a RESTCONF server
+       'listen' protocol stack, for a single connection.";
+    choice transport {
+      mandatory true;
+      description
+        "Selects between available transports. This is a
+         'choice' statement so as to support additional
+         transport options to be augmented in.";
+      case http {
+        if-feature "http-listen";
+        container http {
+          description
+            "Configures RESTCONF server stack assuming that
+             TLS-termination is handled externally.";
+          container tcp-server-parameters {
+            description
+              "A wrapper around the TCP server parameters
+               to avoid name collisions.";
+            uses tcps:tcp-server-grouping {
+              refine "local-port" {
+                default "80";
+                description
+                  "The RESTCONF server will listen on the IANA-
+                   assigned well-known port value for 'http'
+                   (80) if no value is specified.";
+              }
+            }
+          }
+          container http-server-parameters {
+            description
+              "A wrapper around the HTTP server parameters
+               to avoid name collisions.";
+            uses https:http-server-grouping;
+          }
+          container restconf-server-parameters {
+            description
+              "A wrapper around the RESTCONF server parameters
+               to avoid name collisions.";
+            uses rcs:restconf-server-grouping;
+          }
+        }
+      }
+      case https {
+        if-feature "https-listen";
+        container https {
+          description
+            "Configures RESTCONF server stack assuming that
+             TLS-termination is handled internally.";
+          container tcp-server-parameters {
+            description
+              "A wrapper around the TCP server parameters
+               to avoid name collisions.";
+            uses tcps:tcp-server-grouping {
+              refine "local-port" {
+                default "443";
+                description
+                  "The RESTCONF server will listen on the IANA-
+                   assigned well-known port value for 'https'
+                   (443) if no value is specified.";
+              }
+            }
+          }
+          container tls-server-parameters {
+            description
+              "A wrapper around the TLS server parameters
+               to avoid name collisions.";
+            uses tlss:tls-server-grouping;
+          }
+          container http-server-parameters {
+            description
+              "A wrapper around the HTTP server parameters
+               to avoid name collisions.";
+            uses https:http-server-grouping;
+          }
+          container restconf-server-parameters {
+            description
+              "A wrapper around the RESTCONF server parameters
+               to avoid name collisions.";
+            uses rcs:restconf-server-grouping;
+          }
+        }
+      }
+    }
+  }
+
+  grouping restconf-server-callhome-stack-grouping {
+    description
+      "A reusable grouping for configuring a RESTCONF server
+       'call-home' protocol stack, for a single connection.";
+    choice transport {
+      mandatory true;
+      description
+        "Selects between available transports. This is a
+         'choice' statement so as to support additional
+         transport options to be augmented in.";
+      case https {
+        if-feature "https-listen";
+        container https {
+          description
+            "Configures RESTCONF server stack assuming that
+             TLS-termination is handled internally.";
+          container tcp-client-parameters {
+            description
+              "A wrapper around the TCP client parameters
+               to avoid name collisions.";
+            uses tcpc:tcp-client-grouping {
+              refine "remote-port" {
+                default "4336";
+                description
+                  "The RESTCONF server will attempt to
+                   connect to the IANA-assigned well-known
+                   port for 'restconf-ch-tls' (4336) if no
+                   value is specified.";
+              }
+            }
+          }
+          container tls-server-parameters {
+            description
+              "A wrapper around the TLS server parameters
+               to avoid name collisions.";
+            uses tlss:tls-server-grouping;
+          }
+          container http-server-parameters {
+            description
+              "A wrapper around the HTTP server parameters
+               to avoid name collisions.";
+            uses https:http-server-grouping;
+          }
+          container restconf-server-parameters {
+            description
+              "A wrapper around the RESTCONF server parameters
+               to avoid name collisions.";
+            uses rcs:restconf-server-grouping;
+          }
+        }
+      }
+    }
+  }
+
+  grouping restconf-server-app-grouping {
+    description
+      "A reusable grouping for configuring a RESTCONF server
+       application that supports both 'listen' and 'call-home'
+       protocol stacks and for many connections.";
     container listen {
       if-feature "https-listen";
       presence
@@ -125,114 +316,9 @@ module ietf-restconf-server {
           description
             "An arbitrary name for the RESTCONF listen endpoint.";
         }
-        choice transport {
-          mandatory true;
-          description
-            "Selects between available transports. This is a
-             'choice' statement so as to support additional
-             transport options to be augmented in.";
-          case https {
-            if-feature "https-listen";
-            container https {
-              description
-                "HTTPS-specific listening configuration for inbound
-                 connections.";
-              container tcp-server-parameters {
-                description
-                  "A wrapper around the TCP server parameters
-                   to avoid name collisions.";
-                uses tcps:tcp-server-grouping {
-                  refine "local-port" {
-                    default "443";
-                    description
-                      "The RESTCONF server will listen on the IANA-
-                       assigned well-known port value for 'https'
-                       (443) if no value is specified.";
-                  }
-                }
-              }
-              container tls-server-parameters {
-                description
-                  "A wrapper around the TLS server parameters
-                   to avoid name collisions.";
-                uses tlss:tls-server-grouping {
-/*
-                  refine
-                    "client-authentication" {
-                    //must 'pinned-ca-certs or pinned-client-certs';
-                    //presence "Enables TLS-level authentication
-                    //          using client certificates.";
-                    description
-                      "RESTCONF servers MUST be able to validate
-                       clients.";
-                  }
-*/
-                  augment
-                    "client-authentication/local-or-external/local" {
-                    description
-                      "Augments in the cert-to-name structure,
-                       so the RESTCONF server can map TLS-layer
-                       client certificates to RESTCONF usernames.";
-                    container cert-maps {
-                      /*must '../pinned-ca-certs
-                              or ../pinned-client-certs'; */
-                      uses x509c2n:cert-to-name;
-                      description
-                        "The cert-maps container is used by a TLS-
-                         based RESTCONF server to map the RESTCONF
-                         client's presented X.509 certificate to
-                         a RESTCONF username.  If no matching and
-                         valid cert-to-name list entry can be found,
-                         then the RESTCONF server MUST close the
-                         connection, and MUST NOT accept RESTCONF
-                         messages over it.";
-                      reference
-                        "RFC 7407: A YANG Data Model for SNMP
-                                   Configuration.";
-                    }
-                    //leaf optional {
-                    //  type empty;
-                    //}
-                  }
-                }
-              }
-              container http-server-parameters {
-                description
-                  "A wrapper around the HTTP server parameters
-                   to avoid name collisions.";
-                uses https:http-server-grouping;
-                /* {
-                  augment "http-server-parameters" {   // HELP!!!
-                    description
-                      "Augments in a flag indicating that the
-                       RESCONF server MUST authenticate the
-                       RESTCONF client using the HTTP 'basic'
-                       authentication scheme.  How the RESTCONF
-                       server defines users and passwords is
-                       outside the scope of this data model.";
-                    container client-authentication {
-                      leaf optional {
-                        type empty;
-                      }
-                      choice configured-or-external {
-                        mandatory true;
-                        case external {
-                          leaf user-auth-defined-elsewhere {
-                            type empty;
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-                */
-              }
-            } // https container
-          } // tls case
-        } // transport
-      } // endpoint
-    } // listen
-
+        uses restconf-server-listen-stack-grouping;
+      }
+    }
     container call-home {
       if-feature "https-call-home";
       presence
@@ -266,81 +352,9 @@ module ietf-restconf-server {
               description
                 "An arbitrary name for this endpoint.";
             }
-            choice transport {
-              mandatory true;
-              description
-                "Selects between available transports. This is a
-                 'choice' statement so as to support additional
-                 transport options to be augmented in.";
-              case https {
-                if-feature "https-call-home";
-                container https {
-                  description
-                    "Specifies HTTPS-specific call-home transport
-                     configuration.";
-                  container tcp-client-parameters {
-                    description
-                      "A wrapper around the TCP client parameters
-                       to avoid name collisions.";
-                    uses tcpc:tcp-client-grouping {
-                      refine "remote-port" {
-                        default "4336";
-                        description
-                          "The RESTCONF server will attempt to
-                           connect to the IANA-assigned well-known
-                           port for 'restconf-ch-tls' (4336) if no
-                           value is specified.";
-                      }
-                    }
-                  }
-                  container tls-server-parameters {
-                    description
-                      "A wrapper around the TLS server parameters
-                       to avoid name collisions.";
-                    uses tlss:tls-server-grouping {
-                      refine "client-authentication" {
-                        /*must 'pinned-ca-certs
-                                or pinned-client-certs'; */
-                        description
-                          "RESTCONF servers MUST be able to validate
-                           clients.";
-                      }
-                      augment "client-authentication" {
-                        description
-                          "Augments in the cert-to-name structure,
-                           so the RESTCONF server can map TLS-layer
-                           client certificates to RESTCONF
-                           usernames.";
-                        container cert-maps {
-                          uses x509c2n:cert-to-name;
-                          description
-                            "The cert-maps container is used by a
-                             TLS-based RESTCONF server to map the
-                             RESTCONF client's presented X.509
-                             certificate to a RESTCONF username. If
-                             no matching and valid cert-to-name list
-                             entry can be found, then the RESTCONF
-                             server MUST close the connection, and
-                             MUST NOT accept RESTCONF messages over
-                             it.";
-                          reference
-                            "RFC 7407: A YANG Data Model for SNMP
-                             Configuration.";
-                        }
-                      }
-                    }
-                  }
-                  container http-server-parameters {
-                    description
-                      "A wrapper around the HTTP server parameters
-                       to avoid name collisions.";
-                    uses https:http-server-grouping;
-                  }
-                }
-              }
-            } // transport
-          } // endpoint
-        } // endpoints
+            uses restconf-server-callhome-stack-grouping;
+          }
+        }
         container connection-type {
           description
             "Indicates the RESTCONF server's preference for how the
@@ -477,14 +491,15 @@ module ietf-restconf-server {
         }
       } // restconf-client
     } // call-home
-  } // restconf-server-grouping
+  } // restconf-server-app-grouping
 
   // Protocol accessible node, for servers that implement this
   // module.
 
   container restconf-server {
-    uses restconf-server-grouping;
+    uses restconf-server-app-grouping;
     description
       "Top-level container for RESTCONF server configuration.";
   }
+
 }
