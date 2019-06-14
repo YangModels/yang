@@ -1,0 +1,580 @@
+  module ietf-yang-push {
+    /*
+     * ---------------------------------------------------
+     * Not Supported
+
+    yang-version 1.1;
+     * ---------------------------------------------------
+     */
+    namespace "urn:ietf:params:xml:ns:yang:ietf-yang-push";
+    prefix yp;
+
+    import ietf-inet-types {
+      prefix inet;
+    }
+    import ietf-yang-types {
+      prefix yang;
+    }
+    import ietf-event-notifications {
+      prefix notif-bis;
+    }
+
+    organization "IETF";
+    contact
+      "WG Web:   <http://tools.ietf.org/wg/netconf/>
+       WG List:  <mailto:netconf@ietf.org>
+
+       WG Chair: Mahesh Jethanandani
+                 <mailto:mjethanandani@gmail.com>
+
+       WG Chair: Mehmet Ersue
+                 <mailto:mehmet.ersue@nokia.com>
+
+       Editor:   Alexander Clemm
+                 <mailto:alex@sympotech.com>
+
+       Editor:   Eric Voit
+                 <mailto:evoit@cisco.com>
+
+       Editor:   Alberto Gonzalez Prieto
+                 <mailto:albertgo@cisco.com>
+
+       Editor:   Ambika Prasad Tripathy
+                 <mailto:ambtripa@cisco.com>
+
+       Editor:   Einar Nilsen-Nygaard
+                 <mailto:einarnn@cisco.com>
+
+       Editor:   Andy Bierman
+                 <mailto:andy@yumaworks.com>
+
+       Editor:   Balazs Lengyel
+                 <mailto:balazs.lengyel@ericsson.com>";
+
+    description
+      "This module contains conceptual YANG specifications
+       for YANG push.";
+
+    revision 2016-10-28 {
+      description
+        "Updates to simplify modify-subscription, add anchor-time";
+      reference "YANG Datastore Push, draft-ietf-netconf-yang-push-04";
+    }
+
+    feature on-change {
+      description
+        "This feature indicates that on-change updates are
+         supported.";
+    }
+
+   /*
+    * IDENTITIES
+    */
+
+    /* Additional errors for subscription operations */
+    identity error-data-not-authorized {
+      base notif-bis:error;
+      description
+        "No read authorization for a requested data node.";
+    }
+
+    /* Additional types of streams */
+
+    identity yang-push {
+      base notif-bis:stream;
+      description
+        "A conceptual datastream consisting of all datastore
+         updates, including operational and configuration data.";
+    }
+
+    identity custom-stream {
+      base notif-bis:stream;
+      description
+        "A conceptual datastream for datastore
+         updates with custom updates as defined by a user.";
+    }
+
+    /* Additional transport option */
+    identity http2 {
+      base notif-bis:transport;
+      description
+        "HTTP2 notifications as a transport";
+    }
+
+    /*
+     * TYPE DEFINITIONS
+     */
+
+    typedef filter-id {
+      type uint32;
+      description
+        "A type to identify filters which can be associated with a
+         subscription.";
+    }
+
+    typedef change-type {
+      type enumeration {
+        enum "create" {
+          description
+            "A new data node was created";
+        }
+        enum "delete" {
+          description
+            "A data node was deleted";
+        }
+        enum "modify" {
+          description
+            "The value of a data node has changed";
+        }
+      }
+      description
+        "Specifies different types of changes that may occur
+         to a datastore.";
+    }
+
+
+    grouping update-filter {
+      description
+        "This groupings defines filters for push updates for a
+        datastore tree.  The filters define which updates are of
+        interest in a push update subscription.  Mixing and matching
+        of multiple filters does not occur at the level of this
+        grouping. When a push-update subscription is created, the
+        filter can be a regular subscription filter, or one of the
+        additional filters that are defined in this grouping.";
+      choice update-filter {
+        description
+          "Define filters regarding which data nodes to include
+           in push updates";
+        case subtree {
+          description
+            "Subtree filter.";
+          anyxml subtree-filter {
+            description
+              "Subtree-filter used to specify the data nodes targeted
+              for subscription within a subtree, or subtrees, of a
+              conceptual YANG datastore.  Objects matching the filter
+              criteria will traverse the filter. The syntax follows
+              the subtree filter syntax specified in RFC 6241,
+              section 6.";
+            reference "RFC 6241 section 6";
+          }
+        }
+        case xpath {
+          description
+            "XPath filter";
+          leaf xpath-filter {
+            type yang:xpath1.0;
+            description
+              "Xpath defining the data items of interest.";
+          }
+        }
+      }
+    }
+
+    grouping update-policy {
+      description
+        "This grouping describes the conditions under which an
+         update will be sent as part of an update stream.";
+      choice update-trigger {
+        description
+          "Defines necessary conditions for sending an event to
+           the subscriber.";
+        case periodic {
+          description
+            "The agent is requested to notify periodically the
+             current values of the datastore or the subset
+             defined by the filter.";
+          leaf period {
+            type yang:timeticks;
+            mandatory true;
+            description
+              "Duration of time which should occur between periodic
+               push updates.  Where the anchor of a start-time is
+               available, the push will include the objects and their
+               values which exist at an exact multiple of timeticks
+               aligning to this start-time anchor.";
+          }
+          leaf anchor-time {
+            type yang:date-and-time;
+            description
+              "Designates a timestamp from which the series of
+              periodic push updates are computed. The next update
+              will take place at the next period interval from the
+              anchor time.  For example, for an anchor time at the
+              top of a minute and a period interval of a minute,
+              the next update will be sent at the top of the next
+              minute.";
+          }
+        }
+        case on-change {
+          if-feature "on-change";
+          description
+            "The agent is requested to notify changes in
+             values in the datastore or a subset of it defined
+             by a filter.";
+          leaf no-synch-on-start {
+            type empty;
+            description
+              "This leaf acts as a flag that determines behavior at the
+               start of the subscription.  When present,
+               synchronization of state at the beginning of the
+               subscription is outside the scope of the subscription.
+               Only updates about changes that are observed from the
+               start time, i.e. only push-change-update notifications
+               are sent.
+               When absent (default behavior), in order to facilitate
+               a receiver's synchronization, a full update is sent
+               when the subscription starts using a push-update
+               notification, just like in the case of a periodic
+               subscription.  After that, push-change-update
+               notifications only are sent unless the Publisher chooses
+               to resynch the subscription again.";
+          }
+          leaf dampening-period {
+            type yang:timeticks;
+            mandatory true;
+            description
+              "Minimum amount of time that needs to have
+               passed since the last time an update was
+               provided.";
+          }
+          leaf-list excluded-change {
+            type change-type;
+            description
+              "Use to restrict which changes trigger an update.
+               For example, if modify is excluded, only creation and
+               deletion of objects is reported.";
+          }
+        }
+      }
+    }
+
+    grouping subscription-qos {
+      description
+        "This grouping describes Quality of Service information
+         concerning a subscription.  This information is passed to lower
+         layers for transport priortization and treatment";
+      leaf dscp {
+        if-feature "notif-bis:configured-subscriptions";
+        type inet:dscp;
+        default "0";
+        description
+          "The push update's IP packet transport priority.
+           This is made visible across network hops to receiver.
+           The transport priority is shared for all receivers of
+           a given subscription.";
+      }
+      leaf subscription-priority {
+        type uint8;
+        description
+          "Relative priority for a subscription.   Allows an
+           underlying transport layer perform informed load
+           balance allocations between various subscriptions";
+      }
+      leaf subscription-dependency {
+        type string;
+        description
+          "Provides the Subscription ID of a parent subscription
+           without which this subscription should not exist. In
+           other words, there is no reason to stream these objects
+           if another subscription is missing.";
+      }
+    }
+
+    augment "/notif-bis:establish-subscription/notif-bis:input" {
+      description
+        "Define additional subscription parameters that apply
+         specifically to push updates";
+      uses update-policy;
+      uses subscription-qos;
+    }
+    augment "/notif-bis:establish-subscription/notif-bis:input/"+
+            "notif-bis:filter-type" {
+      description
+        "Add push filters to selection of filter types.";
+      case update-filter {
+        description
+          "Additional filter options for push subscription.";
+        uses update-filter;
+      }
+    }
+    augment "/notif-bis:establish-subscription/notif-bis:output" {
+      description
+        "Allow to return additional subscription parameters that apply
+         specifically to push updates.";
+      uses update-policy;
+      uses subscription-qos;
+    }
+    augment "/notif-bis:establish-subscription/notif-bis:output/"+
+      "notif-bis:result/notif-bis:no-success/notif-bis:filter-type" {
+      description
+        "Add push filters to selection of filter types.";
+      case update-filter {
+        description
+          "Additional filter options for push subscription.";
+        uses update-filter;
+      }
+    }
+    augment "/notif-bis:modify-subscription/notif-bis:input" {
+      description
+        "Define additional subscription parameters that apply
+         specifically to push updates.";
+      uses update-policy;
+    }
+    augment "/notif-bis:modify-subscription/notif-bis:input/"+
+            "notif-bis:filter-type" {
+      description
+        "Add push filters to selection of filter types.";
+      case update-filter {
+        description
+          "Additional filter options for push subscription.";
+        uses update-filter;
+      }
+    }
+    augment "/notif-bis:modify-subscription/notif-bis:output" {
+      description
+        "Allow to retun additional subscription parameters that apply
+         specifically to push updates.";
+      uses update-policy;
+      uses subscription-qos;
+    }
+    augment "/notif-bis:modify-subscription/notif-bis:output/"+
+        "notif-bis:result/notif-bis:no-success/notif-bis:filter-type" {
+      description
+        "Add push filters to selection of filter types.";
+      case update-filter {
+        description
+          "Additional filter options for push subscription.";
+        uses update-filter;
+      }
+    }
+    notification push-update {
+      description
+        "This notification contains a push update, containing
+         data subscribed to via a subscription.
+         This notification is sent for periodic updates, for a
+         periodic subscription.  It can also be used for
+         synchronization updates of an on-change subscription.
+         This notification shall only be sent to receivers
+         of a subscription; it does not constitute a general-purpose
+         notification.";
+      leaf subscription-id {
+        type notif-bis:subscription-id;
+        mandatory true;
+        description
+          "This references the subscription because of which the
+           notification is sent.";
+      }
+      leaf time-of-update {
+        type yang:date-and-time;
+        description
+          "This leaf contains the time of the update.";
+      }
+      leaf updates-not-sent {
+        type empty;
+        description
+          "This is a flag which indicates that not all data nodes
+           subscribed to are included included with this
+           update.  In other words, the publisher has failed to
+           fulfill its full subscription obligations.
+           This may lead to intermittent loss of synchronization
+           of data at the client.  Synchronization at the client
+           can occur when the next push-update is received.";
+      }
+      /*
+       * --------------------------------------------------------------------
+       * datastore-contents not currently supported.
+       * Will replace datastore-contents-string in a future release.
+
+      anydata datastore-contents {
+        description
+          "This contains the updated data.  It constitutes a snapshot
+           at the time-of-update of the set of data that has been
+           subscribed to.  The format and syntax of the data
+           corresponds to the format and syntax of data that would be
+           returned in a corresponding get operation with the same
+           filter parameters applied.";
+      }
+       * --------------------------------------------------------------------
+       */
+      leaf datastore-contents-string {
+        type string;
+        description
+          "This contains the updated data.  It constitutes a snapshot
+           at the time-of-update of the set of data that has been
+           subscribed to.  The format and syntax of the data
+           corresponds to the format and syntax of data that would be
+           returned in a corresponding get operation with the same
+           filter parameters applied.";
+      }
+      /*
+       * --------------------------------------------------------------------
+       */
+
+    }
+    notification push-change-update {
+      if-feature "on-change";
+      description
+        "This notification contains an on-change push update.
+         This notification shall only be sent to the receivers
+         of a subscription; it does not constitute a general-purpose
+         notification.";
+      leaf subscription-id {
+        type notif-bis:subscription-id;
+        mandatory true;
+        description
+          "This references the subscription because of which the
+           notification is sent.";
+      }
+      leaf time-of-update {
+        type yang:date-and-time;
+        description
+          "This leaf contains the time of the update, i.e. the
+           time at which the change was observed.";
+      }
+      leaf updates-not-sent {
+        type empty;
+        description
+          "This is a flag which indicates that not all changes which
+           have occured since the last update are included with this
+           update.  In other words, the publisher has failed to
+           fulfill its full subscription obligations, for example in
+           cases where it was not able to keep up with a change burst.
+           To facilitate synchronization, a publisher MAY subsequently
+           send a push-update containing a full snapshot of subscribed
+           data. Such a push-update might also be triggered by a
+           subscriber requesting an on-demand synchronization.";
+      }
+      /*
+       * --------------------------------------------------------------------
+       * datastore-changes not currently supported.
+       * Will replace datastore-change-string in a future release.
+
+      anydata datastore-changes {
+        description
+          "This contains datastore contents that has changed
+           since the previous update, per the terms of the
+           subscription.  Changes are encoded analogous to
+           the syntax of a corresponding yang-patch operation,
+           i.e. a yang-patch operation applied to the YANG datastore
+           implied by the previous update to result in the current
+           state (and assuming yang-patch could also be applied to
+           operational data).";
+      }
+       *
+       * --------------------------------------------------------------------
+       */
+      leaf datastore-changes-string {
+        type string;
+        description
+          "This contains datastore contents that has changed
+           since the previous update, per the terms of the
+           subscription.  Changes are encoded analogous to
+           the syntax of a corresponding yang-patch operation,
+           i.e. a yang-patch operation applied to the YANG datastore
+           implied by the previous update to result in the current
+           state (and assuming yang-patch could also be applied to
+           operational data).";
+      }
+      /*
+       * --------------------------------------------------------------------
+       */
+
+    }
+    augment "/notif-bis:subscription-started" {
+      description
+        "This augmentation adds push subscription parameters
+         to the notification that a subscription has
+         started and data updates are beginning to be sent.
+         This notification shall only be sent to receivers
+         of a subscription; it does not constitute a general-purpose
+         notification.";
+      uses update-policy;
+      uses subscription-qos;
+    }
+    augment "/notif-bis:subscription-started/notif-bis:filter-type" {
+      description
+        "This augmentation allows to include additional update filters
+         options to be included as part of the notification that a
+         subscription has started.";
+      case update-filter {
+        description
+          "Additional filter options for push subscription.";
+        uses update-filter;
+      }
+    }
+    augment "/notif-bis:subscription-modified" {
+      description
+        "This augmentation adds push subscription parameters
+         to the notification that a subscription has
+         been modified.
+
+         This notification shall only be sent to receivers
+         of a subscription; it does not constitute a general-purpose
+         notification.";
+      uses update-policy;
+      uses subscription-qos;
+    }
+    augment "/notif-bis:subscription-modified/notif-bis:filter-type" {
+      description
+        "This augmentation allows to include additional update
+         filters options to be included as part of the notification
+         that a subscription has been modified.";
+      case update-filter {
+        description
+          "Additional filter options for push subscription.";
+        uses update-filter;
+      }
+    }
+    augment "/notif-bis:filters/notif-bis:filter/"+
+            "notif-bis:filter-type" {
+      description
+        "This container adds additional update filter options
+         to the list of configurable filters
+         that can be applied to subscriptions.  This facilitates
+         the reuse of complex filters once defined.";
+      case update-filter {
+        uses update-filter;
+      }
+    }
+    augment "/notif-bis:subscription-config/notif-bis:subscription" {
+      description
+        "Contains the list of subscriptions that are configured,
+         as opposed to established via RPC or other means.";
+      uses update-policy;
+      uses subscription-qos;
+    }
+    augment "/notif-bis:subscription-config/notif-bis:subscription/"+
+            "notif-bis:filter-type" {
+      description
+        "Add push filters to selection of filter types.";
+      case update-filter {
+        uses update-filter;
+      }
+    }
+    augment "/notif-bis:subscriptions/notif-bis:subscription" {
+      description
+        "Contains the list of currently active subscriptions,
+         i.e. subscriptions that are currently in effect,
+         used for subscription management and monitoring purposes.
+
+         This includes subscriptions that have been setup via RPC
+         primitives, e.g. establish-subscription, delete-subscription,
+         and modify-subscription, as well as subscriptions that
+         have been established via configuration.";
+      uses update-policy;
+      uses subscription-qos;
+    }
+    augment "/notif-bis:subscriptions/notif-bis:subscription/"+
+            "notif-bis:filter-type" {
+      description
+        "Add push filters to selection of filter types.";
+      case update-filter {
+        description
+          "Additional filter options for push subscription.";
+        uses update-filter;
+      }
+    }
+  }
+

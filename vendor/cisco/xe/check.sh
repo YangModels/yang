@@ -17,7 +17,7 @@
 # ietf-routing draft without versioned imports.
 #
 platform_dir="vendor/cisco/xe"
-to_check="1651 1651/MIBS 1661 1661/MIBS 1662 1662/MIBS 1671 1671/MIBS 1681 1681/MIBS 1691 1691/MIBS 1693 1693/MIBS 16101 16101/MIBS"
+to_check="1691 1691/MIBS 1693 1693/MIBS 16101 16101/MIBS 16111 16111/MIBS"
 inc_path="."
 debug=0
 
@@ -47,7 +47,7 @@ checkDir () {
 	    if [ "$debug" -eq "1" ]; then
 		printf "YANGLINT: found errors in $f, secondary pyang check running...\n"
 	    fi
-	    errors=`pyang --lax-quote-checks $yanglint_flags $f 2>&1 | grep -v "warning:"`
+	    errors=`YANG_INSTALL="." pyang --lax-quote-checks $yanglint_flags $f 2>&1 | grep -v "warning:"`
 	    if [ ! -z "$errors" ]; then
 		printf "PYANG: Errors in $f\n"
 		printf "$errors\n"
