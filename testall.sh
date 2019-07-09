@@ -4,6 +4,7 @@
 # when doing local development
 #
 
+./vendor/fujitsu/yang-validate.sh
 ./vendor/cisco/check.sh
 ./standard/ietf/check.sh
 ./standard/bbf/check.sh
