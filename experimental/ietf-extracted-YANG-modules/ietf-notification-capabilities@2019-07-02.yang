@@ -1,0 +1,210 @@
+module ietf-notification-capabilities {
+  yang-version 1.1;
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-notification-capabilities";
+  prefix inc;
+
+  import ietf-netconf-acm  { prefix nacm; }
+  import ietf-yang-push    { prefix yp; }
+  import ietf-yang-library {
+    prefix yanglib;
+    description
+      "Requires revision 2019-01-04 or a revision derived from it.";
+  }
+
+  organization
+    "IETF NETCONF (Network Configuration) Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/netconf/>
+     WG List:  <mailto:netconf@ietf.org>
+
+     Editor:   Balazs Lengyel
+               <mailto:balazs.lengyel@ericsson.com>";
+  description
+    "This module specifies YANG-Push related server
+     capabilities.
+
+     The module contains
+     - capabilities related to the amount of notifications the
+     server can send out. Note that for a specific subscription
+     the server MAY still allow only longer periods or smaller
+     updates depending on e.g. actual load conditions.
+     - default and schema node specific information specifying
+     the set of data nodes for which the server is capable
+     of sending on-change notifications.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this document
+     are to be interpreted as described in BCP 14 (RFC 2119)
+     (RFC 8174) when, and only when, they appear in all
+     capitals, as shown here.
+
+     Copyright (c) 2019 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Simplified BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (http://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX; see
+     the RFC itself for full legal notices.";
+
+  revision 2019-07-02 {
+    description
+      "Initial version";
+    reference
+      "RFC XXX: Yang-Push Notification Capabilities";
+  }
+
+  container datastore-subscription-capabilities {
+    config false;
+    description
+      "YANG-Push related server capabilities";
+
+    choice update-period {
+      description
+        "Supported period values.";
+      leaf minimum-update-period {
+        type uint32;
+        units "centiseconds";
+        description
+          "Minimum update period supported for a
+          periodic subscription. May be absent if the server is
+          not capable of providing a specific value.";
+      }
+
+      leaf-list supported-update-period {
+        type uint32;
+        units "centiseconds";
+        description
+          "Specific supported update period values
+          for a periodic subscription.";
+      }
+    }
+
+    leaf max-objects-per-update {
+      type uint32 {
+            range "1..max";
+      }
+      description
+        "Maximum number of objects that can be sent
+         in an update. May be absent if the server is
+          not capable of providing a specific value.";
+    }
+
+    leaf minimum-dampening-period {
+      if-feature yp:on-change ;
+      type uint32;
+      units "centiseconds";
+      description
+        "The minimum dampening period supported for on-change
+         subscriptions. May be absent if the server is
+          not capable of providing a specific value.";
+    }
+
+    list on-change-capable-nodes {
+      if-feature yp:on-change ;
+      key datastore ;
+      description "Specifies per datastore the data nodes for which the
+        server is capable of sending on-change notifications.
+        If a datastore implemented by the server is not specified
+        in this list and there is no list element for 'all' datastores
+        the datastore does not support any on-change notifications.
+
+        On-change notification capability is marked as true or false.
+        This marking is inherited from the parent down the data tree
+        unless explicitly marked otherwise.
+
+        On-change notifications SHALL be sent for a config=true
+        data node if one of the following is true:
+        - if it is a top level data-node and is not specified in the
+        on-change-notification-capability list and the
+        notification-sent-for-config-default is true; or
+        - notifications are sent for its parent data node and it is
+        not specified in the on-change-notification-capability list; or
+        - it is specified in the on-change-notification-capability
+        list and has an on-change-supported value true.
+
+        On-change notifications SHALL be sent for a config=false
+        data node if one of the following is true:
+        - if it is a top level data-node (a config=false data node with
+        a config=true parent SHALL be treated as a top level data node)
+        and is not specified in the on-change-notification-capability
+        list and the notification-sent-for-state-default is true; or
+        - notifications are sent for its parent data node
+        which is also config=false and it is
+        not specified in the on-change-notification-capability list; or
+        - it is specified in the on-change-notification-capability
+        list and has an on-change-supported value true";
+
+      leaf datastore {
+        type union {
+          type leafref {
+            path /yanglib:yang-library/yanglib:datastore/yanglib:name ;
+          }
+          type enumeration {
+            enum all ;
+          }
+        }
+        must '. != "all" or count(..) = "1" ' {
+          error-message
+            "If 'all' is present individual datastores cannot be " +
+              "specified.";
+        }
+        description "The datastore for which on-change capable
+          nodes are defined.";
+      }
+
+      leaf notification-sent-for-config-default {
+        type boolean;
+        default "true";
+        description
+          "Specifies the default value for
+           top level configuration data nodes for the
+           on-change-supported capability.";
+      }
+
+      leaf notification-sent-for-state-default {
+        type boolean;
+        default "false";
+        description
+          "Specifies the default value
+           top level state data nodes for the
+           on-change-supported capability.";
+      }
+
+      list on-change-notification-capability {
+        key "node-selector";
+        description
+          "A list of data nodes that have the
+           on-change-notification-capability specifically defined.
+
+           Should be used only when specific data nodes support
+           on-change notification in a module/subtree that
+           generally does not support it or when some data nodes
+           do not support the notification in a module/subtree
+           that generally supports on-change notifications.";
+
+        leaf node-selector {
+          type nacm:node-instance-identifier;
+          description
+            "Selects the data nodes for which
+             on-change capability is specified.";
+        }
+
+        leaf on-change-supported {
+          type boolean;
+          mandatory true;
+          description
+            "Specifies whether the server is capable of
+             sending on-change notifications for the selected
+             data nodes.";
+        }
+      }
+    }
+  }
+}
