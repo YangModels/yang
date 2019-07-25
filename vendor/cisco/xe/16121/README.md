@@ -24,7 +24,7 @@ listed below. As model content may differ based on platform capabilities, sample
 | CSR 1000v/ISRv | [capability-csr1k.xml](capability-csr1k.xml) |
 | ESS 3x00 | [capability-ess3x00.xml](capability-ess3x00.xml) |
 | IR 1101 | [capability-ir1101.xml](capability-ir1101.xml) |
-| IE 3x00 | [capability-ie3x00.xml](capability-ie4x00.xml) |
+| IE 3x00 | [capability-ie3x00.xml](capability-ie3x00.xml) |
 | ISR1K | [capability-isr1k.xml](capability-isr1k.xml) |
 | ISR4K | [capability-isr4k.xml](capability-isr4k.xml) |
 

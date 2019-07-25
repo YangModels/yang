@@ -55,6 +55,7 @@ submodule Cisco-IOS-XE-interfaces {
        - Add FEC support
        - Added support for ip mask-reply
        - Fix access-session port-control type, add default value
+       - Add ingress-replication bgp signaled support under nve interface
        - Add interface BD-VIF";
     cisco-semver:module-version "1.0.0";
   }
@@ -67,9 +68,8 @@ submodule Cisco-IOS-XE-interfaces {
       "Added ISIS clns commands";
   }
   revision 2019-01-27 {
-      description
-        "changing ingress-replication from container back to leaf to take care of\
-         backward compatibility ";
+    description
+      "changing ingress-replication from container back to leaf to take care of backward compatibility";
   }
   revision 2019-01-24 {
      description
@@ -339,24 +339,45 @@ submodule Cisco-IOS-XE-interfaces {
      }
    }
  
+  grouping nve-member-vni-ir-deprecated-grouping {
+    leaf ingress-replication {
+      status deprecated;
+      description
+        "Ingress Replication or Unicast mode for vni(s)";
+      type inet:ipv4-address;
+    }
+  }
+
   grouping nve-member-vni-ir-group-grouping {
-     container ingress-replication {
-       leaf ingress-replication-peer-addr {
-         description
-           "Ingress Replication or Unicast mode for vni(s)";
-         type inet:ipv4-address;
-       }
-       leaf ingress-replication-auto-learn {
-           type empty;
-       }
-     }
+    container ingress-replication-config {
+      description
+        "Ingress Replication configuration for vni(s)";
+
+      leaf cp-signal {
+        description
+          "Ingress Replication control-plane (BGP) signaling";
+        type empty;
+      }
+
+      leaf-list peer-addr {
+        description
+          "Ingress Replication or Unicast Peer address";
+        type inet:ipv4-address;
+      }
+    }
+
+    uses nve-member-vni-ir-deprecated-grouping;
+  }
+
+  grouping nve-member-vni-no-grouping {
+    uses nve-member-vni-ir-deprecated-grouping;
+    uses nve-member-vni-mcast-group-grouping;
   }
 
   grouping nve-member-vni-grouping {
     uses nve-member-vni-ir-group-grouping;
     uses nve-member-vni-mcast-group-grouping;
   }
-
 
   grouping storm-control-threshold-grouping {
     container level {
@@ -1196,8 +1217,6 @@ submodule Cisco-IOS-XE-interfaces {
         leaf forwarding {
           description
             "Configure forwarding table";
-          
-          
           must "/ios:native/ios:vrf/ios:definition[ios:name=current()]" { 
 	    error-message "VRF must be created 1st, deleted last";
           }
@@ -1652,7 +1671,14 @@ submodule Cisco-IOS-XE-interfaces {
       container router {
         description
           "IP router interface commands";
-        // @mount Cisco-IOS-XE-isis
+        container isis {
+          description
+            "IS-IS Routing for IP";
+          presence "true";
+          leaf tag {
+            type string;
+          }
+        }
       }
 
       // interface * / ip igmp
@@ -2568,7 +2594,7 @@ submodule Cisco-IOS-XE-interfaces {
           "Enable closed access on port (disabled by default, i.e. open access)";
         type empty;
       }
-      leaf port-control {
+      leaf port-control-config {
         description "Set the port-control value";
         type enumeration {
           enum "auto";
@@ -2576,6 +2602,16 @@ submodule Cisco-IOS-XE-interfaces {
           enum "force-unauthorized";
         }
         default "force-authorized";
+      }
+      container port-control {
+        status deprecated;
+        description
+          "Set the port-control value. DEPRECATED, use port-control-config instead";
+        leaf auto {
+          status deprecated;
+          description "PortState set to automatic";
+          type empty;
+        }
       }
       container control-direction {
         description "Set the control-direction on the interface";
@@ -3833,11 +3869,11 @@ submodule Cisco-IOS-XE-interfaces {
               type string;
             }
             container default {
-               uses nve-member-vni-grouping; 
+               uses nve-member-vni-no-grouping; 
              }
              uses nve-member-vni-grouping; 
              container no {
-               uses nve-member-vni-grouping; 
+               uses nve-member-vni-no-grouping; 
               }
             }
           }

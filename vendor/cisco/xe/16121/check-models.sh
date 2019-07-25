@@ -110,6 +110,7 @@ else
         exit 1
     fi
     UPDATE_FROM_PATH=../$CHECK_BC
+    IGNORE_ERRORS=`pyang --list-errors | perl -ne 'if(/Error:\s+(.+)$/){if(!/CHK_/){print " --ignore-error=$1";}}'`
     echo Comparing all models that also exist in ../$CHECK_BC AND that have
     echo changed since version that version with "--check-update-from" flag:
     echo
@@ -121,10 +122,11 @@ else
     	DIFF=`diff $VER_FROM $m`
     	if [ ! -z "$DIFF" ]
     	then
-    	    pyang $PYANG_FLAGS \
-    		--check-update-from $VER_FROM \
-    		--check-update-from-path $UPDATE_FROM_PATH \
-    		$m
+    	    pyang $IGNORE_ERRORS \
+                  $PYANG_FLAGS \
+    		  --check-update-from $VER_FROM \
+    		  --check-update-from-path $UPDATE_FROM_PATH \
+    		  $m
     	fi
         fi
     done
