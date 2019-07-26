@@ -10,19 +10,28 @@
 No Xpaths obsoleted
 
 ## XPaths Deprecated 
- 
-- Earlier it was list and was changed to container, causing backward incompatibility. Hence deprecated the list and added a new leaf
 
-** /ios:native/ios:hw-module/ios:switch/ios:usbflash1-password
+### Description 
+Earlier it was list and was changed to container, causing backward incompatibility. Hence deprecated the list and added a new leaf
 
-## XPaths Added
+- /native/hw-module/ios:switch/ios:usbflash1-password
 
-- /ios:native/ios:hw-module/ios:switch/ios:usbflash1-password1
+### Description/Reason
+tftp-server-list was illegally removed causing backward incompatibility.
+
+- /native/tftp-server
+
 
 ## XPaths Modified
 
 - call-home shall be a non-presence container in practice. Hence presence "true" removed from call-home container.
 
-** /native/call-home
+- /native/call-home
 
-** /native/call-home/* (all sub-trees and sub-leaves under call-home)
+- /native/call-home/* (all sub-trees and sub-leaves under call-home)
+
+
+## XPaths Added
+
+- /native/hw-module/ios:switch/ios:usbflash1-password1
+- /native/tftp-server-config

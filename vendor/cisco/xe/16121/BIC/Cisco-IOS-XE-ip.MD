@@ -10,7 +10,7 @@
 ### Description
 Obsoleted nodes for backward compatibility
 
-** - /native/vrf/definition/address-family/*/mdt/default/mpls/mldp
+- /native/vrf/definition/address-family/*/mdt/default/mpls/mldp
 
 ### Description
 Obsoleting ununsed CLI nodes
@@ -18,17 +18,17 @@ Obsoleting ununsed CLI nodes
 ### Reason
 In 16.11 Native Yang Model, we do have model for following 2 IOS CLI(s),ip domain-list and ip domain-lookup.But these CLI(s) actually does not exists and was deprecated. So we just have Models with no underlying CLI(s) for them. Hence marking both these CLI as obsolete.
 
-** /native/ip/domain-list
-** /native/ip/domain-list/domain-name
-** /native/ip/domain-list/vrf
-** /native/ip/domain-list/vrf/domain-name
-** /native/ip/domain-list/vrf/vrf-name
-** /native/ip/domain-lookup
-** /native/ip/domain-lookup-conf
-** /native/ip/domain-lookup-conf/domain-lookup
-** /native/ip/domain-lookup/nsap
-** /native/ip/domain-lookup/source-interface
-** /native/ip/domain-lookup/source-interface/TwentyFiveGigabitEthernet
+- /native/ip/domain-list
+- /native/ip/domain-list/domain-name
+- /native/ip/domain-list/vrf
+- /native/ip/domain-list/vrf/domain-name
+- /native/ip/domain-list/vrf/vrf-name
+- /native/ip/domain-lookup
+- /native/ip/domain-lookup-conf
+- /native/ip/domain-lookup-conf/domain-lookup
+- /native/ip/domain-lookup/nsap
+- /native/ip/domain-lookup/source-interface
+- /native/ip/domain-lookup/source-interface/TwentyFiveGigabitEthernet
 
 ## XPaths Deprecated
 
