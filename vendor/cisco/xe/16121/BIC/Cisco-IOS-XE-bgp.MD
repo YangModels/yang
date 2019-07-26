@@ -246,11 +246,11 @@ dmzlink-bw cannot be configured on a multihop-neighbor.Threshold cannot be confi
 - /native/router/ios-bgp:bgp/ios-bgp:address-family/ios-bgp:with-vrf/*/ios-bgp:vrf/*/ios-bgp:neighbor/ios-bgp:slow-peer/ios-bgp:split-update-group/ios-bgp:dynamic
 
 ### Description
-- Must statement added to neighbor cluster-id
-- Must statement added to neighbor-next-hop-unchanged
-- Default value added to neighbor ebgp-multihop
-- Must statement added to neighbor password
-- Default value added to neighbor advertisement-interval
+1. Must statement added to neighbor cluster-id
+2. Must statement added to neighbor-next-hop-unchanged
+3. Default value added to neighbor ebgp-multihop
+4. Must statement added to neighbor password
+5. Default value added to neighbor advertisement-interval
 
 ### Reason
 1. cluster-id can only be configured for ibgp peer
@@ -300,10 +300,10 @@ Configuration does not exist in the BGP CLI/config and revents best-external and
 - /native/router/ios-bgp:bgp/ios-bgp:address-family/ios-bgp:with-vrf/ios-bgp:ipv6/ios-bgp:vrf/ios-bgp:ipv6-unicast/ios-bgp:bgp/ios-bgp:advertise-best-external
 
 ### Description
-- Must statement added to path-attribute discard range
-- Must statement added to AF maximum-paths
-- Must statement added to AF maximum-prefix restart
-- Must statement added to bgp consistency-checker
+1. Must statement added to path-attribute discard range
+2. Must statement added to AF maximum-paths
+3. Must statement added to AF maximum-prefix restart
+4. Must statement added to bgp consistency-checker
 
 ### Reason
 1. range requires all 3 values to be configured
@@ -340,10 +340,10 @@ route-reflector-client cannot be configured with advertise best-externa
 - /native/router/ios-bgp:bgp/ios-bgp:address-family/ios-bgp:no-vrf/*/*/ios-bgp:neighbor/ios-bgp:route-reflector-client
 
 ### Description
-- When statement added to peer-group route-reflector-client
-- Must statement updated for neighbor local-as dual-as
-- Range updated for ebgp-multihop
-- Must statement added for ip community-list, ip extcommunity-list and ip as-path access-list
+1. When statement added to peer-group route-reflector-client
+2. Must statement updated for neighbor local-as dual-as
+3. Range updated for ebgp-multihop
+4. Must statement added for ip community-list, ip extcommunity-list and ip as-path access-list
 
 ### Reason
 1. route-reflector-client cannot be configured with advertise best-external

@@ -44,6 +44,7 @@ listed below. As model content may differ based on platform capabilities, sample
 * Cisco-IOS-XE-crypto-rpc.yang
 * Cisco-IOS-XE-cts-rpc.yang
 * Cisco-IOS-XE-dhcp-rpc.yang
+* Cisco-IOS-XE-cable-diag-rpc.yang
 * Cisco-IOS-XE-factory-reset-secure-rpc.yang
 * Cisco-IOS-XE-flow-rpc.yang
 * Cisco-IOS-XE-ospf-rpc.yang
@@ -101,7 +102,6 @@ listed below. As model content may differ based on platform capabilities, sample
 
 #### Openconfig Models Added
 
-* openconfig-access-points.yang
 * openconfig-alarm-types.yang
 * openconfig-isis-lsdb-types.yang
 * openconfig-isis-lsp.yang
@@ -203,6 +203,11 @@ listed below. As model content may differ based on platform capabilities, sample
 * Cisco-IOS-XE-wireless-mobility-express-rpc.yang
 * Cisco-IOS-XE-wireless-radio-cfg.yang
 * openconfig-ap-manager.yang
+* openconfig-access-points.yang
+* openconfig-system-wifi-ext.yang
+* openconfig-wifi-mac.yang
+* openconfig-wifi-phy.yang
+* openconfig-wifi-types.yang
 
 These experimental YANG models are in the early status of design and are likely to change
 
