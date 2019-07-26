@@ -253,10 +253,10 @@ dmzlink-bw cannot be configured on a multihop-neighbor.Threshold cannot be confi
 - Default value added to neighbor advertisement-interval
 
 ### Reason
-- cluster-id can only be configured for ibgp peer
-- next-hop-unchanged must be configured with ebgp-multihop
-- Neighbor password must be configured with text
-- Advertisement interval has default value of 0 for ibgp peers
+1. cluster-id can only be configured for ibgp peer
+2. next-hop-unchanged must be configured with ebgp-multihop
+3. Neighbor password must be configured with text
+4. Advertisement interval has default value of 0 for ibgp peers
 
 
 - /native/router/ios-bgp:bgp/ios-bgp:bgp/ios-bgp:cluster-id
@@ -306,10 +306,10 @@ Configuration does not exist in the BGP CLI/config and revents best-external and
 - Must statement added to bgp consistency-checker
 
 ### Reason
-- range requires all 3 values to be configured
-- only 1 type of maximum-path can be configured at a time
-- maximum-path restart cannot be configured with warning-only
-- consistency-checker sub-configs have restricitions
+1. range requires all 3 values to be configured
+2. only 1 type of maximum-path can be configured at a time
+3. maximum-path restart cannot be configured with warning-only
+4. consistency-checker sub-configs have restricitions
 
 - /native/router/ios-bgp:bgp/ios-bgp:address-family/ios-bgp:no-vrf/ios-bgp:ipv4/ios-bgp:ipv4-unicast/ios-bgp:bgp:/ios-bgp:dampening-choice/ios-bgp:dampen/ios-bgp:dampen/ios-bgp:suppress-time
 - /native/router/ios-bgp:bgp/ios-bgp:address-family/ios-bgp:with-vrf/ios-bgp:ipv4/ios-bgp:vrf/ios-bgp:ipv4-unicast/ios-bgp:bgp/ios-bgp:dampening/ios-bgp:dampen/ios-bgp:suppress-time
@@ -346,10 +346,10 @@ route-reflector-client cannot be configured with advertise best-externa
 - Must statement added for ip community-list, ip extcommunity-list and ip as-path access-list
 
 ### Reason
-- route-reflector-client cannot be configured with advertise best-external
-- neighbor local-as must statment missing case
-- ebgp-multihop 1 does not get nvgenned
-- must statement added to deal with list within a list deletion
+1. route-reflector-client cannot be configured with advertise best-external
+2. neighbor local-as must statment missing case
+3. ebgp-multihop 1 does not get nvgenned
+4. must statement added to deal with list within a list deletion
 
 - /native/ip/as-path/ios-bgp:access-list/ios-bgp:name
 - /native/ip/ios-bgp:community-list/ios-bgp:expanded/ios-bgp:name
