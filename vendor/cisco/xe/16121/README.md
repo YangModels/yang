@@ -225,7 +225,11 @@ The following two submodules of Cisco-IOS-XE-ethernet.yang are not officially su
 
 ### Backward Incompatible Changes
 
-All the model specific backward incompatible changes have been documented under [BIC](BIC) directory. 
+All the model specific backward incompatible changes have been documented here [Backward_Incompatible_Changes](BIC).
+
+### "On-Change" support
+
+List of models supporting "On-change" notification are documented under [On-Change-Support](ON_CHANGE_MODELS.MD).
 
 ### Compliance With "pyang --lint"
 
