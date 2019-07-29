@@ -103,20 +103,20 @@ listed below. As model content may differ based on platform capabilities, sample
 #### Openconfig Models Added
 
 * openconfig-alarm-types.yang
-* openconfig-isis-lsdb-types.yang **cisco-xe-openconfig-isis-deviation.yang**
-* openconfig-isis-lsp.yang **cisco-xe-openconfig-isis-deviation.yang**
-* openconfig-isis-policy.yang **cisco-xe-openconfig-isis-deviation.yang**
-* openconfig-isis-routing.yang **cisco-xe-openconfig-isis-deviation.yang**
-* openconfig-isis-types.yang **cisco-xe-openconfig-isis-deviation.yang**
-* openconfig-isis.yang **cisco-xe-openconfig-isis-deviation.yang**
-* openconfig-mpls-igp.yang **cisco-xe-openconfig-mpls-deviation.yang**
-* openconfig-mpls-ldp.yang **cisco-xe-openconfig-mpls-deviation.yang**
-* openconfig-mpls-rsvp.yang **cisco-xe-openconfig-mpls-deviation.yang**
-* openconfig-mpls-sr.yang **cisco-xe-openconfig-mpls-deviation.yang**
-* openconfig-mpls-static.yang **cisco-xe-openconfig-mpls-deviation.yang**
-* openconfig-mpls-te.yang **cisco-xe-openconfig-mpls-deviation.yang**
-* openconfig-mpls-types.yang **cisco-xe-openconfig-mpls-deviation.yang**
-* openconfig-mpls.yang **cisco-xe-openconfig-mpls-deviation.yang**
+* openconfig-isis-lsdb-types.yang  \* Refer to **cisco-xe-openconfig-isis-deviation.yang**
+* openconfig-isis-lsp.yang  \* Refer to **cisco-xe-openconfig-isis-deviation.yang**
+* openconfig-isis-policy.yang  \* Refer to **cisco-xe-openconfig-isis-deviation.yang**
+* openconfig-isis-routing.yang  \* Refer to **cisco-xe-openconfig-isis-deviation.yang**
+* openconfig-isis-types.yang  \* Refer to **cisco-xe-openconfig-isis-deviation.yang**
+* openconfig-isis.yang  \* Refer to **cisco-xe-openconfig-isis-deviation.yang**
+* openconfig-mpls-igp.yang  \* Refer to **cisco-xe-openconfig-mpls-deviation.yang**
+* openconfig-mpls-ldp.yang  \* Refer to **cisco-xe-openconfig-mpls-deviation.yang**
+* openconfig-mpls-rsvp.yang  \* Refer to **cisco-xe-openconfig-mpls-deviation.yang**
+* openconfig-mpls-sr.yang  \* Refer to **cisco-xe-openconfig-mpls-deviation.yang**
+* openconfig-mpls-static.yang  \* Refer to **cisco-xe-openconfig-mpls-deviation.yang**
+* openconfig-mpls-te.yang  \* Refer to **cisco-xe-openconfig-mpls-deviation.yang**
+* openconfig-mpls-types.yang  \* Refer to **cisco-xe-openconfig-mpls-deviation.yang**
+* openconfig-mpls.yang  \* Refer to **cisco-xe-openconfig-mpls-deviation.yang**
 * openconfig-platform-cpu.yang
 * openconfig-platform-fan.yang
 * openconfig-platform-psu.yang
