@@ -21,8 +21,8 @@ Changed node datatype from enum to boolean
 ### Reason
 Get-config is not fetching interface level tlvs
 
-- /native/interface/*/ios-lldp:lldp/ios-lldp:tlv-select/ios-lldp:four-wire-power-management
-- /native/interface/*/ios-lldp:lldp/ios-lldp:tlv-select/ios-lldp:power-management
+- /native/interface/\*/ios-lldp:lldp/ios-lldp:tlv-select/ios-lldp:four-wire-power-management
+- /native/interface/\*/ios-lldp:lldp/ios-lldp:tlv-select/ios-lldp:power-management
 
 ## XPaths Added
 

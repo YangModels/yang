@@ -28,7 +28,7 @@ tftp-server-list was illegally removed causing backward incompatibility.
 
 - /native/call-home
 
-- /native/call-home/* (all sub-trees and sub-leaves under call-home)
+- /native/call-home/\* (all sub-trees and sub-leaves under call-home)
 
 
 ## XPaths Added

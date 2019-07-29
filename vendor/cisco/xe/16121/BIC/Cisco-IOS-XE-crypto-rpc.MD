@@ -26,14 +26,14 @@ Added new crypto exec CLI. removed mandatory attribute from server node
 There are some CLI's which are non-nvgen, and multiple invocation to the same CLI works on IOS model but not via yang.Hence a call was made to make them exec-CLIs and hence these changes were done.
 
 - /crypto/pki/authenticate
-- /crypto/pki/authenticate/*
+- /crypto/pki/authenticate/\*
 - /crypto/pki/enroll
-- /crypto/pki/enroll/*
+- /crypto/pki/enroll/\*
 - /crypto/pki/import
-- /crypto/pki/import/*
+- /crypto/pki/import/\*
 - /crypto/pki/export
-- /crypto/pki/export/*
+- /crypto/pki/export/\*
 - /crypto/pki/server
-- /crypto/pki/server/*
+- /crypto/pki/server/\*
 - /crypto/pki/certificate/validate
-- /crypto/pki/certificate/validate/*
+- /crypto/pki/certificate/validate/\*

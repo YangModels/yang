@@ -22,7 +22,7 @@ Changed the node type from container to leaf list
 ### Reason
 There was no provision to add more than one macsec cipher suite under MKA policy.
 
-** /native/mka/ios-mka:policy/ios-mka:macsec-cipher-suite
+- /native/mka/ios-mka:policy/ios-mka:macsec-cipher-suite
 
 ### Description
 YANG: mka needs to add dependency to key chain
@@ -30,7 +30,7 @@ YANG: mka needs to add dependency to key chain
 ### Reason
 Previously dependencies for macsec key chain was not present, Which resulted in bad cli error in rpc reply
 
-** /native/interface/*/ios-mka:mka/ios-mka:pre-shared-key/ios-mka:key-chain/ios-mka:name
+- /native/interface/*/ios-mka:mka/ios-mka:pre-shared-key/ios-mka:key-chain/ios-mka:name
 
 
 ## XPaths Added

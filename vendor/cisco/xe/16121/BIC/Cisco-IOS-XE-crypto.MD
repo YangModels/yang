@@ -46,10 +46,10 @@ To make model backward compatible depreacted some of the IPSec and IKE CLI's.
 - /native/crypto/ios-crypto:ikev2/ios-crypto:authorization/ios-crypto:policy/ios-crypto:route/ios-crypto:accept/ios-crypto:any
 - /native/crypto/ios-crypto:ikev2/ios-crypto:authorization/ios-crypto:policy/ios-crypto:route/ios-crypto:accept/ios-crypto:any/ios-crypto:tag
 - /native/crypto/ios-crypto:ikev2/ios-crypto:authorization/ios-crypto:policy/ios-crypto:route/ios-crypto:accept/ios-crypto:any/ios-crypto:distance
-- /native/crypto/ios-crypto:ikev2/ios-crypto:client/ios-crypto:flexvpn/ios-crypto:peer/ios-crypto:peer-id-list/ios-crypto:peer-id-container/*
+- /native/crypto/ios-crypto:ikev2/ios-crypto:client/ios-crypto:flexvpn/ios-crypto:peer/ios-crypto:peer-id-list/ios-crypto:peer-id-container/\*
 - /native/crypto/ios-crypto:ikev2/ios-crypto:authorization/ios-crypto:policy/ios-crypto:route/ios-crypto:set/ios-crypto:interface/ios-crypto:interface-list/ios-crypto:interface-name
 - /native/crypto/ios-crypto:keyring/ios-crypto:default/ios-crypto:rsa-pubkey/ios-crypto:addr/ios-crypto:address
-- /native/crypto/ios-crypto:ikev2/ios-crypto:cluster/*
+- /native/crypto/ios-crypto:ikev2/ios-crypto:cluster/\*
 - /native/crypto/ios-crypto:keyring/ios-crypto:default/ios-crypto:rsa-pubkey/ios-crypto:addr
 - /native/crypto/ios-crypto:keyring/ios-crypto:default/ios-crypto:rsa-pubkey/ios-crypto:addr/ios-crypto:way
 - /native/crypto/ios-crypto:keyring/ios-crypto:default/ios-crypto:rsa-pubkey/ios-crypto:name/ios-crypto:address
@@ -86,11 +86,11 @@ Under crypto ikev2 client flexvpn, container inside is under connect but it shou
 Crypto map command has been modified to support as per IOS. Removed "group" cli. 
 
 - /native/crypto/ios-crypto:crypto-map
-- /native/crypto/ios-crypto:crypto-map/*
+- /native/crypto/ios-crypto:crypto-map/\*
 - /native/crypto/ios-crypto:map-ipv6-gdoi
-- /native/crypto/ios-crypto:map-ipv6-gdoi/*
+- /native/crypto/ios-crypto:map-ipv6-gdoi/\*
 - /native/crypto/ios-crypto:map-client
-- /native/crypto/ios-crypto:map-client/*
+- /native/crypto/ios-crypto:map-client/\*
 - /native/crypto/ios-crypto:map/ios-crypto:map-client/ios-crypto:authorization
 
 ## XPaths Modified
@@ -109,44 +109,44 @@ Need to revise comparision statement as it was reported as backward incompatible
 Crypto map has been modified to include multiple crypto maps and options.
 
 - /native/crypto/ios-crypto:dynamic-map/ios-crypto:set/ios-crypto:ip
-- /native/crypto/ios-crypto:dynamic-map/ios-crypto:set/ios-crypto:ip/*
+- /native/crypto/ios-crypto:dynamic-map/ios-crypto:set/ios-crypto:ip/\*
 - /native/crypto/ios-crypto:ikev2/ios-crypto:keyring/ios-crypto:peer/ios-crypto:identity/ios-crypto:email-option
-- /native/crypto/ios-crypto:ikev2/ios-crypto:keyring/ios-crypto:peer/ios-crypto:identity/ios-crypto:email-option/*
+- /native/crypto/ios-crypto:ikev2/ios-crypto:keyring/ios-crypto:peer/ios-crypto:identity/ios-crypto:email-option/\*
 - /native/crypto/ios-crypto:ikev2/ios-crypto:keyring/ios-crypto:peer/ios-crypto:identity/ios-crypto:fqdn-option
-- /native/crypto/ios-crypto:ikev2/ios-crypto:keyring/ios-crypto:peer/ios-crypto:identity/ios-crypto:fqdn-option/*
+- /native/crypto/ios-crypto:ikev2/ios-crypto:keyring/ios-crypto:peer/ios-crypto:identity/ios-crypto:fqdn-option/\*
 - /native/crypto/ios-crypto:ikev2/ios-crypto:keyring/ios-crypto:peer/ios-crypto:identity/ios-crypto:key-id-number
 - /native/crypto/ios-crypto:ikev2/ios-crypto:keyring/ios-crypto:peer/ios-crypto:pre-shared-key/ios-crypto:local-option
-- /native/crypto/ios-crypto:ikev2/ios-crypto:keyring/ios-crypto:peer/ios-crypto:pre-shared-key/ios-crypto:local-option/*
+- /native/crypto/ios-crypto:ikev2/ios-crypto:keyring/ios-crypto:peer/ios-crypto:pre-shared-key/ios-crypto:local-option/\*
 - /native/crypto/ios-crypto:ikev2/ios-crypto:keyring/ios-crypto:peer/ios-crypto:pre-shared-key/ios-crypto:remote-option
-- /native/crypto/ios-crypto:ikev2/ios-crypto:keyring/ios-crypto:peer/ios-crypto:pre-shared-key/ios-crypto:remote-option/*
+- /native/crypto/ios-crypto:ikev2/ios-crypto:keyring/ios-crypto:peer/ios-crypto:pre-shared-key/ios-crypto:remote-option/\*
 - /native/crypto/ios-crypto:ikev2/ios-crypto:keyring/ios-crypto:peer/ios-crypto:identity/ios-crypto:address-type
-- /native/crypto/ios-crypto:ikev2/ios-crypto:profile/ios-crypto:match/ios-crypto:address/ios-crypto:local/ios-crypto:interface-options/*
-- /native/crypto/ios-crypto:ikev2/ios-crypto:authorization/ios-crypto:policy/ios-crypto:route/ios-crypto:set/ios-crypto:interface/ios-crypto:interface-name-list/*
+- /native/crypto/ios-crypto:ikev2/ios-crypto:profile/ios-crypto:match/ios-crypto:address/ios-crypto:local/ios-crypto:interface-options/\*
+- /native/crypto/ios-crypto:ikev2/ios-crypto:authorization/ios-crypto:policy/ios-crypto:route/ios-crypto:set/ios-crypto:interface/ios-crypto:interface-name-list/\*
 - /native/crypto/ios-crypto:ikev2/ios-crypto:authorization/ios-crypto:policy/ios-crypto:route/ios-crypto:accept/ios-crypto:any-option
 - /native/crypto/ios-crypto:ikev2/ios-crypto:authorization/ios-crypto:policy/ios-crypto:route/ios-crypto:accept/ios-crypto:any-option/ios-crypto:tag
 - /native/crypto/ios-crypto:ikev2/ios-crypto:authorization/ios-crypto:policy/ios-crypto:route/ios-crypto:accept/ios-crypto:any-option/ios-crypto:distance
 - /native/crypto/ios-crypto:ikev2/ios-crypto:client/ios-crypto:flexvpn/ios-crypto:peer/ios-crypto:peer-id-list/ios-crypto:peer-id-container-option
-- /native/crypto/ios-crypto:ikev2/ios-crypto:client/ios-crypto:flexvpn/ios-crypto:peer/ios-crypto:peer-id-list/ios-crypto:peer-id-container-option/*
-- /native/crypto/ios-crypto:ikev2/ios-crypto:client/ios-crypto:flexvpn/ios-crypto:source/ios-crypto:interface-name/*
+- /native/crypto/ios-crypto:ikev2/ios-crypto:client/ios-crypto:flexvpn/ios-crypto:peer/ios-crypto:peer-id-list/ios-crypto:peer-id-container-option/\*
+- /native/crypto/ios-crypto:ikev2/ios-crypto:client/ios-crypto:flexvpn/ios-crypto:source/ios-crypto:interface-name/\*
 - /native/crypto/ios-crypto:ikev2/ios-crypto:cluster-options
-- /native/crypto/ios-crypto:ikev2/ios-crypto:cluster-options/*
+- /native/crypto/ios-crypto:ikev2/ios-crypto:cluster-options/\*
 - /native/crypto/ios-crypto:keyring/ios-crypto:default/ios-crypto:rsa-pubkey/ios-crypto:address
-- /native/crypto/ios-crypto:keyring/ios-crypto:default/ios-crypto:rsa-pubkey/ios-crypto:address/*
+- /native/crypto/ios-crypto:keyring/ios-crypto:default/ios-crypto:rsa-pubkey/ios-crypto:address/\*
 - /native/crypto/ios-crypto:isakmp/ios-crypto:profile/ios-crypto:initiate/ios-crypto:mode
 - /native/crypto/ios-crypto:isakmp/ios-crypto:profile/ios-crypto:initiate/ios-crypto:mode/ios-crypto:mode-name
 - /native/crypto/ios-crypto:isakmp/ios-crypto:profile/ios-crypto:virtual-template-option
 - /native/crypto/ios-crypto:isakmp/ios-crypto:profile/ios-crypto:virtual-template-option/ios-crypto:virtual-template-number
 - /native/crypto/ios-crypto:isakmp/ios-crypto:profile/ios-crypto:virtual-template-option/ios-crypto:per-user
-- /native/crypto/ios-crypto:isakmp/ios-crypto:client/ios-crypto:configuration/ios-crypto:group/ios-crypto:access-restrict-option/*
+- /native/crypto/ios-crypto:isakmp/ios-crypto:client/ios-crypto:configuration/ios-crypto:group/ios-crypto:access-restrict-option/\*
 - /native/crypto/ios-crypto:isakmp/ios-crypto:client/ios-crypto:configuration/ios-crypto:group/ios-crypto:dhcp/ios-crypto:server-option
 - /native/crypto/ios-crypto:isakmp/ios-crypto:client/ios-crypto:configuration/ios-crypto:group/ios-crypto:dhcp/ios-crypto:server-option/ios-crypto:dhcp-server
 - /native/crypto/ios-crypto:isakmp/ios-crypto:client/ios-crypto:configuration/ios-crypto:group/ios-crypto:wins/ios-crypto:secondary-address
 - /native/crypto/ios-crypto:isakmp/ios-crypto:client/ios-crypto:configuration/ios-crypto:browser-proxy-option
-- /native/crypto/ios-crypto:isakmp/ios-crypto:client/ios-crypto:configuration/ios-crypto:browser-proxy-option/*
+- /native/crypto/ios-crypto:isakmp/ios-crypto:client/ios-crypto:configuration/ios-crypto:browser-proxy-option/\*
 - /native/interface/Tunnel/ios-tun:tunnel/ios-tun:protection/ios-crypto:ipsec/ios-crypto:profile-option
-- /native/interface/Tunnel/ios-tun:tunnel/ios-tun:protection/ios-crypto:ipsec/ios-crypto:profile-option/*
+- /native/interface/Tunnel/ios-tun:tunnel/ios-tun:protection/ios-crypto:ipsec/ios-crypto:profile-option/\*
 - /native/crypto/ios-crypto:map
-- /native/crypto/ios-crypto:map/*
+- /native/crypto/ios-crypto:map/\*
 
 ### Description
 Rearranged some of the CLI models grouping
@@ -155,16 +155,16 @@ Rearranged some of the CLI models grouping
 In order to match native IOS CLI model and behavior, made rearrangement in groups	
 
 - /native/crypto/ios-crypto:ipsec/ios-crypto:df-bit
-- /native/crypto/ios-crypto:ipsec/ios-crypto:exclude/*
+- /native/crypto/ios-crypto:ipsec/ios-crypto:exclude/\*
 - /native/crypto/ios-crypto:ipsec/ios-crypto:fragmentation
 - /native/crypto/ios-crypto:ipsec/ios-crypto:ipv4-deny
 - /native/crypto/ios-crypto:ipsec/ios-crypto:nat-transparency
 - /native/crypto/ios-crypto:ipsec/ios-crypto:optional
 - /native/crypto/ios-crypto:ipsec/ios-crypto:optional/ios-crypto:retry
-- /native/crypto/ios-crypto:ipsec/ios-crypto:transform-set/*
+- /native/crypto/ios-crypto:ipsec/ios-crypto:transform-set/\*
 - /native/crypto/ios-crypto:ipsec/ios-crypto:profile
 - /native/crypto/ios-crypto:ipsec/ios-crypto:profile/ios-crypto:name
-- /native/crypto/ios-crypto:ipsec/ios-crypto:profile/ios-crypto:default/*
+- /native/crypto/ios-crypto:ipsec/ios-crypto:profile/ios-crypto:default/\*
 - /native/crypto/ios-crypto:ipsec/ios-crypto:profile/ios-crypto:description
 - /native/crypto/ios-crypto:ipsec/ios-crypto:profile/ios-crypto:dialer
 - /native/crypto/ios-crypto:ipsec/ios-crypto:profile/ios-crypto:dialer/ios-crypto:pre-classify
@@ -172,12 +172,12 @@ In order to match native IOS CLI model and behavior, made rearrangement in group
 - /native/crypto/ios-crypto:ipsec/ios-crypto:profile/ios-crypto:redundancy/ios-crypto:name
 - /native/crypto/ios-crypto:ipsec/ios-crypto:profile/ios-crypto:redundancy/ios-crypto:stateful
 - /native/crypto/ios-crypto:ipsec/ios-crypto:profile/ios-crypto:responder-only
-- /native/crypto/ios-crypto:ipsec/ios-crypto:profile/ios-crypto:reverse-route/*
+- /native/crypto/ios-crypto:ipsec/ios-crypto:profile/ios-crypto:reverse-route/\*
 - /native/crypto/ios-crypto:ipsec/ios-crypto:profile/ios-crypto:reverse-route/ios-crypto:static
 - /native/crypto/ios-crypto:ipsec/ios-crypto:security-association/ios-crypto:dummy
-- /native/crypto/ios-crypto:ipsec/ios-crypto:profile/ios-crypto:set/*
-- /native/crypto/ios-crypto:ipsec/ios-crypto:security-association/*
-- /native/crypto/ios-crypto:ipsec/ios-crypto:session-key/*
+- /native/crypto/ios-crypto:ipsec/ios-crypto:profile/ios-crypto:set/\*
+- /native/crypto/ios-crypto:ipsec/ios-crypto:security-association/\*
+- /native/crypto/ios-crypto:ipsec/ios-crypto:session-key/\*
 
 ### Description
 Moved aggressive mode option as enumeration type from leaf type data under crypto isakmp initiate CLI
@@ -199,11 +199,11 @@ native/crypto/ios-crypto:isakmp/ios-crypto:profile/ios-crypto:client/ios-crypto:
 - /native/crypto/ios-crypto:isakmp/ios-crypto:profile/ios-crypto:virtual-template-option/ios-crypto:per-user
 - /native/crypto/ios-crypto:isakmp/ios-crypto:profile/ios-crypto:virtual-template-option/ios-crypto:virtual-template-number
 - /native/crypto/ios-crypto:isakmp/ios-crypto:client/ios-crypto:configuration/ios-crypto:group/ios-crypto:access-restrict-option
-- /native/crypto/ios-crypto:isakmp/ios-crypto:client/ios-crypto:configuration/ios-crypto:group/ios-crypto:access-restrict-option/*
+- /native/crypto/ios-crypto:isakmp/ios-crypto:client/ios-crypto:configuration/ios-crypto:group/ios-crypto:access-restrict-option/\*
 - /native/crypto/ios-crypto:isakmp/ios-crypto:client/ios-crypto:configuration/ios-crypto:group/ios-crypto:dhcp/ios-crypto:server-option
 - /native/crypto/ios-crypto:isakmp/ios-crypto:client/ios-crypto:configuration/ios-crypto:group/ios-crypto:dhcp/ios-crypto:server-option/ios-crypto:dhcp-server
 - /native/crypto/ios-crypto:isakmp/ios-crypto:client/ios-crypto:configuration/ios-crypto:group/ios-crypto:route-metric
-- /native/crypto/ios-crypto:isakmp/ios-crypto:client/ios-crypto:configuration/ios-crypto:browser-proxy-option/*
+- /native/crypto/ios-crypto:isakmp/ios-crypto:client/ios-crypto:configuration/ios-crypto:browser-proxy-option/\*
 - /native/crypto/ios-crypto:isakmp/ios-crypto:diagnose
 - /native/crypto/ios-crypto:isakmp/ios-crypto:diagnose/ios-crypto:error
 - /native/crypto/ios-crypto:isakmp/ios-crypto:performance

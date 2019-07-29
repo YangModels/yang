@@ -21,7 +21,7 @@ Must statements added
 ### Reason
 The must statements align model behavior with CLI behavior
 
-- /ios:native/ios:interface/*/ios-cts:cts/ios-cts:role-based/ios-cts:enforcement
+- /ios:native/ios:interface/\*/ios-cts:cts/ios-cts:role-based/ios-cts:enforcement
 - /ios:native/ios:cts/ios-cts:role-based/ios-cts:enforcement-only/ios-cts:enforcement
 
 ## XPaths Added

@@ -25,8 +25,8 @@ listed below. As model content may differ based on platform capabilities, sample
 | ESS 3x00 | [capability-ess3x00.xml](capability-ess3x00.xml) |
 | IR 1101 | [capability-ir1101.xml](capability-ir1101.xml) |
 | IE 3x00 | [capability-ie3x00.xml](capability-ie3x00.xml) |
-| ISR1K | [capability-isr1k.xml](capability-isr1k.xml) |
-| ISR4K | [capability-isr4k.xml](capability-isr4k.xml) |
+| ISR 1000 | [capability-isr1k.xml](capability-isr1k.xml) |
+| ISR 4000 | [capability-isr4k.xml](capability-isr4k.xml) |
 
 
 ### Major Model Changes In 16.12.1
@@ -103,20 +103,20 @@ listed below. As model content may differ based on platform capabilities, sample
 #### Openconfig Models Added
 
 * openconfig-alarm-types.yang
-* openconfig-isis-lsdb-types.yang
-* openconfig-isis-lsp.yang
-* openconfig-isis-policy.yang
-* openconfig-isis-routing.yang
-* openconfig-isis-types.yang
-* openconfig-isis.yang
-* openconfig-mpls-igp.yang
-* openconfig-mpls-ldp.yang
-* openconfig-mpls-rsvp.yang
-* openconfig-mpls-sr.yang
-* openconfig-mpls-static.yang
-* openconfig-mpls-te.yang
-* openconfig-mpls-types.yang
-* openconfig-mpls.yang
+* openconfig-isis-lsdb-types.yang **cisco-xe-openconfig-isis-deviation.yang**
+* openconfig-isis-lsp.yang **cisco-xe-openconfig-isis-deviation.yang**
+* openconfig-isis-policy.yang **cisco-xe-openconfig-isis-deviation.yang**
+* openconfig-isis-routing.yang **cisco-xe-openconfig-isis-deviation.yang**
+* openconfig-isis-types.yang **cisco-xe-openconfig-isis-deviation.yang**
+* openconfig-isis.yang **cisco-xe-openconfig-isis-deviation.yang**
+* openconfig-mpls-igp.yang **cisco-xe-openconfig-mpls-deviation.yang**
+* openconfig-mpls-ldp.yang **cisco-xe-openconfig-mpls-deviation.yang**
+* openconfig-mpls-rsvp.yang **cisco-xe-openconfig-mpls-deviation.yang**
+* openconfig-mpls-sr.yang **cisco-xe-openconfig-mpls-deviation.yang**
+* openconfig-mpls-static.yang **cisco-xe-openconfig-mpls-deviation.yang**
+* openconfig-mpls-te.yang **cisco-xe-openconfig-mpls-deviation.yang**
+* openconfig-mpls-types.yang **cisco-xe-openconfig-mpls-deviation.yang**
+* openconfig-mpls.yang **cisco-xe-openconfig-mpls-deviation.yang**
 * openconfig-platform-cpu.yang
 * openconfig-platform-fan.yang
 * openconfig-platform-psu.yang
@@ -202,12 +202,6 @@ listed below. As model content may differ based on platform capabilities, sample
 * Cisco-IOS-XE-wireless-access-point-cmd-rpc.yang
 * Cisco-IOS-XE-wireless-mobility-express-rpc.yang
 * Cisco-IOS-XE-wireless-radio-cfg.yang
-* openconfig-ap-manager.yang
-* openconfig-access-points.yang
-* openconfig-system-wifi-ext.yang
-* openconfig-wifi-mac.yang
-* openconfig-wifi-phy.yang
-* openconfig-wifi-types.yang
 
 These experimental YANG models are in the early status of design and are likely to change
 
@@ -217,6 +211,12 @@ The below models, while advertised in the capabilities, are not supported on any
 
 * Cisco-IOS-XE-g8032.yang
 * Cisco-IOS-XE-scada-gw-oper.yang
+* openconfig-ap-manager.yang
+* openconfig-access-points.yang
+* openconfig-system-wifi-ext.yang
+* openconfig-wifi-mac.yang
+* openconfig-wifi-phy.yang
+* openconfig-wifi-types.yang
 
 The following two submodules of Cisco-IOS-XE-ethernet.yang are not officially supported until 17.1.1.
 
@@ -229,7 +229,7 @@ All the model specific backward incompatible changes have been documented here [
 
 ### "On-Change" support
 
-List of models supporting "On-change" notification are documented under [On-Change-Support](ON_CHANGE_MODELS.MD).
+List of models supporting "On-change" notification are documented under [On-Change-Support](ON_CHANGE_MODELS).
 
 ### Compliance With "pyang --lint"
 

@@ -45,7 +45,7 @@ Added When constraints
 ### Reason
 To handle negative test cases
 
-- /native/track/ios-track:tracked-object/ios-track:threshold/*
+- /native/track/ios-track:tracked-object/ios-track:threshold/\*
 - /native/track/ios-track:tracked-object/ios-track:carrier-delay
 - /native/track/ios-track:tracked-object/ios-track:default-state
 - /native/track/ios-track:tracked-object/ios-track:object/ios-track:not

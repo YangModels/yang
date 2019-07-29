@@ -16,9 +16,9 @@ For the model changes to be backward compatible and to disable igmp-ssm-map quer
 - /native/ip/ios-igmp:igmp/ios-igmp:ssm-map/ios-igmp:static
 - /native/ip/ios-igmp:igmp/ios-igmp:ssm-map/ios-igmp:static/ios-igmp:acl
 - /native/ip/ios-igmp:igmp/ios-igmp:ssm-map/ios-igmp:static/ios-igmp:source-ip
-- /native/interface/*/ip/ios-igmp:igmp/ios-igmp:join-group
-- /native/interface/*/ip/ios-igmp:igmp/ios-igmp:join-group/ios-igmp:ip-group-address
-- /native/interface/*/ip/ios-igmp:igmp/ios-igmp:join-group/ios-igmp:source
+- /native/interface/\*/ip/ios-igmp:igmp/ios-igmp:join-group
+- /native/interface/\*/ip/ios-igmp:igmp/ios-igmp:join-group/ios-igmp:ip-group-address
+- /native/interface/\*/ip/ios-igmp:igmp/ios-igmp:join-group/ios-igmp:source
 
 
 ## XPaths Deprecated
@@ -26,7 +26,7 @@ For the model changes to be backward compatible and to disable igmp-ssm-map quer
 ### Description/Reason
 Deprecated some of the nodes for backward compatibility
 
-- /native/interface/*/ip/ios-igmp:igmp/ios-igmp:limit
+- /native/interface/\*/ip/ios-igmp:igmp/ios-igmp:limit
 
 ## XPaths Modified
 
@@ -48,9 +48,9 @@ New xpaths added for deprecated and obsoleted nodes for backward compatibility
 - /native/ip/ios-igmp:igmp/ios-igmp:ssm-map/ios-igmp:static-list
 - /native/ip/ios-igmp:igmp/ios-igmp:ssm-map/ios-igmp:static-list/ios-igmp:acl
 - /native/ip/ios-igmp:igmp/ios-igmp:ssm-map/ios-igmp:static-list/ios-igmp:source-ip
-- /native/interface/*/ip/ios-igmp:igmp/ios-igmp:igmp-join-group
-- /native/interface/*/ip/ios-igmp:igmp/ios-igmp:igmp-join-group/ios-igmp:join-group
-- /native/interface/*/ip/ios-igmp:igmp/ios-igmp:igmpv3-join-group
-- /native/interface/*/ip/ios-igmp:igmp/ios-igmp:igmpv3-join-group/ios-igmp:ip-group-address
-- /native/interface/*/ip/ios-igmp:igmp/ios-igmp:igmpv3-join-group/ios-igmp:source
-- /native/interface/*/ip/ios-igmp:igmp/ios-igmp:limit-container/*
+- /native/interface/\*/ip/ios-igmp:igmp/ios-igmp:igmp-join-group
+- /native/interface/\*/ip/ios-igmp:igmp/ios-igmp:igmp-join-group/ios-igmp:join-group
+- /native/interface/\*/ip/ios-igmp:igmp/ios-igmp:igmpv3-join-group
+- /native/interface/\*/ip/ios-igmp:igmp/ios-igmp:igmpv3-join-group/ios-igmp:ip-group-address
+- /native/interface/\*/ip/ios-igmp:igmp/ios-igmp:igmpv3-join-group/ios-igmp:source
+- /native/interface/\*/ip/ios-igmp:igmp/ios-igmp:limit-container/\*

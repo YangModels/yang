@@ -10,7 +10,7 @@
 ### Description
 Obsoleted nodes for backward compatibility
 
-- /native/vrf/definition/address-family/*/mdt/default/mpls/mldp
+- /native/vrf/definition/address-family/\*/mdt/default/mpls/mldp
 
 ### Description
 Obsoleting ununsed CLI nodes
@@ -35,8 +35,8 @@ In 16.11 Native Yang Model, we do have model for following 2 IOS CLI(s),ip domai
 ### Description
 Deprecated old nodes for backward compatibility
 
-- /native/vrf/definition/address-family/*/mdt/auto-discovery/pim
-- /native/vrf/definition/address-family/*/mdt/overlay/use-bgp
+- /native/vrf/definition/address-family/\*/mdt/auto-discovery/pim
+- /native/vrf/definition/address-family/\*/mdt/overlay/use-bgp
 
 
 ## XPaths Modified
@@ -54,13 +54,13 @@ IP Yang model route-target vrf option is changed to match IOSD CLI behavior as d
 ### Description
 New paths added for extensive model restructuring to support mVPN
 
-- /native/vrf/definition/address-family/*/mdt/default/mpls/mldp-config
-- /native/vrf/definition/address-family/*/mdt/auto-discovery/mldp
-- /native/vrf/definition/address-family/*/mdt/auto-discovery/pim-options
-- /native/vrf/definition/address-family/*/mdt/auto-discovery/ingress-replication
-- /native/vrf/definition/address-family/*/mdt/auto-discovery/receiver-site
-- /native/vrf/definition/address-family/*/mdt/data/ingress-replication
-- /native/vrf/definition/address-family/*/mdt/data/mpls
+- /native/vrf/definition/address-family/\*/mdt/default/mpls/mldp-config
+- /native/vrf/definition/address-family/\*/mdt/auto-discovery/mldp
+- /native/vrf/definition/address-family/\*/mdt/auto-discovery/pim-options
+- /native/vrf/definition/address-family/\*/mdt/auto-discovery/ingress-replication
+- /native/vrf/definition/address-family/\*/mdt/auto-discovery/receiver-site
+- /native/vrf/definition/address-family/\*/mdt/data/ingress-replication
+- /native/vrf/definition/address-family/\*/mdt/data/mpls
 - /native/vrf/definition/address-family/ipv4/mdt/data/multicast/list
 - /native/vrf/definition/address-family/ipv4/mdt/default/ingress-replication
 - /native/vrf/definition/address-family/ipv4/mdt/default/mpls/mldp-config

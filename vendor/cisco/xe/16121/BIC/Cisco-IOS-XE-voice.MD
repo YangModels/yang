@@ -50,4 +50,4 @@ To fix backward incompatibility
 New Xpaths added as part of the new SIP line phase 2 CLI's
 
 - /native/ios-voice:dsapp/ios-voice:dsappline
-- /native/ios-voice:dsapp/ios-voice:dsappline/-
+- /native/ios-voice:dsapp/ios-voice:dsappline/
