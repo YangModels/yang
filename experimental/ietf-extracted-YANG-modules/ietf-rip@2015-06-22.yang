@@ -1,0 +1,873 @@
+module ietf-rip {
+  namespace "urn:ietf:params:xml:ns:yang:ietf-rip";
+  // replace with IANA namespace when assigned
+  prefix rip;
+
+  import ietf-inet-types {
+    prefix "inet";
+  }
+
+  import ietf-yang-types {
+    prefix "yang";
+  }
+
+  import ietf-interfaces {
+    prefix "if";
+  }
+
+  import ietf-ip {
+    prefix "ip";
+  }
+
+  import ietf-routing {
+    prefix "rt";
+  }
+
+  import ietf-key-chain {
+    prefix "key-chain";
+  }
+
+  organization "TBD";
+  contact "TBD";
+  description
+    "This YANG module defines a model for managing Routing
+    Information Protocol (RIP), including RIP version 2 and RIPng.";
+
+  revision 2015-06-22 {
+    description
+      "Initial revision.";
+    reference
+      "RFC 2453: RIP Version 2.
+       RFC 2080: RIPng for IPv6.
+       RFC 1724: RIP Version 2 MIB Extension.";
+  }
+
+  /*
+   * Features
+   */
+
+  feature global-statistics {
+    description
+      "This feature indicates that the system supports collecting
+      global statistic data.";
+  }
+
+  feature interface-statistics {
+    description
+      "This feature indicates that the system supports collecting
+      per-interface statistic data.";
+  }
+
+  feature bfd {
+    description
+      "This feature indicates that the system supports BFD.";
+  }
+
+  feature neighbor-configuration {
+    description
+      "This feature indicates that the system supports
+      neighbor configuration.";
+  }
+
+  /*
+   * Identities
+   */
+
+  identity rip {
+    base "rt:routing-protocol";
+    description "Identity for the RIP routing protocol.";
+  }
+  identity ripv2 {
+    base "rip:rip";
+    description "RIPv2";
+  }
+
+  identity ripng {
+    base "rip:rip";
+    description "RIPng";
+  }
+
+  /*
+   * Groupings
+   */
+
+  grouping originate-default-route-container {
+    description
+      "Container for setting of originating default route.";
+    container originate-default-route {
+      presence "Present if originating default route is enabled.";
+      description
+        "Injects the default route into the RIP or RIPng
+        instance.";
+      leaf route-map {
+        type string;
+        description
+          "The conditions of the route map are applied to the default
+          route.";
+      }
+    }
+  }
+
+  grouping timers-container {
+    description
+      "Container for settings of basic timers";
+    container timers {
+      must "invalid-interval >= (update-interval * 3)" {
+        description
+          "invalid-interval must be at least three times the value
+          for the update-interval argument.";
+      }
+      must "flush-interval > invalid-interval" {
+        description
+          "flush-interval must be larger than the value for the
+          invalid-interval argument";
+      }
+      description
+        "Timers for the specified RIP or RIPng instance or
+        interface.";
+      leaf update-interval {
+        type uint16 {
+          range  1..32767;
+        }
+        units seconds;
+        default 30;
+        description
+          "Interval at which RIP or RIPng updates are sent.";
+      }
+      leaf invalid-interval {
+        type uint16 {
+          range 1..32767;
+        }
+        units seconds;
+        default 180;
+        description
+          "Interval before a route is declared invalid after no
+          updates are received. This value is at least three times
+          the value for the update-interval argument.";
+      }
+      leaf holddown-interval {
+        type uint16 {
+          range 1..32767;
+        }
+        units seconds;
+        default 180;
+        description
+          "Interval before better routes are released.";
+      }
+      leaf flush-interval {
+        type uint16 {
+          range 1..32767;
+        }
+        units seconds;
+        default 240;
+        description
+          "Interval before a route is flushed from the routing
+          table. This value must be larger than the value for the
+          invalid-interval argument.";
+      }
+    } // timers
+  }
+
+  grouping global-attributes {
+    description
+      "Global configuration and state attributes.";
+    uses originate-default-route-container;
+
+    leaf default-metric {
+      type uint8 {
+        range 0..16;
+      }
+      default 0;
+      description
+        "Set the default metric.";
+    }
+
+    leaf distance {
+      type uint8 {
+        range 1..255;
+      }
+      default 120;
+      description
+        "The administrative distance of the RIP or RIPng for the
+        current RIP or RIPng instance.";
+    }
+
+    leaf flash-update-threshold {
+      type uint8 {
+        range 1..30;
+      }
+      units seconds;
+      default 5;
+      description
+        "The minimum interval between consecutive RIP or RIPng
+        flash updates.";
+    }
+
+    leaf maximum-paths {
+      type uint8 {
+        range 1..16;
+      }
+      default 8;
+      description
+        "The number of multiple equal-cost RIP or RIPng routes
+        that can be used as the best paths for balancing the load
+        of outgoing traffic packets.";
+    }
+
+    leaf output-delay {
+      type uint8 {
+        range 1..50;
+      }
+      units milliseconds;
+      description
+        "A delay time between packets sent in multipacket
+        RIP or RIPng updates.";
+    }
+  } // global-attributes
+
+  grouping distribute-lists {
+    description
+      "Grouping for distribute lists.";
+    list distribute-list {
+      key "prefix-list-name direction";
+      description
+        "List of distribute-lists, which are used to filter in-coming
+        or out-going routing updates.";
+
+      leaf prefix-list-name {
+        type string;
+        description
+          "Reference to a prefix list to be applied to RIP or
+          RIPng packets.";
+      }
+      leaf direction {
+        type enumeration {
+          enum "in" {
+            description
+              "Apply the distribute-list to in-coming routes.";
+          }
+          enum "out" {
+            description
+              "Apply the distribute-list to out-going routes.";
+          }
+        }
+        description
+          "Direction of the routing updates.";
+      }
+
+      leaf if-name {
+        type if:interface-ref;
+        description
+          "Reference to an interface to which the prefix list is
+          applied.";
+      }
+    }
+  } // distribute-lists
+
+  grouping route-attributes {
+    description
+      "Grouping for route attributes.";
+    leaf redistributed {
+      type boolean;
+      description
+        "Redistributed routes";
+    }
+
+    leaf route-type {
+      type enumeration {
+        enum connected {
+          description "Connected route.";
+        }
+        enum external {
+          description "External route.";
+        }
+        enum external-backup {
+          description "External backup route.";
+        }
+        enum rip {
+          description "RIP route.";
+        }
+      }
+      description
+        "Route type.";
+    }
+    leaf metric {
+      type uint8 {
+        range 0..16;
+      }
+      description "Route metric.";
+    }
+    leaf expire-time {
+      type uint16;
+      description "Expiration time.";
+    }
+    leaf deleted {
+      type boolean;
+      description "Deleted route.";
+    }
+    leaf holddown {
+      type boolean;
+      description "Holddown route.";
+    }
+    leaf need-flash {
+      type boolean;
+      description "The route needs flash.";
+    }
+    leaf need-download-to-rib {
+      type boolean;
+      description "The route needs to be downloaded to rib.";
+    }
+    leaf inactive {
+      type boolean;
+      description "The route is inactive.";
+    }
+    leaf next-hop-flags {
+      type bits {
+        bit withdrawn-from-rib {
+          description "The route is withdrawn from rib.";
+        }
+        bit holddown {
+          description "The route is holddown.";
+        }
+        bit flush-expire-before-holddown {
+          description
+            "The flush timer expired before holddown time.";
+        }
+      }
+      description "The next hop properties of the route.";
+    }
+  } // route-attribute
+
+  /*
+   * Configuration data nodes
+   */
+
+  augment "/rt:routing/rt:routing-instance/rt:routing-protocols/"
+    + "rt:routing-protocol" {
+    when "rt:type = 'rip:ripv2' or rt:type = 'rip:ripng'" {
+      description
+        "This augment is only valid for a routing protocol instance
+        of RIP (type 'ripv2' or 'ripng').";
+    }
+    description "RIP augmentation.";
+
+    container rip {
+      description
+        "RIP configuration data.";
+
+      uses global-attributes;
+      uses distribute-lists;
+      uses timers-container;
+
+      list interface {
+        key "interface";
+        description
+          "List of RIP interfaces.";
+        leaf interface {
+          type if:interface-ref;
+          must "(../../../rt:type = 'rip:ripv2' and "
+            + "/if:interfaces/if:interface[name=current()]/"
+            + "ip:ipv4) or "
+            + "(../../../rt:type = 'rip:ripng' and "
+            + "/if:interfaces/if:interface[name=current()]/"
+            + "ip:ipv6)" {
+            error-message "Invalid interface type.";
+            description
+              "RIPv2 can be enabled on IPv4 interfae, and
+              RIPng can be enabled on IPv6 interface.";
+          }
+          description
+            "Enable RIP on this interface.";
+        }
+
+        container authentication {
+          when "../../../rt:type = 'rip:ripv2'" {
+            description "Only applicable to RIPv2.";
+          }
+          description
+            "Enables authentication and specifies the authentication
+            scheme for the RIP interface";
+          choice auth-type-selection {
+            description
+              "Specify the authentication scheme.
+              The use of the key-chain reference here is:
+              1) Designed to align with other proposed protocol
+              models.
+              2) Not finalized, pending resolution of alignment with
+              the RFC published KeyTables information model.";
+            case auth-key-chain {
+              leaf key-chain {
+                type key-chain:key-chain-ref;
+                description
+                  "key-chain name";
+              }
+            }
+            case auth-key {
+              leaf key {
+                type string;
+                description
+                  "Key string in ASCII format.";
+              }
+              container crypto-algorithm {
+                uses key-chain:crypto-algorithm-types;
+                description
+                  "Cryptographic algorithm associated with key.";
+
+              }
+            }
+          }
+        }
+
+        leaf bfd {
+          if-feature bfd;
+          type boolean;
+          description
+            "Enable/disable bfd.";
+        }
+
+        leaf cost {
+          type uint8 {
+            range  1..16;
+          }
+          default 1;
+          description
+            "Interface cost.";
+        }
+
+        container neighbors {
+          if-feature neighbor-configuration;
+          description
+            "Specifies the RIP neighbors. Useful for a non-broadcast
+            multiple access (NBMA) network.";
+          list neighbor {
+            key "address";
+            description
+              "Specify a RIP neighbor on a non-broadcast network.";
+            leaf address {
+              type inet:ip-address;
+              description "Neighbor IP address.";
+            }
+          }
+        }
+
+        leaf no-listen {
+          type empty;
+          description
+            "Disable the specified interface to receive (listen to)
+            and process RIP or RIPng packets.";
+        }
+
+        leaf no-supply {
+          type empty;
+          description
+            "Disables sending of RIP or RIPng packets on the
+            specified interface.";
+        }
+
+        uses originate-default-route-container;
+
+        leaf split-horizon {
+          type enumeration {
+            enum simple {
+              description
+                "Enables simple split-horizon processing.";
+            }
+            enum poison {
+              description
+                "Enables split-horizon processing with poison
+                reverse.";
+            }
+          }
+          default simple;
+          description
+            "Enables RIP or RIPng split-horizon processing on the
+            specified interface.";
+        }
+
+        container summary-address {
+          description
+            "Summarizes information about RIP or RIPng routes sent
+            over the specified interface in RIP or RIPng update
+            packets.";
+          leaf address {
+            type inet:ip-prefix;
+            description
+              "IPv4 address, in the form A.B.C.D, and the prefix
+              length, separated by the slash (/) character;
+              or IPv6 address, in the form A:B:C:D:E:F:G:H, and the
+              prefix length, separated by the slash (/) character.";
+          }
+          leaf metric {
+            type uint8 {
+              range 0..16;
+            }
+            description
+              "Metric used for the route. If this attribute is not
+              used, the value set through the default-metric
+              attribute in RIP or RIPng router configuration is
+              used for the route. ";
+          }
+        }
+
+        uses timers-container;
+      } // interface
+    } // container rip
+  }
+
+  /*
+   * Operational state data nodes
+   */
+
+  augment "/rt:routing-state/rt:routing-instance/"
+    + "rt:routing-protocols/rt:routing-protocol" {
+    when "rt:type = 'rip:ripv2' or rt:type = 'rip:ripng'"  {
+      description
+        "This augment is only valid for a routing protocol instance
+        of type 'ripv2' or 'ripng'.";
+    }
+    description
+      "RIP state.";
+    container rip {
+      description "RIP operational state.";
+
+      uses global-attributes;
+      uses distribute-lists;
+
+      leaf next-flash-update {
+        type uint32;
+        description
+          "Next flash update.";
+      }
+      leaf num-of-routes {
+        type uint32;
+        description
+          "The number of routes.";
+      }
+      leaf routing-table-version {
+        type uint32;
+        description
+          "Routing table version.";
+      }
+
+      uses timers-container;
+
+      list interface {
+        key "interface";
+        description
+          "List of RIP interfaces.";
+        leaf interface {
+          type if:interface-ref;
+          description
+            "Enable RIP on this interface.";
+        }
+        leaf oper-status {
+          type enumeration {
+            enum up {
+              description
+                "RIPv2 or RIPng is operational on this interface.";
+            }
+            enum down {
+              description
+                "RIPv2 or RIPng is not operational on this
+                interface.";
+            }
+          }
+          description
+            "Operational state.";
+        }
+        leaf cost {
+          type uint8 {
+            range  1..16;
+          }
+          default 1;
+          description
+            "Interface cost.";
+        }
+        leaf listen {
+          type boolean;
+          description
+            "The interface is enabled to receive (listen to)
+            and process RIP or RIPng packets.";
+        }
+        leaf next-full-update {
+          type uint32;
+          description
+            "Next full update time.";
+        }
+        leaf originate-default-route {
+          type boolean;
+          description
+            "'true' if originating default route is enabled.";
+        }
+        leaf poison-reverse {
+          type boolean;
+          description
+            "'true' if Split Horizon with Poisoned Reverse is
+            enabled.";
+        }
+        leaf split-horizon {
+          type boolean;
+          description
+            "'true' if Split Horizon processing is enabled.";
+        }
+        leaf supply {
+          type boolean;
+          description
+            "The interface is enabled to supply (send) RIP or RIPng
+            packets.";
+        }
+        leaf valid-address {
+          type boolean;
+          description
+            "The interface has a valid address.";
+        }
+        uses timers-container;
+
+        container statistics {
+          if-feature interface-statistics;
+          description
+            "Interface statistic counters.";
+          leaf discontinuity-time {
+            type yang:date-and-time;
+            description
+              "The time on the most recent occasion at which any one
+              or more of the statistic counters suffered a
+              discontinuity. If no such discontinuities have occurred
+              since the last re-initialization of the local
+              management subsystem, then this node contains the time
+              the local management subsystem re-initialized itself.";
+          }
+          leaf bad-packets-rcvd {
+            type yang:counter32;
+            description
+              "The number of RIP invalid packets received by
+              the RIP process which were subsequently discarded
+              for any reason (e.g. a version 0 packet, or an
+              unknown command type).";
+          }
+          leaf bad-routes-rcvd {
+            type yang:counter32;
+            description
+              "The number of routes, in valid RIP packets,
+              which were ignored for any reason (e.g. unknown
+              address family, or invalid metric).";
+          }
+          leaf updates-sent {
+            type yang:counter32;
+            description
+              "The number of triggered RIP updates actually
+              sent on this interface.  This explicitly does
+              NOT include full updates sent containing new
+              information.";
+          }
+        }
+      } // interface
+
+      container ipv4 {
+        when "../../rt:type = 'rip:ripv2'" {
+          description
+            "IPv4 address family is supported by RIPv2.";
+        }
+        description
+          "IPv4 address family information.";
+        container neighbors {
+          description
+            "IPv4 neighbor information.";
+          list neighbor {
+            key "ipv4-address";
+            description
+              "A RIPv2 RIP neighbor.";
+
+            leaf ipv4-address {
+              type inet:ipv4-address;
+              description
+                "IP address that a RIP neighbor is using as its
+                source address.";
+            }
+            leaf last-update {
+              type yang:date-and-time;
+              description
+                "The time when the most recent RIP update was
+                received from this neighbor.";
+            }
+            leaf bad-packets-rcvd {
+              type yang:counter32;
+              description
+                "The number of RIP invalid packets received from
+                this neighbor which were subsequently discarded
+                for any reason (e.g. a version 0 packet, or an
+                unknown command type).";
+            }
+            leaf bad-routes-rcvd {
+              type yang:counter32;
+              description
+                "The number of routes received from this neighbor,
+                in valid RIP packets, which were ignored for any
+                reason (e.g. unknown address family, or invalid
+                metric).";
+            }
+          } // neighbor
+        } // neighbors
+        container routes {
+          description
+            "IPv4 route information.";
+          list route {
+            key "ipv4-prefix";
+            description
+              "A RIPv2 IPv4 route.";
+
+            leaf ipv4-prefix {
+              type inet:ipv4-prefix;
+              description
+                "IP address (in the form A.B.C.D) and prefix length,
+                separated by the slash (/) character. The range of
+                values for the prefix-length is 0 to 32.";
+            }
+            leaf next-hop {
+              type inet:ipv4-address;
+              description
+                "Next hop IPv4 address.";
+            }
+            leaf interface {
+              type if:interface-ref;
+              description
+                "The interface that the route uses.";
+            }
+            uses route-attributes;
+          } // route
+        } // routes
+      } // ipv4
+      container ipv6 {
+        when "../../rt:type = 'rip:ripng'" {
+          description
+            "IPv6 address family is supported by RIPng.";
+        }
+        description
+          "IPv6 address family information.";
+        container neighbors {
+          description
+            "IPv6 neighbor information.";
+          list neighbor {
+            key "ipv6-address";
+            description
+              "A RIPv2 RIP neighbor.";
+
+            leaf ipv6-address {
+              type inet:ipv6-address;
+              description
+                "IP address that a RIP neighbor is using as its
+                source address.";
+            }
+            leaf last-update {
+              type yang:date-and-time;
+              description
+                "The time when the most recent RIP update was
+                received from this neighbor.";
+            }
+            leaf bad-packets-rcvd {
+              type yang:counter32;
+              description
+                "The number of RIP invalid packets received from
+                this neighbor which were subsequently discarded
+                for any reason (e.g. a version 0 packet, or an
+                unknown command type).";
+            }
+            leaf bad-routes-rcvd {
+              type yang:counter32;
+              description
+                "The number of routes received from this neighbor,
+                in valid RIP packets, which were ignored for any
+                reason (e.g. unknown address family, or invalid
+                metric).";
+            }
+          } // neighbor
+        } // neighbors
+        container routes {
+          description
+            "IPv6 route information.";
+          list route {
+            key "ipv6-prefix";
+            description
+              "A RIPng IPv6 route.";
+
+            leaf ipv6-prefix {
+              type inet:ipv6-prefix;
+              description
+                "IP address (in the canonical format defined in
+                RFC5952)and prefix length, separated by the slash (/)
+                character. The range of values for the prefix-length
+                is 0 to 128.";
+            }
+            leaf next-hop {
+              type inet:ipv6-address;
+              description
+                "Next hop IPv6 address.";
+            }
+            leaf interface {
+              type if:interface-ref;
+              description
+                "The interface that the route uses.";
+            }
+            uses route-attributes;
+          } // route
+        } // routes
+      } // ipv6
+      container statistics {
+        if-feature global-statistics;
+        description
+          "Global statistic counters.";
+        leaf discontinuity-time {
+          type yang:date-and-time;
+          description
+            "The time on the most recent occasion at which any one
+            or more of the statistic counters suffered a
+            discontinuity. If no such discontinuities have occurred
+            since the last re-initialization of the local
+            management subsystem, then this node contains the time
+            the local management subsystem re-initialized itself.";
+        }
+        leaf requests-rcvd {
+          type yang:counter32;
+          description
+            "The number of requests received by RIP.";
+        }
+        leaf requests-sent {
+          type yang:counter32;
+          description
+            "The number of requests sent by RIP.";
+        }
+        leaf responses-rcvd {
+          type yang:counter32;
+          description
+            "The number of responses received by RIP.";
+        }
+        leaf responses-sent {
+          type yang:counter32;
+          description
+            "The number of responses sent by RIP.";
+        }
+      }
+    } // rip
+  } // augment
+
+  /*
+   * RPCs
+   */
+  rpc clear-rip-route {
+    description
+      "Clears RIP routes from the IP routing table and routes
+      redistributed into the RIP protocol for the specified RIP
+      instance or for all RIP instances in the current context.";
+
+    input {
+      leaf instance-name {
+        type leafref {
+          path "/rt:routing/rt:routing-instance/"
+            + "rt:routing-protocols/rt:routing-protocol/rt:name";
+        }
+        description
+          "Instance name identifying the specific RIP Instance.";
+      }
+    }
+  } // rcp clear-rip-route
+}

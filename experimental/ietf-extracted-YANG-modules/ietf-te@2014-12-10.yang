@@ -1,0 +1,528 @@
+module ietf-te {
+
+    namespace "urn:ietf:params:xml:ns:yang:ietf-mpls-te-base";
+
+    /* Replace with IANA when assigned */
+    prefix "te";
+
+    /* Import TE generic types */
+    import ietf-te-types {
+        prefix ietf-te-types;
+    }
+
+    /* Import TE packet specific types */
+    import ietf-te-psc-types {
+        prefix ietf-te-psc-types;
+    }
+
+    import ietf-interfaces {
+        prefix if;
+    }
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+
+    organization
+        "IETF TEAS Working Group";
+
+    contact
+        "Fill me";
+
+    description
+        "YANG data module for TE configuration,
+         state, RPC and notifications.";
+
+    revision 2014-12-10 {
+        description
+            "Initial revision.";
+    }
+
+    grouping interface-attributes {
+        description "Interface TE properties grouping.";
+        leaf te-metric {
+            description "Interface TE link metric.";
+            type ietf-te-types:te-metric;
+        }
+        uses ietf-te-types:interface-affinities;
+        uses ietf-te-types:interface-srlgs;
+        uses ietf-te-psc-types:bandwidth-psc-reservable;
+    }
+
+    /* TE interface flooding parameters */
+    grouping flooding-parameters {
+        description "Interface TE flooding properties.";
+        container thresholds {
+            description "Flooding threshold values in percentages.";
+            choice type {
+                case equal-steps {
+                    choice equal-step-type {
+                        case up-down-different-step {
+                            leaf up-step {
+                                description
+                                    "Set single percentage threshold
+                                    for increasing resource allocation";
+                                type uint8 {
+                                    range "0..100";
+                                }
+                            }
+                            leaf down-step {
+                                description
+                                    "Set single percentage threshold for
+                                    decreasing resource allocation";
+                                type uint8 {
+                                    range "0..100";
+                                }
+                            }
+                        }
+                        case up-down-same-step {
+                            leaf step {
+                                description
+                                    "Set single percentage threshold for
+                                    increasing and decreasing resource
+                                    allocation";
+                                type uint8 {
+                                    range "0..100";
+                                }
+                            }
+                        }
+                    }
+                }
+                case unequal-steps {
+                    list up-steps {
+                        key "value";
+                        description
+                            "Set nultuple percentage thresholds for
+                            increasing resource allocation";
+                        leaf value {
+                            type uint8 {
+                                range "0..100";
+                            }
+                        }
+                    }
+                    list down-steps {
+                        key "value";
+                        description
+                            "Set nultuple percentage thresholds for
+                            decreasing resource allocation";
+                        leaf value {
+                             type uint8 {
+                                  range "0..100";
+                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    grouping auto-backup {
+        description
+            "Auto-tunnel backup properties grouping.";
+        container auto-backup {
+            presence "Enable auto-tunnel backup feature.";
+            leaf method {
+                description
+                    "Describes whether facility backup or 1-for-1
+                    backup should be used";
+                type identityref {
+                    base ietf-te-psc-types:backup-type;
+                }
+            }
+            leaf protection {
+                description
+                    "Describes whether the backup should offer
+                    protection against link, node, or either";
+                type identityref {
+                    base ietf-te-psc-types:backup-protection-type;
+                }
+                default ietf-te-psc-types:backup-protection-node-link;
+            }
+            leaf path-computation {
+                type identityref {
+                    base ietf-te-types:path-computation-srlg-type;
+                }
+            }
+        }
+    }
+
+    grouping fast-reroute-backups {
+        container fast-reroute-backups {
+            if-feature ietf-te-types:frr-te;
+            container backup-capacity {
+                description
+                    "Limits the aggregate amount of primary
+                     protected LSP bandwidth that this backup
+                     tunnel may protect";
+                leaf capacity {
+                    description
+                        "Maximum bandwidth this facility backup
+                        is allowed to protect";
+                    type uint32;
+                }
+                leaf type {
+                    description
+                        "Type of primary LSP bandwidth that the
+                         backup is allowed to protect.";
+                    type uint32;
+                }
+            }
+            choice type {
+                 case static-tunnel {
+                    leaf name {
+                        type leafref {
+                            path "/te/tunnels/tunnel/name";
+                        }
+                    }
+                    list static-backups {
+                        key "backup-tunnel";
+                        description
+                            "List of static backup tunnels that
+                            protect the TE interface.";
+                        leaf backup-tunnel {
+                            type leafref {
+                                path "/te/tunnels/tunnel[name =
+                                current()/../../name]/type";
+                            }
+                        }
+                    }
+                }
+                case auto-tunnel {
+                    uses auto-backup;
+                }
+            }
+        }
+    }
+
+    grouping path-constraints {
+        description
+            "Grouping of possible TE path constraints";
+        container path-constraints {
+            uses ietf-te-types:tunnel-path-selection;
+        }
+    }
+
+    grouping tunnel-path-properties {
+        container path-properties {
+            description
+                "Defines a TE tunnel path properties";
+            leaf path-named-constraint {
+                if-feature ietf-te-types:named-path-constraints;
+                description
+                    "Reference to a globally defined named path
+                    constraint set";
+                type leafref {
+                    path "/te/globals/path-named-constraints/name";
+                }
+            }
+            uses path-constraints;
+            choice type {
+                case dynamic {
+                    leaf dynamic {
+                        description
+                            "A CSPF dynamically computed path";
+                        type empty;
+                    }
+                }
+                case explicit {
+                    leaf explicit-path-name {
+                        description
+                            "Reference to a globally defined
+                            explicit-path";
+                        type leafref {
+                            path "/te/globals/explicit-paths/name";
+                        }
+                    }
+                }
+            }
+
+            leaf no-cspf {
+                description
+                    "Indicates no CSPF is to be attempted on this
+                     path.";
+                type empty;
+            }
+            leaf lockdown {
+                description
+                    "Indicates no reoptimization to be attempted for
+                    this path.";
+                type empty;
+            }
+        }
+    }
+
+    container te {
+        presence "Enable TE feature.";
+
+        /*** End of Groupings ***/
+        container globals {
+            description
+                "Configuration data model for Global System-wide
+                 Traffic Engineering.";
+
+            list interface-named-admin-groups {
+                if-feature ietf-te-types:extended-admin-groups;
+                if-feature ietf-te-types:named-extended-admin-groups;
+                key "name";
+                leaf name {
+                    description
+                        "A string name that uniquely identifies a TE
+                         interface named admin-group";
+                    type string;
+                }
+                leaf group {
+                    type ietf-te-types:admin-groups;
+                }
+            }
+
+            list interface-named-srlgs {
+                if-feature ietf-te-types:named-srlg-groups;
+                key "name";
+                leaf name {
+                    description
+                        "A string name that uniquely identifies a TE
+                         interface named srlg";
+                    type string;
+                }
+                leaf group {
+                    type ietf-te-types:srlg;
+                }
+            }
+
+            list explicit-paths {
+                key "name";
+                leaf name {
+                    description
+                        "A string name that uniquely identifies an
+                        explicit path";
+                    type string;
+                }
+                list explicit-route-objects {
+                    key "index";
+                    leaf index {
+                        type uint8 {
+                             range "0..255";
+                        }
+                    }
+                    uses ietf-te-types:explicit-route-object;
+                    leaf explicit-route-usage {
+                        description
+                            "An IP hop action.";
+                        type identityref {
+                            base ietf-te-types:route-usage-type;
+                        }
+                    }
+                }
+            }
+
+            list path-named-constraints {
+                if-feature ietf-te-types:named-path-constraints;
+                key "name";
+                leaf name {
+                    description
+                        "A string name that uniquely identifies a path
+                         constraint set";
+                    type string;
+                }
+                uses path-constraints;
+            }
+        }
+
+        /* TE Interface Configuration Data */
+        container interfaces {
+            description
+                "Configuration data model for TE interfaces.";
+
+            list interface {
+                key "interface";
+                description "TE interfaces.";
+                leaf interface {
+                     description
+                        "TE interface name.";
+                     type if:interface-ref;
+                }
+
+                list named-admin-groups {
+                    if-feature ietf-te-types:extended-admin-groups;
+                    if-feature
+                    ietf-te-types:named-extended-admin-groups;
+                    key named-admin-group;
+                    leaf named-admin-group {
+                     type leafref {
+                        path
+                        "/te/globals/interface-named-admin-groups/name";
+                      }
+                    }
+                }
+
+                list named-srlgs {
+                    if-feature ietf-te-types:named-srlg-groups;
+                    key named-srlg;
+                    leaf named-srlg {
+                        type leafref {
+                          path "/te/globals/interface-named-srlgs/name";
+                        }
+                    }
+                }
+
+                uses ietf-te-types:interface-switching-cap;
+                uses interface-attributes;
+                /* Link IGP flooding properties */
+                uses flooding-parameters;
+                uses fast-reroute-backups;
+            }
+        }
+
+        /* TE Tunnel Configuration Data */
+        container tunnels {
+            description
+                "Configuration, operational, notification and RPC data
+                model for TE tunnels.";
+
+            list tunnel {
+                key "name type";
+                unique "identifier";
+                description "TE tunnel.";
+                leaf name {
+                    type string;
+                    description "TE tunnel name.";
+                }
+                leaf type {
+                    description "TE tunnel type.";
+                    type identityref {
+                        base ietf-te-types:tunnel-type;
+                    }
+                }
+                leaf identifier {
+                    description
+                        "TE tunnel Identifier.";
+                    type uint16;
+                }
+                leaf description {
+                    description
+                        "TE tunnel description.";
+                    type string;
+                }
+                leaf admin-status {
+                    description "TE tunnel administrative state.";
+                    type identityref {
+                        base ietf-te-types:state-type;
+                    }
+                    default ietf-te-types:state-up;
+                }
+                uses ietf-te-types:tunnel-routing-properties;
+                uses ietf-te-types:tunnel-forwarding-properties;
+                uses ietf-te-types:tunnel-bidir-assoc-properties;
+
+                choice path-type {
+                    case p2p {
+                        leaf destination {
+                            type inet:ip-address;
+                        }
+                        /* P2P list of path(s) */
+                        list primary-paths {
+                            key "preference";
+                            leaf preference {
+                                 type uint8 {
+                                      range "1..255";
+                                 }
+                            }
+                            uses tunnel-path-properties;
+                            list seondary-paths {
+                                key "preference";
+                                leaf preference {
+                                     type uint8 {
+                                          range "1..255";
+                                     }
+                                }
+                                uses tunnel-path-properties;
+                            }
+                        }
+                    }
+                    case p2mp {
+                        if-feature ietf-te-types:p2mp-te;
+                        list p2mp-paths {
+                            key "destination";
+                            description
+                                "List of destinations and their paths.";
+                            leaf destination {
+                                type inet:ip-address;
+                            }
+                            list primary-paths {
+                                key "preference";
+                                leaf preference {
+                                     type uint8 {
+                                          range "1..255";
+                                     }
+                                }
+                                uses tunnel-path-properties;
+                                list seondary-paths {
+                                    key "preference";
+                                    leaf preference {
+                                         type uint8 {
+                                              range "1..255";
+                                         }
+                                    }
+                                    uses tunnel-path-properties;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /* MPLS-TE Global Operational Data */
+    container global-state {
+        config "false";
+        description
+            "State for global TE data";
+    }
+
+    /* TE Interfaces State Data */
+    container interface-state {
+        config "false";
+        description
+            "Operational data model for TE interfaces.";
+    }
+
+    /* TE Tunnel State Data */
+    container tunnels-state {
+        config "false";
+        description "MPLS-TE tunnel operational state data.";
+    }
+
+    /* TE Global RPCs/execution Data */
+    rpc globals-rpc {
+        description
+            "Execution data for TE global.";
+    }
+
+    /* TE interfaces RPCs/execution Data */
+    rpc interfaces-rpc {
+        description
+            "Execution data for TE interfaces.";
+    }
+
+    /* TE Tunnel RPCs/execution Data */
+    rpc tunnels-rpc {
+    }
+
+    /* TE Global Notification Data */
+    notification globals-notif {
+        description
+            "Notification messages for Global TE.";
+    }
+
+    /* TE Interfaces Notification Data */
+    notification interfaces-notif {
+        description
+            "Notification messages for TE interfaces.";
+    }
+    /* TE Tunnel Notification Data */
+    notification tunnels-notif {
+        description
+            "Notification messages for TE tunnels.";
+    }
+}

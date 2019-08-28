@@ -1,0 +1,134 @@
+module ietf-if-l3-vlan {
+  yang-version 1.1;
+
+  namespace "urn:ietf:params:xml:ns:yang:ietf-if-l3-vlan";
+
+  prefix if-l3-vlan;
+
+  import ietf-interfaces {
+    prefix if;
+  }
+  import iana-if-type {
+    prefix ianaift;
+  }
+
+  import ieee802-dot1q-types {
+    prefix dot1q-types;
+  }
+
+  import ietf-interfaces-common {
+    prefix if-cmn;
+  }
+
+  organization
+    "IETF NETMOD (NETCONF Data Modeling Language) Working Group";
+
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/netmod/>
+     WG List:  <mailto:netmod@ietf.org>
+
+     WG Chair: Lou Berger
+               <mailto:lberger@labn.net>
+
+     WG Chair: Kent Watsen
+               <mailto:kwatsen@juniper.net>
+
+     Editor:   Robert Wilton
+               <mailto:rwilton@cisco.com>";
+
+  description
+    "This YANG module models L3 VLAN sub-interfaces";
+
+  revision 2017-03-13 {
+    description "Latest draft revision";
+
+    reference
+      "Internet-Draft draft-ietf-netmod-sub-intf-vlan-model-01";
+  }
+
+  /*
+   * Add support for the 802.1Q VLAN encapsulation syntax on layer 3
+   * terminated VLAN sub-interfaces.
+   */
+  augment "/if:interfaces/if:interface/if-cmn:encapsulation/" +
+          "if-cmn:encaps-type" {
+    when "../if:type = 'ianaift:l2vlan' and
+          derived-from-or-self(../if-cmn:forwarding-mode,
+                               'if-cmn:network-layer')" {
+      description
+        "Applies only to VLAN sub-interfaces that are operating at
+         layer 3";
+    }
+    description
+      "Augment the generic interface encapsulation with an
+       encapsulation for layer 3 VLAN sub-interfaces";
+
+    /*
+     * Matches a VLAN, or pair of VLAN Ids to classify traffic
+     * into an L3 service.
+     */
+    case vlan {
+      container vlan {
+        description
+          "Match VLAN tagged frames with specific VLAN Ids";
+        list tag {
+          must 'index != 0 or ' +
+               'count(../tag/index) != 2 or ' +
+               'dot1q-tag/tag-type = "s-vlan"' {
+            error-message
+              "When matching two tags, the outer tag must be of
+               S-VLAN tag type";
+            description
+              "For IEEE 802.1Q interoperability, when matching two
+               tags, it is required that the outer tag is an S-VLAN,
+               and the inner tag is a C-VLAN";
+          }
+
+          must 'index != 1 or ' +
+               'count(../tag/index) != 2 or ' +
+               'dot1q-tag/tag-type = "c-vlan"' {
+            error-message
+              "When matching two tags, the inner tag must be of
+               C-VLAN tag type";
+            description
+              "For IEEE 802.1Q interoperability, when matching two
+               tags, it is required that the outer tag is an S-VLAN,
+               and the inner tag is a C-VLAN";
+          }
+
+          key "index";
+          min-elements 1;
+          max-elements 2;
+
+          description
+            "The tags to match, with the outermost tag to match with
+             index 0";
+          leaf index {
+            type uint8 {
+              range "0..1";
+            }
+
+            /*
+             * Only allow matching on an inner tag (at index 1), if
+             * also matching on the outer tag at the same time.
+             */
+            must ". = 0 or
+                  count(../../tag[index = 0]/index) > 0" {
+              error-message
+                "An inner tag can only be matched on when also
+                 matching on an outer tag";
+              description
+                "Only allow matching on an inner tag, if also
+                 matching on the outer tag at the same time";
+            }
+
+            description
+              "The index into the tag stack, outermost tag first";
+          }
+
+          uses dot1q-types:dot1q-tag-classifier-grouping;
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,228 @@
+module ietf-keyed-v6-tunnel {
+  namespace "urn:ietf:params:xml:ns:yang:keyed-v6-tun";
+  prefix k6tun;
+
+  import ietf-interfaces {
+    prefix if;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
+  description
+    "Keyed IPv6 L2TPv3 Tunnel";
+  contact
+    "qui.sun@external.telekom.de
+     ian.farrer@telekom.de
+     leo.liubing@huawei.com
+    ";
+  organization "IETF l2tpext Working Group";
+
+  revision 2015-03-09 {
+    description
+      "Initial version.
+      ";
+    reference
+      "https://tools.ietf.org/html/draft-ietf-l2tpext-keyed-ipv6-tunnel-03";
+  }
+
+  /*
+   * features
+   */
+  feature FCS-Retention {
+    description
+      "This feature means the device supports the retention of frame
+      check sequence (FCS) as per Section 4.7 of [RFC4720].";
+  }
+  feature VCCV {
+    description
+      "This feature means the device supports the Pseudowire
+      Virtual Circuit Connectivity Verification (VCCV) [RFC5085]";
+  }
+  feature BFD {
+    description
+      "This feature means the device supports the BFD function
+      over tunnel [RFC5883].";
+  }
+  feature VCCV-BFD {
+    description
+      "This feature means the device supports the BFD over VCCV
+      [RFC5885].";
+  }
+  feature l2tpv3-fragmentation {
+    description
+      "This feature means the device supports the L2TPv3 fragmentation
+      function. ";
+  }
+
+  /*
+   * typedefs
+   */
+  /*
+   * groupings
+   */
+
+  /*
+   * config parameters
+   */
+  container tunnelConfigurations {
+      config true;
+      list tunnelConfiguration {
+        key "tunnelName";
+        description
+          "keyed-v6-tunnel typically supports one l2tpv3 session
+          per tunnel. The srcInterface and localIPv6 both uniquely
+          identify a tunnel endpoint. If a virtual interface
+          is used, the localIPv6 and remoteIPv6 as a pair MUST
+          also be unique.
+          ";
+        unique "srcInterface remoteIPv6";
+        unique "localIPv6 remoteIPv6";
+        leaf tunnelName {
+          type string;
+        }
+        leaf srcInterface {
+          type if:interface-ref;
+          mandatory true;
+          description
+            "Source interface that identifies the L2 circuit endpiont.";
+        }
+        leaf localIPv6 {
+          type inet:ipv6-address;
+          mandatory true;
+        }
+        leaf remoteIPv6 {
+          type inet:ipv6-address;
+          mandatory true;
+        }
+        leaf localSessionId {
+          type uint32;
+          default 0xFFFFFFFF;
+          description
+            "Since IPv6 address is used to determine the tunnel
+            and there is one session per tunnel, the Session ID
+            can be ignored upon receipt. For compatibility with
+            other tunnel termination platforms supporting two-stage
+            resolution (IPv6 address + Session ID) the Session ID
+            is configured with a random value other than all zeros.
+            If both ends support one-stage (IPv6 address), then
+            the Session ID is recommended to be set to all ones.";
+        }
+        leaf remoteSessionId {
+          type uint32;
+          default 0xFFFFFFFF;
+          description
+            "Since IPv6 address is used to determine the tunnel
+            and there is one session per tunnel, the Session ID
+            can be ignored upon receipt. For compatibility with
+            other tunnel termination platforms supporting two-stage
+            resolution (IPv6 address + Session ID) the Session ID
+            is configured with a random value other than all zeros.
+            If both ends support one-stage (IPv6 address), then
+            the Session ID is recommended to be set to all ones.";
+        }
+        container localCookies {
+          list localCookie {
+            key "cookieName";
+            leaf cookieName {
+              type string;
+            }
+            min-elements 2;
+            max-elements 2;
+            leaf cookieValue {
+              mandatory true;
+              type uint64;
+            }
+          }
+          description
+            "The length of cookie MUST be 64-bit. It MUST be
+            possible to change the cookie value at any time
+            in a manner that does not drop any legitimate
+            tunneled packets - i.e. the receiver
+            must be willing to accept both 'old' and 'new'
+            cookie values during a change of cookie value.";
+        }
+        leaf remoteCookie {
+          mandatory true;
+          type uint64;
+          description
+            "The length of cookie MUST be 64-bit. Only be one
+            remote cookie is used for sending packets.";
+        }
+        leaf retainFCS {
+          if-feature FCS-Retention;
+          type empty;
+          description
+            "If this parameter presents, the router is configued
+             to retain FCS. Any such router for a tunnel MUST
+             retain the FCS for all frames sent over that tunnel.
+            ";
+        }
+        container enable-vccv {
+          if-feature VCCV;
+          presence "Enable VCCV [RFC5085]";
+          leaf enable-bfd {
+            if-feature VCCV-BFD;
+            type empty;
+              description "Enable VCCV-BFD [RFC5885].";
+          }
+        }
+        leaf enable-bfd {
+          if-feature BFD;
+          type empty;
+          description
+            "Enable BFD over the tunnel [RFC5883].";
+        }
+      }
+      leaf disable-pmtu {
+        type empty;
+          description "Disable IPv6 PMTU discovery [RFC1981]";
+      }
+      container enable-fragmentation {
+        if-feature l2tpv3-fragmentation;
+        presence "Enable L2TPv3 fragmentation [RFC4623]";
+        description
+          "Default is to fragment to PMTU (or 1500 if PMTU disabled)
+          minus 52 octet encaps overhead";
+        leaf fragment-mru {
+          type uint16;
+          description "Explicit override for fragmentation MRU";
+        }
+      }
+  }
+  container tunnelStates {
+    config false;
+      list tunnelState {
+        key "tunnelName";
+        leaf tunnelName {
+          type string;
+        }
+        leaf sentPacket {
+          type yang:zero-based-counter64;
+        }
+        leaf sentByte {
+          type yang:zero-based-counter64;
+        }
+        leaf rcvdPacket {
+          type yang:zero-based-counter64;
+        }
+        leaf rcvdByte {
+          type yang:zero-based-counter64;
+        }
+        leaf droppedPacket {
+          type yang:zero-based-counter64;
+        }
+        leaf droppedByte {
+          type yang:zero-based-counter64;
+        }
+        leaf fragmentCounter {
+          type yang:zero-based-counter64;
+          description
+            "This is used for counting the fragments of inner
+            packet. ";
+        }
+      }
+  }
+}

@@ -1,0 +1,1157 @@
+module ietf-mpls-mldp {
+  namespace "urn:ietf:params:xml:ns:yang:ietf-mpls-mldp";
+  prefix mldp;
+
+  import ietf-inet-types {
+    prefix "inet";
+  }
+
+  import ietf-routing {
+    prefix "rt";
+  }
+
+  import ietf-mpls {
+    prefix "mpls";
+  }
+
+  import ietf-mpls-ldp {
+    prefix "ldp";
+  }
+
+  organization
+    "IETF MPLS Working Group";
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/mpls/>
+     WG List:  <mailto:mpls@ietf.org>
+
+     WG Chair: Loa Andersson
+               <mailto:loa@pi.nu>
+
+     WG Chair: Ross Callon
+               <mailto:rcallon@juniper.net>
+     WG Chair: George Swallow
+               <mailto:swallow.ietf@gmail.com>
+
+     Editor:   Kamran Raza
+               <mailto:skraza@cisco.com>
+
+     Editor:   Rajiv Asati
+               <mailto:rajiva@cisco.com>
+
+     Editor:   Xufeng Liu
+               <mailto:xliu@kuatrotech.com>
+
+     Editor:   Santosh Esale
+               <mailto:sesale@juniper.net>
+
+     Editor:   Xia Chen
+               <mailto:jescia.chenxia@huawei.com>
+
+     Editor:   Himanshu Shah
+               <mailto:hshah@ciena.com>
+
+     Editor:   Sowmya Krishnaswamy
+               <mailto:sowkrish@cisco.com>";
+
+  description
+    "This YANG module defines the essential components for the
+     management of Multi-Protocol Label Switching (MPLS) Multipoint
+     LDP (mLDP).";
+
+  revision 2016-11-01 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX: YANG Data Model for MPLS mLDP.";
+  }
+
+  /*
+   * Features
+   */
+
+  feature capability-mldp-hsmp {
+    description
+      "This feature indicates that the system allows to configure
+       mLDP hub-and-spoke-multipoint capability.";
+  }
+
+  feature capability-mldp-node-protection {
+    description
+      "This feature indicates that the system allows to configure
+       mLDP node-protection capability.";
+  }
+
+  feature mldp {
+    description
+      "This feature indicates that the system supports Multicast
+       LDP (mLDP).";
+  }
+
+  feature mldp-mofrr {
+    description
+      "This feature indicates that the system supports mLDP
+       Multicast only FRR (MoFRR).";
+  }
+
+  /*
+   * Typedefs
+   */
+  typedef multipoint-type {
+    type enumeration {
+      enum p2mp {
+        description "Point to multipoint.";
+      }
+      enum mp2mp {
+        description "Multipoint to multipoint.";
+      }
+    }
+    description
+      "p2mp or mp2mp.";
+  }
+
+  typedef route-distinguisher {
+    type string {
+    }
+    description
+      "Type definition for route distinguisher.";
+    reference
+      "RFC4364: BGP/MPLS IP Virtual Private Networks (VPNs).";
+  }
+
+  /*
+   * Groupings
+   */
+
+  grouping mldp-capabilities {
+    description
+      "mLDP capabilities.";
+    container p2mp {
+      description
+        "Configure point-to-multipoint capability.";
+      leaf enable {
+        type boolean;
+        description
+          "Enable point-to-multipoint.";
+      }
+    }
+    container mp2mp {
+      description
+        "Configure multipoint-to-multipoint capability.";
+      leaf enable {
+        type boolean;
+        description
+          "Enable multipoint-to-multipoint.";
+      }
+    }
+    container make-before-break {
+      description
+        "Configure make-before-break capability.";
+      leaf enable {
+        type boolean;
+        description
+          "Enable make-before-break.";
+      }
+      leaf switchover-delay {
+        type uint16;
+        units seconds;
+        description
+          "Switchover delay in seconds.";
+      }
+      leaf timeout {
+        type uint16;
+        units seconds;
+        description
+          "Timeout in seconds.";
+      }
+    }
+    container hub-and-spoke {
+      if-feature capability-mldp-hsmp;
+      description
+        "Configure hub-and-spoke-multipoint capability.";
+      reference
+        "RFC7140: LDP Extensions for Hub and Spoke Multipoint
+         Label Switched Path";
+      leaf enable {
+        type boolean;
+        description
+          "Enable hub-and-spoke-multipoint.";
+      }
+    }
+    container node-protection {
+      if-feature capability-mldp-node-protection;
+      description
+        "Configure node-protection capability.";
+      reference
+        "RFC7715: mLDP Node Protection.";
+      leaf plr {
+        type boolean;
+        description
+          "Point of Local Repair capable for MP LSP node
+           protection.";
+      }
+      container merge-point {
+        description
+          "Merge Point capable for MP LSP node protection.";
+        leaf enable {
+          type boolean;
+          description
+            "Enable merge point capability.";
+        }
+        leaf targeted-session-teardown-delay {
+          type uint16;
+          units seconds;
+          description
+            "Targeted session teardown delay.";
+        }
+      } // merge-point
+    }
+  } // mldp-capabilities
+
+  grouping  mldp-configured-lsp-roots {
+    description
+      "mLDP roots containers.";
+
+    container roots-ipv4 {
+
+      when "../../../afi = 'ipv4'" {
+        description
+          "Only for IPv4.";
+      }
+      description
+        "Configured IPv4 multicast LSPs.";
+      list root {
+        key "root-address";
+        description
+          "List of roots for configured multicast LSPs.";
+
+        leaf root-address {
+          type inet:ipv4-address;
+          description
+            "Root address.";
+        }
+
+        list lsp {
+          must "(lsp-id = 0 and source-address != '0.0.0.0' and "
+            + "group-address != '0.0.0.0') or "
+            + "(lsp-id != 0 and source-address = '0.0.0.0' and "
+            + "group-address = '0.0.0.0')" {
+            description
+              "A LSP can be identified by either <lsp-id> or
+               <source-address, group-address>.";
+          }
+          key "lsp-id source-address group-address";
+          description
+            "List of LSPs.";
+          leaf lsp-id {
+            type uint16;
+            description "ID to identify the LSP.";
+          }
+          leaf source-address {
+            type inet:ipv4-address;
+            description
+              "Source address.";
+          }
+          leaf group-address {
+            type inet:ipv4-address-no-zone;
+            description
+              "Group address.";
+          }
+        } // list lsp
+      } // list root
+    } // roots-ipv4
+
+    container roots-ipv6 {
+
+      when "../../../afi = 'ipv6'" {
+        description
+          "Only for IPv6.";
+      }
+      description
+        "Configured IPv6 multicast LSPs.";
+
+      list root {
+        key "root-address";
+        description
+          "List of roots for configured multicast LSPs.";
+
+        leaf root-address {
+          type inet:ipv6-address;
+          description
+            "Root address.";
+        }
+
+        list lsp {
+          must "(lsp-id = 0 and source-address != '::' and "
+            + "group-address != '::') or "
+            + "(lsp-id != 0 and source-address = '::' and "
+            + "group-address = '::')" {
+            description
+              "A LSP can be identified by either <lsp-id> or
+               <source-address, group-address>.";
+          }
+          key "lsp-id source-address group-address";
+          description
+            "List of LSPs.";
+          leaf lsp-id {
+            type uint16;
+            description "ID to identify the LSP.";
+          }
+          leaf source-address {
+            type inet:ipv6-address;
+            description
+              "Source address.";
+          }
+          leaf group-address {
+            type inet:ipv6-address-no-zone;
+            description
+              "Group address.";
+          }
+        } // list lsp
+      } // list root
+    } // roots-ipv6
+  } // mldp-configured-lsp-roots
+
+  grouping mldp-fec-event {
+    description
+      "A mLDP FEC event.";
+    leaf tree-type {
+      type multipoint-type;
+      description
+        "p2mp or mp2mp.";
+    }
+    leaf root {
+      type inet:ip-address;
+      description
+        "Root address.";
+    }
+    choice lsp-key-type {
+      description
+        "LSP ID based or source-group based .";
+      case lsp-id-based {
+        leaf lsp-id {
+          type uint16;
+          description
+            "ID to identify the LSP.";
+        }
+      }
+      case source-group-based {
+        leaf source-address {
+          type inet:ip-address;
+          description
+
+            "LSP source address.";
+        }
+        leaf group-address {
+          type inet:ip-address;
+          description
+            "Multicast group address.";
+        }
+      } // case source-group-based
+    }
+  } // mldp-fec-event
+
+  grouping  mldp-binding-label-state-attributes {
+    description
+      "mLDP label binding attributes.";
+
+    leaf multipoint-type {
+      type multipoint-type;
+      description
+        "The type of mutipoint, p2mp or mp2mp.";
+    }
+    list peer {
+      key "direction peer advertisement-type";
+      description
+        "List of advertised and received peers.";
+      leaf direction {
+        type ldp:downstream-upstream;
+        description
+          "Downstream or upstream.";
+      }
+      leaf peer {
+        type leafref {
+          path
+            "../../../../../../../../../../ldp:peers/ldp:peer/ldp:lsr-id";
+        }
+        description
+          "LDP peer from which this binding is received,
+           or to which this binding is advertised.";
+      }
+      leaf advertisement-type {
+        type ldp:advertised-received;
+        description
+          "Advertised or received.";
+      }
+      leaf label {
+        type mpls:mpls-label;
+        description
+          "Advertised (outbound) or received (inbound) label.";
+      }
+      leaf mbb-role {
+        when "../direction = 'upstream'" {
+          description
+            "For upstream.";
+        }
+        type enumeration {
+          enum none {
+            description "MBB is not enabled.";
+          }
+          enum active {
+            description "This LSP is active.";
+          }
+          enum inactive {
+            description "This LSP is inactive.";
+          }
+        }
+        description
+          "The MBB status of this LSP.";
+      }
+      leaf mofrr-role {
+        when "../direction = 'upstream'" {
+          description
+            "For upstream.";
+        }
+        type enumeration {
+          enum none {
+            description "MOFRR is not enabled.";
+          }
+          enum primary {
+            description "This LSP is primary.";
+          }
+          enum backup {
+            description "This LSP is backup.";
+          }
+        }
+        description
+          "The MOFRR status of this LSP.";
+      }
+    } // peer
+  } // mldp-binding-label-state-attributes
+
+  /*
+   * Configuration data nodes
+   */
+  augment "/rt:routing/rt:control-plane-protocols/"
+    + "ldp:mpls-ldp/ldp:global/ldp:config/ldp:capability" {
+    description "Augmentation for MLDP global capability.";
+    container mldp {
+      description
+        "Multipoint capabilities.";
+      uses mldp-capabilities;
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols/"
+    + "ldp:mpls-ldp/ldp:peers/ldp:peer/ldp:config/ldp:capability" {
+    description "Augmentation for MLDP peer capability.";
+    container mldp {
+      if-feature mldp;
+      description
+        "mLDP capabilities.";
+      uses mldp-capabilities;
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols/"
+    + "ldp:mpls-ldp/ldp:global/ldp:forwarding-nexthop/"
+    + "ldp:interfaces/ldp:interface/ldp:address-family/"
+    + "ldp:config" {
+    description
+      "Augmentation for MLDP nexthop forwarding interface.";
+    leaf mldp-disable {
+      if-feature mldp;
+      type boolean;
+      description
+        "Disable mLDP forwarding on the interface.";
+    }
+  }
+
+  /*
+   * Operational state data nodes
+   */
+  augment "/rt:routing/rt:control-plane-protocols/"
+    + "ldp:mpls-ldp/ldp:global/ldp:state/ldp:capability" {
+    description "Augmentation for MLDP global capability.";
+    container mldp {
+      description
+        "Multipoint capabilities.";
+      uses mldp-capabilities;
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols/"
+    + "ldp:mpls-ldp/ldp:peers/ldp:peer/ldp:state/ldp:capability" {
+    description "Augmentation for MLDP peer capability.";
+    container mldp {
+      if-feature mldp;
+      description
+        "mLDP capabilities.";
+      uses mldp-capabilities;
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols/"
+    + "ldp:mpls-ldp/ldp:peers/ldp:peer/ldp:state/"
+    + "ldp:received-peer-state/ldp:capability" {
+    description
+      "Augmentation for MLDP received peer state capability.";
+    container mldp {
+      if-feature mldp;
+      description
+        "Multipoint capabilities.";
+
+      container p2mp {
+        description
+          "Configure point-to-multipoint capability.";
+        leaf enable {
+          type boolean;
+          description
+            "Enable point-to-multipoint.";
+        }
+      }
+      container mp2mp {
+        description
+          "Configure multipoint-to-multipoint capability.";
+        leaf enable {
+          type boolean;
+          description
+            "Enable multipoint-to-multipoint.";
+        }
+      }
+      container make-before-break {
+        description
+          "Configure make-before-break capability.";
+        leaf enable {
+          type boolean;
+          description
+            "Enable make-before-break.";
+        }
+      }
+      container hub-and-spoke {
+        description
+          "Configure hub-and-spoke-multipoint capability.";
+        reference
+          "RFC7140: LDP Extensions for Hub and Spoke Multipoint
+           Label Switched Path";
+        leaf enable {
+          type boolean;
+          description
+            "Enable hub-and-spoke-multipoint.";
+        }
+      }
+      container node-protection {
+        description
+          "Configure node-protection capability.";
+        reference
+          "RFC7715: mLDP Node Protection.";
+        leaf plr {
+          type boolean;
+          description
+            "Point of Local Repair capable for MP LSP node
+             protection.";
+        }
+        leaf merge-point {
+          type boolean;
+          description
+            "Merge Point capable for MP LSP node protection.";
+        } // merge-point
+      } // node-protection
+    } // mldp
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols/"
+    + "ldp:mpls-ldp/ldp:global/ldp:forwarding-nexthop/"
+    + "ldp:interfaces/ldp:interface/ldp:address-family/"
+    + "ldp:state" {
+    description
+      "Augmentation for MLDP nexthop forwarding interface.";
+    leaf mldp-disable {
+      if-feature mldp;
+      type boolean;
+      description
+        "Disable mLDP forwarding on the interface.";
+    }
+  }
+
+  /*
+   * Global augmentation
+   */
+  augment "/rt:routing/rt:control-plane-protocols/"
+    + "ldp:mpls-ldp/ldp:global" {
+    description "MLDP global augmentation.";
+    container mldp {
+      if-feature mldp;
+      description
+        "mLDP attributes at per instance level. Defining
+         attributes here does not enable any MP capabilities.
+         MP capabilities need to be explicitly enabled under
+         container capability.";
+
+      container config {
+        description
+          "Configuration data.";
+        leaf enable {
+          type boolean;
+          description
+            "Enable mLDP.";
+        }
+      }
+      container state {
+        config false;
+        description
+
+          "Operational state data.";
+        leaf enable {
+          type boolean;
+          description
+            "Enable mLDP.";
+        }
+      }
+
+      list address-family {
+        key "afi";
+        description
+          "Per-af params.";
+        leaf afi {
+          type ldp:ldp-address-family;
+          description
+            "Address family type value.";
+        }
+
+        container config {
+          description
+            "Configuration data.";
+          container multicast-only-frr {
+            if-feature mldp-mofrr;
+            description
+              "Multicast only FRR (MoFRR) policy.";
+            leaf prefix-list {
+              type ldp:prefix-list-ref;
+              description
+                "Enables MoFRR for the specified access list.";
+            }
+          } // multicast-only-frr
+          container recursive-fec {
+            description
+              "Recursive FEC policy.";
+            leaf prefix-list {
+              type ldp:prefix-list-ref;
+              description
+                "Enables recursive FEC for the specified access
+                 list.";
+            }
+          } // recursive-for
+        }
+        container state {
+          config false;
+          description
+            "Operational state data.";
+          container multicast-only-frr {
+            if-feature mldp-mofrr;
+
+            description
+              "Multicast only FRR (MoFRR) policy.";
+            leaf prefix-list {
+              type ldp:prefix-list-ref;
+              description
+                "Enables MoFRR for the specified access list.";
+            }
+          } // multicast-only-frr
+          container recursive-fec {
+            description
+              "Recursive FEC policy.";
+            leaf prefix-list {
+              type ldp:prefix-list-ref;
+              description
+                "Enables recursive FEC for the specified access
+                 list.";
+            }
+          } // recursive-fec
+
+          container ipv4 {
+            when "../../afi = 'ipv4'" {
+              description
+                "Only for IPv4.";
+            }
+            description
+              "IPv4 state information.";
+            container roots {
+              description
+                "IPv4 multicast LSP roots.";
+              list root {
+                key "root-address";
+                description
+                  "List of roots for configured multicast LSPs.";
+
+                leaf root-address {
+                  type inet:ipv4-address;
+                  description
+                    "Root address.";
+                }
+
+                leaf is-self {
+                  type boolean;
+                  description
+                    "This is the root.";
+                }
+
+                list reachability {
+                  key "address interface";
+                  description
+                    "A next hop for reachability to root,
+                     as a RIB view.";
+                  leaf address {
+                    type inet:ipv4-address;
+                    description
+                      "The next hop address to reach root.";
+                  }
+                  leaf interface {
+                    type ldp:mpls-interface-ref;
+                    description
+                      "Interface connecting to next-hop.";
+                  }
+                  leaf peer {
+                    type leafref {
+                      path
+                        "../../../../../../../../../ldp:peers/"
+                        + "ldp:peer/ldp:lsr-id";
+                    }
+                    description
+                      "LDP peer from which this next hop can be
+                           reached.";
+                  }
+                }
+              } // list root
+            } // roots
+            container bindings {
+              description
+                "mLDP FEC to label bindings.";
+              container opaque-type-lspid {
+                description
+                  "The type of opaque value element is
+                   the generic LSP identifier";
+                reference
+                  "RFC6388: Label Distribution Protocol
+                   Extensions for Point-to-Multipoint and
+                   Multipoint-to-Multipoint Label Switched
+                   Paths.";
+                list fec-label {
+                  key
+                    "root-address lsp-id "
+                    + "recur-root-address recur-rd";
+                  description
+                    "List of FEC to label bindings.";
+                  leaf root-address {
+                    type inet:ipv4-address;
+                    description
+                      "Root address.";
+                  }
+                  leaf lsp-id {
+                    type uint32;
+                    description "ID to identify the LSP.";
+                  }
+                  leaf recur-root-address {
+                    type inet:ip-address;
+                    description
+                      "Recursive root address.";
+                    reference
+                      "RFC6512: Using Multipoint LDP When the
+                       Backbone Has No Route to the Root";
+                  }
+                  leaf recur-rd {
+                    type route-distinguisher;
+                    description
+                      "Route Distinguisher in the VPN-Recursive
+                       Opaque Value.";
+                    reference
+                      "RFC6512: Using Multipoint LDP When the
+                       Backbone Has No Route to the Root";
+                  }
+                  uses mldp-binding-label-state-attributes;
+                } // fec-label
+              } // opaque-type-lspid
+
+              container opaque-type-transit {
+                description
+                  "The type of opaque value element is
+                   the generic LSP identifier";
+                reference
+                  "RFC6826: Multipoint LDP In-Band Signaling for
+                   Point-to-Multipoint and
+                   Multipoint-to-Multipoint Label Switched
+                   Paths.";
+                list fec-label {
+                  key
+                    "root-address source-address group-address "
+                    + "rd recur-root-address recur-rd";
+                  description
+                    "List of FEC to label bindings.";
+                  leaf root-address {
+                    type inet:ipv4-address;
+                    description
+                      "Root address.";
+                  }
+                  leaf source-address {
+                    type inet:ip-address;
+                    description
+                      "Source address.";
+                  }
+                  leaf group-address {
+                    type inet:ip-address-no-zone;
+                    description
+                      "Group address.";
+                  }
+                  leaf rd {
+                    type route-distinguisher;
+                    description
+                      "Route Distinguisher.";
+                    reference
+                      "RFC7246: Multipoint Label Distribution
+                       Protocol In-Band Signaling in a Virtual
+                       Routing and Forwarding (VRF) Table
+                       Context.";
+                  }
+                  leaf recur-root-address {
+                    type inet:ip-address;
+                    description
+                      "Recursive root address.";
+                    reference
+                      "RFC6512: Using Multipoint LDP When the
+                       Backbone Has No Route to the Root";
+                  }
+                  leaf recur-rd {
+                    type route-distinguisher;
+                    description
+                      "Route Distinguisher in the VPN-Recursive
+                       Opaque Value.";
+                    reference
+                      "RFC6512: Using Multipoint LDP When the
+                       Backbone Has No Route to the Root";
+                  }
+                  uses mldp-binding-label-state-attributes;
+                } // fec-label
+              } // opaque-type-transit
+
+              container opaque-type-bidir {
+                description
+                  "The type of opaque value element is
+                   the generic LSP identifier";
+                reference
+                  "RFC6826: Multipoint LDP In-Band Signaling for
+                   Point-to-Multipoint and
+                   Multipoint-to-Multipoint Label Switched
+                   Paths.";
+                list fec-label {
+                  key
+                    "root-address rp group-address "
+                    + "rd recur-root-address recur-rd";
+                  description
+                    "List of FEC to label bindings.";
+                  leaf root-address {
+                    type inet:ipv4-address;
+                    description
+                      "Root address.";
+                  }
+                  leaf rp {
+                    type inet:ip-address;
+                    description
+                      "RP address.";
+                  }
+                  leaf group-address {
+                    type inet:ip-address-no-zone;
+                    description
+                      "Group address.";
+                  }
+                  leaf rd {
+                    type route-distinguisher;
+                    description
+                      "Route Distinguisher.";
+                    reference
+                      "RFC7246: Multipoint Label Distribution
+                       Protocol In-Band Signaling in a Virtual
+                       Routing and Forwarding (VRF) Table
+                       Context.";
+                  }
+                  leaf recur-root-address {
+                    type inet:ip-address;
+                    description
+                      "Recursive root address.";
+                    reference
+                      "RFC6512: Using Multipoint LDP When the
+                       Backbone Has No Route to the Root";
+                  }
+                  leaf recur-rd {
+                    type route-distinguisher;
+                    description
+                      "Route Distinguisher in the VPN-Recursive
+                       Opaque Value.";
+                    reference
+                      "RFC6512: Using Multipoint LDP When the
+                       Backbone Has No Route to the Root";
+                  }
+                  uses mldp-binding-label-state-attributes;
+                } // fec-label
+              } // opaque-type-bidir
+            } // bindings
+          } // ipv4
+
+          container ipv6 {
+            when "../../afi = 'ipv6'" {
+              description
+                "Only for IPv6.";
+            }
+            description
+              "IPv6 state information.";
+            container roots {
+              description
+                "IPv6 multicast LSP roots.";
+              list root {
+                key "root-address";
+                description
+                  "List of roots for configured multicast LSPs.";
+
+                leaf root-address {
+                  type inet:ipv6-address;
+                  description
+                    "Root address.";
+                }
+
+                leaf is-self {
+                  type boolean;
+                  description
+                    "This is the root.";
+                }
+
+                list reachability {
+                  key "address interface";
+                  description
+                    "A next hop for reachability to root,
+                     as a RIB view.";
+                  leaf address {
+                    type inet:ipv6-address;
+                    description
+                      "The next hop address to reach root.";
+                  }
+                  leaf interface {
+                    type ldp:mpls-interface-ref;
+                    description
+                      "Interface connecting to next-hop.";
+                  }
+                  leaf peer {
+                    type leafref {
+                      path
+                        "../../../../../../../../../ldp:peers/"
+                        + "ldp:peer/ldp:lsr-id";
+                    }
+                    description
+                      "LDP peer from which this next hop can be
+                       reached.";
+                  }
+                }
+              } // list root
+            } // roots
+            container bindings {
+              description
+                "mLDP FEC to label bindings.";
+              container opaque-type-lspid {
+                description
+                  "The type of opaque value element is
+                   the generic LSP identifier";
+                reference
+                  "RFC6388: Label Distribution Protocol
+                   Extensions for Point-to-Multipoint and
+                   Multipoint-to-Multipoint Label Switched
+                   Paths.";
+                list fec-label {
+                  key
+                    "root-address lsp-id "
+                    + "recur-root-address recur-rd";
+                  description
+                    "List of FEC to label bindings.";
+                  leaf root-address {
+                    type inet:ipv6-address;
+                    description
+                      "Root address.";
+                  }
+                  leaf lsp-id {
+                    type uint32;
+                    description "ID to identify the LSP.";
+                  }
+                  leaf recur-root-address {
+                    type inet:ip-address;
+                    description
+                      "Recursive root address.";
+                    reference
+                      "RFC6512: Using Multipoint LDP When the
+                       Backbone Has No Route to the Root";
+                  }
+                  leaf recur-rd {
+                    type route-distinguisher;
+                    description
+                      "Route Distinguisher in the VPN-Recursive
+                       Opaque Value.";
+                    reference
+                      "RFC6512: Using Multipoint LDP When the
+                       Backbone Has No Route to the Root";
+                  }
+                  uses mldp-binding-label-state-attributes;
+                } // fec-label
+              } // opaque-type-lspid
+
+              container opaque-type-transit {
+                description
+                  "The type of opaque value element is
+                   the generic LSP identifier";
+                reference
+                  "RFC6826: Multipoint LDP In-Band Signaling for
+                   Point-to-Multipoint and
+                   Multipoint-to-Multipoint Label Switched
+                   Paths.";
+                list fec-label {
+                  key
+                    "root-address source-address group-address "
+                    + "rd recur-root-address recur-rd";
+                  description
+                    "List of FEC to label bindings.";
+                  leaf root-address {
+                    type inet:ipv6-address;
+                    description
+                      "Root address.";
+                  }
+                  leaf source-address {
+                    type inet:ip-address;
+                    description
+                      "Source address.";
+                  }
+                  leaf group-address {
+                    type inet:ip-address-no-zone;
+                    description
+                      "Group address.";
+                  }
+                  leaf rd {
+                    type route-distinguisher;
+                    description
+                      "Route Distinguisher.";
+                    reference
+                      "RFC7246: Multipoint Label Distribution
+                       Protocol In-Band Signaling in a Virtual
+                       Routing and Forwarding (VRF) Table
+                       Context.";
+                  }
+                  leaf recur-root-address {
+                    type inet:ip-address;
+                    description
+                      "Recursive root address.";
+                    reference
+                      "RFC6512: Using Multipoint LDP When the
+                       Backbone Has No Route to the Root";
+                  }
+                  leaf recur-rd {
+                    type route-distinguisher;
+                    description
+                      "Route Distinguisher in the VPN-Recursive
+                       Opaque Value.";
+                    reference
+                      "RFC6512: Using Multipoint LDP When the
+                       Backbone Has No Route to the Root";
+                  }
+                  uses mldp-binding-label-state-attributes;
+                } // fec-label
+              } // opaque-type-transit
+
+              container opaque-type-bidir {
+                description
+                  "The type of opaque value element is
+                   the generic LSP identifier";
+                reference
+                  "RFC6826: Multipoint LDP In-Band Signaling for
+                   Point-to-Multipoint and
+                   Multipoint-to-Multipoint Label Switched
+                   Paths.";
+                list fec-label {
+                  key
+                    "root-address rp group-address "
+                    + "rd recur-root-address recur-rd";
+                  description
+                    "List of FEC to label bindings.";
+                  leaf root-address {
+                    type inet:ipv6-address;
+                    description
+                      "Root address.";
+                  }
+                  leaf rp {
+                    type inet:ip-address;
+                    description
+                      "RP address.";
+                  }
+                  leaf group-address {
+                    type inet:ip-address-no-zone;
+                    description
+                      "Group address.";
+                  }
+                  leaf rd {
+                    type route-distinguisher;
+                    description
+                      "Route Distinguisher.";
+                    reference
+                      "RFC7246: Multipoint Label Distribution
+                       Protocol In-Band Signaling in a Virtual
+                       Routing and Forwarding (VRF) Table
+                       Context.";
+                  }
+                  leaf recur-root-address {
+                    type inet:ip-address;
+                    description
+                      "Recursive root address.";
+                    reference
+                      "RFC6512: Using Multipoint LDP When the
+                       Backbone Has No Route to the Root";
+                  }
+                  leaf recur-rd {
+                    type route-distinguisher;
+                    description
+                      "Route Distinguisher in the VPN-Recursive
+                       Opaque Value.";
+                    reference
+                      "RFC6512: Using Multipoint LDP When the
+                       Backbone Has No Route to the Root";
+                  }
+                  uses mldp-binding-label-state-attributes;
+                } // fec-label
+              } // opaque-type-bidir
+            } // bindings
+          } // ipv6
+        } // state
+
+        container configured-leaf-lsps {
+          description
+            "Configured multicast LSPs.";
+
+          container p2mp {
+            description
+              "Configured point-to-multipoint LSPs.";
+            uses mldp-configured-lsp-roots;
+          }
+          container mp2mp {
+            description
+              "Configured multipoint-to-multipoint LSPs.";
+            uses mldp-configured-lsp-roots;
+          }
+        } // configured-leaf-lsps
+      } // list address-family
+    } // mldp
+  }
+
+  /*
+   * Notifications
+   */
+  notification mpls-mldp-fec-event {
+    description
+      "Notification event for a change of FEC status.";
+    leaf event-type {
+      type ldp:oper-status-event-type;
+      description "Event type.";
+    }
+    uses mldp-fec-event;
+  }
+}

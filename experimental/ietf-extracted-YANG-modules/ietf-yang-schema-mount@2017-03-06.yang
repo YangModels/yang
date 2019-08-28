@@ -1,0 +1,276 @@
+module ietf-yang-schema-mount {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-yang-schema-mount";
+  prefix yangmnt;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+
+  import ietf-yang-library {
+    prefix yanglib;
+    reference
+      "RFC 7895: YANG Module Library";
+  }
+
+  organization
+    "IETF NETMOD (NETCONF Data Modeling Language) Working Group";
+
+  contact
+    "WG Web:   <https://tools.ietf.org/wg/netmod/>
+     WG List:  <mailto:netmod@ietf.org>
+
+     Editor:   Martin Bjorklund
+               <mailto:mbj@tail-f.com>
+
+     Editor:   Ladislav Lhotka
+               <mailto:lhotka@nic.cz>";
+
+  description
+    "This module defines a YANG extension statement that can be used
+     to incorporate data models defined in other YANG modules in a
+     module. It also defines operational state data that specify the
+     overall structure of the data model.
+
+     Copyright (c) 2017 IETF Trust and the persons identified as
+     authors of the code. All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Simplified BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'MAY', and
+     'OPTIONAL' in the module text are to be interpreted as described
+     in RFC 2119 (https://tools.ietf.org/html/rfc2119).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://tools.ietf.org/html/rfcXXXX); see the RFC itself for
+     full legal notices.";
+
+  revision 2017-03-06 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX: YANG Schema Mount";
+  }
+
+  /*
+   * Extensions
+   */
+
+  extension mount-point {
+    argument name;
+    description
+      "The argument 'name' is a YANG identifier, i.e., it is of the
+       type 'yang:yang-identifier'.
+
+       The 'mount-point' statement MUST NOT be used in a YANG
+       version 1 module, neither explicitly nor via a 'uses'
+       statement.
+
+       The 'mount-point' statement MAY be present as a substatement
+       of 'container' and 'list', and MUST NOT be present elsewhere.
+
+       If a mount point is defined in a grouping, its name is bound
+       to the module where the grouping is used.
+
+       A mount point defines a place in the node hierarchy where
+       other data models may be attached. A server that implements a
+       module with a mount point populates the
+       /schema-mounts/mount-point list with detailed information on
+       which data models are mounted at each mount point.";
+  }
+
+  /*
+   * Groupings
+   */
+
+  grouping mount-point-list {
+    description
+      "This grouping is used inside the 'schema-mounts' container and
+       inside the 'schema' list.";
+    list mount-point {
+      key "module name";
+      description
+        "Each entry of this list specifies a schema for a particular
+         mount point.
+
+         Each mount point MUST be defined using the 'mount-point'
+         extension in one of the modules listed in the corresponding
+         YANG library instance with conformance type 'implement'. The
+         corresponding YANG library instance is:
+
+         - standard YANG library state data as defined in RFC 7895,
+           if the 'mount-point' list is a child of 'schema-mounts',
+
+         - the contents of the sibling 'yanglib:modules-state'
+           container, if the 'mount-point' list is a child of
+           'schema'.";
+      leaf module {
+        type yang:yang-identifier;
+        description
+          "Name of a module containing the mount point.";
+      }
+      leaf name {
+        type yang:yang-identifier;
+        description
+          "Name of the mount point defined using the 'mount-point'
+           extension.";
+      }
+      leaf config {
+        type boolean;
+        default "true";
+        description
+          "If this leaf is set to 'false', then all data nodes in the
+           mounted schema are read-only (config false), regardless of
+           their 'config' property.";
+      }
+      choice schema-ref {
+        description
+          "Alternatives for specifying the schema.";
+        leaf inline {
+          type empty;
+          description
+            "This leaf indicates that the server has mounted
+             'ietf-yang-library' and 'ietf-schema-mount' at the mount
+             point, and their instantiation (i.e., state data
+             containers 'yanglib:modules-state' and 'schema-mounts')
+             provides the information about the mounted schema.";
+        }
+        list use-schema {
+          key "name";
+          description
+            "Each entry of this list contains a reference to a schema
+             defined in the /schema-mounts/schema list. The entry can
+             be made conditional by specifying an XPath expression in
+             the 'when' leaf.";
+          leaf name {
+            type leafref {
+              path "/schema-mounts/schema/name";
+            }
+            description
+              "Name of the referenced schema.";
+          }
+          leaf when {
+            type yang:xpath1.0;
+            description
+              "This leaf contains an XPath expression. If it is
+               present, then the current entry applies if and only if
+               the expression evaluates to true.
+
+               The XPath expression is evaluated once for each
+               instance of the data node containing the mount
+               point for which the 'when' leaf is defined.
+
+               The XPath expression is evaluated using the rules
+               specified in sec. 6.4 of RFC 7950, with these
+               modifications:
+
+               - The context node is the data node instance
+                 containing the corresponding 'mount-point'
+                 statement.
+
+               - The accessible tree contains only data belonging to
+                 the parent schema, i.e., all instances of data
+                 nodes containing the mount points are considered
+                 empty.
+
+               - The set of namespace declarations is the set of all
+                 prefix/namespace pairs defined in the
+                 /schema-mounts/namespace list. Names without a
+                 namespace prefix belong to the same namespace as the
+                 context node.";
+          }
+          leaf-list parent-reference {
+            type yang:yang-identifier;
+            must "not(/schema-mounts/schema[name=current()/../name]/"
+               + "module[name=current() and conformance-type="
+               + "'implement'])" {
+              error-message "Parent references cannot be used for a "
+                + "module implemented in the mounted schema.";
+              description
+                "Modules that are used for parent references MUST NOT
+                 be implemented in the mounted schema.";
+            }
+            description
+              "Entries of this leaf-list are names of YANG modules.
+               All these modules MUST be implemented in the parent
+               schema.
+
+               Within the mounted schema and the corresponding data
+               tree, conceptual evaluation of absolute leafref paths
+               and instance identifiers is modified in the following
+               way:
+
+               If the leftmost node-identifier in an absolute leafref
+               path or instance identifier belongs to a module whose
+               name is listed in 'parent-reference', then the root
+               of the accessible data tree coincides with the root of
+               the parent data tree.";
+          }
+        }
+      }
+    }
+  }
+
+  /*
+   * State data nodes
+   */
+
+  container schema-mounts {
+    config false;
+    description
+      "Contains information about the structure of the overall
+       mounted data model implemented in the server.";
+    list namespace {
+      key "prefix";
+      description
+        "This list provides a mapping of namespace prefixes that are
+         used in XPath expressions of 'when' leafs to the
+         corresponding namespace URI references.";
+      leaf prefix {
+        type yang:yang-identifier;
+        description
+          "Namespace prefix.";
+      }
+      leaf ns-uri {
+        type inet:uri;
+        description
+          "Namespace URI reference.";
+      }
+    }
+    uses mount-point-list;
+    list schema {
+      key "name";
+      description
+        "Each entry specifies a schema that can be mounted at a mount
+         point.  The schema information consists of two parts:
+
+         - an instance of YANG library that defines YANG modules used
+           in the schema,
+
+         - mount-point list with content identical to the top-level
+           mount-point list (this makes the schema structure
+           recursive).";
+      leaf name {
+        type string;
+        description
+          "Arbitrary name of the schema entry.";
+      }
+      uses yanglib:module-list;
+      uses mount-point-list;
+    }
+  }
+}

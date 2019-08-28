@@ -1,0 +1,533 @@
+module bgp-policy {
+
+  yang-version "1";
+
+  // namespace
+  namespace "http://openconfig.net/yang/bgp-policy";
+
+  prefix "bgp-pol";
+
+  // import some basic types
+  import ietf-inet-types { prefix inet; }
+  import routing-policy {prefix rpol; }
+  import policy-types {prefix pt; }
+
+  // meta
+  organization
+    "OpenConfig working group";
+
+  contact
+    "OpenConfig working group
+    netopenconfig@googlegroups.com";
+
+  description
+    "This module contains data definitions for BGP routing policy.
+    It augments the base routing-policy module with BGP-specific
+    options for conditions and actions.";
+
+  revision "2014-11-30" {
+    description
+      "Updated model to augment base routing-policy module";
+    reference "TBD";
+  }
+
+  // extension statements
+
+  // feature statements
+
+  // identity statements
+
+  // typedef statements
+
+  typedef bgp-as-path-prepend-repeat {
+    type uint8;
+    description
+      "Option for the BGP as-prepend policy action.  Prepends the
+      local AS number repeated n times";
+  }
+
+  typedef bgp-well-known-community-type {
+    type enumeration {
+      enum INTERNET {
+        description "entire Internet community (0x00000000)";
+      }
+      enum NO_EXPORT {
+        // value 0xFFFFFF01;
+        description "no export";
+      }
+      enum NO_ADVERTISE {
+        description "no advertise (0xFFFFFF02)";
+      }
+      enum NO_EXPORT_SUBCONFED {
+        description "no export subconfed, equivalent to
+        local AS (0xFFFFFF03)";
+      }
+    }
+    description
+      "Type definition for well-known IETF community attribute
+      values";
+    reference "RFC 1997 - BGP Communities Attribute";
+  }
+
+  typedef bgp-std-community-type {
+    // TODO: further refine restrictions and allowed patterns
+    // 4-octet value:
+    //  <as number> 2 octets
+    //  <community value> 2 octets
+    type union {
+      type uint32 {
+      // per RFC 1997, 0x00000000 - 0x0000FFFF and 0xFFFF0000 -
+      // 0xFFFFFFFF are reserved
+        range "65536..4294901759"; // 0x00010000..0xFFFEFFFF
+      }
+      type string {
+        pattern '([0-9]+:[0-9]+)';
+      }
+    }
+    description
+      "Type definition for standard commmunity attributes";
+    reference "RFC 1997 - BGP Communities Attribute";
+  }
+
+  typedef bgp-ext-community-type {
+    // TODO: needs more work to make this more precise given the
+    // variability of extended community attribute specifications
+    // 8-octet value:
+    //  <type> 2 octects
+    //  <value> 6 octets
+    type string {
+      pattern '([0-9\.]+(:[0-9]+)?:[0-9]+)';
+    }
+    description
+      "Type definition for extended community attributes";
+    reference "RFC 4360 - BGP Extended Communities Attribute";
+  }
+
+  typedef bgp-community-regexp-type {
+    // TODO: needs more work to decide what format these regexps can
+    // take.
+    type string;
+    description
+      "Type definition for communities specified as regular
+      expression patterns";
+  }
+
+  typedef bgp-origin-attr-type {
+    type enumeration {
+      enum IGP {
+        value 0;
+        description "Origin of the NLRI is internal";
+      }
+      enum EGP {
+        value 1;
+        description "Origin of the NLRI is EGP";
+      }
+      enum INCOMPLETE {
+        value 2;
+        description "Origin of the NLRI is neither IGP or EGP";
+      }
+    }
+    description
+      "Type definition for standard BGP origin attribute";
+    reference "RFC 4271 - A Border Gateway Protocol 4 (BGP-4),
+      Sec 4.3";
+  }
+
+  typedef bgp-set-community-option-type {
+    type enumeration {
+      enum ADD {
+        description "add the specified communities to the existing
+        community attribute";
+      }
+      enum REMOVE {
+        description "remove the specified communities from the
+        existing community attribute";
+      }
+      enum REPLACE {
+        description "replace the existing community attribute with
+        the specified communities";
+      }
+      enum NULL {
+        description "set the community attribute to empty / NULL";
+      }
+    }
+    description
+      "Type definition for options when setting the community
+      attribute in a policy action";
+  }
+
+  typedef bgp-next-hop-type {
+    type union {
+      type inet:ip-address;
+      type enumeration {
+        enum SELF {
+          description "special designation for local router's own
+          address, i.e., next-hop-self";
+        }
+      }
+    }
+    description "type definition for specifying next-hop in policy
+    actions";
+  }
+
+  typedef bgp-set-med-type {
+    type union {
+      type uint32;
+      type enumeration {
+        enum IGP {
+          description "set the MED value to the IGP cost toward the
+          next hop for the route";
+        }
+      }
+    }
+    description "type definition for specifying how the BGP MED can
+    be set in BGP policy actions";
+  }
+
+  // grouping statements
+
+  grouping bgp-match-conditions {
+    description
+      "Condition statement definitions for checking membership in a
+      defined set";
+
+    container match-community-set {
+      presence
+        "The presence of this container indicates that the routes
+        should match the referenced community-set";
+
+      description
+        "Match a referenced community-set according to the logic
+        defined in the match-set-options leaf";
+
+      leaf community-set {
+        type leafref {
+          path "/rpol:routing-policy/rpol:defined-sets/" +
+            "bgp-pol:bgp-defined-sets/bgp-pol:community-set/" +
+            "bgp-pol:community-set-name";
+          require-instance true;
+        }
+        description
+          "References a defined community set";
+      }
+      uses rpol:match-set-options-group;
+    }
+
+    container match-ext-community-set {
+      presence
+        "The presence of this container indicates that the routes
+        should match the referenced extended community set";
+
+      description
+        "Match a referenced extended community-set according to the
+        logic defined in the match-set-options leaf";
+
+      leaf ext-community-set {
+        type leafref {
+          path "/rpol:routing-policy/rpol:defined-sets/" +
+            "bgp-pol:bgp-defined-sets/bgp-pol:ext-community-set/" +
+            "bgp-pol:ext-community-set-name";
+          require-instance true;
+        }
+        description "References a defined extended community set";
+      }
+      uses rpol:match-set-options-group;
+    }
+
+    container match-as-path-set {
+      presence
+        "The presence of this container indicates that the route
+        should match the referenced as-path set";
+
+      description
+        "Match a referenced as-path set according to the logic
+        defined in the match-set-options leaf";
+
+      leaf as-path-set {
+        type leafref {
+          path "/rpol:routing-policy/rpol:defined-sets/" +
+            "bgp-pol:bgp-defined-sets/bgp-pol:as-path-set/" +
+            "bgp-pol:as-path-set-name";
+          require-instance true;
+        }
+        description "References a defined AS path set";
+      }
+      uses rpol:match-set-options-group;
+    }
+  }
+
+  grouping bgp-attribute-conditions {
+    description
+      "Condition statement definitions for comparing a BGP route
+      attribute to a specified value";
+
+    leaf med-eq {
+      type uint32;
+      description
+        "Condition to check if the received MED value is equal to
+        the specified value";
+    }
+
+    leaf origin-eq {
+      type bgp-origin-attr-type;
+      description
+        "Condition to check if the route origin is equal to the
+        specified value";
+    }
+
+    leaf-list next-hop-in {
+      type inet:ip-address;
+      description
+        "List of next hop addresses to check for in the route
+        update";
+    }
+
+    leaf local-pref-eq {
+      type uint32;
+      // TODO: add support for other comparisons if needed
+      description
+        "Condition to check if the local pref attribute is equal to
+        the specified value";
+    }
+
+    container community-count {
+
+      presence "node is present in the config data to indicate a
+      community-count condition";
+
+      description
+        "Value and comparison operations for conditions based on the
+        number of communities in the route update";
+
+      uses pt:attribute-compare-operators;
+
+    }
+
+    container as-path-length {
+
+      presence "node is present in the config data to indicate a
+      as-path-length condition";
+
+      description
+        "Value and comparison operations for conditions based on the
+        length of the AS path in the route update";
+
+      uses pt:attribute-compare-operators;
+    }
+
+    leaf route-type {
+      // TODO: verify extent of vendor support for this comparison
+      type enumeration {
+        enum INTERNAL {
+          description "route type is internal";
+        }
+        enum EXTERNAL {
+          description "route type is external";
+        }
+      }
+      description
+        "Condition to check the route type in the route update";
+    }
+  }
+
+  // augment statements
+
+  augment "/rpol:routing-policy/rpol:defined-sets" {
+    description "adds BGP defined sets container to routing policy
+    model";
+
+    container bgp-defined-sets {
+      description
+        "BGP-related set definitions for policy match conditions";
+
+      list community-set {
+        key community-set-name;
+        description
+            "Definitions for community sets";
+
+        leaf community-set-name {
+          type string;
+          mandatory true;
+          description
+            "name / label of the community set -- this is used to
+            reference the set in match conditions";
+        }
+
+        leaf-list community-members {
+          type union {
+            type bgp-std-community-type;
+            type bgp-community-regexp-type;
+            type bgp-well-known-community-type;
+          }
+          description
+            "members of the community set";
+        }
+
+      }
+
+      list ext-community-set {
+        key ext-community-set-name;
+        description
+            "Definitions for extended community sets";
+
+        leaf ext-community-set-name {
+          type string;
+          description
+            "name / label of the extended community set -- this is
+            used to reference the set in match conditions";
+        }
+
+        leaf-list ext-community-members {
+          type union {
+            type bgp-ext-community-type;
+            // TODO: is regexp support needed for extended
+            // communities?
+            type bgp-community-regexp-type;
+          }
+          description
+              "members of the extended community set";
+        }
+      }
+
+      list as-path-set {
+        key as-path-set-name;
+        description
+            "Definitions for AS path sets";
+
+        leaf as-path-set-name {
+          type string;
+          description
+            "name of the AS path set -- this is used to reference the
+            the set in match conditions";
+        }
+
+        leaf-list as-path-set-members {
+          // TODO: need to refine typedef for AS path expressions
+          type string;
+          description
+              "AS path expression -- list of ASes in the set";
+        }
+
+      }
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:policy-definition/" +
+    "rpol:statement/rpol:conditions" {
+    description "BGP policy conditions added to routing policy
+    module";
+
+    container bgp-conditions {
+      description "Policy conditions for matching
+      BGP-specific defined sets or comparing BGP-specific
+      attributes";
+
+      uses bgp-match-conditions;
+      uses bgp-attribute-conditions;
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:policy-definition/" +
+    "rpol:statement/rpol:actions" {
+    description "BGP policy actions added to routing policy
+    module";
+
+    container bgp-actions {
+      description
+        "Definitions for policy action statements that
+        change BGP-specific attributes of the route";
+
+      container set-as-path-prepend {
+
+        presence "node is pesent in the config data to use the AS
+      prepend action";
+        description
+            "action to prepend local AS number to the AS-path a
+        specified number of times";
+
+        leaf repeat-n {
+          type uint8;
+          description "number of times to prepend the local AS
+          number";
+        }
+      }
+
+      container set-community {
+        presence "node is present in the config data when
+        set-community action is used";
+        description
+          "action to set the community attributes of the route, along
+          with options to modify how the community is modified";
+
+        leaf-list communities {
+          type union {
+            type bgp-std-community-type;
+            type bgp-well-known-community-type;
+          }
+          description
+              "community values for the update";
+        }
+
+        leaf options {
+          type bgp-set-community-option-type;
+          description
+            "options for modifying the community attribute with the
+            specified values";
+        }
+      }
+
+      container set-ext-community {
+
+        presence "node is present in the config data when
+        set-community action is used";
+        description
+          "action to set the extended community attributes of the
+          route, along with options to modify how the community is
+          modified";
+
+        leaf-list communities {
+          type union {
+            type bgp-ext-community-type;
+            type bgp-well-known-community-type;
+          }
+          description
+              "community values for the update";
+        }
+
+        leaf options {
+          type bgp-set-community-option-type;
+          description
+            "options for modifying the community attribute with the
+            specified values";
+        }
+      }
+
+      leaf set-route-origin {
+        type bgp-origin-attr-type;
+        description "set the origin attribute to the specified
+        value";
+      }
+
+      leaf set-local-pref {
+        type uint32;
+        description "set the local pref attribute on the route
+        update";
+      }
+
+      leaf set-next-hop {
+        type bgp-next-hop-type;
+        description "set the next-hop attribute in the route update";
+      }
+
+      leaf set-med {
+        type bgp-set-med-type;
+        description "set the med metric attribute in the route
+        update";
+      }
+    }
+  }
+
+  // rpc statements
+
+  // notification statements
+}

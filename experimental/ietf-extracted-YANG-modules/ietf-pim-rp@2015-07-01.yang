@@ -1,0 +1,352 @@
+module ietf-pim-rp {
+  namespace "urn:ietf:params:xml:ns:yang:ietf-pim-rp";
+  // replace with IANA namespace when assigned
+  prefix pim-rp;
+
+  import ietf-inet-types {
+    prefix "inet";
+  }
+
+  import ietf-interfaces {
+    prefix "if";
+  }
+
+  import ietf-routing {
+    prefix "rt";
+  }
+
+  import ietf-pim-base {
+    prefix "pim-base";
+  }
+
+  organization
+    "IETF PIM Working Group";
+
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/pim/>
+     WG List:  <mailto:pim@ietf.org>
+
+     WG Chair: Stig Venaas
+               <mailto:stig@venaas.com>
+
+     WG Chair: Mike McBride
+               <mailto:mmcbride7@gmail.com>
+
+     Editors:   ";
+
+  description
+    "The YANG module defines a PIM RP (Rendezvous Point) model.";
+
+  revision 2015-07-01 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX: A YANG Data Model for PIM";
+  }
+
+  /*
+   * Features
+   */
+  feature bsr {
+    description
+      "This feature indicates that the system supports BSR.";
+  }
+
+  feature static-rp-override {
+    description
+      "This feature indicates that the system supports configuration
+      of static RP override.";
+  }
+
+  feature candidate-interface {
+    description
+      "This feature indicates that the system supports using
+      an interface to configure a BSR or RP candidate.";
+  }
+
+  feature candidate-ipv4 {
+    description
+      "This feature indicates that the system supports using
+      an IPv4 address to configure a BSR or RP candidate.";
+  }
+
+  feature candidate-ipv6 {
+    description
+      "This feature indicates that the system supports using
+      an IPv6 address to configure a BSR or RP candidate.";
+  }
+
+  /*
+   * Identities
+   */
+  identity rp-mode {
+    description
+      "The mode of an RP, which can be SM (Sparse Mode) or
+      BIDIR (bi-directional).";
+  }
+
+  /*
+   * Groupings
+   */
+
+  /*
+   * Configuration data nodes
+   */
+
+  augment "/rt:routing/rt:routing-instance/"
+    + "rt:routing-protocols/pim-base:pim/"
+    + "pim-base:address-family" {
+    description "PIM RP augmentation.";
+
+    container rp {
+      description
+        "PIM RP configuration data.";
+
+      container static-rp {
+        description
+          "Containing static RP attributes.";
+        list ipv4-rp {
+          when "../../../address-family = 'rt:ipv4'" {
+            description
+              "Only applicable to ipv4 address family.";
+          }
+          key "ipv4-addr";
+          description
+            "A list of IPv4 RP addresses.";
+          leaf ipv4-addr {
+            type inet:ipv4-address;
+            description
+              "Specifies a static RP address.";
+          }
+          leaf policy-name {
+            type string;
+            description
+              "Static RP policy.";
+          }
+          leaf override {
+            if-feature static-rp-override;
+            type boolean;
+            description
+              "When there is a conflict between static RP and dynamic
+              RP, setting this attribute to 'true' will ask the
+              system to use static RP.";
+          }
+          leaf mode {
+            type identityref {
+              base rp-mode;
+            }
+            description
+              "RP mode.";
+          }
+        }
+
+        list ipv6-rp {
+          when "../../../address-family = 'rt:ipv6'" {
+            description
+              "Only applicable to ipv6 address family.";
+          }
+          key "ipv6-addr";
+          description
+            "A list of IPv6 RP addresses.";
+          leaf ipv6-addr {
+            type inet:ipv6-address;
+            description
+              "Specifies a static RP address.";
+          }
+          leaf policy-name {
+            type string;
+            description
+              "Static RP policy.";
+          }
+          leaf mode {
+            type identityref {
+              base rp-mode;
+            }
+            description
+              "RP mode.";
+          }
+        }
+      }
+
+      container bsr {
+        if-feature bsr;
+        description
+          "Containing BSR (BootStrap Router) attributes.";
+
+        container bsr-candidate {
+          presence
+            "Present to serve as a BSR candidate";
+          description
+            "BSR candidate attributes.";
+
+          choice interface-or-address {
+            description
+              "Use either interface or ip-address.";
+            case interface {
+              if-feature candidate-interface;
+              leaf interface {
+                type if:interface-ref;
+                mandatory true;
+                description
+                  "Interface to be used by BSR.";
+              }
+            }
+            case ipv4-address {
+              when "../../../../address-family = 'rt:ipv4'" {
+                description
+                  "Only applicable to ipv4 address family.";
+              }
+              if-feature candidate-ipv4;
+              leaf ipv4-address {
+                type inet:ipv4-address;
+                mandatory true;
+                description
+                  "IP address to be used by BSR.";
+              }
+            }
+            case ipv6-address {
+              when "../../../../address-family = 'rt:ipv6'" {
+                description
+                  "Only applicable to ipv6 address family.";
+              }
+              if-feature candidate-ipv6;
+              leaf ipv6-address {
+                type inet:ipv6-address;
+                mandatory true;
+                description
+                  "IP address to be used by BSR.";
+              }
+            }
+          }
+          leaf hash-mask-length{
+            type uint8 {
+              range "0..32";
+            }
+            mandatory true;
+            description
+              "Value contained in BSR messages used by all routers to
+              hash (map) to an RP.";
+          }
+
+          leaf priority {
+            type uint8 {
+              range "0..255";
+            }
+            mandatory true;
+            description
+              "BSR election priority among different candidate BSRs.
+              A larger value has a higher priority over a smaller
+              value.";
+            }
+        } // bsr-candidate
+
+        list rp-candidate-interface {
+          if-feature candidate-interface;
+          key "interface";
+          description
+            "A list of RP candidates";
+          leaf interface {
+            type if:interface-ref;
+            description
+              "Interface that the RP candidate uses.";
+          }
+
+          leaf policy {
+            type string;
+            description
+              "ACL policy used to filter group addresses.";
+          }
+          leaf mode {
+            type identityref {
+              base rp-mode;
+            }
+            description
+              "RP mode.";
+          }
+        }
+
+        list rp-candidate-ipv4-address {
+          when "../../../address-family = 'rt:ipv4'" {
+            description
+              "Only applicable to ipv4 address family.";
+          }
+          if-feature candidate-ipv4;
+          key "ipv4-address";
+          description
+            "A list of RP candidates";
+          leaf ipv4-address {
+            type inet:ipv4-address;
+            description
+              "IPv4 address that the RP candidate uses.";
+          }
+
+          leaf policy {
+            type string;
+            description
+              "ACL policy used to filter group addresses.";
+          }
+          leaf mode {
+            type identityref {
+              base rp-mode;
+            }
+            description
+              "RP mode.";
+          }
+        }
+
+        list rp-candidate-ipv6-address {
+          when "../../../address-family = 'rt:ipv6'" {
+            description
+              "Only applicable to ipv6 address family.";
+          }
+          if-feature candidate-ipv6;
+          key "ipv6-address";
+          description
+            "A list of RP candidates";
+          leaf ipv6-address {
+            type inet:ipv6-address;
+            description
+              "IPv6 address that the RP candidate uses.";
+          }
+
+          leaf policy {
+            type string;
+            description
+              "ACL policy used to filter group addresses.";
+          }
+          leaf mode {
+            type identityref {
+              base rp-mode;
+            }
+            description
+              "RP mode.";
+          }
+        }
+      } // bsr
+    } // rp
+  } // augment
+
+  /*
+   * Operational state data nodes
+   */
+
+  augment "/rt:routing-state/rt:routing-instance/"
+    + "rt:routing-protocols/pim-base:pim/"
+    + "pim-base:address-family" {
+    description
+      "PIM SM state.";
+
+    container rp {
+      description
+        "PIM RP state data.";
+    } // rp
+  } // augment
+
+  /*
+   * RPCs
+   */
+
+  /*
+   * Notifications
+   */
+}

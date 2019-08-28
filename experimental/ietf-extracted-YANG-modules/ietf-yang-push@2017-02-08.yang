@@ -1,0 +1,606 @@
+module ietf-yang-push {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-yang-push";
+  prefix yp;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ietf-subscribed-notifications {
+    prefix sn;
+  }
+
+  organization "IETF";
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/netconf/>
+     WG List:  <mailto:netconf@ietf.org>
+
+     WG Chair: Mahesh Jethanandani
+               <mailto:mjethanandani@gmail.com>
+
+     WG Chair: Mehmet Ersue
+               <mailto:mehmet.ersue@nokia.com>
+
+     Editor:   Alexander Clemm
+               <mailto:ludwig@clemm.org>
+
+     Editor:   Eric Voit
+               <mailto:evoit@cisco.com>
+
+     Editor:   Alberto Gonzalez Prieto
+               <mailto:albertgo@cisco.com>
+
+     Editor:   Ambika Prasad Tripathy
+               <mailto:ambtripa@cisco.com>
+
+     Editor:   Einar Nilsen-Nygaard
+               <mailto:einarnn@cisco.com>
+
+     Editor:   Andy Bierman
+               <mailto:andy@yumaworks.com>
+
+     Editor:   Balazs Lengyel
+               <mailto:balazs.lengyel@ericsson.com>";
+
+  description
+    "This module contains conceptual YANG specifications
+     for YANG push.";
+
+  revision 2017-02-08 {
+    description
+      "Updates to simplify modify-subscription, add anchor-time";
+    reference
+      "YANG Datastore Push, draft-ietf-netconf-yang-push-05";
+  }
+
+  feature on-change {
+    description
+      "This feature indicates that on-change updates are
+       supported.";
+  }
+
+ /*
+  * IDENTITIES
+  */
+
+  /* Additional errors for subscription operations */
+  identity period-unsupported {
+    base sn:error;
+    description
+      "Requested time period is too short. This can be for both
+       periodic and on-change dampening.";
+  }
+
+  identity qos-unsupported {
+    base sn:error;
+    description
+      "Subscription QoS parameters not supported on this platform.";
+  }
+
+  identity dscp-unavailable {
+    base sn:error;
+    description
+      "Requested DSCP marking not allocatable.";
+  }
+
+  identity on-change-unsupported {
+    base sn:error;
+    description
+      "On-change not supported.";
+  }
+
+  identity synch-on-start-unsupported {
+    base sn:error;
+    description
+      "On-change synch-on-start not supported.";
+  }
+
+  identity synch-on-start-datatree-size {
+    base sn:error;
+    description
+      "Synch-on-start would push a datatree which exceeds size limit.";
+  }
+
+  identity reference-mismatch {
+    base sn:error;
+    description
+      "Mismatch in filter key and referenced yang subtree.";
+  }
+
+  identity subtree-unavailable {
+    base sn:error;
+    description
+      "Referenced yang subtree doesn't exist, or is a node where read
+       access is not permitted.";
+  }
+
+  identity datatree-size {
+    base sn:error;
+    description
+      "Resulting push updates would exceed size limit.";
+  }
+
+  /* Additional types of streams */
+  identity yang-push {
+    base sn:stream;
+    description
+      "A conceptual datastream consisting of all datastore updates,
+       including operational and configuration data.";
+  }
+  identity custom-stream {
+    base sn:stream;
+    description
+      "A conceptual datastream for datastore updates with custom
+       updates as defined by a user.";
+  }
+
+  /* Additional transport option */
+  identity http2 {
+    base sn:transport;
+    description
+      "HTTP2 notifications as a transport";
+  }
+
+  /*
+   * TYPE DEFINITIONS
+   */
+
+  typedef filter-id {
+    type uint32;
+    description
+      "A type to identify filters which can be associated with a
+       subscription.";
+  }
+
+  typedef change-type {
+    type enumeration {
+      enum "create" {
+        description
+          "A new data node was created";
+      }
+      enum "delete" {
+        description
+          "A data node was deleted";
+      }
+      enum "modify" {
+        description
+          "The value of a data node has changed";
+      }
+    }
+    description
+      "Specifies different types of changes that may occur to a
+       datastore.";
+  }
+
+  grouping update-filter {
+    description
+      "This groupings defines filters for push updates for a
+       datastore tree.  The filters define which updates are of
+       interest in a push update subscription.  Mixing and matching
+       of multiple filters does not occur at the level of this
+       grouping. When a push-update subscription is created, the
+       filter can be a regular subscription filter, or one of the
+       additional filters that are defined in this grouping.";
+    choice update-filter {
+      description
+        "Define filters regarding which data nodes to include
+         in push updates";
+      case subtree {
+        description
+          "Subtree filter.";
+        anyxml subtree-filter {
+          description
+            "Subtree-filter used to specify the data nodes targeted
+             for subscription within a subtree, or subtrees, of a
+             conceptual YANG datastore.  Objects matching the filter
+             criteria will traverse the filter. The syntax follows
+             the subtree filter syntax specified in RFC 6241.";
+          reference "RFC 6241 section 6";
+        }
+      }
+      case xpath {
+        description
+          "XPath filter";
+        leaf xpath-filter {
+          type yang:xpath1.0;
+          description
+            "Xpath defining the data items of interest.";
+        }
+      }
+    }
+  }
+
+  grouping update-policy-modifiable {
+    description
+      "This grouping describes the datastore specific subscription
+       conditions that can be changed during the lifetime of the
+       subscription.";
+    choice update-trigger {
+      description
+        "Defines necessary conditions for sending an event to
+         the subscriber.";
+      case periodic {
+        description
+          "The agent is requested to notify periodically the current
+           values of the datastore as defined by the filter.";
+        leaf period {
+          type yang:timeticks;
+          mandatory true;
+          description
+            "Duration of time which should occur between periodic
+             push updates.  Where the anchor of a start-time is
+             available, the push will include the objects and their
+             values which exist at an exact multiple of timeticks
+             aligning to this start-time anchor.";
+        }
+        leaf anchor-time {
+          type yang:date-and-time;
+          description
+            "Designates a timestamp from which the series of periodic
+             push updates are computed. The next update will take place
+             at the next period interval from the anchor time.  For
+             example, for an anchor time at the top of a minute and a
+             period interval of a minute, the next update will be sent
+             at the top of the next minute.";
+        }
+      }
+      case on-change {
+        if-feature "on-change";
+        description
+          "The agent is requested to notify changes in values in the
+           datastore subset as defined by a filter.";
+        leaf dampening-period {
+          type yang:timeticks;
+          mandatory true;
+          description
+            "Minimum amount of time that needs to have passed since the
+             last time an update was provided for the subscription.";
+        }
+      }
+    }
+  }
+
+  grouping update-policy {
+    description
+      "This grouping describes the datastore specific subscription
+       conditions of a subscription.";
+    uses update-policy-modifiable {
+      augment "update-trigger/on-change" {
+        description
+          "Includes objects not modifiable once subscription is
+           established.";
+        leaf no-synch-on-start {
+          type empty;
+          description
+            "This leaf acts as a flag that determines behavior at the
+             start of the subscription.  When present, synchronization
+             of state at the beginning of the subscription is outside
+             the scope of the subscription. Only updates about changes
+             that are observed from the start time, i.e. only push-
+             change-update notifications are sent. When absent (default
+             behavior), in order to facilitate a receiver's
+             synchronization, a full update is sent when the
+             subscription starts using a push-update notification, just
+             like in the case of a periodic subscription.  After that,
+             push-change-update notifications only are sent unless the
+             Publisher chooses to resynch the subscription again.";
+        }
+        leaf-list excluded-change {
+          type change-type;
+          description
+            "Use to restrict which changes trigger an update.
+             For example, if modify is excluded, only creation and
+             deletion of objects is reported.";
+        }
+      }
+    }
+  }
+
+  grouping update-qos {
+    description
+      "This grouping describes Quality of Service information
+       concerning a subscription.  This information is passed to lower
+       layers for transport prioritization and treatment";
+    leaf dscp {
+      type inet:dscp;
+      default "0";
+      description
+        "The push update's IP packet transport priority. This is made
+         visible across network hops to receiver. The transport
+         priority is shared for all receivers of a given
+         subscription.";
+    }
+    leaf weighting {
+      type uint8 {
+         range "0 .. 255";
+      }
+      description
+        "Relative weighting for a subscription. Allows an underlying
+         transport layer perform informed load balance allocations
+         between various subscriptions";
+      reference
+        "RFC-7540, section 5.3.2";
+    }
+    leaf dependency {
+      type sn:subscription-id;
+      description
+        "Provides the Subscription ID of a parent subscription which has
+         absolute priority should that parent have push updates ready to
+         egress the publisher. In other words, there should be no
+         streaming of objects from the current subscription if of the
+         parent has something ready to push.";
+      reference
+        "RFC-7540, section 5.3.1";
+    }
+  }
+
+  grouping update-error-hints {
+    description
+      "Allow return additional negotiation hints that apply
+       specifically to push updates.";
+    leaf period-hint {
+      type yang:timeticks;
+      description
+        "Returned when the requested time period is too short. This hint
+         can assert an viable period for both periodic push cadence and
+         on-change dampening.";
+    }
+    leaf error-path {
+      type string;
+      description
+        "Reference to a YANG path which is associated with the error
+         being returned.";
+    }
+    leaf object-count-estimate {
+      type uint32;
+      description
+        "If there are too many objects which could potentially be
+         returned by the filter, this identifies the estimate of the
+         number of objects which the filter would potentially pass.";
+    }
+    leaf object-count-limit {
+      type uint32;
+      description
+        "If there are too many objects which could be returned by the
+         filter, this identifies the upper limit of the publisher's
+         ability to service for this subscription.";
+    }
+    leaf kilobytes-estimate {
+      type uint32;
+      description
+        "If the returned information could be beyond the capacity of the
+         publisher, this would identify the data size which could result
+         from this filter.";
+    }
+    leaf kilobytes-limit {
+      type uint32;
+      description
+        "If the returned information would be beyond the capacity of the
+         publisher, this identifies the upper limit of the publisher's
+         ability to service for this subscription.";
+    }
+  }
+
+  augment "/sn:establish-subscription/sn:input" {
+    description
+      "Define additional subscription parameters that apply
+       specifically to push updates";
+    uses update-policy;
+    uses update-qos;
+  }
+  augment "/sn:establish-subscription/sn:input/"+
+          "sn:filter-type" {
+    description
+      "Add push filters to selection of filter types.";
+    case update-filter {
+      description
+        "Additional filter options for push subscription.";
+      uses update-filter;
+    }
+  }
+  augment "/sn:establish-subscription/sn:output/"+
+    "sn:result/sn:no-success" {
+    description
+      "Add push datastore error info and hints to RPC output.";
+    uses update-error-hints;
+  }
+  augment "/sn:modify-subscription/sn:input" {
+    description
+      "Define additional subscription parameters that apply
+       specifically to push updates.";
+    uses update-policy-modifiable;
+  }
+  augment "/sn:modify-subscription/sn:input/"+
+          "sn:filter-type" {
+    description
+      "Add push filters to selection of filter types.";
+    case update-filter {
+      description
+        "Additional filter options for push subscription.";
+      uses update-filter;
+    }
+  }
+  augment "/sn:modify-subscription/sn:output/"+
+    "sn:result/sn:no-success" {
+    description
+      "Add push datastore error info and hints to RPC output.";
+    uses update-error-hints;
+  }
+
+  notification push-update {
+    description
+      "This notification contains a push update, containing data
+       subscribed to via a subscription. This notification is sent for
+       periodic updates, for a periodic subscription.  It can also be
+       used for synchronization updates of an on-change subscription.
+       This notification shall only be sent to receivers of a
+       subscription; it does not constitute a general-purpose
+       notification.";
+    leaf subscription-id {
+      type sn:subscription-id;
+      mandatory true;
+      description
+        "This references the subscription because of which the
+         notification is sent.";
+    }
+    leaf time-of-update {
+      type yang:date-and-time;
+      description
+        "This leaf contains the time of the update.";
+    }
+    leaf updates-not-sent {
+      type empty;
+      description
+        "This is a flag which indicates that not all data nodes
+         subscribed to are included with this update. In other words,
+         the publisher has failed to fulfill its full subscription
+         obligations. This may lead to intermittent loss of
+         synchronization of data at the client.  Synchronization at the
+         client can occur when the next push-update is received.";
+    }
+    anydata datastore-contents {
+      description
+        "This contains the updated data.  It constitutes a snapshot
+         at the time-of-update of the set of data that has been
+         subscribed to.  The format and syntax of the data
+         corresponds to the format and syntax of data that would be
+         returned in a corresponding get operation with the same
+         filter parameters applied.";
+    }
+  }
+  notification push-change-update {
+    if-feature "on-change";
+    description
+      "This notification contains an on-change push update. This
+       notification shall only be sent to the receivers of a
+       subscription; it does not constitute a general-purpose
+       notification.";
+    leaf subscription-id {
+      type sn:subscription-id;
+      mandatory true;
+      description
+        "This references the subscription because of which the
+         notification is sent.";
+    }
+    leaf time-of-update {
+      type yang:date-and-time;
+      description
+        "This leaf contains the time of the update, i.e. the time at
+         which the change was observed.";
+    }
+    leaf updates-not-sent {
+      type empty;
+      description
+        "This is a flag which indicates that not all changes which
+         have occurred since the last update are included with this
+         update.  In other words, the publisher has failed to
+         fulfill its full subscription obligations, for example in
+         cases where it was not able to keep up with a change burst.
+         To facilitate synchronization, a publisher MAY subsequently
+         send a push-update containing a full snapshot of subscribed
+         data. Such a push-update might also be triggered by a
+         subscriber requesting an on-demand synchronization.";
+    }
+    anydata datastore-changes {
+      description
+        "This contains datastore contents that has changed since the
+         previous update, per the terms of the subscription.  Changes
+         are encoded analogous to the syntax of a corresponding yang-
+         patch operation, i.e. a yang-patch operation applied to the
+         YANG datastore implied by the previous update to result in the
+         current state (and assuming yang-patch could also be applied to
+         operational data).";
+    }
+  }
+  augment "/sn:subscription-started" {
+    description
+      "This augmentation adds push subscription parameters to the
+       notification that a subscription has started and data updates are
+       beginning to be sent. This notification shall only be sent to
+       receivers of a subscription; it does not constitute a general-
+       purpose notification.";
+    uses update-policy;
+    uses update-qos;
+  }
+  augment "/sn:subscription-started/sn:filter-type" {
+    description
+      "This augmentation allows to include additional update filters
+       options to be included as part of the notification that a
+       subscription has started.";
+    case update-filter {
+      description
+        "Additional filter options for push subscription.";
+      uses update-filter;
+    }
+  }
+  augment "/sn:subscription-modified" {
+    description
+      "This augmentation adds push subscription parameters to the
+       notification that a subscription has been modified. This
+       notification shall only be sent to receivers of a subscription;
+       it does not constitute a general-purpose notification.";
+    uses update-policy;
+    uses update-qos;
+  }
+  augment "/sn:subscription-modified/sn:filter-type" {
+    description
+      "This augmentation allows to include additional update
+       filters options to be included as part of the notification
+       that a subscription has been modified.";
+    case update-filter {
+      description
+        "Additional filter options for push subscription.";
+      uses update-filter;
+    }
+  }
+  augment "/sn:filters/sn:filter/"+
+          "sn:filter-type" {
+    description
+      "This container adds additional update filter options to the list
+       of configurable filters that can be applied to subscriptions.
+       This facilitates the reuse of complex filters once defined.";
+    case update-filter {
+      uses update-filter;
+    }
+  }
+  augment "/sn:subscription-config/sn:subscription" {
+    description
+      "Contains the list of subscriptions that are configured,
+       as opposed to established via RPC or other means.";
+    uses update-policy;
+    uses update-qos;
+  }
+  augment "/sn:subscription-config/sn:subscription/"+
+          "sn:filter-type" {
+    description
+      "Add push filters to selection of filter types.";
+    case update-filter {
+      uses update-filter;
+    }
+  }
+  augment "/sn:subscriptions/sn:subscription" {
+    description
+      "Contains the list of currently active subscriptions,
+       i.e. subscriptions that are currently in effect,
+       used for subscription management and monitoring purposes.
+       This includes subscriptions that have been setup via RPC
+       primitives, e.g. establish-subscription, delete-subscription,
+       and modify-subscription, as well as subscriptions that
+       have been established via configuration.";
+    uses update-policy;
+    uses update-qos;
+  }
+  augment "/sn:subscriptions/sn:subscription/"+
+          "sn:filter-type" {
+    description
+      "Add push filters to selection of filter types.";
+    case update-filter {
+      description
+        "Additional filter options for push subscription.";
+      uses update-filter;
+    }
+  }
+}

@@ -1,0 +1,728 @@
+module ietf-bgp-l3vpn {
+  namespace "urn:ietf:params:xml:ns:yang:ietf-bgp-l3vpn";
+  // replace with IANA namespace when assigned
+  prefix l3vpn ;
+
+  import ietf-network-instance {
+    prefix ni;
+    //revision-date 2016-06-23;
+  }
+
+  import ietf-routing-types {
+    prefix rt-types;
+    //revision-date 2017-02-27;
+  }
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  import ietf-bgp {
+    prefix bgp;
+    //revision-date 2016-06-21;
+  }
+
+  organization
+     "IETF BGP Enabled Services WG";
+
+  contact
+     "BESS working group - bess@ietf.org";
+
+  description
+    "This YANG module defines a YANG data model to configure and
+     manage BGP Layer3 VPNs. It augments the IETF bgp yang model
+     and IETF network instance model to add L3VPN specific
+     configuration and operational knobs.
+
+     Terms and Acronyms
+
+     AF : Address Family
+
+     AS : Autonomous System
+
+     ASBR : Autonomous Systems Border Router
+
+     BGP (bgp) : Border Gateway Protocol
+
+     CE  : Customer Edge
+
+     IP (ip) : Internet Protocol
+
+     IPv4 (ipv4):Internet Protocol Version 4
+
+     IPv6 (ipv6): Internet Protocol Version 6
+
+     L3VPN: Layer 3 VPN
+
+     PE : Provider Edge
+
+     RT : Route Target
+
+     RD : Route Distinguisher
+
+     VPN : Virtual Private Network
+
+     VRF : Virtual Routing and Forwarding
+
+    ";
+
+  revision 2017-04-25 {
+    description
+      "Reused ietf-roting-types.yang for vpn route-targets" +
+      " and route distinguisher types";
+    reference "";
+  }
+
+  revision 2016-09-09 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX: A YANG Data Model for BGP L3VPN config management";
+  }
+
+  //RD
+  grouping route-distinguisher-params {
+    description "BGP route distinguisher";
+    container route-distinguisher {
+      description "Route distinguisher value as per RFC4364";
+        container config {
+          description
+            "Configuration parameters for route distinguisher";
+          leaf rd {
+            type rt-types:route-distinguisher;
+            description "Route distinguisher value as per RFC4364";
+          }
+        }
+        container state {
+          config "false" ;
+          description
+            "State information for route distinguisher";
+          leaf rd {
+            type rt-types:route-distinguisher;
+            description "Route distinguisher value";
+          }
+        }
+     }
+  }
+
+  //Label mode
+  typedef bgp-label-mode {
+    type enumeration {
+      enum per-ce {
+        description "Allocate labels per CE";
+      }
+      enum per-route {
+        description "Allocate labels per prefix";
+      }
+      enum per-vpn {
+        description "Allocate labels per VRF";
+      }
+    }
+    description "BGP label allocation mode";
+  }
+
+  //Fwding mode
+  typedef fwd-mode-type {
+    type enumeration {
+      enum mpls {
+        description "Forwarding mode mpls";
+      }
+    }
+    description
+      "Enable forwarding mode under ASBR facing interface";
+  }
+
+  grouping forwarding-mode {
+    description "Forwarding mode of interface for ASBR scenario";
+    container forwarding-mode {
+      description "Forwarding mode of interface for ASBR scenario";
+      container config {
+        description "Configuration of Forwarding mode";
+        leaf forwarding-mode {
+          type  fwd-mode-type;
+          description "Forwarding mode for this interface";
+        }
+      }
+      container state {
+        config "false";
+        description "State information of Forwarding mode";
+        leaf forwarding-mode {
+        type  fwd-mode-type;
+          description "Forwarding mode for this interface";
+        }
+      }
+    }
+ }
+
+  grouping label-security {
+    description "Mpls label security for ASBR option B scenario";
+    container mpls-label-security {
+      description "MPLS label secruity";
+      container config {
+        description "Configuration parameters";
+        leaf rpf {
+          type boolean;
+          description "Enable MPLS label security rpf on interface";
+        }
+      }
+      container state {
+        config "false";
+        description "State information";
+        leaf rpf {
+          type boolean;
+          description "MPLS label security rpf on interface";
+        }
+      }
+    }
+  }
+
+  //per VPN instance table limit under BGP
+  grouping prefix-limit {
+    description
+       "The prefix limit command sets a limit on the maximum
+        number of prefixes supported in the existing VPN
+        instance, preventing the PE from importing excessive
+        VPN route prefixes.
+       ";
+
+    leaf prefix-limit-number {
+      type uint32 {
+         range "1..4294967295";
+      }
+      description
+             "Specifies the maximum number of prefixes supported in the
+              VPN instance IPv4 or IPv6 address family.";
+    }
+
+    choice prefix-limit-action {
+      description ".";
+      case enable-alert-percent {
+        leaf alert-percent-value {
+           type uint8 {
+             range "1..100";
+           }
+           description
+             "Specifies the proportion of the alarm threshold to the
+              maximum number of prefixes.";
+        }
+        leaf route-unchanged {
+           type boolean;
+           default "false";
+           description
+                 "Indicates that the routing table remains unchanged.
+                  By default, route-unchanged is not configured. When
+                  the number of prefixes in the routing table is
+                  greater than the value of the parameter number,
+                  routes are processed as follows:
+                  (1)If route-unchanged is configured, routes in the
+                     routing table remain unchanged.
+                  (2)If route-unchanged is not configured, all routes
+                     in the routing table are deleted and then
+                     re-added.";
+        }
+      }
+      case enable-simple-alert {
+        leaf simple-alert {
+          type boolean;
+          default "false";
+          description
+                 "Indicates that when the number of VPN route prefixes
+                  exceeds number, prefixes can still join the VPN
+                  routing table and alarms are displayed.";
+        }
+      }
+    }
+  }
+
+  grouping  vpn-pfx-limit {
+    description "Per VPN instance table limit under BGP";
+    container vpn-prefix-limit {
+      description "Prefix limit for this table";
+      container config {
+         description "Config parameters";
+         uses prefix-limit;
+      }
+      container state {
+         config "false";
+         description "State parameters";
+         uses prefix-limit;
+      }
+    }
+  }
+
+  grouping route-target-set {
+    description
+      "Extended community route-target set ";
+    list rts {
+      key "rt" ;
+      description
+         "List of route-targets" ;
+      leaf rt {
+        type rt-types:route-target;
+        description "Route target extended community as per RFC4360";
+      }
+      leaf rt-type {
+        type enumeration {
+          enum import {
+            description "Route target is for import routes";
+          }
+          enum export {
+            description "Route target is for export routes";
+          }
+          enum both {
+            description
+              "Route target is for both import and export routes";
+          }
+        }
+        description "Route target type";
+      }
+    }
+    leaf route-policy {
+      type string;
+      description
+         "Reference to the policy containing set of routes.
+          TBD: leafref to policy entry in IETF policy model";
+    }
+  }
+
+  grouping import-from-gbl {
+    description "Import from global routing table";
+    leaf enable {
+      type boolean;
+        description "Enable";
+    }
+    leaf advertise-as-vpn {
+      type boolean;
+      description
+        "Advertise routes imported from global table as VPN routes";
+    }
+    leaf route-policy {
+      type string;
+      description "Route policy as filter for importing routes";
+    }
+
+    leaf bgp-valid-route {
+      type boolean;
+      description
+        "Enable all valid routes (including non-best paths) to be
+         candidate for import";
+    }
+
+    leaf protocol {
+      type enumeration {
+        enum ALL {
+          value "0";
+          description "ALL:";
+        }
+        enum Direct {
+          value "1";
+          description "Direct:";
+        }
+        enum OSPF {
+          value "2";
+          description "OSPF:";
+        }
+        enum ISIS {
+          value "3";
+          description "ISIS:";
+        }
+        enum Static {
+          value "4";
+          description "Static:";
+        }
+        enum RIP {
+          value "5";
+          description "RIP:";
+        }
+        enum BGP {
+          value "6";
+          description "BGP:";
+        }
+        enum OSPFV3 {
+          value "7";
+          description "OSPFV3:";
+        }
+        enum RIPNG {
+          value "8";
+          description "RIPNG:";
+        }
+      }
+      description
+         "Specifies the protocol from which routes are imported.
+          At present, In the IPv4 unicast address family view,
+          the protocol can be IS-IS,static, direct and BGP.";
+      }
+
+      leaf instance {
+        type string;
+        description
+             "Specifies the instance id of the protocol";
+      }
+  }
+  grouping global-imports {
+      description "Grouping for imports from global routing table";
+    container import-from-global {
+      description "Import from global routing table";
+      container config {
+          description "Configuration";
+          uses import-from-gbl;
+      }
+      container state {
+          config "false";
+          description "State";
+          uses import-from-gbl;
+      }
+    }
+  }
+
+  grouping export-to-gbl {
+    description "Export routes to default VRF";
+    leaf enable {
+      type boolean;
+        description "Enable";
+    }
+  }
+
+  grouping global-exports {
+    description "Grouping for exports routes to global table";
+    container export-to-global {
+      description "Export to global routing table";
+      container config {
+         description "Configuration";
+         uses export-to-gbl;
+      }
+      container state {
+        config "false";
+        description "State";
+        uses export-to-gbl;
+      }
+    }
+  }
+
+  grouping route-target-params {
+    description "Grouping to specify rules for route import and export";
+    container route-targets {
+      description
+        "Set of route-targets to match for import and export routes
+         to/from VRF";
+      container config {
+         description
+               "Configuration of route targets";
+           uses route-target-set ;
+      }
+      container state {
+        config "false" ;
+        description
+               "State information for route targets";
+           uses route-target-set ;
+      }
+    }
+  }
+
+  grouping route-tbl-limit-params {
+     description "Grouping for VPN table prefix limit config";
+     leaf routing-table-limit-number {
+        type uint32 {
+          range "1..4294967295";
+        }
+        description
+          "Specifies the maximum number of routes supported by a
+           VPN instance. ";
+        }
+
+       choice routing-table-limit-action {
+          description ".";
+           case enable-alert-percent {
+             leaf alert-percent-value {
+               type uint8 {
+                 range "1..100";
+               }
+               description
+                 "Specifies the percentage of the maximum number of
+                  routes. When the maximum number of routes that join
+                  the VPN instance is up to the value
+                  (number*alert-percent)/100, the system prompts
+                  alarms. The VPN routes can be still added to the
+                  routing table, but after the number of routes
+                  reaches number, the subsequent routes are
+                  dropped.";
+           }
+        }
+        case enable-simple-alert {
+          leaf simple-alert {
+               type boolean;
+               description
+                 "Indicates that when VPN routes exceed number, routes
+                  can still be added into the routing table, but the
+                  system prompts alarms.
+                  However, after the total number of VPN routes and
+                  network public routes reaches the unicast route limit
+                  specified in the License, the subsequent VPN routes
+                  are dropped.";
+             }
+           }
+       }
+   }
+
+   grouping routing-tbl-limit {
+      description ".";
+      container routing-table-limit {
+         description
+           "The routing-table limit command sets a limit on the maximum
+            number of routes that the IPv4 or IPv6 address family of a
+            VPN instance can support.
+            By default, there is no limit on the maximum number of
+            routes that the IPv4 or IPv6 address family of a VPN
+            instance can support, but the total number of private
+            network and public network routes on a device cannot
+            exceed the allowed maximum number of unicast routes.";
+          container config {
+             description "Config parameters";
+             uses route-tbl-limit-params;
+          }
+          container state {
+              config "false";
+              description "State parameters";
+              uses route-tbl-limit-params;
+          }
+       }
+   }
+
+  // Tunnel policy parameters
+  grouping tunnel-params {
+     description "Tunnel parameters";
+     container tunnel-params {
+        description "Tunnel config parameters";
+        container config {
+           description "configuration parameters";
+           leaf tunnel-policy {
+              type string;
+              description
+                  "Tunnel policy to steer the VPN traffic into specific tunnel";
+           }
+        }
+        container state {
+           config "false";
+           description "state parameters";
+           leaf tunnel-policy {
+              type string;
+              description
+                   "Tunnel policy to steer the VPN traffic into specific tunnel";
+           }
+        }
+     }
+  }
+
+  // Grouping for the L3vpn specific parameters under VRF
+  // (network-instance)
+  grouping l3vpn-vrf-params {
+      description "Specify route filtering rules for import/export";
+      container ipv4 {
+         description
+           "Specify route filtering rules for import/export";
+         container unicast {
+            description
+              "Specify route filtering rules for import/export";
+            uses route-target-params;
+            uses global-imports;
+            uses global-exports;
+            uses routing-tbl-limit;
+            uses tunnel-params;
+         }
+      }
+      container ipv6 {
+         description
+           "Ipv6 address family specific rules for import/export";
+         container unicast {
+             description "Ipv6 unicast address family";
+             uses route-target-params;
+             uses global-imports;
+             uses global-exports;
+             uses routing-tbl-limit;
+             uses tunnel-params;
+         }
+     }
+  }
+
+  grouping bgp-label-mode {
+       description "MPLS/VPN label allocation mode";
+       container config {
+         description
+           "Configuration parameters for label allocation mode";
+         leaf label-mode {
+           type bgp-label-mode;
+           description "Label allocation mode";
+         }
+       }
+       container state {
+         config "false" ;
+         description "State information for label allocation mode";
+         leaf label-mode {
+           type bgp-label-mode;
+           description "Label allocation mode";
+         }
+       }
+  }
+
+  grouping retain-route-targets {
+       description "Grouping for route target accept";
+    container retain-route-targets {
+      description "Control route target acceptance behavior for ASBRs";
+      container config {
+         description
+           "Configuration parameters for retaining route targets";
+         leaf all {
+            type empty;
+            description "Disable filtering of all route-targets";
+         }
+         leaf route-policy {
+            type string;
+            description "Filter routes as per filter policy name
+                         TBD: leafref to IETF routing policy model";
+         }
+      }
+      container state {
+         config "false" ;
+         description "State information for retaining route targets";
+         leaf all {
+            type empty;
+            description "Disable filtering of all route-targets";
+         }
+         leaf route-policy {
+            type string;
+            description "Filter routes as per filter policy name";
+         }
+      }
+    }
+  }
+  grouping nexthop-opts {
+     description "Next hop control options for inter-as route exchange";
+     leaf next-hop-self {
+        type boolean;
+        description
+          "Set nexthop of the route to self when advertising routes";
+     }
+     leaf next-hop-unchanged {
+        type boolean;
+        description "Enforce no nexthop change when advertising routes";
+     }
+  }
+
+  grouping asbr-nexthop-options {
+     description "Nexthop parameters for inter-as VPN options ";
+     container nexthop-options {
+         description "Nexthop related options for inter-as options";
+         container config {
+             description "Configuration parameters for nexthop options";
+             uses nexthop-opts;
+         }
+         container state {
+             config "false";
+             description "State information for nexthop options" ;
+             uses nexthop-opts;
+         }
+     }
+  }
+
+  //
+  // VRF specific parameters.
+  // RD and RTs and route import-export rules are added under
+  // network instance container in network instance model, hence
+  // per VRF scoped
+  augment "/ni:network-instances/ni:network-instance" {
+     description
+       "Augment network instance for per VRF L3vpn parameters";
+     container l3vpn {
+        //Enable this check once network instance model has
+        //identify defined for VRF type
+        //when "../type='rt:vrf-network-instance'" {
+        //  description
+        //    "This container is only valid for vrf routing instance.";
+        //}
+        description "Configuration of L3VPN specific parameters";
+
+        uses route-distinguisher-params;
+        uses l3vpn-vrf-params ;
+     }
+  }
+
+  // bgp mpls forwarding enable required for inter-as option AB.
+  augment "/if:interfaces/if:interface" {
+    description
+      "BGP mpls forwarding mode configuration on interface for
+       ASBR scenario";
+    uses forwarding-mode ;
+    uses label-security;
+  }
+
+  //
+  // BGP Specific Paramters
+  //
+
+  //
+  // Retain route-target for inter-as option ASBR knob.
+  // vpn prefix limits
+  // vpnv4/vpnv6 address-family only.
+  augment "/bgp:bgp/bgp:global/bgp:afi-safis/" +
+          "bgp:afi-safi/bgp:l3vpn-ipv4-unicast" {
+    description "Retain route targets for ASBR scenario";
+    uses retain-route-targets;
+    uses vpn-pfx-limit;
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:afi-safis/" +
+          "bgp:afi-safi/bgp:l3vpn-ipv6-unicast" {
+    description "Retain route targets for ASBR scenario";
+    uses retain-route-targets;
+    uses vpn-pfx-limit;
+  }
+
+  // Label allocation mode configuration. Certain AFs only.
+  augment "/bgp:bgp/bgp:global/bgp:afi-safis/" +
+          "bgp:afi-safi/bgp:ipv4-unicast" {
+     description
+       "Augment BGP global AF mode for label allocation mode
+        configuration";
+     uses bgp-label-mode ;
+     uses routing-tbl-limit;
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:afi-safis/" +
+          "bgp:afi-safi/bgp:ipv6-unicast" {
+     description
+       "Augment BGP global AF mode for label allocation mode
+        configuration";
+     uses bgp-label-mode ;
+     uses routing-tbl-limit;
+  }
+
+  // Nexthop options for the inter-as ASBR peering.
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor" {
+     description
+       "Augment BGP NBR mode with nexthop options for inter-as ASBRs";
+     uses asbr-nexthop-options;
+  }
+
+  augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group" {
+     description
+       "Augment BGP peer-group mode with nexthop options for inter-as
+        ASBRs";
+     uses asbr-nexthop-options;
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/" +
+          "bgp:afi-safis/bgp:afi-safi" {
+     description
+       "Augment BGP NBR AF mode with nexthop options for inter-as
+        ASBRs";
+     uses asbr-nexthop-options;
+  }
+
+  augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group/" +
+          "bgp:afi-safis/bgp:afi-safi" {
+     description
+       "Augment BGP peer-group AF mode with nexthop options for inter-as
+        ASBRs";
+     uses asbr-nexthop-options;
+  }
+}

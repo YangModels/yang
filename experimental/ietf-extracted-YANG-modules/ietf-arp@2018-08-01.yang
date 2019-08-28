@@ -1,0 +1,281 @@
+module ietf-arp {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-arp";
+  prefix arp;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-yang-types {
+    prefix yang;
+    reference "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-interfaces {
+    prefix if;
+    reference "RFC 8343: A Yang Data Model for Interface Management";
+  }
+  import ietf-ip {
+    prefix ip;
+    reference "RFC 8344: A Yang Data Model for IP Management";
+  }
+
+  organization
+    "IETF Routing Area Working Group (rtgwg)";
+  contact
+    "WG Web: <http://tools.ietf.org/wg/rtgwg/>
+     WG List: <mailto: rtgwg@ietf.org>
+     Editor: Xiaojian Ding
+         wjswsl@163.com
+     Editor: Feng Zheng
+         habby.zheng@huawei.com
+     Editor: Robert Wilton
+         rwilton@cisco.com";
+
+  description
+    "Address Resolution Protocol (ARP) management, which includes
+     static ARP configuration, dynamic ARP learning, ARP entry query,
+     and packet statistics collection.
+
+    Copyright (c) 2016 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+    Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Simplified BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (http://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC XXXX; see the RFC
+      itself for full legal notices.";
+
+  revision 2018-08-01 {
+    description
+      "Init revision";
+    reference "RFC XXXX: A Yang Data Model for ARP";
+  }
+
+  feature global-static-entries {
+    description
+      "This feature indicates that the device allows static entries
+       to be configured globally.";
+  }
+
+  container arp {
+    description
+      "Address Resolution Protocol (ARP) management, which includes
+        static ARP configuration, dynamic ARP learning, ARP entry
+        query, and packet statistics collection.";
+    leaf dynamic-learning {
+      type boolean;
+      default "true";
+      description
+        "Controls the default dynamic ARP learning behavior on all
+         interfaces on the device:
+           true -  dynamic learning is enabled on all interfaces by
+                   default,
+           false - dynamic learning is disabled on all interfaces by
+                   default";
+    }
+    leaf proxy-arp {
+      type boolean;
+      default "true";
+      description
+        "Controls the default proxy ARP behavior on all interfaces
+         on the device:
+           true - proxy ARP is enabled on interfaces by default,
+           false - proxy APR is disabled on interfaces by default";
+    }
+    container global-static-entries {
+      if-feature "global-static-entries";
+      description
+        "Set a global static ARP entry, which is independent of the
+         interface.";
+      list static-entry {
+        key "ip-address";
+        description
+          "List of ARP static entries that can be configured
+           globally.";
+        leaf ip-address {
+          type inet:ipv4-address-no-zone;
+          description
+            "IP address, in dotted decimal notation.";
+        }
+        leaf mac-address {
+          type yang:mac-address;
+          mandatory true;
+          description
+            "MAC address in the format of H-H-H, in which H is a
+             hexadecimal number of 1 to 4 bits.";
+        }
+      }
+    }
+  }
+  augment "/if:interfaces/if:interface" {
+    description
+      "Augment interfaces with ARP configuration and state.";
+    container arp {
+      description
+        "Dynamic ARP related configuration and state";
+      leaf expiry-time {
+        type uint32 {
+          range "60..86400";
+        }
+        units "seconds";
+        description
+          "Aging time of a dynamic ARP entry.";
+      }
+      leaf learn-disable {
+        type boolean;
+        default "false";
+        description
+          "Whether dynamic ARP learning is disabled on an interface:
+           If the value is True, dynamic ARP learning is disabled.
+           If the value is False, dynamic ARP learning is enabled.";
+      }
+      container proxy {
+        description
+          "Configuration parameters for proxy ARP";
+        leaf mode {
+          type enumeration {
+            enum DISABLE {
+              description
+                "The system should not respond to ARP requests that
+                 do not specify an IP address configured on the local
+                 subinterface as the target address.";
+            }
+            enum REMOTE_ONLY {
+              description
+                "The system responds to ARP requests only when the
+                 sender and target IP addresses are in different
+                 subnets.";
+            }
+            enum ALL {
+              description
+                "The system responds to ARP requests where the sender
+                 and target IP addresses are in different subnets, as
+                 well as those where they are in the same subnet.";
+            }
+          }
+          default "DISABLE";
+          description
+            "When set to a value other than DISABLE, the local system
+             should respond to ARP requests that are for target
+             addresses other than those that are configured on the
+             local subinterface using its own MAC address as the
+             target hardware address. If the REMOTE_ONLY value is
+             specified, replies are only sent when the target address
+             falls outside the locally configured subnets on the
+             interface, whereas with the ALL value, all requests,
+             regardless of their target address are replied to.";
+          reference
+            "RFC1027: Using ARP to Implement Transparent Subnet
+             Gateways";
+        }
+      }
+      container probe {
+        description
+          "Common configuration parameters for all ARP probe.";
+        leaf interval {
+          type uint8 {
+            range "1..5";
+          }
+          units "second";
+          description
+            "Interval for detecting dynamic ARP entries.";
+        }
+        leaf times {
+          type uint8 {
+            range "0..10";
+          }
+          description
+            "Number of aging probe attempts for a dynamic ARP entry.
+             If a device does not receive an ARP reply message after
+             the number of aging probe attempts reaches a specified
+             number,thedynamic ARP entry is deleted.";
+        }
+        leaf unicast {
+          type boolean;
+          default "false";
+          description
+            "Send unicast ARP aging probe messages for a dynamic ARP
+             entry.";
+        }
+      }
+      container gratuitous-arp {
+        description
+          "Configure gratuitous ARP.";
+        leaf enable {
+          type boolean;
+          default "false";
+          description
+            "Enable or disable sending gratuitous ARP packet on
+             interface.";
+        }
+        leaf interval {
+          type uint32 {
+            range "1..86400";
+          }
+          units "second";
+          description
+            "The interval of sending gratuitous ARP packet on the
+             interface.";
+        }
+        leaf drop {
+          type boolean;
+          default "false";
+          description
+            "Drop the receipt of gratuitous ARP packets on the
+             interface.";
+        }
+      }
+      container statistics {
+        config false;
+        description
+          "IP ARP Statistics information on interfaces";
+        leaf in-requests-pkts {
+          type yang:counter32;
+          description
+            "Total ARP requests received";
+        }
+        leaf in-replies-pkts {
+          type yang:counter32;
+          description
+            "Total ARP replies received";
+        }
+        leaf in-gratuitous-pkts {
+          type yang:counter32;
+          description
+            "Total gratuitous ARP received";
+        }
+        leaf out-requests-pkts {
+          type yang:counter32;
+          description
+            "Total ARP requests sent";
+        }
+        leaf out-replies-pkts {
+          type yang:counter32;
+          description
+            "Total ARP replies sent";
+        }
+        leaf out-gratuitous-pkts {
+          type yang:counter32;
+          description
+            "Total gratuitous ARP sent";
+        }
+      }
+    }
+  }
+  augment "/if:interfaces/if:interface/ip:ipv4/ip:neighbor" {
+    description
+      "Augment neighbor list with parameters of ARP, eg., support for
+       remaining expiry time query on interfaces.";
+    leaf remaining-expiry-time {
+      type uint32;
+      config false;
+      description
+        "Remaining expiry time of a dynamic ARP entry. ";
+    }
+  }
+}

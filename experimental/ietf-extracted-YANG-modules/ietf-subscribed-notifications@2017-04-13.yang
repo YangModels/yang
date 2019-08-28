@@ -1,0 +1,1009 @@
+module ietf-subscribed-notifications {
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications";
+
+  prefix sn;
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  organization "IETF";
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/netconf/>
+     WG List:  <mailto:netconf@ietf.org>
+     WG Chair: Mahesh Jethanandani
+               <mailto:mjethanandani@gmail.com>
+
+     WG Chair: Mehmet Ersue
+               <mailto:mehmet.ersue@nokia.com>
+
+     Editor:   Alexander Clemm
+               <mailto:ludwig@clemm.org>
+
+     Editor:   Eric Voit
+               <mailto:evoit@cisco.com>
+
+     Editor:   Alberto Gonzalez Prieto
+               <mailto:albertgo@cisco.com>
+
+     Editor:   Einar Nilsen-Nygaard
+               <mailto:einarnn@cisco.com>
+
+     Editor:   Ambika Prasad Tripathy
+               <mailto:ambtripa@cisco.com>";
+
+  description
+    "This module contains conceptual YANG specification for
+     subscribing to events an receiving event notifications.";
+
+  revision 2017-04-13 {
+    description
+      "Filtering and stream structures updated, replay a feature.";
+    reference
+      "draft-ietf-netconf-subscribed-notifications-01";
+  }
+
+  /*
+   * FEATURES
+   */
+
+  feature json {
+    description
+      "This feature indicates that JSON encoding of notifications
+       is supported.";
+  }
+
+  feature configured-subscriptions {
+    description
+      "This feature indicates that management plane configuration
+       of subscription is supported.";
+  }
+  feature replay {
+    description
+      "This feature indicates that historical event replay is
+      supported.  With replay, it is possible for past events to be
+      will be streamed in chronological order.";
+  }
+
+  /*
+   * EXTENSIONS
+   */
+
+  extension subscription-state-notif {
+    description
+      "This statement applies only to notifications. It indicates that
+       the notification is a subscription state notification (aka OAM
+       notification). Therefore it does not participate in a regular
+       event stream and does not need to be specifically subscribed
+       in order to receive notifications.";
+  }
+
+  /*
+   * IDENTITIES
+   */
+
+  /* Identities for streams */
+  identity stream {
+    description
+      "Base identity to represent a generic stream of event
+       notifications exposed for subscription by a system.";
+  }
+
+  identity NETCONF {
+    base stream;
+    description
+      "Default NETCONF event stream, containing events based on
+      notifications defined as YANG modules that are supported by the
+      system.  As a historical reference, this contains the same set
+      of events in a default RFC-5277 NETCONF stream.";
+  }
+
+  identity SYSLOG {
+    base stream;
+    description
+      "A stream of events mirroring the discrete set entries
+      concurrently being placed into a device's local Syslog.";
+  }
+
+  /* Identities for filters */
+  identity filter {
+    description
+      "Base identity to represent a filter.  A filter is used to
+      specify the data nodes used as match criteria against, objects,
+      subtree/subtrees, of a target for the filter.  A match with
+      filter criteria will allow information to traverse the filter. ";
+  }
+
+  identity xpath {
+    base filter;
+    description
+      "A filter which follows the syntax specified in yang:xpath1.0.";
+    reference "XPATH: http://www.w3.org/TR/1999/REC-xpath-19991116";
+  }
+
+  /* Identities for subscription results */
+  identity subscription-result {
+    description
+      "Base identity for RPC responses to requests surrounding
+       management (e.g. creation, modification, deletion) of
+       subscriptions.";
+  }
+
+  identity ok {
+    base subscription-result;
+    description
+      "OK - RPC was successful and was performed as requested.";
+  }
+
+  identity error {
+    base subscription-result;
+    description
+      "RPC was not successful.
+       Base identity for error return codes.";
+  }
+
+  /* Identities for subscription stream status */
+  identity subscription-status {
+    description
+      "Base identity for the status of subscriptions and datastreams.";
+  }
+
+  identity active {
+    base subscription-status;
+    description
+      "Status is active and healthy.";
+  }
+
+  identity inactive {
+    base subscription-status;
+    description
+      "Status is inactive, for example outside the interval between
+      start time and stop time.";
+  }
+
+  identity suspended {
+    base subscription-status;
+    description
+      "The status is suspended, meaning that the publisher is currently
+       unable to provide the negotiated updates for the subscription.";
+  }
+
+  identity in-error {
+    base subscription-status;
+    description
+      "The status is in error or degraded, meaning that stream and/or
+      subscription is currently unable to provide the negotiated
+      notifications.";
+  }
+
+  /* Identities for subscription errors */
+
+  identity internal-error {
+    base error;
+    description
+      "Error within publisher prohibits operation.";
+  }
+
+  identity suspension-timeout {
+    base error;
+    description
+     "Termination of previously suspended subscription. The publisher
+      has eliminated the subscription as it exceeded a time limit for
+      suspension.";
+  }
+
+  identity stream-unavailable {
+    base error;
+    description
+     "Stream does not exist or is not available to the receiver.";
+  }
+
+  identity encoding-unavailable {
+    base error;
+    description
+     "Encoding not supported";
+  }
+
+  identity replay-unsupported {
+    base error;
+    description
+     "Replay cannot be performed for this subscription. The publisher
+     does not provide the requested historic information via replay.";
+  }
+
+  identity history-unavailable {
+    base error;
+    description
+     "Replay request too far into the past. The publisher does store
+      historic information for all parts of requested subscription, but
+      not back to the requested timestamp.";
+  }
+
+  identity filter-unavailable {
+    base error;
+    description
+     "Referenced filter does not exist";
+  }
+
+  identity filter-unsupported {
+    base error;
+    description
+     "Cannot parse syntax within the filter. Failure can be from a
+      syntax error, or a syntax too complex to be processed by the
+      platform. The supplemental info should include the invalid part
+      of the filter.";
+  }
+
+  identity namespace-unavailable {
+    base error;
+    description
+     "Referenced namespace doesn't exist or is unavailable
+      to the receiver.";
+  }
+
+  identity no-such-subscription {
+    base error;
+    description
+     "Referenced subscription doesn't exist. This may be as a result of
+      a non-existent subscription ID, an ID which belongs to another
+      subscriber, or an ID for acceptable subscription which has been
+      statically configured.";
+  }
+
+  identity error-insufficient-resources {
+    base error;
+    description
+      "The server has insufficient resources to support the
+       subscription as requested.";
+  }
+
+  identity error-no-such-option {
+    base error;
+    description
+      "A requested parameter setting is not supported.";
+  }
+
+  /* Identities for encodings */
+  identity encodings {
+    description
+      "Base identity to represent data encodings";
+  }
+
+  identity encode-xml {
+    base encodings;
+    description
+      "Encode data using XML";
+  }
+
+  identity encode-json {
+    base encodings;
+    description
+      "Encode data using JSON";
+  }
+
+  /* Identities for transports */
+  identity transport {
+    description
+      "An identity that represents a transport protocol for event
+       notifications";
+  }
+
+  identity netconf {
+    base transport;
+    description
+      "Netconf notifications as a transport.";
+  }
+
+  identity http2 {
+    base transport;
+    description
+      "HTTP2 notifications as a transport";
+  }
+
+  /*
+   * TYPEDEFs
+   */
+
+  typedef subscription-id {
+    type uint32;
+    description
+      "A type for subscription identifiers.";
+  }
+
+  typedef filter-id {
+    type uint32;
+    description
+      "A type to identify filters which can be associated with a
+       subscription.";
+  }
+
+  typedef subscription-result {
+    type identityref {
+      base subscription-result;
+    }
+    description
+      "The result of a subscription operation";
+  }
+
+  typedef subscription-errors {
+    type identityref {
+      base error;
+    }
+    description
+      "The reason for the failure of an RPC request or the sending of a
+       subscription suspension or termination notification";
+  }
+
+  typedef encoding {
+    type identityref {
+      base encodings;
+    }
+    description
+      "Specifies a data encoding, e.g. for a data subscription.";
+  }
+
+  typedef filter-type {
+    type identityref {
+      base filter;
+    }
+    description
+      "Specifies a known type of filter.";
+  }
+
+  typedef subscription-status {
+    type identityref {
+      base subscription-status;
+    }
+    description
+      "Specifies the status of a subscription.";
+  }
+
+  typedef transport-protocol {
+    type identityref {
+      base transport;
+    }
+    description
+      "Specifies transport protocol used to send notifications to a
+       receiver.";
+  }
+
+  typedef notification-origin {
+    type enumeration {
+      enum "interface-originated" {
+        description
+          "Notifications will be sent from a specific interface on a
+           publisher";
+      }
+      enum "address-originated" {
+        description
+          "Notifications will be sent from a specific address on a
+           publisher";
+      }
+    }
+    description
+      "Specifies from where notifications will be sourced when
+       being sent by the publisher.";
+  }
+
+  typedef stream {
+    type identityref {
+      base stream;
+    }
+    description
+      "Specifies a system-provided datastream.";
+  }
+
+  typedef filter-ref {
+    type leafref {
+      path "/sn:filters/sn:filter/sn:identifier";
+    }
+    description
+      "This type is used to reference a filter.";
+  }
+
+  /*
+   * GROUPINGS
+   */
+
+  grouping base-filter {
+    description
+      "This grouping defines the base for filters for notification
+       events.";
+    leaf filter-type {
+      type filter-type;
+      mandatory true;
+      description
+        "A filter needs to be a known and understood syntax if it is to
+        be interpretable by a device.";
+    }
+    anyxml filter {
+      mandatory true;
+      description
+        "Filter where the syntax is of type filter-type.  If the filter
+        is applied against a stream and the match criteria are not met,
+        excludes the entire event from being passed along.";
+    }
+  }
+
+  grouping subscription-policy-non-modifiable {
+    description
+      "This grouping describes the information in a subscription which
+      should not change during the life of the subscription.";
+    leaf encoding {
+      type encoding;
+      default "encode-xml";
+      description
+        "The type of encoding for the subscribed data. Default is XML";
+    }
+    choice target {
+      mandatory true;
+      description
+        "A filter must be applied against some source of information.
+        This identifies the target for the filter.";
+      case event-stream {
+        leaf stream {
+          type stream;
+          mandatory true;
+          description
+            "Indicates a stream of events against which to apply
+            a filter.";
+        }
+      }
+    }
+  }
+
+  grouping subscription-policy-modifiable {
+    description
+      "This grouping describes all objects which may be changed
+      in a subscription via an RPC.";
+    choice applied-filter {
+      mandatory true;
+      description
+        "A filter must be applied to a subscription.  And that filter
+        will come either referenced from a global list, or be provided
+        within the subscription itself.";
+      case by-reference {
+        description
+          "Incorporate a filter that has been configured separately.";
+        leaf filter-ref {
+          type filter-ref;
+          mandatory true;
+          description
+            "References an existing filter which is to be applied to
+             the subscription.";
+        }
+      }
+      case locally-configured {
+        uses base-filter;
+        description
+          "Local definition allows a filter to have the same lifecycle
+          as the subscription.";
+      }
+    }
+    leaf stop-time {
+      type yang:date-and-time;
+      description
+        "Identifies a time after which notification events should not
+        be sent.  If stop-time is not present, the notifications will
+        continue until the subscription is terminated.  If
+        replay-start-time exists, stop-time must for a subsequent time.
+        If replay-start-time doesn't exist, stop-time must for a future
+        time.";
+    }
+  }
+
+  grouping subscription-policy {
+    description
+      "This grouping describes information concerning a subscription.";
+    uses subscription-policy-non-modifiable {
+      augment target/event-stream {
+        description
+          "Adds additional objects which must be set just by RPC.";
+        leaf replay-start-time {
+          if-feature "replay";
+          type yang:date-and-time;
+          description
+            "Used to trigger the replay feature and indicate that the
+            replay should start at the time specified.  If
+            replay-start-time is not present, this is not a replay
+            subscription and event pushes should start immediately.  It
+            is never valid to specify start times that are later than
+            or equal to the current time.";
+        }
+      }
+    }
+    uses subscription-policy-modifiable;
+  }
+
+  grouping notification-origin-info {
+    description
+      "Defines the sender source from which notifications for a
+       configured subscription are sent.";
+    choice notification-origin {
+      description
+        "Identifies the egress interface on the Publisher from which
+         notifications will or are being sent.";
+      case interface-originated {
+        description
+          "When the push source is out of an interface on the
+           Publisher established via static configuration.";
+        leaf source-interface {
+          type if:interface-ref;
+          description
+            "References the interface for notifications.";
+        }
+      }
+      case address-originated {
+        description
+          "When the push source is out of an IP address on the
+           Publisher established via static configuration.";
+        leaf source-vrf {
+          type string;
+          description
+            "Network instance name for the VRF.  This could also have
+            been a leafref to draft-ietf-rtgwg-ni-model, but that model
+            in not complete, and may not be implemented on a box.";
+        }
+        leaf source-address {
+          type inet:ip-address-no-zone;
+          mandatory true;
+          description
+            "The source address for the notifications.";
+        }
+      }
+    }
+  }
+
+  grouping receiver-info {
+    description
+      "Defines where and how to get notifications for a configured
+      subscriptions to one or more targeted recipient.  This includes
+      specifying the destination addressing as well as a transport
+      protocol acceptable to the receiver.";
+    container receivers {
+      description
+        "Set of receivers in a subscription.";
+      list receiver {
+        key "address port";
+        min-elements 1;
+        description
+          "A single host or multipoint address intended as a target
+           for the notifications for a subscription.";
+        leaf address {
+          type inet:host;
+          mandatory true;
+          description
+            "Specifies the address for the traffic to reach a remote
+            host. One of the following must be specified: an ipv4
+            address, an ipv6 address, or a host name.";
+        }
+        leaf port {
+          type inet:port-number;
+          mandatory true;
+          description
+            "This leaf specifies the port number to use for messages
+             destined for a receiver.";
+        }
+        leaf protocol {
+          type transport-protocol;
+          default "netconf";
+          description
+            "This leaf specifies the transport protocol used
+             to deliver messages destined for the receiver.  Each
+             protocol may use the address and port information
+             differently as applicable.";
+        }
+      }
+    }
+  }
+
+  grouping error-identifier {
+    description
+      "A code passed back within an RPC response to describe why the RFC
+       has failed, or within a state change notification to describe why
+       the change has occurred.";
+    leaf error-id {
+      type subscription-errors;
+      mandatory true;
+      description
+        "Identifies the subscription error condition.";
+    }
+  }
+
+  grouping error-hints {
+    description
+      "Objects passed back within an RPC response to describe why the
+       RFC has failed, or within a state change notification to
+       describe why the change has occurred.";
+    leaf filter-failure {
+      type string;
+      description
+        "Information describing where and/or why a provided filter was
+        unsupportable for a subscription.";
+    }
+  }
+
+  grouping subscription-response-with-hints {
+    description
+      "Defines the output for the establish-subscription and
+       modify-subscription RPCs.";
+    leaf subscription-result {
+      type subscription-result;
+      mandatory true;
+      description
+        "Indicates whether subscription is operational, or if a problem
+         was encountered.";
+    }
+    choice result {
+      description
+        "Depending on the subscription result, different data is
+         returned.";
+      case no-success {
+        description
+          "This case applies when a subscription request was not
+           successful and no subscription was created (or modified) as a
+           result.  In this case, information MAY be returned that
+           indicates suggested parameter settings that would have a
+           high likelihood of succeeding in a subsequent establish-
+           subscription or modify-subscription request.";
+        uses error-hints;
+      }
+    }
+  }
+
+  /*
+   * RPCs
+   */
+
+  rpc establish-subscription {
+    description
+      "This RPC allows a subscriber to create (and possibly negotiate)
+       a subscription on its own behalf.  If successful, the
+       subscription remains in effect for the duration of the
+       subscriber's association with the publisher, or until the
+       subscription is terminated. In case an error (as indicated by
+       subscription-result) is returned, the subscription is not
+       created.  In that case, the RPC output MAY include suggested
+       parameter settings that would have a high likelihood of
+       succeeding in a subsequent establish-subscription request.";
+    input {
+      uses subscription-policy;
+    }
+    output {
+      uses subscription-response-with-hints  {
+        augment "result" {
+          description
+            "Allows information to be passed back as part of a
+             successful subscription establishment.";
+          case success {
+            description
+              "This case is used when the subscription request was
+               successful.";
+            leaf identifier {
+              type subscription-id;
+              mandatory true;
+              description
+                "Identifier used for this subscription.";
+            }
+          }
+        }
+        augment "result/no-success" {
+          description
+            "Contains establish RPC specific objects which can be
+             returned as hints for future attempts.";
+          leaf replay-start-time-hint {
+            type yang:date-and-time;
+            description
+              "If a replay has been requested, but the requested replay
+                 time cannot be honored, this may provide a hint at an
+               alternate time which may be supportable.";
+          }
+        }
+      }
+    }
+  }
+
+  rpc modify-subscription {
+    description
+      "This RPC allows a subscriber to modify a subscription that was
+       previously created using establish-subscription.  If successful,
+       the changed subscription remains in effect for the duration of
+       the subscriber's association with the publisher, or until the
+       subscription is again modified or terminated.  In case an error
+       is returned (as indicated by subscription-result), the
+       subscription is not modified and the original subscription
+       parameters remain in effect.  In that case, the rpc error
+       response MAY include suggested parameter hints that would have
+       a high likelihood of succeeding in a subsequent
+       modify-subscription request.";
+    input {
+      leaf identifier {
+        type subscription-id;
+        description
+          "Identifier to use for this subscription.";
+      }
+      uses subscription-policy-modifiable;
+    }
+    output {
+      uses subscription-response-with-hints;
+    }
+  }
+
+  rpc delete-subscription {
+    description
+      "This RPC allows a subscriber to delete a subscription that
+       was previously created from by that same subscriber using the
+       establish-subscription RPC.";
+    input {
+      leaf identifier {
+        type subscription-id;
+        mandatory true;
+        description
+          "Identifier of the subscription that is to be deleted.
+           Only subscriptions that were created using
+           establish-subscription can be deleted via this RPC.";
+      }
+    }
+    output {
+      leaf subscription-result {
+        type subscription-result;
+        mandatory true;
+        description
+          "Indicates whether subscription is operational, or if a
+          problem was encountered.";
+      }
+    }
+  }
+
+  rpc kill-subscription {
+    description
+      "This RPC allows an operator to delete a dynamic subscription
+      without restrictions on the originating subscriber or underlying
+      transport session.";
+    input {
+      leaf identifier {
+        type subscription-id;
+        mandatory true;
+        description
+          "Identifier of the subscription that is to be deleted. Only
+            subscriptions that were created using establish-subscription
+           can be deleted via this RPC.";
+      }
+    }
+    output {
+      leaf subscription-result {
+        type subscription-result;
+        mandatory true;
+        description
+          "Indicates whether subscription is operational, or if a
+           problem was encountered.";
+      }
+    }
+  }
+
+  /*
+   * NOTIFICATIONS
+   */
+
+  notification replay-complete {
+    sn:subscription-state-notif;
+    description
+      "This notification is sent to indicate that all of the replay
+        notifications have been sent. It must not be sent for any other
+       reason.";
+    leaf identifier {
+      type subscription-id;
+      mandatory true;
+      description
+        "This references the affected subscription.";
+    }
+  }
+
+  notification notification-complete {
+    sn:subscription-state-notif;
+    description
+      "This notification is sent to indicate that a subscription, has
+       finished passing events.";
+    leaf identifier {
+      type subscription-id;
+      mandatory true;
+      description
+        "This references the affected subscription.";
+    }
+  }
+
+  notification subscription-started {
+    sn:subscription-state-notif;
+    description
+      "This notification indicates that a subscription has started and
+        notifications are beginning to be sent. This notification shall
+       only be sent to receivers of a subscription; it does not
+       constitute a general-purpose notification.";
+    leaf identifier {
+      type subscription-id;
+      mandatory true;
+      description
+        "This references the affected subscription.";
+    }
+    uses subscription-policy;
+  }
+
+  notification subscription-resumed {
+    sn:subscription-state-notif;
+    description
+      "This notification indicates that a subscription that had
+       previously been suspended has resumed. Notifications will once
+       again be sent.";
+    leaf identifier {
+      type subscription-id;
+      mandatory true;
+      description
+        "This references the affected subscription.";
+    }
+  }
+
+  notification subscription-modified {
+    sn:subscription-state-notif;
+    description
+      "This notification indicates that a subscription has been
+       modified.  Notifications sent from this point on will conform to
+       the modified terms of the subscription.  For completeness, this
+       notification includes both modified and non-modified aspects of
+       a subscription ";
+    leaf identifier {
+      type subscription-id;
+      mandatory true;
+      description
+        "This references the affected subscription.";
+    }
+    uses subscription-policy;
+  }
+
+  notification subscription-terminated {
+    sn:subscription-state-notif;
+    description
+      "This notification indicates that a subscription has been
+       terminated.";
+    leaf identifier {
+      type subscription-id;
+      mandatory true;
+      description
+        "This references the affected subscription.";
+    }
+    uses error-identifier;
+    uses error-hints;
+  }
+  notification subscription-suspended {
+    sn:subscription-state-notif;
+    description
+      "This notification indicates that a suspension of the
+       subscription by the publisher has occurred.  No further
+       notifications will be sent until the subscription resumes.
+       This notification shall only be sent to receivers of a
+       subscription; it does not constitute a general-purpose
+       notification.";
+    leaf identifier {
+      type subscription-id;
+      mandatory true;
+      description
+        "This references the affected subscription.";
+    }
+    uses error-identifier;
+    uses error-hints;
+  }
+
+  /*
+   * DATA NODES
+   */
+
+  container filters {
+    description
+      "This container contains a list of configurable filters
+       that can be applied to subscriptions.  This facilitates
+       the reuse of complex filters once defined.";
+    list filter {
+      key "identifier";
+      description
+        "A list of configurable filters that can be applied to
+         subscriptions.";
+      leaf identifier {
+        type filter-id;
+        description
+          "An identifier to differentiate between filters.";
+      }
+      uses base-filter;
+    }
+  }
+  container subscription-config {
+    if-feature "configured-subscriptions";
+    description
+      "Contains the list of subscriptions that are configured,
+       as opposed to established via RPC or other means.";
+    list subscription {
+      key "identifier";
+      description
+        "Content of a subscription.";
+      leaf identifier {
+        type subscription-id;
+        description
+          "Identifier to use for this subscription.";
+      }
+      uses subscription-policy-non-modifiable;
+      uses subscription-policy-modifiable;
+      uses receiver-info {
+        if-feature "configured-subscriptions";
+      }
+      uses notification-origin-info {
+        if-feature "configured-subscriptions";
+      }
+    }
+  }
+  container subscriptions {
+    config false;
+    description
+      "Contains the list of currently active subscriptions, i.e.
+       subscriptions that are currently in effect, used for subscription
+       management and monitoring purposes. This includes subscriptions
+       that have been setup via RPC primitives as well as subscriptions
+       that have been established via configuration.";
+    list subscription {
+      key "identifier";
+      config false;
+      description
+        "Content of a subscription. Subscriptions can be created using
+         a control channel or RPC, or be established through
+         configuration.";
+      leaf identifier {
+        type subscription-id;
+        description
+          "Identifier of this subscription.";
+      }
+      leaf configured-subscription {
+       if-feature "configured-subscriptions";
+       type empty;
+       description
+         "The presence of this leaf indicates that the subscription
+          originated from configuration, not through a control channel
+          or RPC.";
+      }
+      uses subscription-policy;
+      uses notification-origin-info {
+        if-feature "configured-subscriptions";
+      }
+      uses receiver-info {
+        refine receivers/receiver {
+          min-elements "1";
+        }
+        augment receivers/receiver {
+          description
+            "include operational data on configured receivers.";
+          leaf pushed-notifications {
+            type yang:counter64;
+            description
+              "Operational data which provides the number of update
+               notifications pushed to a receiver.";
+            }
+          leaf excluded-notifications {
+            type yang:counter64;
+            description
+              "Operational data which provides the number of non-
+               datastore update notifications explicitly removed via
+               filtering so that they are not sent to a receiver.";
+            }
+        }
+      }
+      leaf subscription-status {
+        type subscription-status;
+        description
+          "The status of the subscription.";
+      }
+    }
+  }
+}

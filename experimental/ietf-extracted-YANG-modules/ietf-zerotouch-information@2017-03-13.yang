@@ -1,0 +1,251 @@
+module ietf-zerotouch-information {
+  yang-version "1.1";
+
+  namespace "urn:ietf:params:xml:ns:yang:ietf-zerotouch-information";
+  prefix    "zti";
+
+  import ietf-inet-types {
+    prefix inet;
+    reference "RFC 6991: Common YANG Data Types";
+  }
+
+  import ietf-restconf {
+    prefix rc;
+    description
+      "This import statement is only present to access
+       the yang-data extension defined in RFC 8040.";
+    reference "RFC 8040: RESTCONF Protocol";
+  }
+
+  organization
+   "IETF NETCONF (Network Configuration) Working Group";
+
+  contact
+   "WG Web:   http://tools.ietf.org/wg/netconf
+    WG List:  <mailto:netconf@ietf.org>
+    Author:   Kent Watsen <mailto:kwatsen@juniper.net>";
+
+  description
+   "This module defines the data model for the Zero Touch Information
+    artifact defined by RFC XXXX: Zero Touch Provisioning for NETCONF
+    or RESTCONF based Management.
+
+    Copyright (c) 2014 IETF Trust and the persons identified as
+    authors of the code. All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, is permitted pursuant to, and subject to the license
+    terms contained in, the Simplified BSD License set forth in Section
+    4.c of the IETF Trust's Legal Provisions Relating to IETF Documents
+    (http://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC XXXX; see the RFC
+    itself for full legal notices.";
+
+  revision "2017-03-13" {
+    description
+     "Initial version";
+    reference
+     "RFC XXXX: Zero Touch Provisioning for NETCONF or RESTCONF based
+      Management";
+  }
+
+  rc:yang-data zerotouch-information {
+    uses zerotouch-information-grouping;
+  }
+
+  grouping zerotouch-information-grouping {
+    description
+      "Defines the zerotouch information data model.  Grouping
+       exists only to enable pyang tree output.";
+
+    choice information-type {
+      mandatory true;
+      description
+        "This choice statement ensures the response only contains
+         redirect-information or bootstrap-information.  Note that
+         this is the only mandatory true node, as the other nodes
+         are not needed when the device trusts the bootstrap server,
+         in which case the data does not need to be signed.";
+
+      container redirect-information {
+        description
+          "This is redirect information, as described in Section 3.1
+           in RFC XXXX.  Its purpose is to redirect a device to another
+           bootstrap server.";
+        reference
+          "RFC XXXX: Zero Touch Provisioning for NETCONF or RESTCONF
+           based Management";
+
+        list bootstrap-server {
+          key address;
+          description
+            "A bootstrap server entry.";
+
+          leaf address {
+            type inet:host;
+            mandatory true;
+            description
+             "The IP address or hostname of the bootstrap server the
+              device should redirect to.";
+          }
+          leaf port {
+            type inet:port-number;
+            default 443;
+            description
+             "The port number the bootstrap server listens on.";
+          }
+          leaf trust-anchor { //should there be two fields like voucher?
+            type binary;
+            description
+              "An X.509 v3 certificate structure as specified by RFC
+               5280, Section 4, encoded using ASN.1 distinguished
+               encoding rules (DER), as specified in ITU-T X.690.  A
+               certificate that a device can use as a trust anchor
+               to authenticate the bootstrap server it is being
+               redirected to.";
+            reference
+              "RFC 5280:
+                 Internet X.509 Public Key Infrastructure Certificate
+                 and Certificate Revocation List (CRL) Profile.
+               ITU-T X.690:
+                  Information technology - ASN.1 encoding rules:
+                  Specification of Basic Encoding Rules (BER),
+                  Canonical Encoding Rules (CER) and Distinguished
+                  Encoding Rules (DER).";
+          }
+        }
+      }
+
+      container bootstrap-information {
+
+        description
+          "This is bootstrap information, as described in Section 3.2 in
+           RFC XXXX.  Its purpose is to provide the device everything it
+           needs to bootstrap itself.";
+        reference
+          "RFC XXXX: Zero Touch Provisioning for NETCONF or RESTCONF
+           based Management";
+
+        container boot-image {
+          description
+            "Specifies criteria for the boot image the device MUST
+             be running.";
+
+          leaf name {  // maybe this should be a regex?
+            type string;
+            mandatory true;
+            description
+              "The name of a software image that the device MUST
+               be running in order to process the remaining nodes.";
+          }
+          choice hash-algorithm {
+             mandatory true;
+             description
+               "Identifies the hash algorithm used.";
+             leaf sha256 {
+                type string;
+                description
+                  "The hex-encoded SHA-256 hash over the boot
+                   image file.  This is used by the device to
+                   verify a downloaded boot image file.";
+                reference
+                  "RFC 6234: US Secure Hash Algorithms.";
+             }
+          }
+          leaf-list uri {
+            type inet:uri;
+            min-elements 1;
+            description
+              "An ordered list of URIs to where the boot-image file MAY
+               be obtained.  Deployments MUST know in which URI schemes
+               (http, ftp, etc.) a device supports.  If a secure scheme
+               (e.g., https) is provided, a device MAY establish a
+               provisional connection to the server, by blindly
+               accepting the server's credentials (e.g., its TLS
+               certificate)";
+          }
+        }
+
+        leaf configuration-handling {
+          type enumeration {
+            enum merge {
+              description
+               "Merge configuration into existing running configuration.";
+            }
+            enum replace {
+              description
+                "Replace existing running configuration with the passed
+                 configuration.";
+            }
+          }
+          description
+            "This enumeration indicates how the server should process
+             the provided configuration.  When not specified, the device
+             MAY determine how to process the configuration using other
+             means (e.g., vendor-specific metadata).";
+        }
+
+        leaf pre-configuration-script {
+          type script;
+          description
+            "A script that, when present, is executed before the
+             configuration has been processed.";
+        }
+
+        anydata configuration {
+          must "../configuration-handling";
+          description
+            "Any configuration data model known to the device.  It may
+             contain manufacturer-specific and/or standards-based data
+             models.";
+        }
+
+        leaf post-configuration-script {
+          type script;
+          description
+            "A script that, when present, is executed after the
+             configuration has been processed.";
+        }
+      }
+    }
+  }
+
+  typedef script {
+    type binary;
+    description
+      "A device specific script that enables the execution of commands
+       to perform actions not possible thru configuration alone.
+
+       No attempt is made to standardize the contents, running context,
+       or programming language of the script.  The contents of the
+       script are considered specific to the vendor, product line,
+       and/or model of the device.
+
+       If a script is erroneously provided to a device that does not
+       support the execution of scripts, the device SHOULD send a
+       'script-warning' notification message, but otherwise continue
+       processing the bootstrapping data as if the script had not
+       been present.
+
+       The script returns exit status code '0' on success and non-zero
+       on error, with accompanying stderr/stdout for logging purposes.
+       In the case of an error, the exit status code will specify what
+       the device should do.
+
+       If the exit status code is greater than zero, then the device
+       should assume that the script had a soft error, which the
+       script believes does not affect manageability.  If the device
+       obtained the bootstrap information from a bootstrap server,
+       it SHOULD send a 'script-warning' notification message.
+
+       If the exit status code is less than zero, the device should
+       assume the script had a hard error, which the script believes
+       will affect manageability.  In this case, the device SHOULD
+       send a 'script-error' notification message followed by a
+       reset that will force a new boot-image install (wiping out
+       anything the script may have done) and restart the entire
+       bootstrapping process again.";
+  }
+
+}
