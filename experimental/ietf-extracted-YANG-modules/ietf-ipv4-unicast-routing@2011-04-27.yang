@@ -1,0 +1,415 @@
+module ietf-ipv4-unicast-routing {
+  namespace "urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing";
+  prefix v4ur;
+
+  import ietf-routing {
+    prefix rt;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  organization
+    "IETF NETMOD (NETCONF Data Modeling Language) Working Group";
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/netmod/>
+     WG List:  <mailto:netmod@ietf.org>
+
+     WG Chair: David Kessens
+     <mailto:david.kessens@nsn.com>
+
+     WG Chair: Juergen Schoenwaelder
+     <mailto:j.schoenwaelder@jacobs-university.de>
+
+     Editor:   Ladislav Lhotka
+     <mailto:lhotka@cesnet.cz>";
+  description
+    "This module augments the 'ietf-routing' module with YANG
+     definitions for basic configuration of IPv4 unicast routing.
+
+     It is immediately usable for a device that needs just a single
+     routing table populated with static routes.
+
+     On the other hand, the framework is designed to handle
+     arbitrarily complex configurations with any number of routing
+     tables and various routing protocols (in multiple instances).";
+
+  revision 2011-04-27 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX: A YANG Data Model for Routing Configuration";
+  }
+
+  /* Groupings */
+
+  grouping routing-process-name {
+    leaf routing-process-name {
+      type rt:routing-process-ref;
+      must "/rt:routing/rt:routing-process[rt:name = current()]"
+         + "/rt:address-family = 'ipV4' and "
+         + "/rt:routing/rt:routing-process[rt:name = current()]"
+         + "/rt:safi = 'nlri-unicast'" {
+        description
+          "The referred routing process must be IPv4 unicast.";
+      }
+    description "The name of a routing process.";
+    }
+    description
+      "This grouping defines the first common parameter of both
+       RPC operations below.";
+  }
+
+  /* RPC operations */
+
+  rpc get-route {
+    description
+      "Query the forwarding information base of an IPv4 unicast
+       routing process whose name is given as the first
+       parameter. The second parameter is an IPv4 destination
+       address. The server returns the route which is currently used
+       for forwarding datagrams to that destination address, or an
+       error message, if no such route exists.";
+    input {
+      uses routing-process-name;
+      leaf destination-address {
+        type inet:ipv4-address;
+        description
+          "Second parameter - IPv4 destination address.";
+      }
+    }
+    output {
+      container route {
+        description
+          "Contents of the reply.";
+        leaf destination-prefix {
+          type inet:ipv4-prefix;
+          mandatory true;
+          description
+            "Destination prefix of the returned route.";
+        }
+        leaf next-hop {
+          type inet:ipv4-address;
+          description
+            "Next hop address of the returned route.";
+        }
+        leaf outgoing-interface {
+          type if:interface-ref;
+          description
+            "Outgoing interface of the returned route.";
+        }
+      }
+    }
+  }
+
+  rpc delete-route {
+    description
+
+      "Delete all routes that match the given attributes from a
+       routing table within a routing process.
+
+       Parameters:
+       1. routing process name,
+       2. routing table name,
+       3. Container 'route' with route attributes.
+
+       <ok> is returned by the server upon successful completion.";
+
+    input {
+      uses routing-process-name;
+      leaf routing-table {
+        type leafref {
+          path "/rt:routing/rt:routing-process[rt:name=current()/../"
+             + "routing-process-name]/ipv4-unicast-routing/"
+             + "routing-tables/routing-table/name";
+        }
+        mandatory true;
+        description
+          "First parameter.";
+      }
+      container route {
+        description
+          "Second parameter. All routes matching the route
+           attributes must be deleted from the routing table.
+
+           If this container is empty or missing, all routes
+           from the selected routing table are deleted.";
+        leaf destination-prefix {
+          type inet:ipv4-prefix;
+          description
+            "Match destination prefix.";
+        }
+        leaf next-hop {
+          type inet:ipv4-address;
+          description
+            "Match next hop.";
+        }
+        leaf outgoing-interface {
+          type if:interface-ref;
+          description
+            "Match outgoing interface.";
+        }
+      }
+    }
+  }
+
+  /* Data nodes */
+
+  augment "/rt:routing/rt:routing-process" {
+    when "afi='ipV4' and safi='nlri-unicast'" {
+      description
+        "IPv4 unicast.";
+    }
+    description
+      "Definitions of data nodes that augment a routing process
+       for IPv4 unicast.";
+    container ipv4-unicast-routing {
+      description
+        "Container for IPv4 unicast routing configuration and
+         operational state data.";
+      container routing-protocol-instances {
+        description
+          "Container for the list of configured routing protocol
+           instances.";
+        list routing-protocol-instance {
+          key "name";
+          description
+            "An instance of a routing protocol.";
+          container static-routes {
+            when "../type='rt:static'" {
+              description
+                "These data nodes are only valid for the static
+                 pseudo-protocol.";
+            }
+            description
+              "Configuration of a 'static' pseudo-protocol
+               instance consists of a list of routes.";
+            list static-route {
+              key "id";
+              ordered-by user;
+              description
+                "An user-ordered list of static routes.";
+              leaf id {
+                type string;
+                description
+                  "An identification string for the route.";
+              }
+              leaf description {
+                type string;
+                description
+                  "Textual description of the route.";
+              }
+              leaf destination-prefix {
+                type inet:ipv4-prefix;
+                mandatory true;
+                description
+                  "The destination prefix for which the route may
+                   be used.";
+              }
+              leaf next-hop {
+                type inet:ipv4-address;
+                description
+                  "IPv4 address of the host or router to which
+                   packets whose address matches 'destination-prefix'
+                   are to be forwarded.";
+              }
+              leaf outgoing-interface {
+                type if:interface-ref;
+                description
+                  "Name of the outgoing interface. This attribute
+                   is mainly used in direct routes.";
+              }
+            }
+          }
+          leaf name {
+            type string;
+            description
+              "The name of the routing protocol instance.";
+          }
+          leaf description {
+            type string;
+            description
+              "Textual description of the routing protocol
+              instance.";
+          }
+          leaf type {
+            type identityref {
+              base rt:routing-protocol;
+            }
+            mandatory true;
+            description
+              "Type of the routing protocol - an identity derived
+               from the 'rt:routing-protocol' base identity.";
+          }
+          leaf routing-table {
+            type leafref {
+              path "../../../routing-tables/routing-table/name";
+            }
+            default "ipv4-unicast-main";
+            description
+              "The routing table to which the routing protocol
+               instance is connected. By default it is the
+               'ipv4-unicast-main' table.";
+          }
+          leaf import-filter {
+            type leafref {
+              path "../../../route-filters/route-filter/name";
+            }
+            description
+              "Reference to a route filter that is used for
+               filtering routes passed from this routing protocol
+               instance to the routing table specified by the
+               'routing-table' sibling node. If this leaf is not
+               present, the behavior is protocol-specific, but
+               typically it means that all routes are accepted.";
+          }
+          leaf export-filter {
+            type leafref {
+              path "../../../route-filters/route-filter/name";
+            }
+            description
+              "Reference to a route filter that is used for filtering
+               routes passed from the routing table specified by the
+               'routing-table' sibling to this routing protocol
+               instance. If this leaf is not present, the behavior is
+               protocol-specific - typically it means that all routes
+               are accepted, except for the 'direct' and 'static'
+               pseudo-protocols which accept no routes from any
+               routing table.";
+          }
+        }
+      }
+      container route-filters {
+        description
+          "Container for configured route filters.";
+        list route-filter {
+          key "name";
+          description
+            "Route filters are used for filtering and/or manipulating
+             routes that are passed between a routing protocol and a
+             routing table or vice versa, or between two routing
+             tables.  It is expected that other modules augment this
+             list with contents specific for a particular route
+             filter type.";
+          leaf name {
+            type string;
+            description
+              "The name of the route filter.";
+          }
+          leaf description {
+            type string;
+            description
+              "Textual description of the route filter.";
+          }
+          leaf type {
+            type identityref {
+              base rt:route-filter;
+            }
+            default "rt:deny-all-route-filter";
+            description
+              "Type of the route-filter - an identity derived
+               from the 'rt:route-filter' base identity. The default
+               value represents an all-blocking filter.";
+          }
+        }
+      }
+      container routing-tables {
+        must "routing-table/name='ipv4-unicast-fib'" {
+          description
+            "IPv4 unicast forwarding information base.";
+        }
+        must "routing-table/name='ipv4-unicast-main'" {
+          description
+            "The main IPv4 unicast routing table.";
+        }
+        description
+          "Container for configured routing tables.";
+        list routing-table {
+          key "name";
+          description
+            "Each entry represents a configured routing table. At
+             least two entries with names 'ipv4-unicast-fib' and
+             'ipv4-unicast-main' must exist.";
+          container routes {
+            config false;
+            description
+              "Current contents of the routing table. Note that
+               it is operational state data.";
+            list route {
+              description
+                "A routing table entry.";
+              leaf destination-prefix {
+                type inet:ipv4-prefix;
+                description
+                  "Destination prefix.";
+              }
+              leaf next-hop {
+                type inet:ipv4-address;
+                description
+                  "IPv4 address of the next hop.";
+              }
+              leaf outgoing-interface {
+                type if:interface-ref;
+                description
+                  "Name of the outgoing interface.";
+              }
+              leaf source-protocol {
+                type leafref {
+                  path "../../../../../routing-protocol-instances/"
+                     + "routing-protocol-instance/name";
+                }
+                description
+                  "Protocol instance from which the route comes.";
+              }
+              leaf last-modified {
+                type yang:date-and-time;
+                description
+                  "Time stamp of the last modification of the
+                   route. If the route was never modified, it is the
+                   time when the route was inserted to the routing
+                   table.";
+              }
+            }
+          }
+          leaf name {
+            type string;
+            description
+              "The name of the routing table.";
+          }
+          leaf description {
+            type string;
+            description
+              "Textual description of the routing table.";
+          }
+          list recipient-routing-tables {
+            key "recipient-name";
+            description
+              "A list of routing tables that receive routes from
+               the parent routing table.";
+            leaf recipient-name {
+              type leafref {
+                path "../../../routing-table/name";
+              }
+              description
+                "The name of the recipient routing table.";
+            }
+            leaf filter {
+              type leafref {
+                path "../../../../route-filters/route-filter/name";
+              }
+              description
+                "A route filter which is applied to the routes
+                 passed on to the recipient routing table.";
+            }
+          }
+        }
+      }
+    }
+  }
+}

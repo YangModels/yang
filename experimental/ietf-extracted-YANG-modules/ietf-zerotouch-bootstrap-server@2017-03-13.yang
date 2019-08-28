@@ -1,0 +1,370 @@
+module ietf-zerotouch-bootstrap-server {
+  yang-version "1.1";
+
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-zerotouch-bootstrap-server";
+  prefix    "ztbs";
+
+  organization
+   "IETF NETCONF (Network Configuration) Working Group";
+
+  contact
+   "WG Web:   <http://tools.ietf.org/wg/netconf/>
+    WG List:  <mailto:netconf@ietf.org>
+    Author:   Kent Watsen
+              <mailto:kwatsen@juniper.net>";
+
+  description
+   "This module defines an interface for bootstrap servers, as defined
+    by RFC XXXX: Zero Touch Provisioning for NETCONF or RESTCONF based
+    Management.
+
+    Copyright (c) 2014 IETF Trust and the persons identified as
+    authors of the code. All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, is permitted pursuant to, and subject to the license
+    terms contained in, the Simplified BSD License set forth in Section
+    4.c of the IETF Trust's Legal Provisions Relating to IETF Documents
+    (http://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC XXXX; see the RFC
+    itself for full legal notices.";
+
+  revision "2017-03-13" {
+    description
+     "Initial version";
+    reference
+     "RFC XXXX: Zero Touch Provisioning for NETCONF or RESTCONF based
+      Management";
+  }
+
+  // typedefs
+
+  typedef pkcs7 {
+    type binary;
+    description
+      "A PKCS #7 SignedData structure, as specified by Section 9.1
+       in RFC 2315, encoded using ASN.1 distinguished encoding rules
+       (DER), as specified in ITU-T X.690.";
+     reference
+       "RFC 2315:
+          PKCS #7: Cryptographic Message Syntax Version 1.5.
+        ITU-T X.690:
+          Information technology - ASN.1 encoding rules:
+          Specification of Basic Encoding Rules (BER),
+          Canonical Encoding Rules (CER) and Distinguished
+          Encoding Rules (DER).";
+  }
+
+  // protocol accessible node
+
+  list device {
+    key unique-id;
+    config false;
+
+    description
+      "A device's record entry.  This is the only RESTCONF resource
+       that a device will GET, as described in Section 8.2 in RFC XXXX.
+       Getting just this top-level node provides a device with all the
+       data it needs in a single request.";
+    reference
+      "RFC XXXX: Zero Touch Provisioning for NETCONF or
+       RESTCONF based Management";
+
+    leaf unique-id {
+      type string;
+      description
+        "A unique identifier for the device (e.g., serial number).
+         Each device accesses its bootstrapping record by its unique
+         identifier.";
+    }
+
+    leaf zerotouch-information {
+      type pkcs7;
+      mandatory true;
+      description
+        "A 'zerotouch-information' artifact, as described in Section
+         4.1 of RFC XXXX.  When conveyed over an untrusted transport, in
+         order to be processed by a device, this PKCS#7 SignedData
+         structure  MUST contain a 'signerInfo' structure, described
+         in Section 9.1 of RFC 2315, containing a signature generated
+         using the owner's private key.";
+      reference
+        "RFC XXXX: Zero Touch Provisioning for NETCONF or
+            RESTCONF based Management.
+         RFC 2315:
+            PKCS #7: Cryptographic Message Syntax Version 1.5";
+    }
+
+    leaf owner-certificate {
+      type pkcs7;
+      must "../zerotouch-information" {
+        description
+          "An 'zerotouch-information' artifact must be present
+           whenever an ownership certificate is presented.";
+      }
+      description
+        "An unsigned PKCS #7 SignedData structure, as specified by
+         Section 9.1 in RFC 2315, encoded using ASN.1 distinguished
+         encoding rules (DER), as specified in ITU-T X.690.
+
+         This structure MUST contain the owner certificate and all
+         intermediate certificates leading up to at least the trust
+         anchor certificate specified in the ownership voucher.
+         Additionally, if needed by the device, this structure MAY
+         also contain suitably fresh CRL and or OCSP Responses.
+
+         X.509 certificates and CRLs are described in RFC 5280.
+         OCSP Responses are described in RFC 6960.";
+      reference
+       "RFC 2315:
+          PKCS #7: Cryptographic Message Syntax Version 1.5.
+        RFC 5280:
+          Internet X.509 Public Key Infrastructure Certificate
+          and Certificate Revocation List (CRL) Profile.
+        RFC 6960:
+          X.509 Internet Public Key Infrastructure Online
+          Certificate Status Protocol - OCSP.
+        ITU-T X.690:
+          Information technology - ASN.1 encoding rules:
+          Specification of Basic Encoding Rules (BER),
+          Canonical Encoding Rules (CER) and Distinguished
+          Encoding Rules (DER).";
+    }
+    leaf ownership-voucher {
+      type pkcs7;
+      must "../owner-certificate" {
+        description
+          "An owner certificate must be present whenever an ownership
+           voucher is presented.";
+      }
+      description
+        "A 'voucher' artifact, as described in Section 5 of
+         I-D.ietf-anima-voucher.  The voucher's 'device-identifier'
+         MUST reference both the device's unique identifier and
+         the owner's owner certificate.";
+      reference
+        "I-D.etf-anima-voucher:
+           Voucher and Voucher Revocation Profiles for Bootstrapping
+           Protocols";
+    }
+
+    action notification {
+      input {
+        leaf notification-type {
+          type enumeration {
+            enum bootstrap-initiated {
+              description
+                "Indicates that the device has just accessed the
+                 bootstrap server.  The 'message' field below MAY
+                 contain any additional information that the
+                 manufacturer thinks might be useful.";
+            }
+            enum parsing-warning {
+              description
+                "Indicates that the device had a non-fatal error when
+                 parsing the response from the bootstrap server.  The
+                 'message' field below SHOULD indicate the specific
+                 warning that occurred.";
+            }
+            enum parsing-error {
+              description
+                "Indicates that the device encountered a fatal error
+                 when parsing the response from the bootstrap server.
+                 For instance, this could be due to malformed encoding,
+                 the device expecting signed data when only unsigned
+                 data is provided, because the ownership voucher didn't
+                 include the device's unique identifier, or because the
+                 signature didn't match.  The 'message' field below
+                 SHOULD indicate the specific error.  This notification
+                 also indicates that the device has abandoned trying to
+                 bootstrap off this bootstrap server.";
+            }
+            enum boot-image-warning {
+              description
+                "Indicates that the device encountered a non-fatal
+                 error condition when trying to install a boot-image.
+                 A possible reason might include a need to reformat a
+                 partition causing loss of data.  The 'message' field
+                 below SHOULD indicate any warning messages that were
+                 generated.";
+            }
+            enum boot-image-error {
+              description
+                "Indicates that the device encountered an error when
+                 trying to install a boot-image, which could be for
+                 reasons such as a file server being unreachable,
+                 file not found, signature mismatch, etc.  The
+                 'message' field SHOULD indicate the specific error
+                 that occurred.  This notification also indicates
+                 that the device has abandoned trying to bootstrap
+                 off this bootstrap server.";
+            }
+            enum pre-script-warning {
+              description
+                "Indicates that the device obtained a greater than
+                 zero exit status code from the script when it was
+                 executed.  The 'message' field below SHOULD indicate
+                 both the resulting exit status code, as well as
+                 capture any stdout/stderr messages the script may
+                 have produced.";
+            }
+            enum pre-script-error {
+              description
+                "Indicates that the device obtained a less than zero
+                 exit status code from the script when it was executed.
+                 The 'message' field below SHOULD indicate both the
+                 resulting exit status code, as well as capture any
+                 stdout/stderr messages the script may have produced.
+                 This notification also indicates that the device has
+                 abandoned trying to bootstrap off this bootstrap
+                 server.";
+            }
+            enum config-warning {
+              description
+                "Indicates that the device obtained warning messages
+                 when it committed the initial configuration.  The
+                 'message' field below SHOULD indicate any warning
+                 messages that were generated.";
+            }
+            enum config-error {
+              description
+                "Indicates that the device obtained error messages
+                 when it committed the initial configuration.  The
+                 'message' field below SHOULD indicate the error
+                 messages that were generated.  This notification
+                 also indicates that the device has abandoned trying
+                 to bootstrap off this bootstrap server.";
+            }
+            enum post-script-warning {
+              description
+                "Indicates that the device obtained a greater than
+                 zero exit status code from the script when it was
+                 executed.  The 'message' field below SHOULD indicate
+                 both the resulting exit status code, as well as
+                 capture any stdout/stderr messages the script may
+                 have produced.";
+            }
+            enum post-script-error {
+              description
+                "Indicates that the device obtained a less than zero
+                 exit status code from the script when it was executed.
+                 The 'message' field below SHOULD indicate both the
+                 resulting exit status code, as well as capture any
+                 stdout/stderr messages the script may have produced.
+                 This notification also indicates that the device has
+                 abandoned trying to bootstrap off this bootstrap
+                 server.";
+            }
+            enum bootstrap-complete {
+              description
+                "Indicates that the device successfully processed the
+                 all the bootstrapping data and that it is ready to be
+                 managed.  The 'message' field below MAY contain any
+                 additional information that the manufacturer thinks
+                 might be useful.  After sending this notification,
+                 the device is not expected to access the bootstrap
+                 server again.";
+            }
+            enum informational {
+              description
+                "Indicates any additional information not captured by
+                 any of the other notification-type. For instance, a
+                 message indicating that the device is about to reboot
+                 after having installed a boot-image could be provided.
+                 The 'message' field below SHOULD contain information
+                 that the manufacturer thinks might be useful.";
+            }
+          }
+          mandatory true;
+          description
+            "The type of notification provided.";
+        }
+        leaf message {
+          type string;
+          description
+            "An optional human-readable value.";
+        }
+        container ssh-host-keys {
+          when "../notification-type = 'bootstrap-complete'" {
+            description
+              "SSH host keys are only sent when the notification
+               type is 'bootstrap-complete'.";
+          }
+          description
+            "A list of SSH host keys an NMS may use to authenticate
+             a NETCONF connection to the device with.";
+          list ssh-host-key {
+            description
+              "An SSH host-key";
+            leaf format {
+              type enumeration {
+                enum ssh-dss { description "ssh-dss"; }
+                enum ssh-rsa { description "ssh-rsa"; }
+              }
+              mandatory true;
+              description
+                "The format of the SSH host key.";
+            }
+            leaf key-data {
+              type string;
+              mandatory true;
+              description
+                "The key data for the SSH host key";
+            }
+          }
+        }
+        container trust-anchors {
+          when "../notification-type = 'bootstrap-complete'" {
+            description
+              "Trust anchors are only sent when the notification
+               type is 'bootstrap-complete'.";
+          }
+          description
+            "A list of trust anchor certificates an NMS may use to
+             authenticate a NETCONF or RESTCONF connection to the
+             device with.";
+          list trust-anchor {
+            description
+              "A list of trust anchor certificates an NMS may use to
+               authenticate a NETCONF or RESTCONF connection to the
+               device with.";
+            leaf-list protocol {
+              type enumeration {
+                enum netconf-ssh     { description "netconf-ssh"; }
+                enum netconf-tls     { description "netconf-tls"; }
+                enum restconf-tls    { description "restconf-tls"; }
+                enum netconf-ch-ssh  { description "netconf-ch-ssh"; }
+                enum netconf-ch-tls  { description "netconf-ch-tls"; }
+                enum restconf-ch-tls { description "restconf-ch-tls"; }
+              }
+              min-elements 1;
+              description
+                "The protocols that this trust anchor secures.";
+            }
+            leaf certificate {
+              type pkcs7;
+              mandatory true;
+              description
+                "An X.509 v3 certificate structure, as specified by
+                 Section 4 in RFC5280, encoded using ASN.1 distinguished
+                 encoding rules (DER), as specified in ITU-T X.690.";
+              reference
+                "RFC 5280:
+                   Internet X.509 Public Key Infrastructure Certificate
+                   and Certificate Revocation List (CRL) Profile.
+                 ITU-T X.690:
+                    Information technology - ASN.1 encoding rules:
+                    Specification of Basic Encoding Rules (BER),
+                    Canonical Encoding Rules (CER) and Distinguished
+                    Encoding Rules (DER).";
+            }
+          }
+        }
+      }
+    } // end action
+
+  } // end device
+
+}

@@ -1,0 +1,408 @@
+module ietf-netconf-server {
+
+  namespace "urn:ietf:params:xml:ns:yang:ietf-netconf-server";
+  prefix "ncserver";
+
+  import ietf-inet-types {
+    prefix inet;                // RFC 6991
+  }
+  organization
+   "IETF NETCONF (Network Configuration) Working Group";
+
+  contact
+   "WG Web:   <http://tools.ietf.org/wg/netconf/>
+    WG List:  <mailto:netconf@ietf.org>
+
+    WG Chair: Mehmet Ersue
+              <mailto:mehmet.ersue@nsn.com>
+
+    WG Chair: Bert Wijnen
+              <mailto:bertietf@bwijnen.net>
+
+    Editor:   Kent Watsen
+              <mailto:kwatsen@juniper.net>";
+
+  description
+   "This module contains a collection of YANG definitions for
+    configuring NETCONF servers.
+
+    Copyright (c) 2014 IETF Trust and the persons identified as
+    authors of the code. All rights reserved.
+
+    Redistribution and use in source and binary forms, with or
+    without modification, is permitted pursuant to, and subject
+    to the license terms contained in, the Simplified BSD
+    License set forth in Section 4.c of the IETF Trust's
+    Legal Provisions Relating to IETF Documents
+    (http://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC XXXX; see
+    the RFC itself for full legal notices.";
+  // RFC Ed.: replace XXXX with actual RFC number and
+  // remove this note
+
+  // RFC Ed.: please update the date to the date of publication
+
+  revision "2014-01-24" {
+    description
+     "Initial version";
+    reference
+     "RFC XXXX: NETCONF Server Configuration Model";
+  }
+
+  // Features
+
+  feature ssh {
+    description
+     "A NETCONF server implements this feature if it supports NETCONF
+      over Secure Shell (SSH).";
+    reference
+     "RFC 6242: Using the NETCONF Protocol over Secure Shell (SSH)";
+  }
+
+  feature ssh-listen {
+    description
+     "The ssh-listen feature indicates that the NETCONF server can
+      open a port to listen for incoming client connections.";
+  }
+
+  feature ssh-call-home {
+    description
+     "The ssh-call-home feature indicates that the NETCONF server can
+      connect to a client.";
+    reference
+     "RFC XXXX: Reverse Secure Shell (Reverse SSH)";
+  }
+
+  feature tls {
+    description
+     "A NETCONF server implements this feature if it supports NETCONF
+      over Transport Layer Security (TLS).";
+    reference
+     "RFC XXXX: NETCONF over Transport Layer Security (TLS)";
+  }
+
+  feature tls-listen {
+    description
+     "The tls-listen feature indicates that the NETCONF server can
+      open a port to listen for incoming client connections.";
+  }
+
+  feature tls-call-home {
+    description
+     "The tls-call-home feature indicates that the NETCONF server can
+      connect to a client.";
+  }
+
+  // Groupings
+
+  grouping one-or-many-config {
+    description
+    "Provides a choice of configuring one of more ports
+     to listen for incoming client connections.";
+    choice one-or-many {
+     default one-port;
+     case one-port {
+      leaf port {
+        type inet:port-number;
+        description
+        "The port number the NETCONF server listens on on all
+         interfaces.";
+      }
+     }
+
+     case many-ports {
+      list interface {
+        key "address";
+        leaf address {
+         type inet:host;
+          mandatory true;
+          description
+           "The local IP address of the interface to listen
+            on.";
+         }
+         leaf port {
+          type inet:port-number;
+          description
+           "The local port number on this interface the
+            NETCONF server listens on.";
+          }
+        }
+      }
+    }
+  }
+
+  grouping network-managers-config {
+    container network-managers {
+      description
+       "A list of network managers the device initates connections
+        to. The configuration for each network manager specifies
+        its details, including its endpoints, the type of
+        connection to maintain, and the reconnection strategy
+        to use.";
+
+      list network-manager {
+        key name;
+        leaf name {
+          type string {
+            length 1..64;  // XXX why these limits?
+          }
+          mandatory true;
+          description
+           "An arbitrary name for the network manager the device
+            is connecting to.";
+        }
+        leaf description {
+          type string;
+          description
+            "An optional description for the network manager.";
+        }
+        container endpoints {
+          description
+           "An ordered listing of the network manager's
+           endpoints that the device should attempt connecting
+           to.  Defining more than one enables the device to
+           support high-availability scenarios.";
+          list endpoint {
+            key address;
+            min-elements 1;
+            ordered-by user;
+            leaf address {
+              type inet:host;
+              mandatory true;
+              description
+               "The hostname or IP address of the endpoint.
+               If a hostname is provided and DNS resolves to
+               more than one IP address, the device SHOULD
+               try all of the ones it can based on how its
+               networking stack is configured (e.g. v4, v6,
+               dual-stack).";
+            }
+            leaf port {
+              type inet:port-number;
+              description
+               "The IP port for this endpoint. The device will use
+                the IANA-assigned well-known port if not specified.";
+            }
+          }
+        }
+        container transport {
+        }
+        container connection-type {
+          description
+           "Indicates the network manager's preference for how the
+            device's connection is maintained.";
+          choice connection-type {
+            default persistent-connection;
+
+            case persistent-connection {
+              container persistent {
+                description
+                 "Maintain a persistent connection to the
+                  network manager. If the connection goes down,
+                  immediately start trying to reconnect to it,
+                  using the reconnection strategy.
+
+                  This connection type minimizes any
+                  manager-to-device data-transfer delay,
+                  albeit at the expense of holding resources
+                  longer.";
+                container keep-alives {
+                  leaf interval-secs {
+                    type uint8;
+                    units seconds;
+                    default 15;
+                    description
+                     "Sets a timeout interval in seconds after which
+                      if no data has been received from the manager's
+                      endpoint, a message will be sent to request a
+                      response from the endpoint.  A value of '0'
+                      indicates that no keep-alive messages should
+                      be sent.";
+                  }
+                  leaf count-max {
+                    type uint8;
+                    default 3;
+                    description
+                     "Sets the number of keep-alive messages that may
+                      be sent without receiving any data from the
+                      manager's endpoint before assuming the endpoint
+                      is no longer alive.  If this threshold is
+                      reached, the transport-level connection will be
+                      disconnected (thus triggering the reconnection
+                      strategy).  The interval timer is reset after
+                      each transmission, thus an unresponsive
+                      endpoint will be disconnected after about
+                      count-max * interval-secs seconds.";
+                  }
+                }
+              }
+            }
+
+            case periodic-connection {
+              container periodic {
+                description
+                 "Periodically connect to network manager, using the
+                  reconnection strategy, so it can flush any pending
+                  data it may be holding. This connection type
+                  minimizes resources held open, albeit at the
+                  expense of longer manager-to-device data-transfer
+                  delay.  Note that for device-to-manager data, the
+                  data should be sent immediately, connecting to
+                  network manager first if not already.";
+                leaf timeout-mins {
+                  type uint8;
+                  units minutes;
+                  default 5;
+                  description
+                   "The maximum amount of unconnected time the
+                    device will wait until establishing a
+                    connection to the network manager again. The
+                    device MAY establish a connection before this
+                    time if it has data it needs to send to the
+                    network manager. Note: this value differs from
+                    the reconnection strategy's interval-secs
+                    value.";
+                }
+                leaf linger-secs {
+                  type uint8;
+                  units seconds;
+                  default 30;
+                  description
+                   "The amount of time the device should wait after
+                    last receiving data from or sending data to the
+                    network manager's endpoint before closing its
+                    connection to it.  This is an optimization to
+                    prevent unnecessary connections.";
+                }
+              }
+            }
+          }
+        }
+
+        // XXX
+        // Should we have something smarter as the reconnect
+        // strategy, e.g. an exponential backoff?
+
+        container reconnect-strategy {
+          description
+           "The reconnection strategy guides how a device reconnects
+            to an network manager, after losing a connection to it,
+            even if due to a reboot.  The device starts with the
+            specified endpoint, tries to connect to it count-max
+            times, waiting interval-secs between each connection
+            attempt, before trying the next endpoint in the list
+            (round robin).";
+          leaf start-with {
+            type enumeration {
+              enum first-listed { value 1; }
+              enum last-connected { value 2; }
+            }
+            default first-listed;
+            description
+             "Specifies which of the network manager's endpoints the
+              device should start with when trying to connect to
+              the network manager.  If no previous connection has
+              ever been established, last-connected defaults to the
+              first endpoint listed.";
+          }
+          leaf interval-secs {
+            type uint8;
+            units seconds;
+            default 5;
+            description
+             "Specifies the time delay between connection attempts
+              to the same endpoint.  Note: this value differs from
+              the periodic-connection's timeout-mins value.";
+          }
+          leaf count-max {
+            type uint8;
+            default 3;
+            description
+             "Specifies the number times the device tries to
+              connect to a specific endpoint before moving on to
+              the next endpoint in the list (round robin).";
+          }
+        }
+      }
+    }
+  }
+
+  grouping listen-config {
+    description
+      "Provides the configuration of the NETCONF server to
+       open one or more ports to listen for incoming client
+       connections.";
+    container ssh {
+      if-feature ssh-listen;
+      uses one-or-many-config {
+        refine one-or-many/one-port/port {
+          default 830;
+        }
+        refine one-or-many/many-ports/interface/port {
+          default 830;
+        }
+      }
+    }
+    container tls {
+      if-feature tls-listen;
+      uses one-or-many-config {
+        refine one-or-many/one-port/port {
+          default 6513;
+        }
+        refine one-or-many/many-ports/interface/port {
+          default 6513;
+        }
+      }
+    }
+  }
+
+  grouping call-home-config {
+    description
+      "Provides the configuration of the NETCONF call-home
+       clients to connect to, the overall call-home policy,
+       and the reconnect strategy.";
+
+    uses network-managers-config {
+      augment network-managers/network-manager/transport {
+        container ssh {
+          if-feature ssh-call-home;
+          container host-keys {
+            description
+              "An ordered listing of the SSH host keys the
+               device should advertise to the network manager.";
+            list host-key {
+              key name;
+              min-elements 1;    // requires 'ssh' element?
+              ordered-by user;
+              leaf name {
+                type string;
+                mandatory true;
+                description
+                  "The name of a host key the device should
+                   advertise during the SSH key exchange.";
+              }
+            }
+          }
+        }
+        container tls {
+          if-feature tls-call-home;
+          presence "Enables call home using TLS when configured.";
+        }
+      }
+    }
+  }
+
+  // Module's top-level container
+  container netconf-server {
+    description
+      "Top-level container for NETCONF server configuration.";
+    container listen {
+      uses listen-config;
+    }
+    container call-home {
+      uses call-home-config;
+    }
+  }
+
+}

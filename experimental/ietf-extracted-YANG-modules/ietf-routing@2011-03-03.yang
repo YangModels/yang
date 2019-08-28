@@ -1,0 +1,426 @@
+module ietf-routing {
+  namespace "urn:ietf:params:xml:ns:yang:ietf-routing";
+  prefix rt;
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  organization
+    "IETF NETMOD (NETCONF Data Modeling Language) Working Group";
+
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/netmod/>
+     WG List:  <mailto:netmod@ietf.org>
+
+     WG Chair: David Kessens
+               <mailto:david.kessens@nsn.com>
+
+     WG Chair: Juergen Schoenwaelder
+               <mailto:j.schoenwaelder@jacobs-university.de>
+
+     Editor:   Ladislav Lhotka
+               <mailto:lhotka@cesnet.cz>";
+
+  description
+    "This module contains YANG definitions for basic
+     configuration of IP routing.
+
+     It is immediately usable for a device that needs just a single
+     routing table populated with static routes.
+
+     On the other hand, the framework is designed to handle arbitrarily
+     complex configurations with any number of routing tables and
+     various routing protocols (in multiple instances).
+
+     Every compliant implementation MUST support IPv4 unicast routing
+     and implement at least one (main) routing table, which is
+     connected to the OS kernel forwarding information base.";
+
+  revision 2011-03-03;
+
+  /* Features */
+
+  feature ipv6-routing {
+    description
+      "This feature MUST be advertised by devices supporting IPv6
+       routing. Such a device MUST implement at least one extra routing
+       table to which all IPv6 unicast routing protocols are connected
+       by default.";
+  }
+
+  feature ipv4-multicast-routing {
+    description
+      "This feature MUST be set by devices supporting IPv4
+       multicast routing.  Such a device MUST implement at least one
+       extra routing table to which all IPv6 multicast routing
+       protocols are connected by default.";
+  }
+
+  feature ipv6-multicast-routing {
+    description
+      "This feature MUST be set by devices supporting IPv6
+       multicast routing.  Such a device MUST implement at least one
+       extra routing table to which all IPv6 multicast routing
+       protocols are connected by default.";
+  }
+
+  /* Identities */
+
+  identity address-family {
+    description
+      "Base identity from which address family identities are
+       derived.";
+  }
+
+  identity af-ipv4 {
+    base address-family;
+    description
+      "IPv4 address family.";
+  }
+
+  identity af-ipv6 {
+    base address-family;
+    description
+      "IPv6 address family.";
+  }
+
+  identity routing-protocol {
+    description
+      "Base identity from which routing protocol identities are
+       derived.";
+  }
+
+  identity direct {
+    base routing-protocol;
+    description
+      "Identity for the pseudo-protocol providing routes to
+       directly connected networks. An implementation MUST preconfigure
+       an instance of this pseudo-protocol.";
+  }
+
+  identity static {
+    base routing-protocol;
+    description
+      "Identity for static routing pseudo-protocol.";
+  }
+
+  identity route-filter {
+    description
+      "Base identity for route filters. It also represents the
+       empty route filter that blocks everything.";
+  }
+
+  identity route-type {
+    description
+      "Base identity for route types.";
+  }
+
+  identity unicast {
+    base route-type;
+    description
+      "Unicast route type.";
+  }
+
+  identity multicast {
+    base route-type;
+    description
+      "Multicast route type.";
+  }
+
+  identity anycast {
+    base route-type;
+    description
+      "Anycast route type.";
+  }
+  /* Type definitions */
+
+  typedef routing-table-ref {
+    type leafref {
+      path "/routing/configured-routing-tables/name";
+    }
+    description
+      "This type represents a reference to a configured routing
+       table.";
+  }
+
+  typedef routing-protocol-instance-ref {
+    type leafref {
+      path "/routing/routing-protocol-instances/" +
+           "routing-protocol-instance/name";
+    }
+    description
+      "This type represents a reference to a configured routing
+       protocol instance.";
+  }
+
+  typedef route-filter-ref {
+    type leafref {
+      path "/routing/route-filters/route-filter/name";
+    }
+    description
+      "This type represents a reference to a configured route
+       filter.";
+  }
+
+  /* Groupings */
+
+  grouping ip-route-content {
+    description
+      "Components of an IP route.";
+    leaf type {
+      type identityref {
+        base route-type;
+      }
+      default "unicast";
+    }
+    leaf destination-prefix {
+      type inet:ip-prefix;
+      mandatory true;
+      description
+        "The set of destination addresses for which the route may
+         be used.";
+    }
+    leaf next-hop {
+      type inet:ip-address;
+      description
+        "IP address of the host or router to which packets whose
+         address matches 'destination-prefix' are to be forwarded.";
+    }
+    leaf outgoing-interface {
+      type if:interface-ref;
+      description
+        "Name of the outgoing interface. This parameter is mainly
+         used in direct routes.";
+    }
+  }
+
+  rpc delete-route {
+    description
+      "This operation deletes a route with given parameters from
+       a specified routing table. <ok> is returned by the server
+       upon successful completion.";
+    input {
+      container route {
+        description
+          "All routes that match this parameter MUST be deleted
+           from the target routing table.";
+        uses ip-route-content;
+      }
+      leaf routing-table {
+        type routing-table-ref;
+        description
+          "This parameter specifies the target routing
+           table.";
+      }
+    }
+  }
+
+  /* Data tree */
+
+  container routing {
+    description
+      "IP routing parameters.";
+    container configured-routing-tables {
+      description
+        "Names of configured routing tables. Their contents are
+         available as operational state data under 'routing-tables'. At
+         least one (main) table MUST be configured for every supported
+         address family. This default routing table is usually
+         connected to the main kernel forwarding table.";
+      leaf-list name {
+        type string;
+        min-elements 1;
+      }
+    }
+    container routing-protocol-instances {
+      description
+        "Container for configured routing protocol instances.
+
+         Every implementation MUST preconfigure the 'direct'
+         pseudo-protocol instance providing the routes to directly
+         connected networks.";
+      list routing-protocol-instance {
+        key "name";
+        container static-routes {
+          when "../type='static'";
+          description
+            "Configuration of a 'static' pseudo-protocol instance
+             consists of a list of routes.";
+          list static-route {
+            key "id";
+            leaf id {
+              type string;
+            }
+            leaf description {
+              type string;
+            }
+            uses ip-route-content;
+          }
+        }
+        leaf name {
+          type string;
+        }
+        leaf description {
+          type string;
+        }
+        leaf address-family {
+          type identityref {
+            base address-family;
+          }
+          default "af-ipv4";
+          description
+            "Address family used by the routing protocol instance.";
+        }
+        leaf type {
+          type identityref {
+            base routing-protocol;
+          }
+          mandatory true;
+          description
+            "Type of the routing protocol.";
+        }
+        leaf routing-table {
+          type routing-table-ref;
+          description
+            "The routing table to which the protocol instance is
+             connected. By default it is the main routing table for the
+             given address family.";
+        }
+        leaf import-filter {
+          type route-filter-ref;
+          description
+            "Reference to a route filter that is used for
+             filtering routes passed from this routing protocol instance
+             to the routing table specified by the 'routing-table'
+             sibling node. If this leaf is not present, the behavior is
+             protocol-specific, but typically it means that all routes
+             are accepted.";
+        }
+        leaf export-filter {
+          type route-filter-ref;
+          description
+            "Reference to a route filter that is used for
+             filtering routes passed from the routing table specified
+             by the 'routing-table' sibling to this routing protocol
+             instance. If this leaf is not present, the behavior is
+             protocol-specific - typically it means that all routes
+             are accepted, except for the 'direct' and 'static'
+             pseudo-protocols which accept no routes from
+             anywhere.";
+        }
+      }
+    }
+    container route-pipes {
+      description
+        "Route pipes facilitate transport of routes between pairs
+         of routing tables.";
+      list route-pipe {
+        key "name";
+        description
+          "A route-pipe is a unidirectional connection between
+           'origin' and 'recipient'.";
+        leaf name {
+          type string;
+        }
+        leaf description {
+          type string;
+        }
+        leaf origin {
+          type routing-table-ref;
+          mandatory true;
+          description
+            "The originating routing-table.";
+        }
+        leaf recipient {
+          type routing-table-ref;
+          mandatory true;
+          description
+            "The receiving routing-table.";
+        }
+        leaf route-filter {
+          type route-filter-ref;
+          description
+            "All routes passing through the route pipe are filtered by
+             the route filter referred to by this leaf. If it is not
+             present, all routes from 'origin' are passed to
+             'destination'.";
+        }
+      }
+    }
+    container route-filters {
+      description
+        "Non-trivial route filters are expected to be defined in
+         other modules.";
+      list route-filter {
+        key "name";
+        description
+          "A route filter is used for filtering routes between
+           routing protocol instances and routing tables (import
+           filter) and vice versa (export filter), and in route pipes
+           that connect pairs of routing tables.";
+        leaf name {
+          type string;
+        }
+        leaf description {
+          type string;
+        }
+        leaf type {
+          type identityref {
+            base route-filter;
+          }
+          default "route-filter";
+          description
+            "Type of the route-filter. The default value
+             represents an all-blocking filter.";
+        }
+      }
+    }
+
+    /* Operational state data */
+
+    container routing-tables {
+      config false;
+      description
+        "Routing tables and their contents.";
+      list routing-table {
+        min-elements 1;
+        description
+          "Exactly one routing table MUST be present for every 'name'
+           entry appearing in '/routing/configured-routing-tables'.";
+        leaf name {
+          type routing-table-ref;
+        }
+        leaf address-family {
+          type identityref {
+            base address-family;
+          }
+          default "af-ipv4";
+          description
+            "Address family of all routes in the routing table.";
+        }
+        list route {
+          leaf source-protocol {
+            type routing-protocol-instance-ref;
+            description
+              "Protocol instance from which the route comes.";
+          }
+          leaf last-modified {
+            type yang:date-and-time;
+            description
+              "Time stamp of the last modification of the
+               route. If the route was never modified, it is the time
+               when the route was inserted to the routing table.";
+          }
+          uses ip-route-content;
+        }
+      }
+    }
+  }
+}

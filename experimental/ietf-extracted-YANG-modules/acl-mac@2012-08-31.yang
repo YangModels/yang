@@ -1,0 +1,198 @@
+module acl-mac {
+    namespace "urn:cisco:params:xml:ns:yang:acl-mac";
+    // replace with IANA namespace when assigned
+    prefix acl-mac;
+
+    import acl { prefix acl;  }
+    import common-types {
+        prefix "c-types";
+    }
+
+    organization
+       "IETF NETMOD (NETCONF Data Modeling Language) Working Group";
+
+    contact
+    "WG Web: http://tools.ietf.org/wg/netmod/
+        WG List: netmod@ietf.org
+
+        WG Chair: David Kessens
+        david.kessens@nsn.com
+
+        WG Chair: Juergen Schoenwaelder
+        j.schoenwaelder@jacobs-university.de
+
+        Editor: Lisa Huang
+        yihuan@cisco.com
+
+        Editor: Alexander Clemm
+        alex@cisco.com";
+
+     description
+        "This YANG module augments the 'acl' module with
+        configuration and operational data for MAC access control list
+
+        An ACL is an ordered set of rules and actions used to
+        filter traffic.
+        Each set of rules and actions is represented as an Access
+        Control Entries (ACE). Each ACE is evaluated sequentially.
+        When the rule matches then action for that rule is applied
+        to the packet.
+
+        MAC ACLs - MAC ACLs are used to filter traffic using the
+            information in the Layer 2 header of each packet.
+            MAC ACLs are by default only applied to non-IP
+            traffic; however, Layer 2 interfaces can be configured to
+            apply MAC ACLs to all traffic.
+
+        Terms and Acronyms
+         ACE (ace): Access Control Entry
+
+         ACL (acl): Access Control List
+
+         AFI (afi): Authority and Format Identifier (Address Field
+             Identifier)
+         CoS (cos): Class of Service
+
+         MAC: Media Access Control
+
+         TTL (ttl): Time to Live
+
+         VLAN (vlan): Virtual Local Area Network
+
+         VRF(vrf) : Virtual Routing and Forwarding
+       ";
+
+    revision 2012-08-31 {
+        description "Initial revision. ";
+    }
+
+    /* Layer 2 ACL */
+
+    grouping MAC-ACE-GROUP {
+        description
+            "Layer 2 Access Control Entry (ACE). The mac-aces
+            container contains a list of mac-ace. Each mac-ace is
+            comprised of a sequence number and a choice of remark
+            (comment) or a rule.
+            A rule is referred to as 'packet-filter', although it
+            contains both a filter and an action.
+            The packet-filter requires a mandatory action (permit/deny)
+            and one or more options such as source-address with mask,
+            ethertype, vlan etc.";
+        container mac-aces {
+            list mac-ace {
+                key sequence-num;
+                leaf sequence-num {
+                    type acl:Sequence-Number;
+                    description
+                        "This number determines the order in which the
+                        ace within the access list will be evaluated.";
+                }
+                choice remark-or-ace-filter {
+                    mandatory true;
+                    case remark {
+                        leaf remark {
+                            type acl:Remark;
+                            mandatory true;
+                            description
+                                "A remark is a comment that can be
+                                inserted into an ACL in order to make
+                                the access list easier for the network
+                                administrator to understand.
+                                It is retained to facilitate
+                                co-existence with CLI.";
+                        }
+                    }
+                    case filter {
+                        container filters {
+
+                            uses acl:MAC-SOURCE-NETWORK;
+                            uses acl:MAC-DESTINATION-NETWORK;
+
+                            leaf ethertype {
+                                type c-types:Ether-Type;
+                                description "Ether-Type (also known as
+                                    protocol) in hex 0x0-0xffff";
+                            }
+
+                            leaf ethertype-mask {
+                                when "boolean(../ethertype)";
+                                type c-types:Ether-Type;
+                                default "0x0000";
+                                description
+                                    "Ether-type mask in hex 0x0-0xFFFF.
+                                    0x0 is exactly match of the
+                                    Ethertype..";
+                                if-feature acl:ethertype-mask;
+                            }
+
+                            leaf cos {
+                                type c-types:CoS;
+                                description "CoS value <0-7>";
+                            }
+
+                            leaf time-range {
+                                type acl:Time-Range-Ref;
+                                description
+                                    "Enable packet capture on this
+                                    filter for a specify  time range
+                                    by name (Max name
+                                    string size 64).";
+                            }
+
+                            leaf vlan {
+                                type c-types:Vlan-Identifier;
+                                description "VLAN number";
+                            }
+                            leaf enable-capture {
+                                type boolean ;
+                                description
+                                    "Enable packet capture on this
+                                    filter for this session.";
+                            }
+                            leaf capture-session-id {
+                                type uint8 {
+                                    range "1..48";
+                                }
+                                description
+                                    "Enable packet capture on this
+                                    filter for this session.";
+                                if-feature acl:capture-session-id;
+                            }
+                        }
+                        container actions {
+                            leaf action {
+                                type acl:ACL-Action;
+                                mandatory true;
+                                description "Permit/deny action.";
+                            }
+
+                            leaf log {
+                                type boolean;
+                                default false;
+                                description
+                                    "Causes an informational
+                                    logging message about the
+                                    packet that matches the entry
+                                    to be sent to the console.";
+                            }
+                        }
+                        leaf match {
+                            config false;
+                            type uint64;
+                            description
+                                "The total packets number that
+                                have matched for the particular ACE";
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    augment "/acl:acls/acl:acl" {
+        when "acl:acl-type = 'mac-acl'";
+         uses MAC-ACE-GROUP;
+    }
+
+}

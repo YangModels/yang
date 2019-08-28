@@ -1,0 +1,262 @@
+module ietf-ipsec-ikeless {
+
+        yang-version 1.1;
+        namespace "urn:ietf:params:xml:ns:yang:ietf-ipsec-ikeless";
+
+        prefix "ipsec-ikeless";
+
+        import ietf-yang-types { prefix yang; }
+
+        import ietf-ipsec-common {
+                prefix ic;
+                reference "Common Data model for SDN-based IPSec configuration";
+        }
+
+        organization "IETF I2NSF (Interface to Network Security Functions) Working Group";
+
+        contact
+        " Rafael Marin Lopez
+        Dept. Information and Communications Engineering (DIIC)
+        Faculty of Computer Science-University of Murcia
+        30100 Murcia - Spain
+        Telf: +34868888501
+        e-mail: rafa@um.es
+
+        Gabriel Lopez Millan
+        Dept. Information and Communications Engineering (DIIC)
+        Faculty of Computer Science-University of Murcia
+        30100 Murcia - Spain
+        Tel: +34 868888504
+        email: gabilm@um.es
+
+        Fernando Pereniguez Garcia
+        Department of Sciences and Informatics
+        University Defense Center (CUD), Spanish Air Force Academy, MDE-UPCT
+        30720 San Javier - Spain
+        Tel: +34 968189946
+        email: fernando.pereniguez@cud.upct.es
+        ";
+
+        description "Data model for IKE-less case";
+
+        revision "2019-03-11" {
+                description "Revision";
+                reference "";
+        }
+
+        /*################## SAD grouping ####################*/
+        grouping ipsec-sa-grouping {
+                description "Configure Security Association (SA). Section 4.4.2.1 in RFC 4301";
+
+                leaf sad-entry-id {type uint64; description "This value identifies a specific entry in the SAD";}
+                leaf spi { type ic:ipsec-spi;  description "Security Parameter Index. This may not be unique for a particular SA";}
+                leaf seq-number { type uint64; description "Current sequence number of IPsec packet."; }
+                leaf seq-number-overflow-flag { type boolean; description "The flag indicating whether overflow of the sequence number counter should prevent transmission of additional packets on the SA, or whether rollover is permitted."; }
+                leaf anti-replay-window { type uint16 { range "0 | 32..1024"; } description "Anti replay window size"; }
+                leaf spd-entry-id {type uint64; description "This value links the SA with the SPD entry";}
+
+                uses ic:selector-grouping;
+
+                leaf security-protocol { type ic:ipsec-protocol; description "Security protocol of IPsec SA: Either AH or ESP."; }
+
+                container sad-lifetime-hard {
+                        description "SAD lifetime hard state data. The action associated is terminate.";
+                        uses ic:lifetime;
+                }
+                container sad-lifetime-soft {
+                        description "SAD lifetime hard state data";
+                        uses ic:lifetime;
+                        leaf action {type ic:lifetime-action; description "action lifetime";}
+                }
+
+                leaf mode { type ic:ipsec-mode; description "SA Mode"; }
+                leaf statefulfragCheck { type boolean; description "Indicates whether (TRUE) or not (FALSE) stateful fragment checking (RFC 4301) applies to this SA."; }
+
+                leaf dscp { type yang:hex-string; description "DSCP value"; }
+                leaf path-mtu { type uint16; description "Maximum size of an IPsec packet that can be transmitted without fragmentation"; }
+
+                container tunnel {
+                        when "../mode = 'TUNNEL'";
+                        uses ic:tunnel-grouping;
+                        description "Container for tunnel grouping";
+                }
+
+                uses ic:encap;
+
+                // STATE DATA for SA
+                container sad-lifetime-current {
+                        uses ic:lifetime;
+                        config false;
+                        description "SAD lifetime current state data";
+                }
+
+                container stats { // xfrm.h
+                        leaf replay-window {type uint32; default 0; description " "; }
+                        leaf replay {type uint32; default 0; description "packets detected out of the replay window and dropped because they are replay packets";}
+                        leaf failed {type uint32; default 0; description "packets detected out of the replay window ";}
+                        config false;
+                        description "SAD statistics";
+                }
+
+                container replay_state { // xfrm.h
+                        leaf seq {type uint32; default 0; description "input traffic sequence number when anti-replay-window != 0";}
+                        leaf oseq {type uint32; default 0; description "output traffic sequence number";}
+                        leaf bitmap {type uint32; default 0; description "";}
+                        config false;
+                        description "Anti-replay Sequence Number state";
+                }
+
+                container replay_state_esn { // xfrm.h
+                        leaf bmp-len {type uint32; default 0; description "bitmap length for ESN"; }
+                        leaf oseq { type uint32; default 0; description "output traffic sequence number"; }
+                        leaf oseq-hi { type uint32; default 0; description ""; }
+                        leaf seq-hi { type uint32; default 0; description ""; }
+                        leaf replay-window {type uint32; default 0; description ""; }
+                        leaf-list bmp { type uint32; description "bitmaps for ESN (depends on bmp-len) "; }
+                        config false;
+                        description "Anti-replay Extended Sequence Number (ESN) state";
+                }
+
+        }
+        /*################## end SAD grouping ##################*/
+
+        /*################# Register grouping #################*/
+        typedef sadb-msg-type {
+                type enumeration {
+                        enum sadb_acquire { description "SADB_ACQUIRE"; }
+                        enum sadb_expire { description "SADB_EXPIRE"; }
+                }
+                description "Notifications (PF_KEY message types) that must be forwarded by the NSF to the controller in IKE-less case";
+        }
+
+        typedef sadb-msg-satype {
+                 type enumeration {
+                        enum sadb_satype_unspec { description "SADB_SATYPE_UNSPEC"; }
+                        enum sadb_satype_ah { description "SADB_SATYPE_AH"; }
+                        enum sadb_satype_esp { description "SADB_SATYPE_ESP"; }
+                        enum sadb_satype_rsvp { description "SADB_SATYPE_RSVP"; }
+                        enum sadb_satype_ospfv2 { description "SADB_SATYPE_OSPFv2"; }
+                        enum sadb_satype_ripv2 { description "SADB_SATYPE_RIPv2"; }
+                        enum sadb_satype_mip { description "SADB_SATYPE_MIP"; }
+                        enum sadb_satype_max { description "SADB_SATYPE_MAX"; }
+                }
+                description "PF_KEY Security Association types";
+        }
+
+        grouping base-grouping {
+                description "Configuration for the  message header format";
+                list base-list {
+                                 key "version";
+                                 leaf version { type string; description "Version of PF_KEY (MUST be PF_KEY_V2)"; }
+                                 leaf msg_type { type sadb-msg-type; description "Identifies the type of message"; }
+                                 leaf msg_satype { type sadb-msg-satype; description "Defines the type of Security Association"; }
+                                 leaf msg_seq { type uint32; description "Sequence number of this message."; }
+                                 description "Configuration for a specific message header format";
+                }
+        }
+        /*################# End Register grouping #################*/
+
+        /*################## IPsec configuration ##################*/
+        container ietf-ipsec {
+                description "IPsec configuration";
+
+                container spd {
+                                        description "Configure the Security Policy Database (SPD)";
+                                        list spd-entry {
+                                           key "spd-entry-id";
+                                           uses ic:ipsec-policy-grouping;
+                                           ordered-by user;
+                                           description "List of SPD entries";
+                                        }
+                }
+
+                container sad {
+                        description "Configure the IPSec Security Association Database (SAD)";
+
+                        list sad-entry {
+                                key "sad-entry-id";
+
+                                uses ipsec-sa-grouping;
+
+                                container ah-sa {
+                                        when "../security-protocol = 'ah'";
+                                        description "Configure Authentication Header (AH) for SA";
+                                        container integrity {
+                                                description "Configure integrity for IPSec Authentication Header (AH)";
+                                                leaf integrity-algorithm { type ic:integrity-algorithm-t; description "Configure Authentication Header (AH)."; }
+                                                leaf key { type string; description "AH key value";}
+                                        }
+                                }
+
+                                container esp-sa {
+                                        when "../security-protocol = 'esp'";
+                                        description "Set IPSec Encapsulation Security Payload (ESP)";
+
+                                        container encryption {
+                                                description "Configure encryption for IPSec Encapsulation Secutiry Payload (ESP)";
+                                                leaf encryption-algorithm { type ic:encryption-algorithm-t; description "Configure ESP encryption"; }
+                                                leaf key { type yang:hex-string; description "ESP encryption key value";}
+                                                leaf iv {type yang:hex-string; description "ESP encryption IV value"; }
+                                        }
+
+                                        container integrity {
+                                                description "Configure authentication for IPSec Encapsulation Secutiry Payload (ESP)";
+                                                leaf integrity-algorithm { type ic:integrity-algorithm-t; description "Configure Authentication Header (AH)."; }
+                                                leaf key { type yang:hex-string; description "ESP integrity key value";}
+                                        }
+
+                                        /* With AEAD algorithms, the integrity node is not used */
+
+                                        leaf combined-enc-intr { type boolean; description "ESP combined mode algorithms. The algorithm is specified in encryption-algorithm";}
+                                }
+                                description "List of SAD entries";
+                        }
+                }
+        } /* container ietf-ipsec */
+
+        /*################## RPC and Notifications ##################*/
+
+        // These RPCs are needed by a Security Controller in IKEless case
+
+        notification spdb_expire {
+                description "A SPD entry has expired";
+                leaf index { type uint64; description "SPD index. RFC4301 does not mention an index however real implementations (e.g. XFRM or PFKEY_v2 with KAME extensions provide a policy index to refer a policy. "; }
+        }
+
+        notification sadb_acquire {
+                description "A IPsec SA is required ";
+                uses base-grouping;
+                uses ic:selector-grouping; // To indicate the concrete traffic selector of the policy that triggered this acquire.
+        }
+
+        notification sadb_expire {
+                description "A IPsec SA expiration (soft or hard)";
+
+                uses base-grouping;
+                leaf spi { type ic:ipsec-spi;  description "Security Parameter Index";}
+                leaf anti-replay-window { type uint16 { range "0 | 32..1024"; } description "Anti replay window"; }
+
+                leaf encryption-algorithm { type ic:encryption-algorithm-t; description "encryption algorithm of the expired SA"; }
+                leaf authentication-algorithm { type ic:integrity-algorithm-t; description "authentication algorithm of the expired SA"; }
+
+                container sad-lifetime-hard {
+                        description "SAD lifetime hard state data";
+                        uses ic:lifetime;
+                }
+                container sad-lifetime-soft {
+                        description "SAD lifetime soft state data";
+                        uses ic:lifetime;
+                }
+
+                container sad-lifetime-current {
+                        description "SAD lifetime current state data";
+                        uses ic:lifetime;
+                }
+        }
+
+        notification sadb_bad-spi {
+                description "Notifiy when the NSF receives a packet with an incorrect SPI (i.e. not present in the SAD)";
+                leaf state { type ic:ipsec-spi; mandatory "true"; description "SPI number contained in the erroneous IPsec packet"; }
+        }
+
+}/*module ietf-ipsec*/

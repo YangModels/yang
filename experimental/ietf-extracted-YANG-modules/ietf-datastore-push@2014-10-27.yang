@@ -1,0 +1,260 @@
+module ietf-datastore-push {
+    // RFC Ed.: replace XXXX with 'ietf' and remove this note
+    namespace "urn:XXXX:params:xml:ns:yang:ietf-datastore-push";
+    prefix "datastore-push";
+
+    import ietf-yang-types { prefix yang; }
+
+    organization
+      "IETF";
+
+    contact
+      "Editor:   Alexander Clemm
+                 <mailto:alex@cisco.com>
+
+       Editor:   Alberto Gonzalez Prieto
+                 <mailto:albertgo@cisco.com>
+
+       Editor:   Eric Voit
+                 <mailto:evoit@cisco.com>";
+
+    description
+      "This module contains conceptual YANG specifications
+       for datastore push.";
+
+    revision 2014-10-27 {
+      description
+        "Initial revision.";
+      reference
+        "Datastore push.";
+    }
+
+   // Typedefs
+   typedef datastore-contents {
+       type string;
+       description
+         "The encoding of the contents adheres to the subscription
+          parameters. It corresponds to the filtered datastore
+          subtree.";
+   }
+
+   typedef subscription-identifier {
+       type string {
+           length "1 .. max";
+       }
+       description
+         "A client-provided identifier for the subscription.";
+   }
+
+   // Identities
+   // Subscription error
+   identity subscription-errors {
+       description
+         "Base identity for subscription errors.";
+   }
+
+   typedef subscription-term-reason {
+       type identityref {
+           base "subscription-errors";
+       }
+       description
+         "Reason for a server to terminate a subscription.";
+   }
+
+   typedef subscription-susp-reason {
+       type identityref {
+           base "subscription-errors";
+       }
+       description
+         "Reason for a server to suspend a subscription.";
+   }
+
+   identity internal-error {
+       base "subscription-errors";
+       description
+         "Subscription failures caused by server internal error.";
+   }
+
+   identity no-resources {
+       base "subscription-errors";
+       description
+         "Lack of resources, e.g. CPU, memory, bandwidth";
+   }
+   identity other {
+       base "subscription-errors";
+       description
+         "Fallback reason - any other reason";
+   }
+
+   // Notifications
+   notification push-update {
+       description
+         "This notification contains an update from a datastore";
+
+       leaf subscription-id {
+           type subscription-identifier;
+           mandatory true;
+           description
+             "This references the subscription because of which the
+              notification is sent.";
+       }
+
+       leaf datastore-contents {
+           type datastore-contents;
+           description
+             "This contains datastore contents
+              per the subscription.";
+       }
+   }
+
+   notification subscription-suspended {
+       description
+         "This notification indicates a suspension of the
+          subscription by the server has occurred.  No further
+          datastore updates will be sent until subscription
+          resumes.";
+
+       leaf subscription-id {
+           type subscription-identifier;
+           mandatory true;
+           description
+             "This references the affected subscription.";
+       }
+
+       leaf reason {
+           type subscription-susp-reason;
+           description
+             "Provides a reason for why the subscription was
+              suspended.";
+       }
+   }
+
+   notification subscription-resumed {
+       description
+         "This notification indicates that a subscription that had
+          previously been suspended has resumed. Datastore updates
+          will once again be sent.";
+       leaf subscription-id {
+           type subscription-identifier;
+           mandatory true;
+           description
+             "This references the affected subscription.";
+       }
+   }
+
+   notification subscription-terminated {
+       description
+         "This notification indicates that a subscription has been
+          terminated.";
+
+       leaf subscription-id {
+           type subscription-identifier;
+           mandatory true;
+           description
+             "This references the affected subscription.";
+
+       }
+
+       leaf reason {
+           type subscription-term-reason;
+           description
+             "Provides a reason for why the subscription was
+             terminated.";
+       }
+   }
+
+   container datastore-push-subscription {
+       description
+         "Content of a yang-push subscription.";
+
+       leaf stream {
+           type string;
+           mandatory true;
+           description
+             "The name of the stream to subscribe to.";
+       }
+
+       leaf subscription-id {
+           type subscription-identifier;
+           mandatory true;
+           description
+             "Identifier to use for this subscription.";
+       }
+       choice filter {
+           description
+             "Subset of stream events of interest.";
+           case substree {
+               container subtree-filter {
+                   description
+                    "Datastore subtree of interest.";
+               }
+           }
+
+           case xpath {
+               leaf xpath-filter {
+                   type yang:xpath1.0;
+                   mandatory true;
+                   description
+                     "Xpath defining the events of interest.";
+               }
+           }
+       }
+
+       choice notification-trigger {
+           mandatory true;
+           description
+             "Defines necessary conditions for sending an event  to
+              the subscriber.";
+           case periodic {
+               description
+                 "The agent is requested to notify periodically the
+                  current values of the datastore or the subset
+                  defined by the filter.";
+               leaf period {
+                   type yang:timeticks;
+                   mandatory true;
+                   description
+                     "Elapsed time between notifications.";
+               }
+           }
+
+           case on-change {
+               description
+                 "The agent is requested to notify changes in
+                  values in the datastore or a subset of it defined
+                  by a filter.";
+
+               choice change-policy {
+                   mandatory true;
+                   description
+                     "Policy describing necessary conditions for
+                     sending an event  to the subscriber.";
+                   case delta-policy {
+                       leaf delta {
+                           type uint32;
+                           mandatory true;
+                           description
+                             "For integer, minimum difference
+                              between current and last reports
+                              values that can trigger an update.";
+                       }
+                   }
+               }
+           }
+       }
+
+       leaf start-time {
+           type yang:date-and-time;
+           description
+             "Starting time for replays.";
+           reference "RFC 5277, Section 2.1.1";
+       }
+
+       leaf stop-time {
+           type yang:date-and-time;
+           description
+             "Time limit for events of interest.";
+           reference "RFC 5277, Section 2.1.1";
+       }
+   }
+}

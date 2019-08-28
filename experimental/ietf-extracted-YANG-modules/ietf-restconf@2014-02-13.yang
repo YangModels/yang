@@ -1,0 +1,638 @@
+module ietf-restconf {
+  namespace "urn:ietf:params:xml:ns:yang:ietf-restconf";
+  prefix "rc";
+
+  import ietf-yang-types { prefix yang; }
+  import ietf-inet-types { prefix inet; }
+
+  organization
+    "IETF NETCONF (Network Configuration) Working Group";
+
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/netconf/>
+     WG List:  <mailto:netconf@ietf.org>
+
+     WG Chair: Bert Wijnen
+               <mailto:bertietf@bwijnen.net>
+
+     WG Chair: Mehmet Ersue
+               <mailto:mehmet.ersue@nsn.com>
+
+     Editor:   Andy Bierman
+               <mailto:andy@yumaworks.com>
+
+     Editor:   Martin Bjorklund
+               <mailto:mbj@tail-f.com>
+
+     Editor:   Kent Watsen
+               <mailto:kwatsen@juniper.net>
+
+     Editor:   Rex Fernando
+               <mailto:rex@cisco.com>";
+
+  description
+    "This module contains conceptual YANG specifications
+     for the message and error content that is used in
+     RESTCONF protocol messages. A conceptual container
+     representing the RESTCONF API nodes is also defined
+     for the media type application/yang.api.
+
+     Note that the YANG definitions within this module do not
+     represent configuration data of any kind.
+     The YANG grouping statements provide a normative syntax
+     for XML and JSON message encoding purposes.
+
+     Copyright (c) 2013 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Simplified BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (http://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX; see
+     the RFC itself for full legal notices.";
+
+  // RFC Ed.: replace XXXX with actual RFC number and remove this
+  // note.
+
+  // RFC Ed.: remove this note
+  // Note: extracted from draft-bierman-netconf-restconf-04.txt
+
+  // RFC Ed.: update the date below with the date of RFC publication
+  // and remove this note.
+  revision 2014-02-13 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX: RESTCONF Protocol.";
+  }
+
+  typedef data-resource-identifier {
+    type string {
+      length "1 .. max";
+    }
+    description
+      "Contains a Data Resource Identifier formatted string
+       to identify a specific data resource instance.
+       The document root for all data resources is a
+       datastore resource container. Each top-level YANG
+       data nodes supported by the server will be represented
+       as a child node of the document root.
+
+       The canonical representation of a data resource identifier
+       includes the full server specification that is returned
+       in the Location header when a new data resource is created
+       with the POST method.
+
+       The abbreviated representation does not contain any server
+       location identification. Instead the identifier will start
+       with the '/' character to represent the datastore document
+       root for the data resource instance.
+
+       The server MUST accept either representation and SHOULD
+       return the canonical representation in any response message.";
+    reference
+      "RFC XXXX: [sec. 5.3.1.1 ABNF For Data Resource Identifiers]";
+  }
+
+  typedef revision-identifier {
+    type string {
+      pattern '\d{4}-\d{2}-\d{2}';
+    }
+    description
+      "Represents a specific date in YYYY-MM-DD format.
+       TBD: make pattern more precise to exclude leading zeros.";
+  }
+
+  grouping errors {
+
+    description
+      "A grouping that contains a YANG container
+       representing the syntax and semantics of a
+       YANG Patch errors report within a response message.";
+
+    container errors {
+      config false;  // needed so list error does not need a key
+      description
+        "Represents an error report returned by the server if
+         a request results in an error.";
+
+      list error {
+        description
+          "An entry containing information about one
+           specific error that occurred while processing
+           a RESTCONF request.";
+        reference "RFC 6241, Section 4.3";
+
+        leaf error-type {
+          type enumeration {
+            enum transport {
+              description "The transport layer";
+            }
+            enum rpc {
+              description "The rpc or notification layer";
+            }
+            enum protocol {
+              description "The protocol operation layer";
+            }
+            enum application {
+              description "The server application layer";
+            }
+          }
+          mandatory true;
+          description
+            "The protocol layer where the error occurred.";
+        }
+
+        leaf error-tag {
+          type string;
+          mandatory true;
+          description
+            "The enumerated error tag.";
+        }
+
+        leaf error-app-tag {
+          type string;
+          description
+            "The application-specific error tag.";
+        }
+
+        choice error-node {
+          description
+            "The server will return the location of the error node
+             in a format that is appropriate for the protocol.
+             If no specific node within the request message body
+             caused the error then this choice will not be present.";
+
+          leaf error-path {
+            type instance-identifier;
+            description
+              "The YANG instance identifier associated
+               with the error node. This leaf will only be
+               present if the error node is not a data resource,
+               e.g., the error node is an input parameter
+               for an operation resource.";
+          }
+          leaf error-urlpath {
+            type data-resource-identifier;
+            description
+              "The target data resource identifier associated
+               with the error node.  This leaf will only be
+               present if the error node is associated with
+               a data resource (either within the server or
+               in the request message).";
+          }
+        }
+
+        leaf error-message {
+          type string;
+          description
+            "A message describing the error.";
+        }
+
+        anyxml error-info {
+           description
+             "Arbitrary XML that represents a container
+              of additional information for the error report.";
+        }
+      }
+    }
+  } // grouping errors
+
+  grouping restconf {
+    description
+      "A grouping that contains a YANG container
+       representing the syntax and semantics of
+       the RESTCONF API resource.";
+
+    container restconf {
+      description
+        "Conceptual container representing the
+         application/yang.api resource type.";
+
+      container data {
+        description
+          "Container representing the application/yang.datastore
+           resource type. Represents the conceptual root of all
+           operational data and configuration data supported by
+           the server.  The child nodes of this container can be
+           any data resource (application/yang.data), which are
+           defined as top-level data nodes from the YANG modules
+           advertised by the server in /restconf/modules.";
+      }
+      container modules {
+        description
+          "Contains a list of module description entries.
+           These modules are currently loaded into the server.";
+
+        grouping common-leafs {
+          description
+            "Common parameters for YANG modules and submodules.";
+
+          leaf name {
+            type yang:yang-identifier;
+            description "The YANG module or submodule name.";
+          }
+          leaf revision {
+            type union {
+              type revision-identifier;
+              type string { length 0; }
+            }
+            description
+              "The YANG module or submodule revision date.
+               An empty string is used if no revision statement
+               is present in the YANG module or submodule.";
+          }
+
+          leaf schema {
+            type empty;
+            description
+              "Represents the YANG schema resource for this module
+               or submodule if it is available on the server.
+               This leaf will only be present if the server has
+               the schema available for retrieval.  A GET
+               request with a target resource URI that identifies
+               this leaf will cause the server to return the YANG
+               schema text for the associated module or submodule.";
+          }
+        }
+
+        list module {
+          key "name revision";
+          description
+            "Each entry represents one module currently
+             supported by the server.";
+
+          uses common-leafs;
+
+          leaf namespace {
+            type inet:uri;
+            mandatory true;
+            description
+              "The XML namespace identifier for this module.";
+          }
+          leaf-list feature {
+            type yang:yang-identifier;
+            description
+              "List of YANG feature names from this module that are
+               supported by the server.";
+          }
+          leaf-list deviation {
+            type yang:yang-identifier;
+            description
+              "List of YANG deviation module names used by this
+               server to modify the conformance of the module
+               associated with this entry.";
+          }
+
+          list submodule {
+            key "name revision";
+            description
+              "Each entry represents one submodule within the
+               parent module.";
+
+            uses common-leafs;
+          }
+        }
+      }
+
+      container operations {
+        description
+          "Container for all operation resources
+           (application/yang.operation),
+
+           Each resource is represented as an empty leaf with the
+           name of the RPC operation from the YANG rpc statement.
+
+           E.g.;
+
+              POST /restconf/operations/show-log-errors
+
+              leaf show-log-errors {
+                type empty;
+              }
+          ";
+      }
+
+      container streams {
+        description
+          "Container representing the notification event streams
+           supported by the server.";
+         reference
+           "RFC 5277, Section 3.4, <streams> element.";
+
+        list stream {
+          key name;
+          description
+            "Each entry describes an event stream supported by
+             the server.";
+
+          leaf name {
+            type string;
+            description "The stream name";
+            reference "RFC 5277, Section 3.4, <name> element.";
+          }
+
+          leaf description {
+            type string;
+            description "Description of stream content";
+            reference
+              "RFC 5277, Section 3.4, <description> element.";
+          }
+
+          leaf replay-support {
+            type boolean;
+            description
+              "Indicates if replay buffer supported for this stream";
+            reference
+              "RFC 5277, Section 3.4, <replaySupport> element.";
+          }
+
+          leaf replay-log-creation-time {
+            type yang:date-and-time;
+            description
+              "Indicates the time the replay log for this stream
+               was created.";
+            reference
+              "RFC 5277, Section 3.4, <replayLogCreationTime>
+               element.";
+          }
+
+          leaf events {
+            type empty;
+            description
+              "Represents the entry point for establishing
+               notification delivery via server sent events.";
+          }
+        }
+      }
+
+      leaf version {
+        type enumeration {
+          enum "1.0" {
+            description
+              "Version 1.0 of the RESTCONF protocol.";
+          }
+        }
+        config false;
+        description
+          "Contains the RESTCONF protocol version.";
+      }
+    }
+  }  // grouping restconf
+
+  grouping query-parameters {
+    description
+       "Contains conceptual definitions for the query string
+        parameters used in the RESTCONF protocol.";
+
+    leaf content {
+      type enumeration {
+        enum config {
+          description
+            "Return only configuration descendant data nodes";
+        }
+        enum nonconfig {
+          description
+            "Return only non-configuration descendant data nodes";
+        }
+        enum all {
+          description
+            "Return all descendant data nodes";
+        }
+      }
+      description
+         "The content parameter controls how descendant nodes of
+          the requested data nodes will be processed in the reply.
+
+          This parameter is only allowed for GET methods on
+          datastore and data resources.  A 400 Bad Request error
+          is returned if used for other methods or resource types.
+
+          The default value is determined by the config-stmt
+          value of the requested data nodes. If 'false', then
+          the default is 'nonconfig'.  If 'true' then the
+          default is 'config'.";
+    }
+
+    leaf depth {
+      type union {
+        type enumeration {
+          enum unbounded {
+            description "All sub-resources will be returned.";
+          }
+        }
+        type uint32 {
+          range "1..max";
+        }
+      }
+      default unbounded;
+      description
+        "The 'depth' parameter is used to specify the number
+         of nest levels returned in a response for a GET method.
+         The first nest-level consists of the requested data node
+         itself. Any child nodes which are contained within
+         a parent node have a depth value that is 1 greater than
+         its parent.
+
+         This parameter is only allowed for GET methods on api,
+         datastore, and data resources.  A 400 Bad Request error
+         is returned if used for other methods or resource types.
+
+         By default, the server will include all sub-resources
+         within a retrieved resource, which have the same resource
+         type as the requested resource. Only one level of
+         sub-resources with a different media type than the target
+         resource will be returned.";
+    }
+
+    leaf filter {
+      type yang:xpath1.0;
+      description
+        "The 'filter' parameter is used to indicate which subset of
+         all possible events are of interest.  If not present, all
+         events not precluded by other parameters will be sent.
+
+         This parameter is only allowed for GET methods on a
+         text/event-stream data resource.  A 400 Bad Request error
+         is returned if used for other methods or resource types.
+
+         The format of this parameter is an XPath expression, and
+         is evaluated in the following context:
+
+         o  The set of namespace declarations is the set of
+            prefix and namespace pairs for all supported YANG
+            modules, where the prefix is the YANG module name, and
+            the namespace is as defined by the 'namespace' statement
+            in the YANG module.
+         o  The function library is the core function library defined
+            in XPATH.
+
+         o  The set of variable bindings is empty.
+
+         o  The context node is the root node
+
+        The filter is used as defined in [RFC5277], section 3.6.
+        If the boolean result of the expression is true when applied
+        to the conceptual 'notification' document root, then the
+        notification event is delivered to the client.";
+    }
+
+    leaf insert {
+      type enumeration {
+        enum first {
+          description "Insert the new data as the new first entry.";
+        }
+        enum last {
+          description "Insert the new data as the new last entry.";
+        }
+        enum before {
+          description
+            "Insert the new data before the insertion point,
+             specified by the value of the 'point' parameter.";
+        }
+        enum after {
+          description
+            "Insert the new data after the insertion point,
+             specified by the value of the 'point' parameter.";
+        }
+      }
+      default last;
+      description
+        "The 'insert' parameter is used to specify how a
+         resource should be inserted within a user-ordered list.
+
+         This parameter is only supported for the POST and PUT
+         methods. It is also only supported if the target
+         resource is a data resource, and that data represents
+         a YANG list or leaf-list that is ordered by the user.
+         If the values 'before' or 'after' are used,
+         then a 'point' query parameter for the insertion
+         parameter MUST also be present, or a 400 Bad Request
+         error is returned.";
+    }
+
+    leaf point {
+      type data-resource-identifier;
+      description
+        "The 'point' parameter is used to specify the
+         insertion point for a data resource that is being
+         created or moved within a user ordered list or leaf-list.
+
+         This parameter is only supported for the POST and PUT
+         methods. It is also only supported if the target
+         resource is a data resource, and that data represents
+         a YANG list or leaf-list that is ordered by the user.
+
+         If the 'insert' query parameter is not present, or has
+         a value other than 'before' or 'after', then a 400
+         Bad Request error is returned.
+
+         This parameter contains the instance identifier of the
+         resource to be used as the insertion point for a
+         POST or PUT method.";
+    }
+
+    leaf select {
+      type string {
+        length "1 .. max";
+      }
+      description
+        "The 'select' query parameter is used to specify an
+         expression which can represent a subset of all data nodes
+         within the target resource. It contains an expression
+         string, using the target resource as the context node.
+
+         The encoding for the select parameter is still TBD.
+
+         This parameter is only allowed for GET methods on api,
+         datastore, and data resources.  A 400 Bad Request error
+         is returned if used for other methods or resource types.
+
+         If XPath:
+         The string is an XPath expression that will be evaluated
+         using the target resource instance as the context node
+         and the document root. It is expected to return a node-set
+         result representing the descendants within the context
+         node that should be returned in a GET response.";
+    }
+
+    leaf start-time {
+      type yang:date-and-time;
+      description
+        "The 'start-time' parameter is used to trigger
+         the notification replay feature and indicate
+         that the replay should start at the time specified.
+         If the stream does not support replay, per the
+         'replay-support' attribute returned by
+         the /restconf/streams resource, then the server MUST
+         return the HTTP error code 400 Bad Request.
+
+         This parameter is only allowed for GET methods on a
+         text/event-stream data resource.  A 400 Bad Request error
+         is returned if used for other methods or resource types.
+
+         If this parameter is not present, then a replay subscription
+         is not begin requested.  It is not valid to specify start
+         times that are later than the current time.  If the value
+         specified is earlier than the log can support, the replay
+         will begin with the earliest available notification";
+    }
+
+    leaf stop-time {
+      type yang:date-and-time;
+      description
+        "The 'stop-time' parameter is used with the
+         replay feature to indicate the newest notifications of
+         interest.  This parameter MUST be used with and have a
+         value later than the 'start-time' parameter.
+
+         This parameter is only allowed for GET methods on a
+         text/event-stream data resource.  A 400 Bad Request error
+         is returned if used for other methods or resource types.
+
+         If this parameter is not present, the notifications will
+         continue until the subscription is terminated.
+         Values in the future are valid.";
+    }
+
+  }  // grouping query-parameters
+
+  grouping notification {
+    description
+      "Contains the notification message wrapper definition.";
+    container notification {
+      description
+        "RESTCONF notification message wrapper.";
+
+      leaf event-time {
+        type yang:date-and-time;
+        mandatory true;
+        description
+          "The time the event was generated by the
+           event source.";
+        reference
+          "RFC 5277, section 4, <eventTime> element.";
+      }
+
+      /* The YANG-specific notification container is encoded
+       * after the 'event-time' element.  The format
+       * corresponds to the notificationContent element
+       * in RFC 5277, section 4. For example:
+       *
+       *  module example-one {
+       *     ...
+       *     notification event1 { ... }
+       *
+       *  }
+       *
+       *  Encoded as element 'event1' in the namespace
+       *  for module 'example-one'.
+       */
+    }
+  }  // grouping notification
+
+}

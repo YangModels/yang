@@ -1,0 +1,637 @@
+module ietf-netconf-server {
+
+  namespace "urn:ietf:params:xml:ns:yang:ietf-netconf-server";
+  prefix "ncserver";
+
+  import ietf-netconf-acm {
+    prefix nacm;                     // RFC 6536
+    revision-date 2012-02-22;
+  }
+  import ietf-inet-types {           // RFC 6991
+    prefix inet;
+    revision-date 2013-07-15;
+  }
+  import ietf-x509-cert-to-name {    // RFC 7407
+    prefix x509c2n;
+    revision-date 2014-12-10;
+  }
+
+  organization
+   "IETF NETCONF (Network Configuration) Working Group";
+
+  contact
+   "WG Web:   <http://tools.ietf.org/wg/netconf/>
+    WG List:  <mailto:netconf@ietf.org>
+
+    WG Chair: Mehmet Ersue
+              <mailto:mehmet.ersue@nsn.com>
+
+    WG Chair: Mahesh Jethanandani
+              <mailto:mjethanandani@gmail.com>
+
+    Editor:   Kent Watsen
+              <mailto:kwatsen@juniper.net>";
+
+  description
+   "This module contains a collection of YANG definitions for
+    configuring NETCONF servers.
+
+    Copyright (c) 2014 IETF Trust and the persons identified as
+    authors of the code. All rights reserved.
+
+    Redistribution and use in source and binary forms, with or
+    without modification, is permitted pursuant to, and subject
+    to the license terms contained in, the Simplified BSD
+    License set forth in Section 4.c of the IETF Trust's
+    Legal Provisions Relating to IETF Documents
+    (http://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC VVVV; see
+    the RFC itself for full legal notices.";
+
+  revision "2015-02-02" {
+    description
+     "Initial version";
+    reference
+     "RFC VVVV: NETCONF Server and RESTCONF Server Configuration Models";
+  }
+
+  // Features
+
+  feature ssh {
+    description
+     "The ssh feature indicates that the server supports the
+      SSH transport protocol.";
+    reference
+     "RFC 6242: Using the NETCONF Protocol over Secure Shell (SSH)";
+  }
+
+  feature tls {
+    description
+     "The tls feature indicates that the server supports the
+      TLS transport protocol.";
+    reference
+     "RFC 5539: NETCONF over Transport Layer Security (TLS)";
+  }
+
+  feature listen {
+    description
+     "The listen feature indicates that the server supports
+      opening a port to listen for incoming client connections.";
+    reference
+     "RFC 6242: Using the NETCONF Protocol over Secure Shell (SSH)
+      RFC 5539: NETCONF over Transport Layer Security (TLS)";
+  }
+
+  feature call-home {
+    description
+     "The call-home feature indicates that the server supports
+      connecting to the client";
+    reference
+     "RFC YYYY: NETCONF Call Home and RESTCONF Call Home";
+  }
+
+  feature ssh-x509-certs {
+    description
+      "The ssh-x509-certs feature indicates that the NETCONF server
+       supports RFC 6187";
+    reference
+      "RFC 6187: X.509v3 Certificates for Secure Shell Authentication";
+  }
+
+  // top-level container  (groupings below)
+  container netconf-server {
+    description
+      "Top-level container for NETCONF server configuration.";
+
+    uses session-options-container;
+    uses listen-container;
+    uses call-home-container;
+    uses ssh-container;
+    uses tls-container;
+
+  }
+
+  grouping session-options-container {
+    description
+      "This grouping is used only to help improve readability
+       of the YANG module.";
+    container session-options {
+      description
+        "NETCONF session options, independent of transport
+         or connection strategy.";
+      leaf hello-timeout {
+        type uint32 {
+          range "0 | 10 .. 3600";
+        }
+        units "seconds";
+        default '600';
+        description
+          "Specifies the number of seconds that a session may exist
+           before the hello PDU is received.  A session will be
+           dropped if no hello PDU is received before this number
+           of seconds elapses.
+
+           If this parameter is set to zero, then the server will
+           wait forever for a hello message, and not drop any
+           sessions stuck in 'hello-wait' state.
+
+           Setting this parameter to zero may permit denial of
+           service attacks, since only a limited number of
+           concurrent sessions may be supported by the server.";
+      }
+      leaf idle-timeout {
+        type uint32 {
+          range "0 | 10 .. 360000";
+        }
+        units "seconds";
+        default '3600';
+        description
+          "Specifies the number of seconds that a NETCONF session may
+           remain idle without issuing any RPC requests.  A session
+           will be dropped if it is idle for an interval longer than
+           this number of seconds.  If this parameter is set to zero,
+           then the server will never drop a session because it is
+           idle.  Sessions that have a notification subscription
+           active are never dropped.
+
+           This mechanism is independent of keep-alives, as it regards
+           activity occurring at the NETCONF protocol layer, whereas
+           the keep-alive mechanism regards transport-level activity.";
+      }
+    }
+  }
+
+  grouping listen-container {
+    description
+      "This grouping is used only to help improve readability
+       of the YANG module.";
+    container listen {
+      description
+        "Configures listen behavior";
+      if-feature listen;
+      leaf max-sessions {
+        type uint16 {
+          range "0 .. 1024";
+        }
+        default '0';
+        description
+          "Specifies the maximum number of concurrent sessions
+             that can be active at one time.  The value 0 indicates
+             that no artificial session limit should be used.";
+      }
+      list endpoint {
+        key name;
+        description
+          "List of endpoints to listen for NETCONF connections on.";
+        leaf name {
+          type string;
+          description
+            "An arbitrary name for the NETCONF listen endpoint.";
+        }
+        choice transport {
+          mandatory true;
+          description
+            "Selects between SSH and TLS transports.";
+          case ssh {
+            if-feature ssh;
+            container ssh {
+              description
+                "SSH-specific listening configuration for inbound
+                 connections.";
+              uses address-and-port-grouping {
+                refine port {
+                  default 830;
+                }
+              }
+              uses host-keys-container;
+            }
+          }
+          case tls {
+            if-feature tls;
+            container tls {
+              description
+                "TLS-specific listening configuration for inbound
+                 connections.";
+              uses address-and-port-grouping {
+                refine port {
+                  default 6513;
+                }
+              }
+              uses certificates-container;
+            }
+          }
+        }
+        uses keep-alives-container  {
+          refine keep-alives/interval-secs {
+            default 0; // disabled by default for listen connections
+          }
+        }
+      }
+    }
+  }
+
+  grouping call-home-container {
+    description
+      "This grouping is used only to help improve readability
+       of the YANG module.";
+    container call-home {
+      if-feature call-home;
+      description
+        "Configures call-home behavior";
+      list application {
+        key name;
+        description
+          "List of NETCONF clients the NETCONF server is to initiate
+           call-home connections to.";
+        leaf name {
+          type string;
+          description
+            "An arbitrary name for the remote NETCONF client.";
+        }
+        choice transport {
+          mandatory true;
+          description
+            "Selects between available transports.";
+          case ssh {
+            if-feature ssh;
+            container ssh {
+              description
+                "Specifies SSH-specific call-home transport
+                 configuration.";
+              uses endpoints-container {
+                refine endpoints/endpoint/port {
+                  default 7777;
+                }
+              }
+              uses host-keys-container;
+            }
+          }
+          case tls {
+            if-feature tls;
+            container tls {
+              description
+                "Specifies TLS-specific call-home transport
+                 configuration.";
+              uses endpoints-container {
+                refine endpoints/endpoint/port {
+                  default 8888;
+                }
+              }
+              uses certificates-container;
+            }
+          }
+        }
+        container connection-type {
+          description
+           "Indicates the kind of connection to use.";
+          choice connection-type {
+            default persistent-connection;
+            description
+              "Selects between persistent and periodic connections.";
+            case persistent-connection {
+              container persistent {
+                description
+                 "Maintain a persistent connection to the NETCONF
+                  client. If the connection goes down, immediately
+                  start trying to reconnect to it, using the
+                  reconnection strategy.
+
+                  This connection type minimizes any NETCONF client
+                  to NETCONF server data-transfer delay, albeit at
+                  the expense of holding resources longer.";
+                uses keep-alives-container  {
+                  refine keep-alives/interval-secs {
+                    default 15; // 15 seconds for call-home sessions
+                  }
+                }
+              }
+            }
+            case periodic-connection {
+              container periodic {
+                description
+                 "Periodically connect to NETCONF client, using the
+                  reconnection strategy, so the NETCONF client can
+                  deliver pending messages to the NETCONF server.
+
+                  For messages the NETCONF server wants to send to
+                  to the NETCONF client, the NETCONF server should
+                  proactively connect to the NETCONF client, if
+                  not already, to send the messages immediately.";
+                leaf timeout-mins {
+                  type uint8;
+                  units minutes;
+                  default 5;
+                  description
+                   "The maximum amount of unconnected time the NETCONF
+                    server will wait until establishing a connection to
+                    the NETCONF client again. The NETCONF server MAY
+                    establish a connection before this time if it has
+                    data it needs to send to the NETCONF client. Note:
+                    this value differs from the reconnection strategy's
+                    interval-secs value.";
+                }
+                leaf linger-secs {
+                  type uint8;
+                  units seconds;
+                  default 30;
+                  description
+                   "The amount of time the NETCONF server should wait
+                    after last receiving data from or sending data to
+                    the NETCONF client's endpoint before closing its
+                    connection to it.  This is an optimization to
+                    prevent unnecessary connections.";
+                }
+              }
+            }
+          }
+        }
+        container reconnect-strategy {
+          description
+           "The reconnection strategy guides how a NETCONF server
+            reconnects to an NETCONF client, after losing a connection
+            to it, even if due to a reboot.  The NETCONF server starts
+            with the specified endpoint and tries to connect to it
+            count-max times, waiting interval-secs between each
+            connection attempt, before trying the next endpoint in
+            the list (round robin).";
+          leaf start-with {
+            type enumeration {
+              enum first-listed {
+                description
+                  "Indicates that reconnections should start with
+                   the first endpoint listed.";
+              }
+              enum last-connected {
+                description
+                  "Indicates that reconnections should start with
+                   the endpoint last connected to.  NETCONF servers
+                   SHOULD support this flag across reboots.";
+              }
+            }
+            default first-listed;
+            description
+             "Specifies which of the NETCONF client's endpoints the
+              NETCONF server should start with when trying to connect
+              to the NETCONF client.  If no previous connection has
+              ever been established, last-connected defaults to
+              the first endpoint listed.";
+          }
+          leaf interval-secs {
+            type uint8;
+            units seconds;
+            default 5;
+            description
+             "Specifies the time delay between connection attempts
+              to the same endpoint.  Note: this value differs from
+              the periodic-connection's timeout-mins value.";
+          }
+          leaf count-max {
+            type uint8;
+            default 3;
+            description
+             "Specifies the number times the NETCONF server tries to
+              connect to a specific endpoint before moving on to the
+              next endpoint in the list (round robin).";
+          }
+        }
+      }
+    }
+  }
+
+  grouping ssh-container {
+    description
+      "This grouping is used only to help improve readability
+       of the YANG module.";
+    container ssh {
+      description
+        "Configures SSH properties not specific to the listen
+         or call-home use-cases";
+      if-feature ssh;
+      container x509 {
+        if-feature ssh-x509-certs;
+        uses trusted-certs-grouping;
+      }
+    }
+  }
+
+  grouping tls-container {
+    description
+      "This grouping is used only to help improve readability
+       of the YANG module.";
+    container tls {
+      description
+        "Configures TLS properties for authenticating clients.";
+      if-feature tls;
+      container client-auth {
+        description
+          "Container for TLS client authentication configuration.";
+        uses trusted-certs-grouping;
+        container cert-maps {
+          uses x509c2n:cert-to-name;
+          description
+           "The cert-maps container is used by a NETCONF server to
+            map the NETCONF client's presented X.509 certificate to a
+            NETCONF username.  If no matching and valid cert-to-name
+            list entry can be found, then the NETCONF server MUST
+            close the connection, and MUST NOT accept NETCONF
+            messages over it.";
+        }
+      }
+    }
+  }
+
+  grouping trusted-certs-grouping {
+    description
+      "This grouping is used by both the ssh and tls containers.";
+    container trusted-ca-certs {
+      description
+        "A list of Certificate Authority (CA) certificates that
+         a NETCONF server can use to authenticate NETCONF client
+         certificates.  A client's certificate is authenticated
+         if there is a chain of trust to a configured trusted CA
+         certificate.  The client certificate MAY be accompanied
+         with additional certificates forming a chain of trust.
+         The client's certificate is authenticated if there is
+         path-validation from any of the certificates it presents
+         to a configured trust anchor.";
+      leaf-list trusted-ca-cert {
+        type binary;
+        ordered-by system;
+        nacm:default-deny-write;
+        description
+          "The binary certificate structure as specified by RFC
+           5246, Section 7.4.6, i.e.,: opaque ASN.1Cert<1..2^24>;
+          ";
+        reference
+          "RFC 5246: The Transport Layer Security (TLS)
+                     Protocol Version 1.2";
+      }
+    }
+    container trusted-client-certs {
+      description
+        "A list of client certificates that a NETCONF server can
+         use to authenticate a NETCONF client's certificate.  A
+         client's certificate is authenticated if it is an exact
+         match to a configured trusted client certificates.";
+      leaf-list trusted-client-cert {
+        type binary;
+        ordered-by system;
+        nacm:default-deny-write;
+        description
+          "The binary certificate structure, as
+           specified by RFC 5246, Section 7.4.6, i.e.,:
+
+             opaque ASN.1Cert<1..2^24>;
+
+          ";
+        reference
+          "RFC 5246: The Transport Layer Security (TLS)
+                     Protocol Version 1.2";
+      }
+    }
+  }
+
+  grouping host-keys-container {
+    description
+      "This grouping is used by both the listen and
+       call-home containers";
+    container host-keys {
+      description
+        "Parent container for the list of host-keys.";
+      leaf-list host-key {
+        type string;
+        min-elements 1;
+        ordered-by user;
+        description
+          "A user-ordered list of host-keys the SSH server
+           considers when composing the list of server host
+           key algorithms it will send to the client in its
+           SSH_MSG_KEXINIT message.  The value of the string
+           is the unique identifier for a host-key configured
+           on the system.  How valid values are discovered is
+           outside the scope of this module, but they are
+           envisioned to be the keys for a list of host-keys
+           provided by another YANG module";
+        reference
+          "RFC 4253: The SSH Transport Layer Protocol, Section 7";
+      }
+    }
+  }
+
+  grouping certificates-container {
+    description
+      "This grouping is used by both the listen and
+       call-home containers";
+    container certificates {
+      description
+        "Parent container for the list of certificates.";
+      leaf-list certificate {
+        type string;
+        min-elements 1;
+        description
+          "An unordered list of certificates the TLS server can pick
+           from when sending its Server Certificate message.  The value
+           of the string is the unique identifier for a certificate
+           configured on the system.  How valid values are discovered
+           is outside the scope of this module, but they are envisioned
+           to be the keys for a list of certificates provided
+           by another YANG module";
+        reference
+          "RFC 5246: The TLS Protocol, Section 7.4.2";
+      }
+    }
+  }
+
+  grouping address-and-port-grouping {
+    description
+      "This grouping is usd by both the ssh and tls containers
+       for listen configuration.";
+    leaf address {
+      type inet:ip-address;
+      description
+       "The IP address of the interface to listen on.";
+    }
+    leaf port {
+      type inet:port-number;
+      description
+       "The local port number on this interface the NETCONF server
+        listens on.";
+    }
+  }
+  grouping endpoints-container {
+    description
+      "This grouping is used by both the ssh and tls containers
+       for call-home configurations.";
+    container endpoints {
+      description
+        "Container for the list of endpoints.";
+      list endpoint {
+        key name;
+        min-elements 1;
+        ordered-by user;
+        description
+          "User-ordered list of endpoints for this NETCONF client.
+           Defining more than one enables high-availability.";
+        leaf name {
+          type string;
+          description
+            "An arbitrary name for the endpoint to connect to.";
+        }
+        leaf address {
+          type inet:host;
+          mandatory true;
+          description
+           "The hostname or IP address or hostname of the endpoint.
+            If a hostname is provided and DNS resolves to more than
+            one IP address, the NETCONF server SHOULD try all of
+            the ones it can based on how its networking stack is
+            configured (e.g. v4, v6, dual-stack).";
+        }
+        leaf port {
+          type inet:port-number;
+          description
+           "The IP port for this endpoint. The NETCONF server will
+            use the IANA-assigned well-known port if not specified.";
+        }
+      }
+    }
+  }
+
+  grouping keep-alives-container {
+    description
+      "This grouping is use by both listen and call-home configurations.";
+    container keep-alives {
+      description
+        "Configures the keep-alive policy, to proactively test the
+         aliveness of the NETCONF client.";
+      reference
+        "RFC VVVV: NETCONF Server and RESTCONF Server Configuration
+         Models, Section 4";
+      leaf interval-secs {
+        type uint8;
+        units seconds;
+        description
+         "Sets a timeout interval in seconds after which if no data
+          has been received from the NETCONF client, a message will
+          be sent to request a response from the NETCONF client.  A
+          value of '0' indicates that no keep-alive messages should
+          be sent.";
+      }
+      leaf count-max {
+        type uint8;
+        default 3;
+        description
+         "Sets the number of keep-alive messages that may be sent
+          without receiving any data from the NETCONF client before
+          assuming the NETCONF client is no longer alive.  If this
+          threshold is reached, the transport-level connection will
+          be disconnected, which will trigger the reconnection
+          strategy).  The interval timer is reset after each
+          transmission, thus an unresponsive NETCONF client will
+          be dropped after approximately (count-max * interval-secs)
+          seconds.";
+      }
+    }
+  }
+}

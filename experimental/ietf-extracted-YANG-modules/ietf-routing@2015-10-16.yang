@@ -1,0 +1,683 @@
+module ietf-routing {
+
+  namespace "urn:ietf:params:xml:ns:yang:ietf-routing";
+
+  prefix "rt";
+
+  import ietf-yang-types {
+    prefix "yang";
+  }
+
+  import ietf-interfaces {
+    prefix "if";
+  }
+
+  organization
+    "IETF NETMOD (NETCONF Data Modeling Language) Working Group";
+
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/netmod/>
+     WG List:  <mailto:netmod@ietf.org>
+
+     WG Chair: Thomas Nadeau
+               <mailto:tnadeau@lucidvision.com>
+
+     WG Chair: Juergen Schoenwaelder
+               <mailto:j.schoenwaelder@jacobs-university.de>
+
+     WG Chair: Kent Watsen
+               <mailto:kwatsen@juniper.net>
+
+     Editor:   Ladislav Lhotka
+               <mailto:lhotka@nic.cz>";
+
+  description
+    "This YANG module defines essential components for the management
+     of a routing subsystem.
+
+     Copyright (c) 2015 IETF Trust and the persons identified as
+     authors of the code. All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Simplified BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (http://trustee.ietf.org/license-info).
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'MAY', and
+     'OPTIONAL' in the module text are to be interpreted as described
+     in RFC 2119 (http://tools.ietf.org/html/rfc2119).
+
+     This version of this YANG module is part of RFC XXXX
+     (http://tools.ietf.org/html/rfcXXXX); see the RFC itself for
+     full legal notices.";
+
+  revision 2015-10-16 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX: A YANG Data Model for Routing Management";
+  }
+
+  /* Features */
+
+  feature multiple-ribs {
+    description
+      "This feature indicates that the server supports user-defined
+       RIBs.
+
+       Servers that do not advertise this feature SHOULD provide
+       exactly one system-controlled RIB per routing-instance and
+       supported address family and make them also the default RIBs.
+       These RIBs then appear as entries of the list
+       /routing-state/routing-instance/ribs/rib.";
+  }
+
+  feature router-id {
+    description
+      "This feature indicates that the server supports configuration
+       of an explicit 32-bit router ID that is used by some routing
+       protocols.
+
+       Servers that do not advertise this feature set a router ID
+       algorithmically, usually to one of configured IPv4 addresses.
+       However, this algorithm is implementation-specific.";
+  }
+
+  /* Identities */
+
+  identity address-family {
+    description
+      "Base identity from which identities describing address
+       families are derived.";
+  }
+
+  identity ipv4 {
+    base address-family;
+    description
+      "This identity represents IPv4 address family.";
+  }
+
+  identity ipv6 {
+    base address-family;
+    description
+      "This identity represents IPv6 address family.";
+  }
+
+  identity routing-instance {
+    description
+      "Base identity from which identities describing routing
+       instance types are derived.";
+  }
+
+  identity default-routing-instance {
+    base routing-instance;
+    description
+      "This identity represents either a default routing instance, or
+       the only routing instance on systems that do not support
+       multiple instances.";
+  }
+
+  identity vrf-routing-instance {
+    base routing-instance;
+    description
+      "This identity represents a VRF routing instance. The type is
+       distinct from the default-routing-instance. There may be
+       multiple vrf-routing-interfaces.";
+  }
+
+  identity routing-protocol {
+    description
+      "Base identity from which routing protocol identities are
+       derived.";
+  }
+
+  identity direct {
+    base routing-protocol;
+    description
+      "Routing pseudo-protocol that provides routes to directly
+       connected networks.";
+  }
+
+  identity static {
+    base routing-protocol;
+    description
+      "Static routing pseudo-protocol.";
+  }
+
+  /* Type Definitions */
+
+  typedef routing-instance-ref {
+    type leafref {
+      path "/rt:routing/rt:routing-instance/rt:name";
+    }
+    description
+      "This type is used for leafs that reference a routing instance
+       configuration.";
+  }
+
+  typedef routing-instance-state-ref {
+    type leafref {
+      path "/rt:routing-state/rt:routing-instance/rt:name";
+    }
+    description
+      "This type is used for leafs that reference state data of a
+       routing instance.";
+  }
+
+  typedef route-preference {
+    type uint32;
+    description
+      "This type is used for route preferences.";
+  }
+
+  /* Groupings */
+
+  grouping address-family {
+    description
+      "This grouping provides a leaf identifying an address
+       family.";
+    leaf address-family {
+      type identityref {
+        base address-family;
+      }
+      mandatory "true";
+      description
+        "Address family.";
+    }
+  }
+
+  grouping router-id {
+    description
+      "This grouping provides router ID.";
+    leaf router-id {
+      type yang:dotted-quad;
+      description
+        "A 32-bit number in the form of a dotted quad that is used by
+         some routing protocols identifying a router.";
+      reference
+        "RFC 2328: OSPF Version 2.";
+    }
+  }
+
+  grouping special-next-hop {
+    description
+      "This grouping provides a leaf with an enumeration of special
+       next-hops.";
+    leaf special-next-hop {
+      type enumeration {
+        enum blackhole {
+          description
+            "Silently discard the packet.";
+        }
+        enum unreachable {
+          description
+            "Discard the packet and notify the sender with an error
+             message indicating that the destination host is
+             unreachable.";
+        }
+        enum prohibit {
+          description
+            "Discard the packet and notify the sender with an error
+             message indicating that the communication is
+             administratively prohibited.";
+        }
+        enum receive {
+          description
+            "The packet will be received by the local system.";
+        }
+      }
+      description
+        "Special next-hop options.";
+    }
+  }
+
+  grouping next-hop-content {
+    description
+      "Generic parameters of next-hops in static routes.";
+    choice next-hop-options {
+      mandatory "true";
+      description
+        "Options for next-hops in static routes.
+
+         Modules for address families MUST augment this choice with
+         the 'next-hop-address' case, which is a leaf containing a
+         gateway address of that address family.
+
+         It is expected that further cases will be added through
+         augments from other modules, e.g., for Equal-Cost Multipath
+         routing (ECMP).";
+      leaf outgoing-interface {
+        type if:interface-ref;
+        description
+          "Name of the outgoing interface.";
+      }
+      case special-next-hop {
+        uses special-next-hop;
+      }
+    }
+  }
+
+  grouping next-hop-state-content {
+    description
+      "Generic parameters of next-hops in state data.";
+    choice next-hop-options {
+      mandatory "true";
+      description
+        "Options for next-hops in state data.
+
+         Modules for address families MUST augment this choice with
+         the 'next-hop-address' case, which is a leaf containing a
+         gateway address of that address family.
+
+         It is expected that further cases will be added through
+         augments from other modules, e.g., for ECMP or recursive
+         next-hops.";
+      leaf outgoing-interface {
+        type if:interface-state-ref;
+        description
+          "Name of the outgoing interface.";
+      }
+      case special-next-hop {
+        uses special-next-hop;
+      }
+    }
+  }
+
+  grouping route-metadata {
+    description
+      "Common route metadata.";
+    leaf source-protocol {
+      type identityref {
+        base routing-protocol;
+      }
+      mandatory "true";
+      description
+        "Type of the routing protocol from which the route
+         originated.";
+    }
+    leaf active {
+      type empty;
+      description
+        "Presence of this leaf indicates that the route is preferred
+         among all routes in the same RIB that have the same
+         destination prefix.";
+    }
+    leaf last-updated {
+      type yang:date-and-time;
+      description
+        "Time stamp of the last modification of the route. If the
+         route was never modified, it is the time when the route was
+         inserted into the RIB.";
+    }
+  }
+
+  /* State data */
+
+  augment "/if:interfaces-state/if:interface" {
+    description
+      "This augment adds a reference to the routing-instance to which
+       the interface is assigned.";
+    leaf routing-instance {
+      type routing-instance-state-ref;
+      description
+        "The name of the routing instance to which the interface is
+         assigned.";
+    }
+  }
+
+  container routing-state {
+    config "false";
+    description
+      "State data of the routing subsystem.";
+    list routing-instance {
+      key "name";
+      min-elements "1";
+      description
+        "Each list entry is a container for state data of a routing
+         instance.
+
+         An implementation MUST provide one and only one
+         system-controlled routing instance(s) of the type
+         'rt:default-routing-instance', and MAY support other types.
+         An implementation MAY restrict the number of routing
+         instances of each supported type.";
+      leaf name {
+        type string;
+        description
+          "The name of the routing instance.
+
+           For system-controlled instances the name SHOULD be
+           persistent, i.e., it doesn't change after a reboot.";
+      }
+      leaf type {
+        type identityref {
+          base routing-instance;
+        }
+        description
+          "The routing instance type.";
+      }
+      uses router-id {
+        description
+          "Global router ID.
+
+           It may be either configured or assigned algorithmically by
+           the implementation.";
+      }
+      container interfaces {
+        description
+          "Network layer interfaces belonging to the routing
+           instance.";
+        leaf-list interface {
+          type if:interface-state-ref;
+          must "../../name = /if:interfaces-state/"
+             + "if:interface[if:name=current()]/"
+             + "rt:routing-instance" {
+            error-message
+              "Routing instance is not assigned to the interface.";
+            description
+              "This reference must mirror a corresponding assignment
+               of the ancestor routing-instance to the interface.";
+          }
+          description
+            "Each entry is a reference to the name of a configured
+             network layer interface.";
+        }
+      }
+      container routing-protocols {
+        description
+          "Container for the list of routing protocol instances.";
+        list routing-protocol {
+          key "type name";
+          description
+            "State data of a routing protocol instance.
+
+             An implementation MUST provide exactly one
+             system-controlled instance of the type 'direct'. Other
+             instances MAY be created by configuration.";
+          leaf type {
+            type identityref {
+              base routing-protocol;
+            }
+            description
+              "Type of the routing protocol.";
+          }
+          leaf name {
+            type string;
+            description
+              "The name of the routing protocol instance.
+
+               For system-controlled instances this name is
+               persistent, i.e., it SHOULD NOT change across
+               reboots.";
+          }
+        }
+      }
+      container ribs {
+        description
+          "Container for RIBs.";
+        list rib {
+          key "name";
+          min-elements "1";
+          description
+            "Each entry represents a RIB identified by the 'name'
+             key. All routes in a RIB MUST belong to the same address
+             family.
+
+             For each routing instance, an implementation SHOULD
+             provide one system-controlled default RIB for each
+             supported address family.";
+          leaf name {
+            type string;
+            description
+              "The name of the RIB.";
+          }
+          uses address-family;
+          leaf default-rib {
+            if-feature multiple-ribs;
+            type boolean;
+            default "true";
+            description
+              "This flag has the value of 'true' if and only if the
+               RIB is the default RIB for the given address family.
+
+               A default RIB always receives direct routes. By
+               default it also receives routes from all routing
+               protocols.";
+          }
+          container routes {
+            description
+              "Current content of the RIB.";
+            list route {
+              description
+                "A RIB route entry. This data node MUST be augmented
+                 with information specific for routes of each address
+                 family.";
+              leaf route-preference {
+                type route-preference;
+                description
+                  "This route attribute, also known as administrative
+                   distance, allows for selecting the preferred route
+                   among routes with the same destination prefix. A
+                   smaller value means a more preferred route.";
+              }
+              container next-hop {
+                description
+                  "Route's next-hop attribute.";
+                uses next-hop-state-content;
+              }
+              uses route-metadata;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /* Configuration Data */
+
+  augment "/if:interfaces/if:interface" {
+    description
+      "This augment adds a routing-instance reference to interface
+       configuration.";
+    leaf routing-instance {
+      type routing-instance-ref;
+      description
+        "The name of the routing instance to which the interface is
+         to be assigned.
+
+         By default, all network layer interfaces belong to the
+         routing-instance of the 'default-routing-instance' type.";
+    }
+  }
+
+  container routing {
+    description
+      "Configuration parameters for the routing subsystem.";
+    list routing-instance {
+      key "name";
+      description
+        "Configuration of a routing instance.";
+      leaf name {
+        type string;
+        description
+          "The name of the routing instance.
+
+           For system-controlled entries, the value of this leaf must
+           be the same as the name of the corresponding entry in
+           state data.
+
+           For user-controlled entries, an arbitrary name can be
+           used.";
+      }
+      leaf type {
+        type identityref {
+          base routing-instance;
+        }
+        default "rt:default-routing-instance";
+        description
+          "The type of the routing instance.";
+      }
+      leaf enabled {
+        type boolean;
+        default "true";
+        description
+          "Enable/disable the routing instance.
+
+           If this parameter is false, the parent routing instance is
+           disabled and does not appear in state data, despite any
+           other configuration that might be present.";
+      }
+      uses router-id {
+        if-feature router-id;
+        description
+          "Configuration of the global router ID. Routing protocols
+           that use router ID can use this parameter or override it
+           with another value.";
+      }
+      leaf description {
+        type string;
+        description
+          "Textual description of the routing instance.";
+      }
+      container routing-protocols {
+        description
+          "Configuration of routing protocol instances.";
+        list routing-protocol {
+          key "type name";
+          description
+            "Each entry contains configuration of a routing protocol
+             instance.";
+          leaf type {
+            type identityref {
+              base routing-protocol;
+            }
+            description
+              "Type of the routing protocol - an identity derived
+               from the 'routing-protocol' base identity.";
+          }
+          leaf name {
+            type string;
+            description
+              "An arbitrary name of the routing protocol instance.";
+          }
+          leaf description {
+            type string;
+            description
+              "Textual description of the routing protocol
+               instance.";
+          }
+          container static-routes {
+            when "../type='rt:static'" {
+              description
+                "This container is only valid for the 'static'
+                 routing protocol.";
+            }
+            description
+              "Configuration of the 'static' pseudo-protocol.
+
+               Address-family-specific modules augment this node with
+               their lists of routes.";
+          }
+        }
+      }
+      container ribs {
+        description
+          "Configuration of RIBs.";
+        list rib {
+          key "name";
+          description
+            "Each entry contains configuration for a RIB identified
+             by the 'name' key.
+
+             Entries having the same key as a system-controlled entry
+             of the list /routing-state/routing-instance/ribs/rib are
+             used for configuring parameters of that entry. Other
+             entries define additional user-controlled RIBs.";
+          leaf name {
+            type string;
+            description
+              "The name of the RIB.
+
+               For system-controlled entries, the value of this leaf
+               must be the same as the name of the corresponding
+               entry in state data.
+
+               For user-controlled entries, an arbitrary name can be
+               used.";
+          }
+          uses address-family {
+            description
+              "Address family of the RIB.
+
+               It is mandatory for user-controlled RIBs. For
+               system-controlled RIBs it can be omitted, otherwise it
+               must match the address family of the corresponding
+               state entry.";
+            refine "address-family" {
+              mandatory "false";
+            }
+          }
+          leaf description {
+            type string;
+            description
+              "Textual description of the RIB.";
+          }
+        }
+      }
+    }
+  }
+
+  /* RPC operations */
+
+  rpc fib-route {
+    description
+      "Return the active FIB route that a routing-instance uses for
+       sending packets to a destination address.";
+    input {
+      leaf routing-instance-name {
+        type routing-instance-state-ref;
+        mandatory "true";
+        description
+          "Name of the routing instance whose forwarding information
+           base is being queried.
+
+           If the routing instance with name equal to the value of
+           this parameter doesn't exist, then this operation SHALL
+           fail with error-tag 'data-missing' and error-app-tag
+           'routing-instance-not-found'.";
+      }
+      container destination-address {
+        description
+          "Network layer destination address.
+
+           Address family specific modules MUST augment this
+           container with a leaf named 'address'.";
+        uses address-family;
+      }
+    }
+    output {
+      container route {
+        description
+          "The active FIB route for the specified destination.
+
+           If the routing instance has no active FIB route for the
+           destination address, no output is returned - the server
+           SHALL send an <rpc-reply> containing a single element
+           <ok>.
+
+           Address family specific modules MUST augment this list
+           with appropriate route contents.";
+        uses address-family;
+        container next-hop {
+          description
+            "Route's next-hop attribute.";
+          uses next-hop-state-content;
+        }
+        uses route-metadata;
+      }
+    }
+  }
+}

@@ -1,0 +1,275 @@
+module ietf-voucher {
+  yang-version 1.1;
+
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-voucher";
+  prefix "vch";
+
+  import ietf-yang-types {
+    prefix yang;
+    reference "RFC 6991: Common YANG Data Types";
+  }
+
+  import ietf-restconf {
+    prefix rc;
+    description
+      "This import statement is only present to access the yang-data
+       extension defined in RFC 8040.  The yang-data extension doesn't
+       itself have anything to do with RESTCONF, but was placed in the
+       that RFC for convenience.  This extension is being tracked to
+       be moved to the next version of the YANG modeling language.
+       Regardless where or how this extension statement is defined,
+       there should not be any impact to a voucher's encoding.";
+    reference "RFC 8040: RESTCONF Protocol";
+  }
+
+  organization
+   "IETF ANIMA Working Group";
+
+  contact
+   "WG Web:   <http://tools.ietf.org/wg/anima/>
+    WG List:  <mailto:anima@ietf.org>
+    Author:   Kent Watsen
+              <mailto:kwatsen@juniper.net>
+    Author:   Max Pritikin
+              <mailto:pritikin@cisco.com>
+    Author:   Michael Richardson
+              <mailto:mcr+ietf@sandelman.ca>";
+
+  description
+   "This module defines the format for a voucher, which is produced by
+    a pledge's manufacturer or delegate (MASA) to securely assign one
+    or more pledges to an 'owner', so that the pledges may establish a
+    secure connection to the owner's network infrastructure.";
+
+  revision "2017-03-15" {
+    description
+     "Initial version";
+    reference
+     "RFC XXXX: Voucher Profile for Bootstrapping Protocols";
+  }
+
+  rc:yang-data voucher-artifact {
+    uses voucher-grouping;
+  }
+
+  grouping voucher-grouping {
+    description
+      "Grouping only exists for pyang tree output...";
+
+    container voucher {
+      config false;
+      description
+        "A voucher that can be used to assign one or more
+         pledges to an owner.";
+
+      leaf authority-key-identifier {
+        type binary;
+        description
+         "The Subject Key Identifier of the MASA's leaf certificate.
+          Enables the pledge a definitively identify the voucher's
+          issuer's certificate.  This field is optional as not all
+          vouchers will be signed by a private key associated with
+          an X.509 certificate.";
+      }
+
+      leaf created-on {
+        type yang:date-and-time;
+        mandatory true;
+        description
+          "A value indicating the date this voucher was created.  This
+           node is optional because its primary purpose is for human
+           consumption.  However, when present, pledges that have
+           reliable clocks SHOULD ensure that this created-on value
+           is not greater than the current time.";
+      }
+
+      leaf expires-on {
+        type yang:date-and-time;
+        must "not(../nonce)";
+        description
+          "A value indicating when this voucher expires.  The node is
+           optional as not all pledges support expirations, such as
+           pledges lacking a reliable clock.
+
+           If the pledge supports expirations and the expires-on value
+           is less then the current time, then the pledge MUST not
+           process this voucher.";
+      }
+
+      leaf assertion {
+        type enumeration {
+          enum verified {
+            description
+              "Indicates that the ownership has been positively
+               verified by the MASA (e.g., through sales channel
+               integration).";
+          }
+          enum logged {
+            description
+              "Indicates that this ownership assignment has been
+               logged into a database maintained by the MASA, after
+               first verifying that there has not been a previous
+               claim in the database for the same pledge (voucher
+               transparency).";
+          }
+        }
+        mandatory true;
+        description
+          "The assertion is a statement from the MASA regarding how
+           the owner was verified.   This statement enables pledges
+           to support more detailed policy checks.  Pledges MUST
+           ensure that the assertion provided is acceptable before
+           processing the voucher.";
+      }
+
+      leaf device-identifier {
+        type string;
+        mandatory true;
+        description
+          "A unique identifier (e.g., serial number) within the scope
+           of the MASA.
+
+           When processing a vouchers, pledges MUST ensure that their
+           unique identifier matches at least one regular expression in
+           the list.  If no matching regular expression is found, the
+           pledge MUST NOT process this voucher.";
+      }
+
+      leaf trusted-ca-certificate {
+        type binary;
+        mandatory true;
+        description
+          "An X.509 v3 certificate structure as specified by RFC 5280,
+           Section 4 encoded using the ASN.1 distinguished encoding
+           rules (DER), as specified in ITU-T X.690.
+
+           This certificate is used by a pledge to trust a public key
+           infrastructure, in order to verify a domain certificate
+           supplied to the pledge separately by the bootstrapping
+           protocol.  The domain certificate MUST have this certificate
+           somewhere in its chain of certificates.
+
+           This field is optional because it may not be needed by all
+           bootstrapping protocols.
+
+           Note: the expiration date of this certificate effectively
+                 imposes an upper limit on the voucher's expiration.";
+        reference
+          "RFC 5280:
+             Internet X.509 Public Key Infrastructure Certificate
+             and Certificate Revocation List (CRL) Profile.
+           ITU-T X.690:
+              Information technology - ASN.1 encoding rules:
+              Specification of Basic Encoding Rules (BER),
+              Canonical Encoding Rules (CER) and Distinguished
+              Encoding Rules (DER).";
+      }
+
+      // DISCUSS: do we need this anymore, if short-lived vouchers
+      // are expected, shouldn't the leaf certificate be pinned, or
+      // perhaps just the immediate issuer CA?
+      container domain-certificate-identifier {
+        must "../trusted-ca-certificate" {
+          description
+            "A trusted-ca-certificate must be present whenever
+             this node is present";
+        }
+        description
+          "This container identifies specific values that a domain
+           certificate, provided to the pledge separately by the
+           bootstrapping protocol, MUST contain.  This is useful
+           when, for instance, the trust anchor is a long-lived
+           public CA certificate, while the domain certificate is
+           reissued periodically.
+
+           When provided, the pledge MUST perform RFC 6125 style
+           validation of the domain certificate against all of
+           the provided values.
+
+           This container is optional because it is unneeded when,
+           for instance, the trusted CA certificate is owned by the
+           domain (i.e.  a private PKI), and hence the trust model
+           can be more relaxed.";
+
+        leaf subject {
+          type binary;
+          description
+            "The certificate's entire subject field MUST match
+             this value.  This value is the Subject structure, as
+             specified by RFC ???? Section ???, encoded using the
+             ASN.1 distinguished encoding rules (DER), as specified
+             in ITU-T X.690.";
+        }
+        leaf cn-id {
+          type string;
+          description
+            "The certificate's subject field's 'common name' value
+             MUST match this value.";
+        }
+        leaf dns-id {
+          type string;
+          description
+            "A subjectAltName entry of type dNSName in the
+             certificate MUST match this value.";
+        }
+      }
+
+      // DISCUSS: does the transition to 'pinning' model mean we can
+      // drop this leaf for now? future proofing allows it to be added
+      // if needed but its a edge condition?
+      //
+      // DISCUSS: there must be such future proofing. not clear where
+      // to add it in the voucher document. This is probably the most
+      // important point of these discusses
+      leaf assert-certificate-revocations {
+        type boolean;
+        must "../expires-on";
+        default true;
+        description
+          "A processing instruction to the device that it should
+           verify revocation information for the PKIX certificates
+           involved in bootstrapping. This is available only if
+           the pledge has a real-time-clock. This is in addition
+           to any revocation checks performed by the MASA.";
+
+          // DISCUSS: should this be a boolean or an enum indicating
+          // "fail open" vs "fail closed" to make the meaning clearer.
+      }
+
+      leaf nonce {
+        type binary {
+          length "8..32";
+        }
+        must "not(../expires-on)";
+        description
+          "A value that can be used by a pledge in some bootstrapping
+           protocols to enable anti-replay protection.  This node is
+           optional because it is not used by all bootstrapping
+           protocols.
+
+           When present, the pledge MUST compare the provided nonce
+           value with another value that the pledge randomly generated
+           and sent to a bootstrap server in an earlier bootstrapping
+           message.  If the values do not match, then the pledge MUST
+           NOT process this voucher.";
+      }
+
+      leaf last-renewal-date {
+        type yang:date-and-time;
+        must "../expires-on";
+        description
+          "The last date that the MASA projects to be the last date it
+           will renew a voucher on (assuming the same validity duration
+           used in this voucher.  This field is merely infomrative, it
+           is not processed by pledges.
+
+           Circustances may occur after when a voucher was generated
+           that can alter a voucher's validity period.  For instance,
+           a vendor may associate validity periods with support
+           contracts, which may be terminated or extended over time.";
+      }
+
+    } // end voucher
+  } // end voucher-grouping
+}

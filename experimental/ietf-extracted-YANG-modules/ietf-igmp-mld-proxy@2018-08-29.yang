@@ -1,0 +1,332 @@
+module ietf-igmp-mld-proxy {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-igmp-mld-proxy";
+  // replace with IANA namespace when assigned
+  prefix imp;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  import ietf-routing {
+    prefix rt;
+  }
+
+  import ietf-igmp-mld {
+    prefix igmp-mld;
+  }
+
+  organization
+    "IETF PIM Working Group";
+
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/pim/>
+     WG List:  <mailto:pim@ietf.org>
+
+     Editors:  Hongji Zhao
+               <mailto:hongji.zhao@ericsson.com>
+
+               Xufeng Liu
+               <mailto:xufeng.liu.ietf@gmail.com>
+
+               Yisong Liu
+               <mailto:liuyisong@huawei.com>
+
+               Anish Peter
+               <mailto:anish.ietf@gmail.com>
+
+               Mahesh Sivakumar
+               <mailto:sivakumar.mahesh@gmail.com>
+
+    ";
+
+  description
+    "The module defines a collection of YANG definitions common for
+     all Internet Group Management Protocol (IGMP) and Multicast
+     Listener Discovery (MLD) Proxy devices.
+
+     Copyright (c) 2018 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Simplified BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (http://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX; see the
+     RFC itself for full legal notices.";
+
+  revision 2018-08-29 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX: A YANG Data Model for IGMP and MLD Proxy";
+  }
+
+  /*
+   * Features
+   */
+  feature require-router-alert {
+    description
+      "Support configuration of require-router-alert.";
+  }
+
+  /*
+   * Groupings
+   */
+  grouping per-interface-config-attributes {
+
+    description "Config attributes under interface view";
+
+    leaf enable {
+      type boolean;
+      default false;
+      description
+        "Set the value to true to enable IGMP/MLD proxy";
+    }
+
+    leaf require-router-alert {
+      if-feature require-router-alert;
+      type boolean;
+     default false;
+      description
+        "When the value is true, router alert should exist
+       in the IP head of IGMP or MLD packet.";
+    }
+
+    leaf query-interval {
+      type uint16;
+      units seconds;
+      default 125;
+      description
+        "The Query Interval is the interval between General Queries
+         sent by the Querier.";
+      reference "RFC3376. Sec. 4.1.7, 8.2, 8.14.2.";
+    }
+
+    leaf robustness-variable {
+      type uint8 {
+        range "1..7";
+      }
+      default 2;
+      description
+        "Querier's Robustness Variable allows tuning for the
+       expected packet loss on a network.";
+      reference "RFC3376. Sec. 4.1.6, 8.1, 8.14.1.";
+    }
+
+  } // per-interface-config-attributes
+
+  grouping global-config-attributes {
+
+    description "Config attributes globally";
+
+   leaf source-lifetime {
+      type uint32;
+      units seconds;
+      description
+        "The life time for (S,G).";
+    }
+
+  } // global-config-attributes
+
+  grouping state-group-attributes {
+    description
+      "State group attributes";
+
+   leaf up-time {
+      type uint32;
+      units seconds;
+      description
+        "The elapsed time for (S,G) or (*,G).";
+    }
+
+    leaf filter-mode {
+      type enumeration {
+        enum "include" {
+          description
+            "In include mode, reception of packets sent
+             to the specified multicast address is requested
+             only from those IP source addresses listed in the
+             source-list parameter";
+        }
+        enum "exclude" {
+          description
+            "In exclude mode, reception of packets sent
+             to the given multicast address is requested
+             from all IP source addresses except those
+             listed in the source-list parameter.";
+        }
+      }
+      description
+        "Filter mode for a multicast group,
+         may be either include or exclude.";
+    }
+  } // state-group-attributes
+
+  grouping up-down-stream-interfaces {
+    description
+      "upstream and downstream interfaces";
+
+   leaf upstream-interface {
+      type if:interface-ref;
+      description
+        "Upstream interface";
+    }
+
+    leaf-list downstream-interface {
+      type if:interface-ref;
+      description
+       "Downstream interfaces for each upstream-interface";
+    }
+
+  } // up-down-stream-interfaces
+
+ /* augments */
+
+  augment "/if:interfaces/if:interface" {
+    description
+     "Augment interface for enable IGMP/MLD proxy
+      which only fit for interface view.";
+    container igmp-proxy {
+      description
+        "Configure igmp proxy under the upstream interface";
+
+      uses per-interface-config-attributes;
+
+     leaf version {
+        type uint8 {
+          range "1..3";
+        }
+       default 2;
+        description "IGMP version.";
+      }
+    } // igmp-proxy
+
+   container mld-proxy {
+      description
+        "Configure MLD proxy under the upstream interface";
+
+      uses per-interface-config-attributes;
+
+     leaf version {
+          type uint8 {
+            range "1..2";
+          }
+        default 1;
+          description "MLD version.";
+        }
+    } // mld-proxy
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols/"
+    +"rt:control-plane-protocol/igmp-mld:igmp" {
+
+   description
+     "Augment IGMP to configure IGMP/MLD proxy globally";
+
+   container proxy {
+     description "IGMP proxy";
+
+     uses global-config-attributes;
+
+     list group {
+        key "group-address";
+        config false;
+        description
+          "Multicast group membership information
+          that joined on the interface.";
+
+        leaf group-address {
+          type inet:ipv4-address;
+          description
+            "Multicast group address.";
+        }
+
+        uses state-group-attributes;
+
+        list source {
+          key "source-address";
+          description
+            "List of multicast source information
+             of the multicast group.";
+
+          leaf source-address {
+            type inet:ipv4-address;
+            description
+              "Multicast source address";
+          }
+
+         leaf up-time {
+            type uint32;
+            units seconds;
+            description
+              "The elapsed time for (S,G) or (*,G).";
+          }
+
+        uses up-down-stream-interfaces;
+
+        } // list source
+      } // list group
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols/"
+    +"rt:control-plane-protocol/igmp-mld:mld" {
+
+   description
+     "Augment MLD to configure IGMP/MLD proxy globally";
+
+   container proxy {
+     description "MLD proxy";
+
+     uses global-config-attributes;
+
+     list group {
+        key "group-address";
+        config false;
+        description
+          "Multicast group membership information
+          that joined on the interface.";
+
+        leaf group-address {
+          type inet:ipv6-address;
+          description
+            "Multicast group address.";
+        }
+
+        uses state-group-attributes;
+
+        list source {
+          key "source-address";
+          description
+            "List of multicast source information
+             of the multicast group.";
+
+          leaf source-address {
+            type inet:ipv6-address;
+            description
+              "Multicast source address";
+          }
+
+         leaf up-time {
+            type uint32;
+            units seconds;
+            description
+              "The elapsed time for (S,G) or (*,G).";
+          }
+
+        uses up-down-stream-interfaces;
+
+        } // list source
+      } // list group
+    }
+  }
+
+}
