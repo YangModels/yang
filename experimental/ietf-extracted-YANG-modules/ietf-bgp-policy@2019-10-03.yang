@@ -17,7 +17,6 @@ module ietf-bgp-policy {
   import ietf-routing-types {
     prefix rt-types;
   }
-
   organization
     "IETF IDR Working Group";
 
@@ -27,14 +26,15 @@ module ietf-bgp-policy {
 
      Authors: Mahesh Jethanandani (mjethanandani at gmail.com),
               Keyur Patel (keyur at arrcus.com),
-              Susan Hares (shares at ndzh.com)";
+              Susan Hares (shares at ndzh.com),
+              Jeffrey Haas (jhaas at pfrc.org).";
 
   description
     "This module contains data definitions for BGP routing policy.
      It augments the base routing-policy module with BGP-specific
      options for conditions and actions.";
 
-  revision "2019-06-13" {
+  revision "2019-10-03" {
     description
       "Initial Version";
     reference
@@ -45,17 +45,17 @@ module ietf-bgp-policy {
 
   typedef bgp-set-community-option-type {
     type enumeration {
-      enum ADD {
+      enum add {
         description
           "Add the specified communities to the existing
            community attribute";
       }
-      enum REMOVE {
+      enum remove {
         description
           "Remove the specified communities from the
            existing community attribute";
       }
-      enum REPLACE {
+      enum replace {
         description
           "Replace the existing community attribute with
            the specified communities. If an empty set is
@@ -72,7 +72,7 @@ module ietf-bgp-policy {
     type union {
       type inet:ip-address-no-zone;
       type enumeration {
-        enum SELF {
+        enum self {
           description
             "Special designation for local router's own
              address, i.e., next-hop-self";
@@ -87,13 +87,34 @@ module ietf-bgp-policy {
     type union {
       type uint32;
       type string {
-        pattern "^[+-][0-9]+";
+        pattern "^[+-]([0-9]{1,8}|[0-3][0-9]{1,9}|4[0-1][0-9]{1,8}|" +
+                "428[0-9]{1,7}|429[0-3][0-9]{1,6}|42948[0-9]{1,5}|" +
+                "42949[0-5][0-9]{1,4}|429496[0-6][0-9]{1,3}|" +
+                "4294971[0-9]{1,2}|42949728[0-9]|42949729[0-5])$";
       }
       type enumeration {
-        enum IGP {
+        enum igp {
           description
             "Set the MED value to the IGP cost toward the
              next hop for the route";
+        }
+        enum med-plus-igp {
+          description
+            "Before comparing MED values for path selection, adds to
+             the MED the cost of the IGP route to the BGP next-hop
+             destination.
+
+             This option replaces the MED value for the router,
+             but does not affect the IGP metric comparison. As a
+             result, when multiple routes have the same value
+             after the MED-plus-IPG comparison, and route selection
+             continues, the IGP route metric is also compared, even
+             though it was added to the MED value and compared
+             earlier in the selection process.
+
+             Useful when the downstream AS requires the complete
+             cost of a certain route that is received across
+             multiple ASs.";
         }
       }
     }
@@ -102,6 +123,8 @@ module ietf-bgp-policy {
        be set in BGP policy actions. The three choices are to set
        the MED directly, increment/decrement using +/- notation,
        and setting it to the IGP cost (predefined value).";
+    reference
+      "None. WG needs to decide if this is going to be a standard.";
   }
 
   // augment statements
@@ -119,11 +142,11 @@ module ietf-bgp-policy {
           "Enclosing container for list of defined BGP community sets";
 
         list community-set {
-          key "community-set-name";
+          key "name";
           description
             "List of defined BGP community sets";
 
-          leaf community-set-name {
+          leaf name {
             type string;
             mandatory true;
             description
@@ -131,7 +154,7 @@ module ietf-bgp-policy {
                reference the set in match conditions";
           }
 
-          leaf-list community-member {
+          leaf-list member {
             type union {
               type bt:bgp-std-community-type;
               type bt:bgp-community-regexp-type;
@@ -148,18 +171,18 @@ module ietf-bgp-policy {
           "Enclosing container for list of extended BGP community
            sets";
         list ext-community-set {
-          key "ext-community-set-name";
+          key "name";
           description
             "List of defined extended BGP community sets";
 
-          leaf ext-community-set-name {
+          leaf name {
             type string;
             description
               "Name / label of the extended community set -- this is
                used to reference the set in match conditions";
           }
 
-          leaf-list ext-community-member {
+          leaf-list member {
             type union {
               type rt-types:route-target;
               type bt:bgp-community-regexp-type;
@@ -169,23 +192,24 @@ module ietf-bgp-policy {
           }
         }
       }
+
       container as-path-sets {
         description
           "Enclosing container for list of define AS path sets";
 
         list as-path-set {
-          key "as-path-set-name";
+          key "name";
           description
             "List of defined AS path sets";
 
-          leaf as-path-set-name {
+          leaf name {
             type string;
             description
               "Name of the AS path set -- this is used to reference the
                set in match conditions";
           }
 
-          leaf-list as-path-set-member {
+          leaf-list member {
             // TODO: need to refine typedef for AS path expressions
             type string;
             description
@@ -203,12 +227,12 @@ module ietf-bgp-policy {
 
     leaf method {
       type enumeration {
-        enum INLINE {
+        enum inline {
           description
             "The extended communities are specified inline as a
              list";
         }
-        enum REFERENCE {
+        enum reference {
           description
             "The extended communities are specified by referencing a
              defined ext-community set";
@@ -233,7 +257,6 @@ module ietf-bgp-policy {
     "rpol:conditions" {
     description
       "BGP policy conditions added to routing policy module";
-
     container bgp-conditions {
       description
         "Top-level container for BGP specific policy conditions ";
@@ -278,10 +301,10 @@ module ietf-bgp-policy {
       leaf route-type {
         // TODO: verify extent of vendor support for this comparison
         type enumeration {
-          enum INTERNAL {
+          enum internal {
             description "route type is internal";
           }
-          enum EXTERNAL {
+          enum external {
             description "route type is external";
           }
         }
@@ -312,7 +335,7 @@ module ietf-bgp-policy {
             path
               "/rpol:routing-policy/rpol:defined-sets/" +
               "bp:bgp-defined-sets/bp:community-sets/" +
-              "bp:community-set/bp:community-set-name";
+              "bp:community-set/bp:name";
           }
           description
             "References a defined community set";
@@ -331,8 +354,7 @@ module ietf-bgp-policy {
             path
               "/rpol:routing-policy/rpol:defined-sets/" +
               "bp:bgp-defined-sets/bp:ext-community-sets/" +
-              "bp:ext-community-set/" +
-              "bp:ext-community-set-name";
+              "bp:ext-community-set/bp:name";
           }
           description "References a defined extended community set";
         }
@@ -349,7 +371,7 @@ module ietf-bgp-policy {
           type leafref {
             path "/rpol:routing-policy/rpol:defined-sets/" +
               "bp:bgp-defined-sets/bp:as-path-sets/" +
-              "bp:as-path-set/bp:as-path-set-name";
+              "bp:as-path-set/bp:name";
           }
           description
             "References a defined AS path set";
@@ -418,9 +440,9 @@ module ietf-bgp-policy {
 
         uses set-community-action-common;
         container inline {
-          when "../method = 'INLINE'" {
+          when "../method = 'inline'" {
             description
-              "Active only when the set-community method is INLINE";
+              "Active only when the set-community method is inline";
           }
           description
             "Set the community values for the action inline with
@@ -438,9 +460,9 @@ module ietf-bgp-policy {
         }
 
         container reference {
-          when "../method = 'REFERENCE'" {
+          when "../method = 'reference'" {
             description
-              "Active only when the set-community method is REFERENCE";
+              "Active only when the set-community method is reference";
           }
           description
             "Provide a reference to a defined community set for the
@@ -450,8 +472,7 @@ module ietf-bgp-policy {
             type leafref {
               path "/rpol:routing-policy/rpol:defined-sets/" +
                 "bp:bgp-defined-sets/" +
-                "bp:community-sets/bp:community-set/" +
-                "bp:community-set-name";
+                "bp:community-sets/bp:community-set/bp:name";
             }
             description
               "References a defined community set by name";
@@ -469,14 +490,13 @@ module ietf-bgp-policy {
 
         uses set-community-action-common;
         container inline {
-          when "../method = 'INLINE'" {
+          when "../method = 'inline'" {
             description
-              "Active only when the set-community method is INLINE";
+              "Active only when the set-community method is inline";
           }
           description
             "Set the extended community values for the action inline
              with a list.";
-
           leaf-list communities {
             type union {
               type rt-types:route-target;
@@ -489,9 +509,9 @@ module ietf-bgp-policy {
         }
 
         container reference {
-          when "../method = 'REFERENCE'" {
+          when "../method = 'reference'" {
             description
-              "Active only when the set-community method is REFERENCE";
+              "Active only when the set-community method is reference";
           }
           description
             "Provide a reference to an extended community set for the
@@ -502,8 +522,7 @@ module ietf-bgp-policy {
               path
                 "/rpol:routing-policy/rpol:defined-sets/" +
                 "bp:bgp-defined-sets/bp:ext-community-sets/" +
-                "bp:ext-community-set/" +
-                "bp:ext-community-set-name";
+                "bp:ext-community-set/bp:name";
             }
             description
               "References a defined extended community set by name";

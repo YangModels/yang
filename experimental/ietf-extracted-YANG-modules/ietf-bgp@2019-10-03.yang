@@ -64,7 +64,8 @@ module ietf-bgp {
 
      Authors: Mahesh Jethanandani (mjethanandani at gmail.com),
               Keyur Patel (keyur at arrcus.com),
-              Susan Hares (shares at ndzh.com";
+              Susan Hares (shares at ndzh.com),
+              Jeffrey Haas (jhaas at pfrc.org).";
   description
     "This module describes a YANG model for BGP protocol
      configuration. It is a limited subset of all of the configuration
@@ -90,7 +91,7 @@ module ietf-bgp {
           +-> [ optional pointer to peer-group ]
           +-> AFI / SAFI [ per-AFI overrides ]";
 
-  revision 2019-06-13 {
+  revision 2019-10-03 {
     description
       "Initial Version";
     reference
@@ -110,9 +111,9 @@ module ietf-bgp {
   /*
    * Feature(s)
    */
-  feature clear-routes {
+  feature graceful-restart {
     description
-      "Clearing of BGP routes is supported.";
+      "Graceful restart as defined in RFC 4724 is supported.";
   }
 
   feature clear-neighbors {
@@ -143,6 +144,7 @@ module ietf-bgp {
     container bgp {
       description
         "Top-level configuration for the BGP router";
+
       container global {
         presence "Enables global configuration of BGP";
         description
@@ -168,13 +170,13 @@ module ietf-bgp {
             "RFC 6286: AS-Wide Unique BGP ID for BGP-4. Section 2.1";
         }
 
-        container default-route-distance {
+        container distance {
           description
             "Administrative distance (or preference) assigned to
              routes received from different sources
              (external, internal, and local).";
 
-          leaf external-route-distance {
+          leaf external {
             type uint8 {
               range "1..255";
             }
@@ -182,7 +184,7 @@ module ietf-bgp {
               "Administrative distance for routes learned from
                external BGP (eBGP).";
           }
-          leaf internal-route-distance {
+          leaf internal {
             type uint8 {
               range "1..255";
             }
@@ -220,6 +222,7 @@ module ietf-bgp {
         }
 
         container graceful-restart {
+          if-feature graceful-restart;
           description
             "Parameters relating the graceful restart mechanism for
              BGP";
@@ -244,6 +247,7 @@ module ietf-bgp {
             uses state;
 
             container graceful-restart {
+              if-feature graceful-restart;
               description
                 "Parameters relating to BGP graceful-restart";
 
@@ -327,16 +331,6 @@ module ietf-bgp {
                connection table.";
           }
 
-          leaf remote-as {
-            type inet:as-number;
-            config false;
-            description
-              "The remote autonomous system number received in
-               the BGP OPEN message.";
-            reference
-              "RFC 4271, Section 4.2.";
-          }
-
           leaf enabled {
             type boolean;
             default "true";
@@ -361,7 +355,20 @@ module ietf-bgp {
               "RFC 4271, Section 8.1.2.";
           }
 
+          leaf ttl-security {
+            if-feature "bt:ttl-security";
+            type uint8;
+            default "255";
+            description
+              "BGP Time To Live (TTL) security check.";
+            reference
+              "RFC 5082: The Genaralized TTL Security Mechanism
+               (GTSM),
+               RFC 7454: BGP Operations and Security.";
+          }
+
           uses neighbor-group-config;
+          uses route-selection-options;
 
           leaf session-state {
             type enumeration {
@@ -485,6 +492,18 @@ module ietf-bgp {
             uses neighbor-group-transport-config;
           }
 
+          leaf treat-as-withdraw {
+            type boolean;
+            default "false";
+            description
+              "Specify whether erroneous UPDATE messages for which
+               the NLRI can be extracted are treated as though the
+               NLRI is withdrawn - avoiding session reset";
+            reference
+              "RFC 7606: Revised Error Handling for BGP UPDATE
+               Messages.";
+          }
+
           leaf erroneous-update-messages {
             type uint32;
             config false;
@@ -495,6 +514,7 @@ module ietf-bgp {
           }
 
           container graceful-restart {
+            if-feature graceful-restart;
             description
               "Parameters relating the graceful restart mechanism for
                BGP";
@@ -510,6 +530,7 @@ module ietf-bgp {
                 "The period of time (advertised by the peer) that the
                  peer expects a restart of a BGP session to take";
             }
+
             leaf peer-restarting {
               type boolean;
               config false;
@@ -531,21 +552,21 @@ module ietf-bgp {
 
             leaf mode {
               type enumeration {
-                enum HELPER_ONLY {
+                enum helper-only {
                   description
                     "The local router is operating in helper-only
                      mode, and hence will not retain forwarding state
                      during a local session restart, but will do so
                      during a restart of the remote peer";
                 }
-                enum BILATERAL {
+                enum bilateral {
                   description
                     "The local router is operating in both helper
                      mode, and hence retains forwarding state during
                      a remote restart, and also maintains forwarding
                      state during local session restart";
                 }
-                enum REMOTE_HELPER {
+                enum remote-helper {
                   description
                     "The local system is able to retain routes during
                      restart but the remote system is only able to
@@ -558,6 +579,8 @@ module ietf-bgp {
                  graceful restart with the peer";
             }
           }
+
+          uses structure-neighbor-group-logging-options;
           uses structure-neighbor-group-ebgp-multihop;
           uses structure-neighbor-group-route-reflector;
           uses structure-neighbor-group-as-path-options;
