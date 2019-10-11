@@ -20,7 +20,7 @@ module ietf-traffic-generator {
      WG List:  <mailto:bmwg@ietf.org>
 
      Editor:   Vladimir Vassilev
-               <mailto:vladimir@transpacket.com>";
+               <mailto:vladimir@lightside-instruments.com>";
   description
     "This module contains a collection of YANG definitions for
      description and management of network interconnect testers.
@@ -38,10 +38,11 @@ module ietf-traffic-generator {
      This version of this YANG module is part of RFC XXXX; see
      the RFC itself for full legal notices.";
 
-  revision 2019-09-05 {
+  revision 2019-10-08 {
     description
       "Initial revision.";
-    reference "RFC XXXX: Network Interconnect Tester";
+    reference
+      "RFC XXXX: Network Interconnect Tester";
   }
 
   feature egress-direction {
@@ -71,8 +72,11 @@ module ietf-traffic-generator {
   }
 
   grouping traffic-generator-burst-data {
+    description
+      "Generated traffic burst parameters.";
     leaf frame-size {
       type uint32;
+      mandatory true;
       description
         "Size of the frames generated. For example for
          ethernet interfaces the following definition
@@ -92,9 +96,10 @@ module ietf-traffic-generator {
 
          Minimum standard ethernet frame-size is 64 bytes but
          generators might support smaller sizes for validation.";
-      mandatory true;
     }
     choice frame-data-type {
+      description
+        "Choice of frame data type generated.";
       case raw-frame-data {
         leaf frame-data {
           type string {
@@ -112,6 +117,7 @@ module ietf-traffic-generator {
     }
     leaf interframe-gap {
       type uint32;
+      mandatory true;
       description
         "Length of the idle period between generated frames.
          For example for ethernet interfaces the following
@@ -128,7 +134,6 @@ module ietf-traffic-generator {
          should be included in the interframe-gap. Thus the minimum
          value for standard ethernet transmission should be considered
          20 octets.";
-      mandatory true;
     }
     leaf interburst-gap {
       type uint32;
@@ -144,9 +149,16 @@ module ietf-traffic-generator {
   }
 
   grouping traffic-generator-multi-stream-data {
+    description
+      "Multi stream traffic generation parameters.";
     container streams {
+      description
+        "Non-presence container holding the configured stream list.";
       list stream {
         key "id";
+        description
+          "Each stream repeats a burst until frames-per-stream
+           count is reached followed by interstream-gap delay.";
         leaf id {
           type uint32;
           description
@@ -155,25 +167,95 @@ module ietf-traffic-generator {
         uses traffic-generator-burst-data;
         leaf frames-per-stream {
           type uint32;
+          mandatory true;
           description
             "The count of frames to be generated before
              generation of the next stream is started.";
-          mandatory true;
         }
         leaf interstream-gap {
           type uint32;
+          mandatory true;
           description
             "Idle period after the last frame of the last burst.";
-          mandatory true;
         }
       }
     }
   }
 
+  grouping ethernet-data {
+    description
+      "Ethernet frame data specific parameters.";
+    reference
+      "IEEE 802-2014 Clause 9.2";
+    leaf src-mac-address {
+      type yang:mac-address;
+      description
+        "Source Address field of the generated Ethernet packet.";
+    }
+    leaf dst-mac-address {
+      type yang:mac-address;
+      description
+        "Destination Address field of the generated Ethernet packet.";
+    }
+    leaf ether-type {
+      type uint16;
+      description
+        "Length/Type field of the generated Ethernet packet.";
+    }
+    container vlan {
+      if-feature "ethernet-vlan";
+      description
+        "VLAN tag fields..";
+      leaf id {
+        type uint16 {
+          range "0..4095";
+        }
+        mandatory true;
+        description
+          "VLAN id.";
+      }
+      leaf tpid {
+        type uint16;
+        default "33024";
+        description
+          "Configures the Tag Protocol Identifier (TPID)
+           of the 802.1q VLAN tag sent. This value is used
+           together whith the vlan id for filtering incoming
+           vlan tagged packets.";
+      }
+      leaf pcp {
+        type uint8 {
+          range "0..7";
+        }
+        default "0";
+        description
+          "Configures the IEEE 802.1p Priority Code Point (PCP) value
+           of the transmitted 802.1q VLAN tag.";
+      }
+      leaf cfi {
+        type uint8 {
+          range "0..1";
+        }
+        default "0";
+        description
+          "Configures the Canonical Format Identifier (CFI) field
+           (shall be 0 for Ethernet switches) of the transmitted
+           802.1q VLAN tag.";
+      }
+    }
+  }
+
   augment "/if:interfaces/if:interface" {
+    description
+      "Traffic generator augmentations of ietf-interfaces.";
     container traffic-generator {
       if-feature "egress-direction";
+      description
+        "Traffic generator for egress direction.";
       choice type {
+        description
+          "Choice of the type of the data model of the generator.
+           Single or multi stream.";
         case single-stream {
           uses traffic-generator-burst-data;
         }
@@ -190,7 +272,12 @@ module ietf-traffic-generator {
     }
     container traffic-generator-ingress {
       if-feature "ingress-direction";
+      description
+        "Traffic generator for ingress direction.";
       choice type {
+        description
+          "Choice of the type of the data model of the generator.
+           Single or multi stream.";
         case single-stream {
           uses traffic-generator-burst-data;
         }
@@ -206,6 +293,7 @@ module ietf-traffic-generator {
       }
     }
   }
+
   augment "/if:interfaces-state/if:interface/if:statistics" {
     description
       "Counters of generated traffic octets and packets.";
@@ -233,97 +321,55 @@ module ietf-traffic-generator {
     }
   }
 
-  grouping ethernet-data {
-    leaf src-mac-address {
-      type yang:mac-address;
-    }
-    leaf dst-mac-address {
-      type yang:mac-address;
-    }
-    leaf ether-type {
-      type uint16;
+  augment "/if:interfaces/if:interface/tg:traffic-generator/tg:type/"
+        + "tg:single-stream" {
+    when "derived-from-or-self(../if:type, 'ianaift:ethernetCsmacd')" {
       description
-        "The Ethernet Type (or Length) value
-         defined by IEEE 802.";
-      reference "IEEE 802-2014 Clause 9.2";
+        "Ethernet interface type.";
     }
-    choice encapsulation {
-      case vlan {
-        container vlan {
-          if-feature "ethernet-vlan";
-          leaf id {
-            type uint16 {
-              range "0..4095";
-            }
-            mandatory true;
-          }
-          leaf tpid {
-            type uint16;
-            default "33024";
-            description
-              "Configures the Tag Protocol Identifier (TPID)
-               of the 802.1q VLAN tag sent. This value is used
-               together whith the vlan id for filtering incoming
-               vlan tagged packets.";
-          }
-          leaf pcp {
-            type uint8 {
-              range "0..7";
-            }
-            default "0";
-            description
-              "Configures the IEEE 802.1p Priority Code Point (PCP) value
-               of the transmitted 802.1q VLAN tag.";
-          }
-          leaf cfi {
-            type uint8 {
-              range "0..1";
-            }
-            default "0";
-            description
-              "Configures the Canonical Format Identifier (CFI) field
-               (shall be 0 for Ethernet switches) of the transmitted
-               802.1q VLAN tag.";
-          }
-        }
-      }
-    }
+    if-feature "ethernet";
+    description
+      "Ethernet specific augmentation for egress
+       single stream generator type.";
+    uses ethernet-data;
   }
 
   augment "/if:interfaces/if:interface/tg:traffic-generator/tg:type/"
-        + "tg:single-stream" {
-    if-feature "ethernet";
-    when "derived-from-or-self(../if:type, 'ianaift:ethernetCsmacd')" {
-      description
-        "Ethernet interface type.";
-    }
-    uses ethernet-data;
-  }
-  augment "/if:interfaces/if:interface/tg:traffic-generator/tg:type/"
         + "tg:multi-stream/tg:streams/tg:stream" {
-    if-feature "ethernet";
     when "derived-from-or-self(../../../if:type, 'ianaift:ethernetCsmacd')" {
       description
         "Ethernet interface type.";
     }
+    if-feature "ethernet";
+    description
+      "Ethernet specific augmentation for egress
+       multi stream generator type.";
     uses ethernet-data;
   }
+
   augment "/if:interfaces/if:interface/tg:traffic-generator-ingress/tg:type/"
         + "tg:single-stream" {
-    if-feature "ethernet";
     when "derived-from-or-self(../if:type, 'ianaift:ethernetCsmacd')" {
       description
         "Ethernet interface type.";
     }
+    if-feature "ethernet";
+    description
+      "Ethernet specific augmentation for ingress
+       single stream generator type.";
     uses ethernet-data;
   }
+
   augment "/if:interfaces/if:interface/tg:traffic-generator-ingress/tg:type/"
         + "tg:multi-stream/tg:streams/tg:stream" {
-    if-feature "ethernet";
     when "derived-from-or-self(../../../if:type, 'ianaift:ethernetCsmacd')" {
       description
         "Ethernet interface type.";
     }
+    if-feature "ethernet";
+    description
+      "Ethernet specific augmentation for ingress
+       multi stream generator type.";
     uses ethernet-data;
   }
 }
