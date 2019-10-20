@@ -17,7 +17,6 @@ module ietf-crypto-types {
 
   organization
     "IETF NETCONF (Network Configuration) Working Group";
-
   contact
     "WG Web:   <http://datatracker.ietf.org/wg/netconf/>
      WG List:  <mailto:netconf@ietf.org>
@@ -49,7 +48,7 @@ module ietf-crypto-types {
      (RFC 8174) when, and only when, they appear in all
      capitals, as shown here.";
 
-  revision 2019-07-02 {
+  revision 2019-10-18 {
     description
       "Initial version";
     reference
@@ -1418,6 +1417,7 @@ module ietf-crypto-types {
                Algorithm with X25519 and X448 in the Cryptographic
                Message Syntax (CMS)";
         }
+
         enum rsaes-oaep {
           value 42;
           description
@@ -1447,6 +1447,96 @@ module ietf-crypto-types {
        assigned by IANA. The setting is optional and by default
        is 0.  The enumeration filed is set to the selected key
        exchange algorithm.";
+  }
+
+  /********************************************/
+  /*   Identities for Key Format Structures   */
+  /********************************************/
+
+  /*** all key format types ****/
+
+  identity key-format-base {
+    description "Base key-format identity for all keys.";
+  }
+
+  identity public-key-format {
+    base "key-format-base";
+    description "Base key-format identity for public keys.";
+  }
+
+  identity private-key-format {
+    base "key-format-base";
+    description "Base key-format identity for private keys.";
+  }
+
+  identity symmetric-key-format {
+    base "key-format-base";
+    description "Base key-format identity for symmetric keys.";
+  }
+
+  /**** for private keys ****/
+
+  identity rsa-private-key-format {
+      base "private-key-format";
+      description "An RSAPrivateKey (from RFC 3447).";
+  }
+
+  identity ec-private-key-format {
+      base "private-key-format";
+      description "An ECPrivateKey (from RFC 5915)";
+  }
+
+  identity one-asymmetric-key-format {
+      base "private-key-format";
+      description "A OneAsymmetricKey (from RFC 5958).";
+  }
+
+  identity encrypted-private-key-format {
+      base "private-key-format";
+      description
+        "A CMS EncryptedData structure (RFC 5652)
+         containing a OneAsymmetricKey (RFC 5958).";
+   }
+
+  /**** for public keys ****/
+
+  identity ssh-public-key-format {
+      base "public-key-format";
+      description
+        "The public key format described by RFC 4716.";
+  }
+
+  identity subject-public-key-info-format {
+      base "public-key-format";
+      description
+        "A SubjectPublicKeyInfo (from RFC 5280).";
+  }
+
+  /**** for symmetric keys ****/
+
+  identity octet-string-key-format {
+      base "symmetric-key-format";
+      description "An OctetString from ASN.1.";
+        /*
+        // Knowing that it is an "OctetString" isn't really helpful.
+        // Knowing the length of the octet string would be helpful,
+        // as it relates to the algorithm's block size.  We may want
+        // to only (for now) use "one-symmetric-key-format" for
+        // symmetric keys...were the usability issues Juergen
+        // mentioned before only apply to asymmetric keys?
+        */
+  }
+
+  identity one-symmetric-key-format {
+      base "symmetric-key-format";
+      description "A OneSymmetricKey (from RFC6031).";
+  }
+
+  identity encrypted-symmetric-key-format {
+      base "symmetric-key-format";
+      description
+        "A CMS EncryptedData structure (RFC 5652)
+         containing a OneSymmetricKey (RFC 6031).";
   }
 
   /***************************************************/
@@ -1506,7 +1596,6 @@ module ietf-crypto-types {
          Canonical Encoding Rules (CER) and Distinguished
          Encoding Rules (DER).";
   }
-
   typedef data-content-cms {
     type cms;
     description
@@ -1555,7 +1644,6 @@ module ietf-crypto-types {
     reference
       "RFC 5652: Cryptographic Message Syntax (CMS)";
   }
-
   typedef authenticated-data-cms {
     type cms;
     description
@@ -1663,6 +1751,20 @@ module ietf-crypto-types {
          and Certificate Revocation List (CRL) Profile.";
   }
 
+  typedef ssh-public-key-type {  // DELETE?
+     type binary;
+     description
+       "The binary public key data for this SSH key, as
+        specified by RFC 4253, Section 6.6, i.e.:
+
+          string    certificate or public key format
+                    identifier
+          byte[n]   key/certificate data.";
+     reference
+       "RFC 4253: The Secure Shell (SSH) Transport
+                  Layer Protocol";
+  }
+
   /**********************************************/
   /*   Groupings for keys and/or certificates   */
   /**********************************************/
@@ -1678,6 +1780,14 @@ module ietf-crypto-types {
       reference
         "RFC CCCC: Common YANG Data Types for Cryptography";
     }
+    leaf key-format {
+      nacm:default-deny-write;
+      when "../key";
+      type identityref {
+        base symmetric-key-format;
+      }
+      description "Identifies the symmetric key's format.";
+    }
     choice key-type {
       mandatory true;
       description
@@ -1685,9 +1795,10 @@ module ietf-crypto-types {
       leaf key {
         nacm:default-deny-all;
         type binary;
+        //must "../key-format";  FIXME: remove comment if approach ok
         description
           "The binary value of the key.  The interpretation of
-           the value is defined by 'algorithm'.  For example,
+           the value is defined by 'key-format'.  For example,
            FIXME.";
         reference
           "RFC XXXX: FIXME";
@@ -1714,20 +1825,22 @@ module ietf-crypto-types {
       reference
         "RFC CCCC: Common YANG Data Types for Cryptography";
     }
+    leaf public-key-format {
+      nacm:default-deny-write;
+      when "../public-key";
+      type identityref {
+        base public-key-format;
+      }
+      description "Identifies the key's format.";
+    }
     leaf public-key {
       nacm:default-deny-write;
       type binary;
+      //must "../public-key-format"; FIXME: rm comment if approach ok
       mandatory true;
       description
         "The binary value of the public key.  The interpretation
-         of the value is defined by 'algorithm'.  For example,
-         a DSA key is an integer, an RSA key is represented as
-         RSAPublicKey per RFC 8017, and an ECC key is represented
-         using the 'publicKey' described in RFC 5915.";
-      reference
-        "RFC 8017: Public-Key Cryptography Standards (PKCS) #1:
-                   RSA Cryptography Specifications Version 2.2.
-         RFC 5915: Elliptic Curve Private Key Structure.";
+         of the value is defined by 'public-key-format' field.";
     }
   }
 
@@ -1735,6 +1848,14 @@ module ietf-crypto-types {
     description
       "A private key and its associated public key and algorithm.";
     uses public-key-grouping;
+    leaf private-key-format {
+      nacm:default-deny-write;
+      when "../private-key";
+      type identityref {
+        base private-key-format;
+      }
+      description "Identifies the key's format.";
+    }
     choice private-key-type {
       mandatory true;
       description
@@ -1742,16 +1863,10 @@ module ietf-crypto-types {
       leaf private-key {
         nacm:default-deny-all;
         type binary;
+        //must "../private-key-format"; FIXME: rm comment if ok
         description
           "The value of the binary key.  The key's value is
-           interpreted by the 'algorithm'.  For example, a DSA key
-           is an integer, an RSA key is represented as RSAPrivateKey
-           as defined in RFC 8017, and an ECC key is represented as
-           ECPrivateKey as defined in RFC 5915.";
-        reference
-          "RFC 8017: Public-Key Cryptography Standards (PKCS) #1:
-                     RSA Cryptography Specifications Version 2.2.
-           RFC 5915: Elliptic Curve Private Key Structure.";
+           interpreted by the 'private-key-format' field.";
       }
       leaf hidden-private-key {
         nacm:default-deny-write;
