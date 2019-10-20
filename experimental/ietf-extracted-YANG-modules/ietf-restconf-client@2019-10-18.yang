@@ -32,9 +32,9 @@ module ietf-restconf-client {
     reference
       "RFC CCCC: YANG Groupings for HTTP Clients and HTTP Servers";
   }
-
   organization
     "IETF NETCONF (Network Configuration) Working Group";
+
   contact
     "WG Web:   <http://datatracker.ietf.org/wg/netconf/>
      WG List:  <mailto:netconf@ietf.org>
@@ -66,7 +66,7 @@ module ietf-restconf-client {
      (RFC 8174) when, and only when, they appear in all
      capitals, as shown here.";
 
-  revision 2019-07-02 {
+  revision 2019-10-18 {
     description
       "Initial version";
     reference
@@ -85,6 +85,16 @@ module ietf-restconf-client {
       "RFC 8040: RESTCONF Protocol";
   }
 
+  feature http-listen {
+    description
+      "The 'https-listen' feature indicates that the RESTCONF client
+       supports opening a port to listen for incoming RESTCONF
+       server call-home connections.  This feature exists as not
+       all RESTCONF clients may support RESTCONF call home.";
+    reference
+      "RFC 8071: NETCONF Call Home and RESTCONF Call Home";
+  }
+
   feature https-listen {
     description
       "The 'https-listen' feature indicates that the RESTCONF client
@@ -99,7 +109,142 @@ module ietf-restconf-client {
 
   grouping restconf-client-grouping {
     description
-      "Top-level grouping for RESTCONF client configuration.";
+      "A reusable grouping for configuring a RESTCONF client
+       without any consideration for how underlying transport
+       sessions are established.
+
+       This grouping currently doesn't define any nodes.";
+  }
+
+  grouping restconf-client-initiate-stack-grouping {
+    description
+      "A reusable grouping for configuring a RESTCONF client
+       'initiate' protocol stack for a single connection.";
+
+    choice transport {
+      mandatory true;
+      description
+        "Selects between available transports. This is a
+         'choice' statement so as to support additional
+         transport options to be augmented in.";
+      case https {
+        if-feature "https-initiate";
+        container https {
+          description
+            "Specifies HTTPS-specific transport
+             configuration.";
+          container tcp-client-parameters {
+            description
+              "A wrapper around the TCP client parameters
+               to avoid name collisions.";
+            uses tcpc:tcp-client-grouping {
+              refine "remote-port" {
+                default "443";
+                description
+                  "The RESTCONF client will attempt to
+                   connect to the IANA-assigned well-known
+                   port value for 'https' (443) if no value
+                   is specified.";
+              }
+            }
+          }
+          container tls-client-parameters {
+            must "client-identity" {
+              description
+                "NETCONF/TLS clients MUST pass some
+                 authentication credentials.";
+            }
+            description
+              "A wrapper around the TLS client parameters
+               to avoid name collisions.";
+            uses tlsc:tls-client-grouping;
+          }
+          container http-client-parameters {
+            description
+              "A wrapper around the HTTP client parameters
+               to avoid name collisions.";
+            uses httpc:http-client-grouping;
+          }
+          container restconf-client-parameters {
+            description
+              "A wrapper around the HTTP client parameters
+               to avoid name collisions.";
+            uses rcc:restconf-client-grouping;
+          }
+        }
+      }
+    }
+  } // restconf-client-initiate-stack-grouping
+
+  grouping restconf-client-listen-stack-grouping {
+    description
+      "A reusable grouping for configuring a RESTCONF client
+       'listen' protocol stack for a single connection.";
+    choice transport {
+      mandatory true;
+      description
+        "Selects between available transports. This is a
+         'choice' statement so as to support additional
+         transport options to be augmented in.";
+      case http {
+        if-feature "http-listen";
+        container FIXME {
+          description "FIXME";
+        }
+      }
+      case https {
+        if-feature "https-listen";
+        container https {
+          description
+            "HTTPS-specific listening configuration for inbound
+             connections.";
+          container tcp-server-parameters {
+            description
+              "A wrapper around the TCP client parameters
+               to avoid name collisions.";
+            uses tcps:tcp-server-grouping {
+              refine "local-port" {
+                default "4336";
+                description
+                  "The RESTCONF client will listen on the IANA-
+                   assigned well-known port for 'restconf-ch-tls'
+                   (4336) if no value is specified.";
+              }
+            }
+          }
+          container tls-client-parameters {
+            must "client-identity" {
+              description
+                "NETCONF/TLS clients MUST pass some
+                 authentication credentials.";
+            }
+            description
+              "A wrapper around the TLS client parameters
+               to avoid name collisions.";
+            uses tlsc:tls-client-grouping;
+          }
+          container http-client-parameters {
+            description
+              "A wrapper around the HTTP client parameters
+               to avoid name collisions.";
+            uses httpc:http-client-grouping;
+          }
+          container restconf-client-parameters {
+            description
+              "A wrapper around the RESTCONF client parameters
+               to avoid name collisions.";
+            uses rcc:restconf-client-grouping;
+          }
+        }
+      }
+    }
+  } // restconf-client-listen-stack-grouping
+
+  grouping restconf-client-app-grouping {
+    description
+      "A reusable grouping for configuring a RESTCONF client
+       application that supports both 'initiate' and 'listen'
+       protocol stacks for a multiplicity of connections.";
     container initiate {
       if-feature "https-initiate";
       presence "Enables client to initiate TCP connections";
@@ -110,7 +255,7 @@ module ietf-restconf-client {
         min-elements 1;
         description
           "List of RESTCONF servers the RESTCONF client is to
-           initiate connections to in parallel.";
+           maintain simultaneous connections with.";
         leaf name {
           type string;
           description
@@ -132,55 +277,9 @@ module ietf-restconf-client {
               description
                 "An arbitrary name for this endpoint.";
             }
-            choice transport {
-              mandatory true;
-              description
-                "Selects between available transports. This is a
-                 'choice' statement so as to support additional
-                 transport options to be augmented in.";
-              case https {
-                if-feature "https-initiate";
-                container https {
-                  description
-                    "Specifies HTTPS-specific transport
-                     configuration.";
-                  container tcp-client-parameters {
-                    description
-                      "A wrapper around the TCP client parameters
-                       to avoid name collisions.";
-                    uses tcpc:tcp-client-grouping {
-                      refine "remote-port" {
-                        default "443";
-                        description
-                          "The RESTCONF client will attempt to
-                           connect to the IANA-assigned well-known
-                           port value for 'https' (443) if no value
-                           is specified.";
-                      }
-                    }
-                  }
-                  container tls-client-parameters {
-                    must "client-identity" {
-                      description
-                        "NETCONF/TLS clients MUST pass some
-                         authentication credentials.";
-                    }
-                    description
-                      "A wrapper around the TLS client parameters
-                       to avoid name collisions.";
-                    uses tlsc:tls-client-grouping;
-                  }
-                  container http-client-parameters {
-                    description
-                      "A wrapper around the HTTP client parameters
-                       to avoid name collisions.";
-                    uses httpc:http-client-grouping;
-                  }
-                }
-              } // https
-            } // transport
-          } // endpoint
-        } // endpoints
+            uses restconf-client-initiate-stack-grouping;
+          }
+        }
         container connection-type {
           description
             "Indicates the RESTCONF client's preference for how
@@ -316,12 +415,11 @@ module ietf-restconf-client {
                moving on to the next endpoint in the list
                (round robin).";
           }
-        } // reconnect-strategy
-      } // restconf-server
+        }
+      }
     } // initiate
-
     container listen {
-      if-feature "https-listen";
+      if-feature "http-listen or https-listen";
       presence "Enables client to accept call-home connections";
       description
         "Configures client accepting call-home TCP connections.";
@@ -348,61 +446,16 @@ module ietf-restconf-client {
           description
             "An arbitrary name for the RESTCONF listen endpoint.";
         }
-        choice transport {
-          mandatory true;
-          description
-            "Selects between available transports. This is a
-             'choice' statement so as to support additional
-             transport options to be augmented in.";
-          case https {
-            if-feature "https-listen";
-            container https {
-              description
-                "HTTPS-specific listening configuration for inbound
-                 connections.";
-              container tcp-server-parameters {
-                description
-                  "A wrapper around the TCP client parameters
-                   to avoid name collisions.";
-                uses tcps:tcp-server-grouping {
-                  refine "local-port" {
-                    default "4336";
-                    description
-                      "The RESTCONF client will listen on the IANA-
-                       assigned well-known port for 'restconf-ch-tls'
-                       (4336) if no value is specified.";
-                  }
-                }
-              }
-              container tls-client-parameters {
-                must "client-identity" {
-                  description
-                    "NETCONF/TLS clients MUST pass some
-                     authentication credentials.";
-                }
-                description
-                  "A wrapper around the TLS client parameters
-                   to avoid name collisions.";
-                uses tlsc:tls-client-grouping;
-              }
-              container http-client-parameters {
-                description
-                  "A wrapper around the HTTP client parameters
-                   to avoid name collisions.";
-                uses httpc:http-client-grouping;
-              }
-            }
-          } // case https
-        } // transport
-      } // endpoint
-    } // listen
-  } // restconf-client
+        uses restconf-client-listen-stack-grouping;
+      }
+    }
+  } // restconf-client-app-grouping
 
   // Protocol accessible node, for servers that implement this
   // module.
 
   container restconf-client {
-    uses restconf-client-grouping;
+    uses restconf-client-app-grouping;
     description
       "Top-level container for RESTCONF client configuration.";
   }
