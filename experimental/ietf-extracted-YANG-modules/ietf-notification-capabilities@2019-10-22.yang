@@ -1,0 +1,262 @@
+module ietf-notification-capabilities {
+  yang-version 1.1;
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-notification-capabilities";
+  prefix inc;
+
+  import ietf-netconf-acm  { prefix nacm; }
+  import ietf-yang-push    { prefix yp; }
+  import ietf-yang-library {
+    prefix yanglib;
+    description
+      "Requires revision 2019-01-04 or a revision derived from it.";
+  }
+
+  organization
+    "IETF NETCONF (Network Configuration) Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/netconf/>
+     WG List:  <mailto:netconf@ietf.org>
+
+     Editor:   Balazs Lengyel
+               <mailto:balazs.lengyel@ericsson.com>";
+  description
+    "This module specifies YANG-Push related publisher
+     capabilities.
+
+     The module contains
+     - capabilities related to the throughput of notification data the
+     publisher can support. (Note that for a specific subscription
+     the publisher MAY still allow only longer periods or smaller
+     updates depending on e.g. actual load conditions.)
+     - specification of which data nodes support on-change or periodic
+     notifications.
+
+     Capability values can be specified on publisher level, datastore
+     level or on specific data nodes (and their contained sub-tree) of
+     a specific datastore.
+     If a capability is specified on multiple levels, the
+     specification on a more specific level overrides more
+     generic capability specifications; thus
+     - a publisher level specification is overridden by any other
+     specification
+     - a datastore level specification (with a node-selector '/') is
+     overridden by a specification with a more specific node-selector.
+     - a specification for a specific datastore and node-selector
+     is overridden by a specification for the same datastore with
+     a node-slector that describes more levels of containing lists
+     and containers.
+
+     If for a specific capability different values are indicated
+     for different nodes in a subscription, then only values
+     acceptable for every node are guaranteed to be acceptable
+     for the subscription.
+
+     To find a capability value for a specific node in a
+     specific datastore the user SHALL
+     1) consider the publisher level capabilities under the
+     publisher-subscription-capabilities container if such exist
+     2) search for a datastore-capabilities list entry for
+     the specific datastore
+     3) within that datastore entry search for a
+     per-node-capabilities entry that specifies the specific
+     capability and that has the node-selector selecting the
+     specific data node and that specifies the most levels of
+     containing containers and lists.
+     4) If no entries are found in the previous steps the
+     publisher is not capable of providing a value because
+     it is unknown, the capability is changing for some reason,
+     there is no specified limit etc. In this case the
+     publisher's behavior is unspecified.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this document
+     are to be interpreted as described in BCP 14 (RFC 2119)
+     (RFC 8174) when, and only when, they appear in all
+     capitals, as shown here.
+
+     Copyright (c) 2019 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Simplified BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (http://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX; see
+     the RFC itself for full legal notices.";
+
+  revision 2019-10-22 {
+    description
+      "Initial version";
+    reference
+      "RFC XXX: YANG-Push Notification Capabilities";
+  }
+
+  grouping subscription-capabilities {
+    description "Capabilities related to Yang-Push notifications";
+
+    typedef notification-support {
+      type enumeration {
+        enum no-notifications-supported {
+          description "The publisher is not capable of sending any
+            notifications for the relevant scope and subscription
+            type." ;
+        }
+        enum notifications-for-config-changes-supported {
+          description "The publisher is capable of sending
+            notifications for config=true nodes, but not
+            for config=false nodes for the relevant scope
+            and subscription type." ;
+        }
+        enum notifications-for-state-changes-supported {
+          description "The publisher is capable of sending
+            notifications for config=false nodes, but not
+            for config=true nodes for the relevant scope
+            and subscription type." ;
+        }
+        enum notifications-for-all-changes-supported {
+          description "The publisher is capable of sending
+            notifications for both config=false and config=true
+            nodes for the relevant scope and subscription type." ;
+        }
+      }
+      description "Type for defining whether on-change or
+        periodic notifications are supported for no, only config=true,
+        only config=false or all data nodes.";
+    }
+
+    choice update-period {
+      description "Supported update-period values.";
+      leaf minimum-update-period {
+        type uint32;
+        units "centiseconds";
+        description "Indicates the minimal update period that is
+          supported for a periodic subscription.
+          A periodic subscription to the selected data nodes must
+          specify a value that is at least as large or greater than
+          this";
+      }
+
+      leaf-list supported-update-period {
+        type uint32;
+        units "centiseconds";
+        description "Supported update period values for a
+          periodic subscription.
+          A periodic subscription to the selected data nodes must
+          specify one of the values in the list; other values
+          are not supported.";
+      }
+    }
+
+    leaf max-objects-per-update {
+      type uint32 {
+            range "1..max";
+      }
+      description
+        "Maximum number of objects that can be sent
+         in an update for the selected data nodes.";
+    }
+
+    leaf minimum-dampening-period {
+      if-feature yp:on-change;
+      type uint32;
+      units "centiseconds";
+      description
+        "The minimum dampening period supported for on-change
+         subscriptions for the selected data nodes.";
+    }
+
+    leaf on-change-supported {
+      if-feature yp:on-change;
+      type notification-support;
+      description
+        "Specifies whether the publisher is capable of
+         sending on-change notifications for the selected
+         data store or data nodes and the subtree below them.";
+    }
+
+    leaf periodic-notifications-supported {
+      type notification-support;
+      description
+        "Specifies whether the publisher is capable of
+         sending periodic notifications for the selected
+         data store or data nodes and the subtree below them.";
+    }
+
+    leaf-list supported-excluded-change-type {
+      if-feature yp:on-change;
+      type union {
+        type enumeration {
+          enum none {
+            description "None of the change types can be excluded.";
+          }
+          enum all {
+            description
+              "Any combination of change types can be excluded.";
+          }
+        }
+        type yp:change-type;
+      }
+      description "The change types that can be excluded in
+        YANG-Push subscriptions.";
+    }
+  }
+
+  container publisher-subscription-capabilities {
+    config false;
+    description "YANG-Push related publisher capabilities.
+      Capability values specified here at the publisher level
+      are valid for all datastores and
+      are used when the capability is not specified on the
+      datastore level or for specific data nodes. ";
+
+    uses subscription-capabilities {
+      refine supported-excluded-change-type {
+        default none;
+      }
+    }
+
+    list datastore-capabilities {
+      key datastore;
+
+      description "Capabilities values per datastore.
+        For non-NMDA servers/publishers the config=false data is
+        considered as if it was part of the running datastore.";
+
+      leaf datastore {
+        type leafref {
+          path /yanglib:yang-library/yanglib:datastore/yanglib:name;
+        }
+        description "The datastore for which capabilities are defined.
+          Only individual datastores can be specified
+          e.g. ds:conventional is not allowed.";
+      }
+
+      list per-node-capabilities {
+        key "node-selector";
+        description
+          "Each list entry specifies notification capabilities
+           for the selected data nodes. The same capabilities apply for
+           the data nodes in the subtree below them unless another list
+           entry with a more specific node selector is present.";
+
+        leaf node-selector {
+          type nacm:node-instance-identifier;
+          description
+            "Selects the data nodes for which capabilities are
+             specified. The special value '/' denotes all data nodes
+             in the datastore.
+             The system SHOULD order list entries according to
+             the tree structure of the data models to make
+             reading/parsing the data model more simple.";
+        }
+
+        uses subscription-capabilities;
+      }
+    }
+  }
+}
