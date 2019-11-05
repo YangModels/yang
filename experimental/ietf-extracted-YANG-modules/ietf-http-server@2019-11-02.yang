@@ -1,0 +1,231 @@
+module ietf-http-server {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-http-server";
+  prefix https;
+
+  import iana-crypt-hash {
+    prefix ianach;
+    reference
+      "RFC 7317: A YANG Data Model for System Management";
+  }
+
+  import ietf-netconf-acm {
+    prefix nacm;
+    reference
+      "RFC 8341: Network Configuration Access Control Model";
+  }
+
+  organization
+    "IETF NETCONF (Network Configuration) Working Group";
+
+  contact
+    "WG Web:   <http://datatracker.ietf.org/wg/netconf/>
+     WG List:  <mailto:netconf@ietf.org>
+     Author:   Kent Watsen <mailto:kent+ietf@watsen.net>";
+
+  description
+    "This module defines reusable groupings for HTTP servers that
+     can be used as a basis for specific HTTP server instances.
+
+     Copyright (c) 2019 IETF Trust and the persons identified
+     as authors of the code. All rights reserved.
+
+     Redistribution and use in source and binary forms, with
+     or without modification, is permitted pursuant to, and
+     subject to the license terms contained in, the Simplified
+     BSD License set forth in Section 4.c of the IETF Trust's
+     Legal Provisions Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC
+     itself for full legal notices.;
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this document
+     are to be interpreted as described in BCP 14 (RFC 2119)
+     (RFC 8174) when, and only when, they appear in all
+     capitals, as shown here.";
+
+  revision 2019-11-02 {
+    description
+      "Initial version";
+    reference
+      "RFC XXXX: YANG Groupings for HTTP Clients and HTTP Servers";
+  }
+
+  // Features
+
+  feature local-client-auth-supported {
+    description
+      "Indicates that the HTTP server supports local configuration
+       of client credentials.";
+  }
+
+  feature external-client-auth-supported {
+    description
+      "Indicates that the HTTP server supports external configuration
+       of client credentials.";
+  }
+
+  feature basic-auth {
+    description
+      "The 'basic-auth' feature indicates that the server
+       may be configured authenticate users using the 'basic'
+       HTTP authentication scheme.";
+    reference
+      "RFC 7617: The 'Basic' HTTP Authentication Scheme";
+  }
+
+  // Groupings
+
+  grouping http-server-grouping {
+    description
+      "A reusable grouping for configuring an HTTP server.
+
+       Note that this grouping uses fairly typical descendent
+       node names such that a stack of 'uses' statements will
+       have name conflicts.  It is intended that the consuming
+       data model will resolve the issue (e.g., by wrapping
+       the 'uses' statement in a container called
+       'http-server-parameters').  This model purposely does
+       not do this itself so as to provide maximum flexibility
+       to consuming models.";
+
+    leaf server-name {
+      nacm:default-deny-write;
+      type string;
+      description
+        "The value of the 'Server' header field.  If not set, then
+         underlying software's default value is used.  Set to the
+         empty string to disable.";
+    }
+
+    container protocol-versions {
+      nacm:default-deny-write;
+      description
+        "A list of HTTP protocol versions supported by this
+         server.";
+      leaf-list protocol-version {
+        type enumeration {
+          enum "HTTP/1.0" {
+            description
+              "The server supports the 'HTTP/1.0' protocol.";
+          }
+          enum "HTTP/1.1" {
+            description
+              "The server supports the 'HTTP/1.1' protocol.";
+          }
+          enum "HTTP/2.0" {
+            description
+              "The server supports the 'HTTP/2.0' protocol.";
+          }
+        }
+        description
+          "An HTTP protocol version supported by this server.";
+      }
+    }
+
+    container client-authentication {
+      nacm:default-deny-write;
+      presence
+        "Indicates that HTTP based client authentication is
+         supported (i.e., the server will request that the
+         HTTP client send authenticate when needed).  This
+         is needed as some HTTP-based protocols may only
+         support, e.g., TLS-level client authentication.";
+      description
+        "Specifies if HTTP client authentication is required or
+         optional, and specifies if the credentials needed to
+         authenticate the HTTP client are configured locally
+         or externally.";
+      choice required-or-optional {
+        mandatory true;  // or default to 'required' ?
+        description
+          "Indicates if HTTP-level client authentication is required
+           or optional.  This is necessary for some protocols (e.g.,
+           RESTCONF) that may optionally authenticate a client via
+           TLS-level authentication, HTTP-level authentication, or
+           both simultaneously).";
+         leaf required {
+           type empty;
+           description
+             "Indicates that HTTP-level client authentication is
+              required to access protected resources.";
+         }
+         leaf optional {
+           type empty;
+           description
+             "Indicates that HTTP-level client authentication is
+              optional to access protected resources.";
+         }
+      }
+      choice local-or-external {
+        mandatory true;
+        description
+          "Indicates if the client credentials are configured
+           locally or externally.  The need to support external
+           configuration for client authentication stems from
+           the desire to support consuming data models that
+           prefer to place client authentication with client
+           definitions, rather then in a data model principally
+           concerned with configuring the transport.";
+        case local {
+          if-feature "local-client-auth-supported";
+          description
+            "Client credentials are configured locally.";
+          container users {
+            description
+              "A list of locally configured users.";
+            list user {
+              key user-id;
+              description
+                "The list of local users configured on this device.";
+              leaf user-id {
+                type string;
+                description
+                  "The user-id for the authenticating client.";
+              }
+              choice auth-type {
+                description
+                  "The authentication type.";
+                container basic {
+                  if-feature "basic-auth";
+                  leaf user-id {
+                    type string;
+                    description
+                      "The user-id for the authenticating client.";
+                  }
+                  leaf password {
+                    nacm:default-deny-write;
+                    type ianach:crypt-hash;
+                    description
+                      "The password for the authenticating client.";
+                  }
+                  description
+                    "The 'basic' HTTP scheme credentials.";
+                  reference
+                    "RFC 7617:
+                      The 'Basic' HTTP Authentication Scheme";
+                }
+              }
+            }
+          }
+        }
+        case external {
+          if-feature "external-client-auth-supported";
+          description
+            "Client credentials are configured externally.";
+          leaf client-auth-defined-elsewhere {
+            type empty;
+            description
+              "Indicates that credentials needed to authenticate
+               clients are configured elsewhere.";
+          }
+        }
+      } // choice local-or-external
+    } // container client-authentication
+
+  }
+}
