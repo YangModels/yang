@@ -5,21 +5,27 @@ module ietf-ssh-server {
 
   import ietf-ssh-common {
     prefix sshcmn;
-    revision-date 2019-11-02; // stable grouping definitions
+    revision-date 2019-11-20; // stable grouping definitions
     reference
       "RFC XXXX: YANG Groupings for SSH Clients and SSH Servers";
+  }
+
+  import ietf-crypto-types {
+    prefix ct;
+    reference
+      "RFC AAAA: Common YANG Data Types for Cryptography";
   }
 
   import ietf-truststore {
     prefix ts;
     reference
-      "RFC YYYY: A YANG Data Model for a Truststore";
+      "RFC BBBB: A YANG Data Model for a Truststore";
   }
 
   import ietf-keystore {
     prefix ks;
     reference
-      "RFC ZZZZ: A YANG Data Model for a Keystore";
+      "RFC CCCC: A YANG Data Model for a Keystore";
   }
 
   import iana-crypt-hash {
@@ -36,6 +42,7 @@ module ietf-ssh-server {
 
   organization
     "IETF NETCONF (Network Configuration) Working Group";
+
   contact
     "WG Web:   <http://datatracker.ietf.org/wg/netconf/>
      WG List:  <mailto:netconf@ietf.org>
@@ -67,7 +74,7 @@ module ietf-ssh-server {
      (RFC 8174) when, and only when, they appear in all
      capitals, as shown here.";
 
-  revision 2019-11-02 {
+  revision 2019-11-20 {
     description
       "Initial version";
     reference
@@ -88,10 +95,15 @@ module ietf-ssh-server {
        SSH servers on the server implementing this feature.";
   }
 
-  feature local-client-auth-supported {
+  feature client-auth-config-supported {
     description
-      "Indicates that the SSH server supports local configuration
-       of client credentials.";
+      "Indicates that the configuration for how to authenticate
+       clients can be configured herein, as opposed to in an
+       application specific location.  That is, to support the
+       consuming data models that prefer to place client
+       authentication with client definitions, rather then
+       in a data model principally concerned with configuring
+       the transport.";
   }
 
   feature external-client-auth-supported {
@@ -144,7 +156,15 @@ module ietf-ssh-server {
           description
             "The type of host key being specified";
           container public-key {
-            uses ks:local-or-keystore-asymmetric-key-grouping;
+            uses ks:local-or-keystore-asymmetric-key-grouping {
+              refine "local-or-keystore/local/local-definition" {
+                must
+                  'public-key-format = "ct:ssh-public-key-format"';
+              }
+              // FIXME: also need a must expression to ensure the
+              //        *referenced* key's public-key-format is
+              //        "ct:ssh-public-key-format"
+            }
             description
               "A locally-defined or referenced asymmetric key pair
                to be used for the SSH server's host key.";
@@ -156,6 +176,7 @@ module ietf-ssh-server {
             if-feature "sshcmn:ssh-x509-certs";
             uses
             ks:local-or-keystore-end-entity-cert-with-key-grouping;
+            must "public-key-format = ct:ssh-public-key-format";
             description
               "A locally-defined or referenced end-entity
                certificate to be used for the SSH server's
@@ -171,9 +192,7 @@ module ietf-ssh-server {
     container client-authentication {
       nacm:default-deny-write;
       description
-        "Specifies if SSH client authentication is required or
-         optional, and specifies if the SSH client authentication
-         credentials are configured locally or externally.";
+        "Specifies how the SSH server can authenticate SSH clients.";
       container supported-authentication-methods {
         description
           "Indicates which authentication methods the server
@@ -225,99 +244,74 @@ module ietf-ssh-server {
         }
       }
 
-      choice local-or-external {
-        mandatory true;
+      container users {
+        if-feature "client-auth-config-supported";
         description
-          "Indicates if the credentials needed to authenticate the
-           clients are configured locally or externally.
-
-           Configuring credentials externally enables applications
-           to place client authentication with client definitions,
-           rather then in a part of a data model principally
-           concerned with configuring the SSH transport.";
-        case local {
-          if-feature "local-client-auth-supported";
+          "A list of locally configured users.";
+        list user {
+          key name;
           description
-            "Client credentials are configured locally.";
-          container users {
-            description
-              "A list of locally configured users.";
-            list user {
-              key name;
-              description
-                "The list of local users configured on this device.";
+            "The list of local users configured on this device.";
 
-              leaf name {
-                type string;
-                description
-                 "The user name string identifying this entry.";
-              }
-              leaf password {
-                type ianach:crypt-hash;
-                description
-                  "The password for this entry.";
-              }
-              container host-keys {  // FIXME: plural too much?
-                presence
-                  "Indicates that the server can authenticate this
-                   user using the configured SSH host keys.";
-                description
-                  "A set of SSH host keys used by the SSH server to
-                   authenticate this user.  A user is authenticated
-                   if its host key is an exact match to a configured
-                   host key.";
-                reference
-                  "RFC 4253: The Secure Shell (SSH) Transport Layer";
-                uses ts:local-or-truststore-host-keys-grouping;
-              }
-              container ca-certs {  // FIXME: plural too much?
-                if-feature "sshcmn:ssh-x509-certs";
-                presence
-                  "Indicates that the server can authenticate
-                   this user using the configured trust anchor
-                   certificates.";
-                description
-                  "A set of certificate authority (CA) certificates
-                   used by the SSH server to authenticate this user.
-                   A user is authenticated if its certificate has
-                   a valid chain of trust to a configured CA
-                   certificate.";
-                reference
-                  "RFC YYYY:
-                    YANG Data Model for Global Trust Anchors";
-                uses ts:local-or-truststore-certs-grouping;
-              }
-              container client-certs {   // FIXME: plural too much?
-                if-feature "sshcmn:ssh-x509-certs";
-                presence
-                  "Indicates that the server can authenticate this
-                   user using the configured client certificates.";
-                description
-                  "A set of end-entity certificates used by the SSH
-                   server to authenticate this user.  A user is
-                   authenticated if its certificate is an exact
-                   match to a configured user certificate.";
-                reference
-                  "RFC YYYY:
-                    YANG Data Model for Global Trust Anchors";
-                uses ts:local-or-truststore-certs-grouping;
-              }
-            } // list user
-          } // container users
-        } // case local
-        case external {
-          if-feature "external-client-auth-supported";
-          description
-            "Client credentials are configured externally, such
-             as via RADIUS, RFC 7317, or another mechanism.";
-          leaf client-auth-defined-elsewhere {
-            type empty;
+          leaf name {
+            type string;
             description
-              "Indicates that client credentials are configured
-               elsewhere.";
+             "The user name string identifying this entry.";
+          }
+          leaf password {
+            type ianach:crypt-hash;
+            description
+              "The password for this entry.";
+          }
+          container host-keys {  // FIXME: plural too much?
+            presence
+              "Indicates that the server can authenticate this
+               user using the configured SSH host keys.";
+            description
+              "A set of SSH host keys used by the SSH server to
+               authenticate this user.  A user is authenticated
+               if its host key is an exact match to a configured
+               host key.";
+            reference
+              "RFC 4253: The Secure Shell (SSH) Transport Layer";
+            uses ts:local-or-truststore-host-keys-grouping;
           }
         }
-      } // choice local-or-external
+      }
+      container ca-certs {
+        if-feature "client-auth-config-supported";
+        if-feature "sshcmn:ssh-x509-certs";
+        presence
+          "Indicates that the SSH server can authenticate SSH
+           clients using configured certificate authority (CA)
+           certificates.";
+        description
+          "A set of certificate authority (CA) certificates used by
+           the SSH server to authenticate SSH client certificates.
+           A client certificate is authenticated if it has a valid
+           chain of trust to a configured CA certificate.";
+        reference
+          "RFC YYYY:
+            YANG Data Model for Global Trust Anchors";
+        uses ts:local-or-truststore-certs-grouping;
+      }
+      container client-certs {   // FIXME: plural too much?
+        if-feature "client-auth-config-supported";
+        if-feature "sshcmn:ssh-x509-certs";
+        presence
+          "Indicates that the SSH server can authenticate SSH
+           clients using configured client certificates.";
+        description
+          "A set of client certificates (i.e., end entity
+           certificates) used by the SSH server to authenticate
+           the certificates presented by SSH clients.  A client
+           certificate is authenticated if it is an exact match
+           to a configured client certificate.";
+        reference
+          "RFC YYYY:
+            YANG Data Model for Global Trust Anchors";
+        uses ts:local-or-truststore-certs-grouping;
+      }
     } // container client-authentication
 
     container transport-params {

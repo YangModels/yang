@@ -19,14 +19,16 @@ module ietf-truststore {
     "IETF NETCONF (Network Configuration) Working Group";
 
   contact
-    "WG Web:   <http://datatracker.ietf.org/wg/netconf/>
-     WG List:  <mailto:netconf@ietf.org>
-     Author:   Kent Watsen <mailto:kent+ietf@watsen.net>";
+    "WG Web  : <http://datatracker.ietf.org/wg/netconf/>
+     WG List : <mailto:netconf@ietf.org>
+     Author  : Kent Watsen <kent+ietf@watsen.net>
+     Author  : Henk Birkholz <henk.birkholz@sit.fraunhofer.de>";
 
   description
     "This module defines a truststore to centralize management
-     of trust anchors including both X.509 certificates and
-     SSH host keys.
+     of trust anchors including X.509 certificates, SSH host
+     keys, raw public keys, and PSKs (pairwise-symmetric or
+     pre-shared keys).
 
      Copyright (c) 2019 IETF Trust and the persons identified
      as authors of the code. All rights reserved.
@@ -40,7 +42,7 @@ module ietf-truststore {
 
      This version of this YANG module is part of RFC XXXX
      (https://www.rfc-editor.org/info/rfcXXXX); see the RFC
-     itself for full legal notices.;
+     itself for full legal notices.
 
      The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
      'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
@@ -49,7 +51,7 @@ module ietf-truststore {
      (RFC 8174) when, and only when, they appear in all
      capitals, as shown here.";
 
-  revision 2019-10-18 {
+  revision 2019-11-20 {
     description
       "Initial version";
     reference
@@ -85,6 +87,12 @@ module ietf-truststore {
        implements the /truststore/host-keys subtree.";
   }
 
+  feature raw-public-keys {
+    description
+      "The 'raw-public-keys' feature indicates that the server
+       implements the /truststore/raw-public-keys subtree.";
+  }
+
   /****************/
   /*   Typedefs   */
   /****************/
@@ -107,6 +115,15 @@ module ietf-truststore {
        to a set of host keys defined in the truststore.";
   }
 
+  typedef raw-public-keys-ref {
+    type leafref {
+      path "/ts:truststore/ts:raw-public-keys/ts:name";
+    }
+    description
+      "This typedef enables modules to easily define a reference
+       to a set of raw public keys defined in the truststore.";
+  }
+
   /*****************/
   /*   Groupings   */
   /*****************/
@@ -122,9 +139,7 @@ module ietf-truststore {
         if-feature "local-definitions-supported";
         container local-definition {
           description
-            "Container to hold the local trust anchor definitions.
-             A list is defined so as to be symmetric with the
-             truststore definition.";
+            "Container to hold the local trust anchor definitions.";
           uses ct:trust-anchor-certs-grouping;
         }
       }
@@ -146,18 +161,16 @@ module ietf-truststore {
 
   grouping local-or-truststore-host-keys-grouping {
     description
-      "A grouping that expands to allow trust anchors to be
+      "A grouping that expands to allow host keys to be
        either stored locally, within the using data model, or be
-       a reference to trust anchors stored in the truststore.";
+       a reference to host keys stored in the truststore.";
     choice local-or-truststore {
       mandatory true;
       case local {
         if-feature "local-definitions-supported";
         container local-definition {
           description
-            "Container to hold the local trust anchor definitions.
-             A list is defined so as to be symmetric with the
-             truststore definition.";
+            "Container to hold local host key definitions.";
           leaf-list host-key {
             nacm:default-deny-write;
             type ct:ssh-host-key;
@@ -174,7 +187,48 @@ module ietf-truststore {
         leaf truststore-reference {
           type ts:host-keys-ref;
           description
-            "A reference to a set of trust anchors that exists
+            "A reference to a set of host keys that exist in
+             the truststore.";
+        }
+      }
+      description
+        "A choice between an inlined definition and a definition
+         that exists in the truststore.";
+    }
+  }
+
+  grouping local-or-truststore-raw-pub-keys-grouping {
+    description
+      "A grouping that expands to allow raw public keys to be
+       available either locally, within the using data model, or
+       be a reference to raw public keys stored in the truststore.";
+    choice local-or-truststore {
+      mandatory true;
+      case local {
+        if-feature "local-definitions-supported";
+        container local-definition {
+          description
+            "Container to hold local raw public key definitions.";
+          list raw-public-key {
+            key name;
+            description
+              "A raw public key definition.";
+            leaf name {
+              type string;
+              description
+                "An arbitrary name for this raw public key.";
+            }
+            uses ct:public-key-grouping;
+          }
+        }
+      }
+      case truststore {
+        if-feature "truststore-supported";
+        if-feature "raw-public-keys";
+        leaf truststore-reference {
+          type ts:raw-public-keys-ref;
+          description
+            "A reference to a set of raw public keys that exist
              in the truststore.";
         }
       }
@@ -183,6 +237,7 @@ module ietf-truststore {
          that exists in the truststore.";
     }
   }
+
   grouping truststore-grouping {
     description
       "Grouping definition enables use in other contexts.  If ever
@@ -235,13 +290,12 @@ module ietf-truststore {
       if-feature "ssh-host-keys";
       key "name";
       description
-        "A list of host keys.  These host-keys can
-         be used by clients to authenticate SSH servers.  Each
-         list of host keys SHOULD be specific to a purpose,
-         so the list as a whole may be referenced by other modules.
-         For instance, a NETCONF client's configuration might
-         point to a specific list of host keys for when
-         authenticating specific SSH servers.";
+        "A list of host keys.  These host-keys can be used by
+         clients to authenticate SSH servers.  Each list of host
+         keys SHOULD be specific to a purpose, so the list as a
+         whole may be referenced by other modules.  For instance,
+         a client's configuration might point to a specific list
+         of host keys for when authenticating specific SSH servers.";
       leaf name {
         type string;
         description
@@ -261,10 +315,7 @@ module ietf-truststore {
         leaf name {
           type string;
           description
-            "An arbitrary name for this host-key. Must be
-             unique across all lists of host-keys (not just
-             this list) so that a leafref to it from another module
-             can resolve to unique values.";
+            "An arbitrary name for this host-key.";
         }
         leaf host-key {
           type ct:ssh-host-key;
@@ -274,6 +325,40 @@ module ietf-truststore {
           reference
             "RFC YYYY: Common YANG Data Types for Cryptography";
         }
+      }
+    }
+    list raw-public-keys {
+      if-feature "raw-public-keys";
+      key "name";
+      description
+        "A list of raw public keys. These raw public keys can be
+         used by a server to authenticate clients, or by a client
+         to authenticate servers. Each list of raw public keys
+         SHOULD be specific to a purpose, so the list as a whole
+         may be referenced by other modules.  For instance, a
+         client's configuration might point to a specific list
+         of raw public keys for when authenticating specific TLS
+         endpoints.";
+      leaf name {
+        type string;
+        description
+          "An arbitrary name for this list of raw public keys.";
+      }
+      leaf description {
+        type string;
+        description
+          "An arbitrary description for this list raw public keys.";
+      }
+      list raw-public-key {
+        key "name";
+        description
+          "A raw public key.";
+        leaf name {
+          type string;
+          description
+            "An arbitrary name for this raw public key.";
+        }
+        uses ct:public-key-grouping;
       }
     }
   }
@@ -289,5 +374,4 @@ module ietf-truststore {
        SSH host keys.";
     uses truststore-grouping;
   }
-
 }
