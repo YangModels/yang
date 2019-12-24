@@ -20,6 +20,7 @@ module ietf-taps-api {
   }
 
   organization "IETF";
+
   contact
       "Author:   Jake Holland
                  <mailto:jholland@akamai.com>
@@ -78,101 +79,19 @@ module ietf-taps-api {
       "This value represents the preference level of a property.";
   }
 
-  identity connection-config-property {
-    description "Base identity for configuring connections";
-  }
-
-  identity transport-property {
-    base connection-config-property;
+  identity transport-property-type {
     description "Base identity for transport properties";
   }
 
-  identity local-endpoint-property {
-    base connection-config-property;
-    description "Base identity for local endpoint properties";
-  }
-
-  identity local-address {
-    base local-endpoint-property;
-    description
-      "Identity for the address of a local endpoint";
-  }
-
-  identity local-port {
-    base local-endpoint-property;
-    description
-      "Identity for the port of a local endpoint";
-  }
-
-  identity stun-server {
-    base local-endpoint-property;
-    description
-      "Identity for using a stun server";
-  }
-
-  identity remote-endpoint-property {
-    base connection-config-property;
-    description "Base identity for remote endpoint properties";
-  }
-
-  identity remote-host {
-    base remote-endpoint-property;
-    description
-      "Identity for the host of a remote endpoint";
-  }
-
-  identity remote-port {
-    base remote-endpoint-property;
-    description
-      "Identity for the port of a remote endpoint";
-  }
-
-  identity reliable {
-    base transport-property;
-    description "Reliable Transport";
-  }
-  identity per-message-reliable {
-    base transport-property;
-    description "Per-message Reliable Transport";
-  }
-  identity preserve-order {
-    base transport-property;
-    description "Per-message Reliable Transport";
-  }
-  identity zero-rtt-establishment {
-    base transport-property;
-    description
-      "Use 0-RTT session establishment with an idempotent Message";
-  }
-  identity multistream-connections-in-group {
-    base transport-property;
-    description "Multistream Connections in Group";
-  }
-  identity control-checksum-coverage {
-    base transport-property;
-    description "Control checksum coverage on sending or receiving
-        TBD: draft-ietf-taps-interface-02#section-5.2.6 seems to
-             indicate some parameters are in order with this type,
-             not sure exactly what it should look like? Use case?";
-  }
-  identity congestion-control {
-    base transport-property;
-    description "Congestion control";
-  }
-  identity local-interface-selection {
-    base transport-property;
-    description "Interface Instance or Type
-        TBD: should this be a local-endpoint-property?";
-  }
   identity provisioning-domain {
-    base transport-property;
+    base transport-property-type;
     description "Base for provisioning domain.
         TBD: add relevant provisioning domain types";
     reference "RFC 7556: Multiple Provisioning Domain Architecture";
   }
 
   identity transport-protocol {
-    base transport-property;
+    base transport-property-type;
     description "Identity for a transport selection.
       TBD: finish the rest of the protocols in
            https://tools.ietf.org/html/rfc8095#section-3.1
@@ -244,7 +163,6 @@ module ietf-taps-api {
     description "Identity for ICMP";
     reference "TBD";
   }
-
   identity security-algorithm {
     description "Base identity for security algorithms.";
   }
@@ -278,6 +196,11 @@ module ietf-taps-api {
       description "identity for security credentials";
     }
 
+    leaf trust-ca {
+      type string;
+      description "trust-ca for security credentials";
+    }
+
     leaf algorithm {
       type identityref {
         base security-algorithm;
@@ -307,93 +230,190 @@ module ietf-taps-api {
     }
   }
 
-  grouping transport-property-info {
-    description "grouping of transport info, used by preconnection
-        and connection";
-
-    leaf type {
-      type identityref {
-        base "connection-config-property";
-      }
-      description "type of the property";
-    }
-
-    leaf-list iftype {
-      when "derived-from-or-self(../type,
-          'taps:local-interface-selection')";
-      type identityref {
-        base "ianaift:iana-interface-type";
-      }
-      description "interface type constraint for local
-        interface selection";
-      reference "RFC 7224 Section 2";
-    }
-
-    leaf-list ifref {
-      when "derived-from-or-self(../type,
-          'taps:local-interface-selection')";
-      type if:interface-ref {
-        require-instance false;
-      }
-      description "specific interface constraint for local
-        interface selection.";
-    }
-
-    leaf-list address {
-      when "derived-from-or-self(../type,
-          'taps:local-address')";
-      type inet:ip-address;
-      description "ip address of local endpoint";
-    }
-
-    leaf-list port {
-      when "derived-from-or-self(../type,
-          'taps:local-port') or
-            derived-from-or-self(../type,
-          'taps:remote-port')";
-      type inet:port-number;
-      description "port value of an endpoint port";
-    }
-
-    leaf-list host {
-      when "derived-from-or-self(../type,
-          'taps:remote-host')";
-      type inet:host;
-      description "host value of a remote endpoint";
-    }
-
-    container stun-info {
-      when "derived-from-or-self(../type,
-          'taps:stun-server')";
-      description "config for the stun server";
-
-      leaf host {
-        type inet:host;
-        description "stun server host";
-      }
-      leaf port {
-        type inet:port-number;
-        description "port number for the stun server";
-      }
-      uses security-credentials;
-    }
-  }
-
   container preconnection {
     description "preconnection config for a taps connection";
-    list properties {
-      key "type preference";
-      description "list of transport property constraints.";
 
-      leaf preference {
-        type preference-level;
-        /* TBD: would be nice if i could set default and have
-           less verbose config file.
-           default require; */
-        description "preference level for the property";
+    list local-endpoints {
+      key "id";
+      description "list of local endpoints";
+
+      leaf id {
+        type string;
+        description "id of the local endpoint";
       }
 
-      uses transport-property-info;
+      leaf local-address {
+        type inet:ip-address;
+        description "ip address of local endpoint";
+      }
+      leaf local-port {
+        type inet:port-number;
+        description "port value of an endpoint port";
+      }
+
+      container stun-info {
+        description "config for the stun server";
+
+        leaf host {
+          type inet:host;
+          description "stun server host";
+        }
+        leaf port {
+          type inet:port-number;
+          description "port number for the stun server";
+        }
+        uses security-credentials;
+      }
+      /* TBD: multicast-subscription: source-specific */
+    }
+
+    list remote-endpoints {
+      key "id";
+      description "list of remote endpoints";
+
+      leaf id {
+        type string;
+        description "id of the remote endpoint";
+      }
+
+      leaf remote-host {
+        type inet:host;
+        description "host value of a remote endpoint";
+      }
+
+      leaf remote-port {
+        type inet:port-number;
+        description "port value of an endpoint port";
+      }
+    }
+
+    container transport-properties {
+      description "transport property constraints";
+
+      leaf reliability {
+        type preference-level;
+        default "require";
+        description "Section 5.2.1 of draft-ietf-taps-interface-03";
+      }
+
+      leaf preserve-msg-boundaries {
+        type preference-level;
+        default "prefer";
+        description "Section 5.2.2 of draft-ietf-taps-interface-03";
+      }
+
+      leaf per-message-reliability {
+        type preference-level;
+        default "ignore";
+        description "Section 5.2.3 of draft-ietf-taps-interface-03";
+      }
+      leaf preserve-order {
+        type preference-level;
+        default "require";
+        description "Section 5.2.4 of draft-ietf-taps-interface-03";
+      }
+
+      leaf zero-rtt-msg {
+        type preference-level;
+        default "prefer";
+        description "Section 5.2.5 of draft-ietf-taps-interface-03";
+      }
+
+      leaf multistreaming {
+        type preference-level;
+        default "prefer";
+        description "Section 5.2.6 of draft-ietf-taps-interface-03";
+      }
+
+      leaf per-msg-checksum-len-send {
+        type preference-level;
+        default "ignore";
+        description "Section 5.2.7 of draft-ietf-taps-interface-03";
+      }
+
+      leaf per-msg-checksum-len-recv {
+        type preference-level;
+        default "ignore";
+        description "Section 5.2.8 of draft-ietf-taps-interface-03";
+      }
+
+      leaf congestion-control {
+        type preference-level;
+        default "require";
+        description "Section 5.2.9 of draft-ietf-taps-interface-03";
+      }
+
+      list interface {
+        key "preference value";
+        leaf preference {
+          type preference-level;
+          description "preference for this interface or interface type";
+        }
+        leaf value {
+          type union {
+            type identityref {
+              base "ianaift:iana-interface-type";
+            }
+            type if:interface-ref {
+              require-instance false;
+            }
+          }
+          description "name or type of interface constraint";
+          reference "RFC 7224 Section 2";
+        }
+
+        description "Section 5.2.10 of draft-ietf-taps-interface-03";
+      }
+
+      list pvd {
+        key "preference value";
+        leaf preference {
+          type preference-level;
+          description "preference for this pvd";
+        }
+        leaf value {
+          type identityref {
+            base "provisioning-domain";
+          }
+          description "the provisioning domain constraint";
+        }
+
+        description "Section 5.2.11 of draft-ietf-taps-interface-03";
+      }
+
+      leaf multipath {
+        type preference-level;
+        default "prefer";
+        description "Section 5.2.12 of draft-ietf-taps-interface-03";
+      }
+
+      leaf direction {
+        type enumeration {
+          enum bidirectional {
+            description "Bidirectional connection";
+          }
+          enum unidirection-send {
+            description "Unidirectional sending connection";
+          }
+          enum unidirection-receive {
+            description "Unidirectional receiving connection";
+          }
+        }
+        default "bidirectional";
+        description "Section 5.2.13 of draft-ietf-taps-interface-03";
+      }
+
+      leaf retransmit-notify {
+        type preference-level;
+        default "ignore";
+        description "Section 5.2.14 of draft-ietf-taps-interface-03";
+      }
+
+      leaf soft-error-notify {
+        type preference-level;
+        default "ignore";
+        description "Section 5.2.15 of draft-ietf-taps-interface-03";
+      }
     }
 
     container security {
@@ -404,6 +424,7 @@ module ietf-taps-api {
         uses security-credentials;
         description "security credentials";
       }
+
       leaf session-cache-capacity {
         type uint32;
         description "Max number of cache elements";
@@ -412,17 +433,6 @@ module ietf-taps-api {
         type uint32;
         description "Number of seconds of session cache lifetime";
       }
-    }
-  }
-
-  container connection {
-    config false;
-
-    description "information about connections";
-    list properties {
-      description "list of transport properties for live connections.";
-
-      uses transport-property-info;
     }
   }
 }

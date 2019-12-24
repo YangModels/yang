@@ -1,0 +1,377 @@
+module ietf-truststore {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-truststore";
+  prefix ts;
+
+  import ietf-netconf-acm {
+    prefix nacm;
+    reference
+      "RFC 8341: Network Configuration Access Control Model";
+  }
+
+  import ietf-crypto-types {
+    prefix ct;
+    reference
+      "RFC YYYY: Common YANG Data Types for Cryptography";
+  }
+
+  organization
+    "IETF NETCONF (Network Configuration) Working Group";
+
+  contact
+    "WG Web  : <http://datatracker.ietf.org/wg/netconf/>
+     WG List : <mailto:netconf@ietf.org>
+     Author  : Kent Watsen <kent+ietf@watsen.net>
+     Author  : Henk Birkholz <henk.birkholz@sit.fraunhofer.de>";
+
+  description
+    "This module defines a truststore to centralize management
+     of trust anchors including X.509 certificates, SSH host
+     keys, raw public keys, and PSKs (pairwise-symmetric or
+     pre-shared keys).
+
+     Copyright (c) 2019 IETF Trust and the persons identified
+     as authors of the code. All rights reserved.
+
+     Redistribution and use in source and binary forms, with
+     or without modification, is permitted pursuant to, and
+     subject to the license terms contained in, the Simplified
+     BSD License set forth in Section 4.c of the IETF Trust's
+     Legal Provisions Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC
+     itself for full legal notices.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this document
+     are to be interpreted as described in BCP 14 (RFC 2119)
+     (RFC 8174) when, and only when, they appear in all
+     capitals, as shown here.";
+
+  revision 2019-11-20 {
+    description
+      "Initial version";
+    reference
+      "RFC XXXX: A YANG Data Model for a Truststore";
+  }
+
+  /****************/
+  /*   Features   */
+  /****************/
+
+  feature truststore-supported {
+    description
+      "The 'truststore-supported' feature indicates that the
+       server supports the truststore (i.e., implements the
+       'ietf-truststore' module).";
+  }
+
+  feature local-definitions-supported {
+    description
+      "The 'local-definitions-supported' feature indicates that
+       the server supports locally-defined trust anchors.";
+  }
+
+  feature x509-certificates {
+    description
+      "The 'x509-certificates' feature indicates that the server
+       implements the /truststore/certificates subtree.";
+  }
+
+  feature ssh-host-keys {
+    description
+      "The 'ssh-host-keys' feature indicates that the server
+       implements the /truststore/host-keys subtree.";
+  }
+
+  feature raw-public-keys {
+    description
+      "The 'raw-public-keys' feature indicates that the server
+       implements the /truststore/raw-public-keys subtree.";
+  }
+
+  /****************/
+  /*   Typedefs   */
+  /****************/
+
+  typedef certificates-ref {
+    type leafref {
+      path "/ts:truststore/ts:certificates/ts:name";
+    }
+    description
+      "This typedef enables modules to easily define a reference
+       to a set of certificates  defined in the truststore.";
+  }
+
+  typedef host-keys-ref {
+    type leafref {
+      path "/ts:truststore/ts:host-keys/ts:name";
+    }
+    description
+      "This typedef enables modules to easily define a reference
+       to a set of host keys defined in the truststore.";
+  }
+
+  typedef raw-public-keys-ref {
+    type leafref {
+      path "/ts:truststore/ts:raw-public-keys/ts:name";
+    }
+    description
+      "This typedef enables modules to easily define a reference
+       to a set of raw public keys defined in the truststore.";
+  }
+
+  /*****************/
+  /*   Groupings   */
+  /*****************/
+
+  grouping local-or-truststore-certs-grouping {
+    description
+      "A grouping that expands to allow trust anchors to be
+       either stored locally, within the using data model, or be
+       a reference to trust anchors stored in the truststore.";
+    choice local-or-truststore {
+      mandatory true;
+      case local {
+        if-feature "local-definitions-supported";
+        container local-definition {
+          description
+            "Container to hold the local trust anchor definitions.";
+          uses ct:trust-anchor-certs-grouping;
+        }
+      }
+      case truststore {
+        if-feature "truststore-supported";
+        if-feature "x509-certificates";
+        leaf truststore-reference {
+          type ts:certificates-ref;
+          description
+            "A reference to a set of trust anchors that exists
+             in the truststore.";
+        }
+      }
+      description
+        "A choice between an inlined definition and a definition
+         that exists in the truststore.";
+    }
+  }
+
+  grouping local-or-truststore-host-keys-grouping {
+    description
+      "A grouping that expands to allow host keys to be
+       either stored locally, within the using data model, or be
+       a reference to host keys stored in the truststore.";
+    choice local-or-truststore {
+      mandatory true;
+      case local {
+        if-feature "local-definitions-supported";
+        container local-definition {
+          description
+            "Container to hold local host key definitions.";
+          leaf-list host-key {
+            nacm:default-deny-write;
+            type ct:ssh-host-key;
+            description
+              "The binary public key data for this host key.";
+            reference
+              "RFC YYYY: Common YANG Data Types for Cryptography";
+          }
+        }
+      }
+      case truststore {
+        if-feature "truststore-supported";
+        if-feature "ssh-host-keys";
+        leaf truststore-reference {
+          type ts:host-keys-ref;
+          description
+            "A reference to a set of host keys that exist in
+             the truststore.";
+        }
+      }
+      description
+        "A choice between an inlined definition and a definition
+         that exists in the truststore.";
+    }
+  }
+
+  grouping local-or-truststore-raw-pub-keys-grouping {
+    description
+      "A grouping that expands to allow raw public keys to be
+       available either locally, within the using data model, or
+       be a reference to raw public keys stored in the truststore.";
+    choice local-or-truststore {
+      mandatory true;
+      case local {
+        if-feature "local-definitions-supported";
+        container local-definition {
+          description
+            "Container to hold local raw public key definitions.";
+          list raw-public-key {
+            key name;
+            description
+              "A raw public key definition.";
+            leaf name {
+              type string;
+              description
+                "An arbitrary name for this raw public key.";
+            }
+            uses ct:public-key-grouping;
+          }
+        }
+      }
+      case truststore {
+        if-feature "truststore-supported";
+        if-feature "raw-public-keys";
+        leaf truststore-reference {
+          type ts:raw-public-keys-ref;
+          description
+            "A reference to a set of raw public keys that exist
+             in the truststore.";
+        }
+      }
+      description
+        "A choice between an inlined definition and a definition
+         that exists in the truststore.";
+    }
+  }
+
+  grouping truststore-grouping {
+    description
+      "Grouping definition enables use in other contexts.  If ever
+       done, implementations SHOULD augment new 'case' statements
+       into local-or-keystore 'choice' statements to supply leafrefs
+       to the new location.";
+    list certificates {
+      if-feature "x509-certificates";
+      key "name";
+      description
+        "A list of certificates.  These certificates can be
+         used by a server to authenticate clients, or by a client
+         to authenticate servers.  Each list of certificates
+         SHOULD be specific to a purpose, as the list as a whole
+         may be referenced by other modules.  For instance, a
+         RESTCONF server's configuration might use a specific list
+         of certificates for when authenticating RESTCONF
+         client connections.";
+      leaf name {
+        type string;
+        description
+          "An arbitrary name for this list of certificates.";
+      }
+      leaf description {
+        type string;
+        description
+          "An arbitrary description for this list of
+           certificates.";
+      }
+      list certificate {
+        key "name";
+        description
+          "A certificate.";
+        leaf name {
+          type string;
+          description
+            "An arbitrary name for this certificate. The
+             name must be unique across all lists of
+             certificates (not just this list) so that leafrefs
+             from another module can resolve to unique values.";
+        }
+        uses ct:trust-anchor-cert-grouping {
+          refine "cert" {
+            mandatory true;
+          }
+        }
+      }
+    }
+    list host-keys {
+      if-feature "ssh-host-keys";
+      key "name";
+      description
+        "A list of host keys.  These host-keys can be used by
+         clients to authenticate SSH servers.  Each list of host
+         keys SHOULD be specific to a purpose, so the list as a
+         whole may be referenced by other modules.  For instance,
+         a client's configuration might point to a specific list
+         of host keys for when authenticating specific SSH servers.";
+      leaf name {
+        type string;
+        description
+          "An arbitrary name for this list of SSH
+           host keys.";
+      }
+      leaf description {
+        type string;
+        description
+          "An arbitrary description for this list of SSH
+           host keys.";
+      }
+      list host-key {
+        key "name";
+        description
+          "A host key.";
+        leaf name {
+          type string;
+          description
+            "An arbitrary name for this host-key.";
+        }
+        leaf host-key {
+          type ct:ssh-host-key;
+          mandatory true;
+          description
+            "The binary public key data for this host key.";
+          reference
+            "RFC YYYY: Common YANG Data Types for Cryptography";
+        }
+      }
+    }
+    list raw-public-keys {
+      if-feature "raw-public-keys";
+      key "name";
+      description
+        "A list of raw public keys. These raw public keys can be
+         used by a server to authenticate clients, or by a client
+         to authenticate servers. Each list of raw public keys
+         SHOULD be specific to a purpose, so the list as a whole
+         may be referenced by other modules.  For instance, a
+         client's configuration might point to a specific list
+         of raw public keys for when authenticating specific TLS
+         endpoints.";
+      leaf name {
+        type string;
+        description
+          "An arbitrary name for this list of raw public keys.";
+      }
+      leaf description {
+        type string;
+        description
+          "An arbitrary description for this list raw public keys.";
+      }
+      list raw-public-key {
+        key "name";
+        description
+          "A raw public key.";
+        leaf name {
+          type string;
+          description
+            "An arbitrary name for this raw public key.";
+        }
+        uses ct:public-key-grouping;
+      }
+    }
+  }
+
+  /*********************************/
+  /*   Protocol accessible nodes   */
+  /*********************************/
+
+  container truststore {
+    nacm:default-deny-write;
+    description
+      "The truststore contains sets of X.509 certificates and
+       SSH host keys.";
+    uses truststore-grouping;
+  }
+}

@@ -1,0 +1,67 @@
+## Below are the list of Models and the corresponding XPaths that supports "On Change" capability.
+
+| Model                                         | XPath                                                                     |
+|-----------------------------------------------|---------------------------------------------------------------------------|
+| Cisco-IOS-XE-app-hosting-cfg.yang             | /app-hosting-ios-xe-cfgapp-hosting-cfg-data                               |
+| Cisco-IOS-XE-app-hosting-oper.yang            | /app-hosting-ios-xe-oper:app-hosting-oper-data                            |
+| Cisco-IOS-XE-boot-integrity-oper.yang         | /boot-integrity-ios-xe-oper/boot-integrity-oper-data                      |
+| Cisco-IOS-XE-breakout-port-oper.yang          | /bc-port-ios-xe-oper:breakout-port-oper-data                              |
+| Cisco-IOS-XE-cdp-oper.yang                    | /cdp-ios-xe-oper:cdp-neighbor-details                                     |
+| Cisco-IOS-XE-ha-oper.yang                     | /ha-ios-xe-oper/ha-oper-data/ha-infra                                     |
+| Cisco-IOS-XE-interfaces-oper.yang             | /interfaces-ios-xe-oper:interfaces                                        |
+| Cisco-IOS-XE-linecard-oper.yang               | /linecard-ios-xe-oper/linecard-oper-data                                  |
+| Cisco-IOS-XE-mdt-cfg.yang                     | /mdt-cfg:mdt-config-data                                                  |
+| Cisco-IOS-XE-mdt-oper.yang                    | /mdt-oper:mdt-oper-data                                                   |
+| Cisco-IOS-XE-platform-oper.yang               | /platform-ios-xe-oper/components/component                                |
+| Cisco-IOS-XE-poe-oper.yang                    | /poe-ios-xe-oper:poe-oper-data                                            |
+| Cisco-IOS-XE-spanning-tree-oper.yang          | /stp-ios-xe-oper:stp-details                                              |
+| Cisco-IOS-XE-stacking-oper.yang               | /stacking-ios-xe-oper:stacking-oper-data                                  |
+| Cisco-IOS-XE-tcam-oper.yang                   | /tcam-ios-xe-oper:tcam-details                                            |
+| Cisco-IOS-XE-transceiver-oper.yang            | /xcvr-ios-xe-oper:transceiver-oper-data/transceiver/xcvr-physical-channel |
+| Cisco-IOS-XE-trustsec-oper.yang               | /trustsec-state/cts-sxp-connections/cts-sxp-connection,                   |
+|                                               | /trustsec-state/cts-rolebased-sgtmaps/cts-rolebased-sgtmap,               |  
+|                                               | /trustsec-state/cts-rolebased-ipv6-policy                                 |  
+| Cisco-IOS-XE-tunnel-oper.yang                 | /ios-tunnel-oper:tunnel-oper-data                                         |
+| Cisco-IOS-XE-vlan-oper.yang                   | /vlan-ios-xe-oper:vlans/vlan                                              |
+| Cisco-IOS-XE-wireless-access-point-oper.yang  | /wireless-access-point-oper:access-point-oper-data                        |
+| Cisco-IOS-XE-wireless-ap-cfg.yang             | /wireless-ap-cfg:ap-cfg-data                                              |
+| Cisco-IOS-XE-wireless-apf-cfg.yang            | /wireless-apf-cfg:apf-cfg-data                                            |
+| Cisco-IOS-XE-wireless-awips-oper.yang         | /wireless-awips-oper:awips-oper-data                                      |
+| Cisco-IOS-XE-wireless-ble-mgmt-oper.yang      | /wireless-ble-mgmt-oper:ble-mgmt-oper-data                                |
+| Cisco-IOS-XE-wireless-client-oper.yang        | /wireless-client-oper:client-oper-data/sisf-db-mac                        |
+| Cisco-IOS-XE-wireless-cts-sxp-cfg.yang        | /wireless-cts-sxp-cfg:cts-sxp-cfg-data                                    |
+| Cisco-IOS-XE-wireless-cts-sxp-oper.yang       | /wireless-oper-cts-sxp:cts-sxp-oper-data                                  |
+| Cisco-IOS-XE-wireless-dot11-cfg.yang          | /wireless-dot11-cfg:dot11-cfg-data                                        |
+| Cisco-IOS-XE-wireless-fabric-cfg.yang         | /wireless-fabric-cfg:fabric-cfg-data                                      |
+| Cisco-IOS-XE-wireless-flex-cfg.yang           | /wireless-flex-cfg:flex-cfg-data                                          |
+| Cisco-IOS-XE-wireless-fqdn-cfg.yang           | /wireless-fqdn-ios-cfg:fqdn-cfg-data                                      |
+| Cisco-IOS-XE-wireless-general-cfg.yang        | /wireless-general-cfg:general-cfg-data                                    |
+| Cisco-IOS-XE-wireless-general-oper.yang       | /wireless-general-oper:general-oper-data                                  |
+| Cisco-IOS-XE-wireless-hotspot-cfg.yang        | /wireless-hotspot-cfg:hotspot-cfg-data                                    |
+| Cisco-IOS-XE-wireless-hyperlocation-oper.yang | /wireless-hyperlocation-oper:hyperlocation-oper-data                      |
+| Cisco-IOS-XE-wireless-image-download-cfg.yang | /wireless-image-download-cfg:image-download-cfg-data                      |
+| Cisco-IOS-XE-wireless-lisp-agent-oper.yang    | /wireless-lisp-agent-oper:lisp-agent-oper-data                            |
+| Cisco-IOS-XE-wireless-location-cfg.yang       | /wireless-location-cfg:location-cfg-data                                  |
+| Cisco-IOS-XE-wireless-location-oper.yang      | /wireless-location-oper:location-oper-data                                |
+| Cisco-IOS-XE-wireless-mcast-oper.yang         | /wireless-mcast-oper:mcast-oper-data                                      |
+| Cisco-IOS-XE-wireless-mdns-oper.yang          | /wireless-mdns-oper:mdns-oper-data                                        |
+| Cisco-IOS-XE-wireless-mesh-cfg.yang           | /wireless-mesh-cfg:mesh-cfg-data                                          |
+| Cisco-IOS-XE-wireless-mesh-oper.yang          | /wireless-mesh-oper:mesh-oper-data                                        |
+| Cisco-IOS-XE-wireless-mobility-cfg.yang       | /wireless-mobility-cfg:mobility-cfg-data                                  |
+| Cisco-IOS-XE-wireless-mobility-oper.yang      | /wireless-mobility-oper:mobility-oper-data                                |
+| Cisco-IOS-XE-wireless-mstream-cfg.yang        | /wireless-mstream-cfg:mstream-cfg-data                                    |
+| Cisco-IOS-XE-wireless-nmsp-oper.yang          | /wireless-nmsp-oper:nmsp-oper-data                                        |
+| Cisco-IOS-XE-wireless-radio-cfg.yang          | /wireless-radio-cfg:radio-cfg-data                                        |
+| Cisco-IOS-XE-wireless-rf-cfg.yang             | /wireless-rf-cfg:rf-cfg-data                                              |
+| Cisco-IOS-XE-wireless-rfid-cfg.yang           | /wireless-rfid-cfg:rfid-cfg-data                                          |
+| Cisco-IOS-XE-wireless-rfid-oper.yang          | /wireless-rfid-ios-oper:rfid-oper-data                                    |
+| Cisco-IOS-XE-wireless-rlan-cfg.yang           | /wireless-rlan-cfg:rlan-cfg-data                                          |
+| Cisco-IOS-XE-wireless-rogue-cfg.yang          | /wireless-rogue-cfg:rogue-cfg-data                                        |
+| Cisco-IOS-XE-wireless-rogue-oper.yang         | /wireless-rogue-oper:rogue-oper-data                                      |
+| Cisco-IOS-XE-wireless-rrm-cfg.yang            | /wireless-rrm-cfg:rrm-cfg-data                                            |
+| Cisco-IOS-XE-wireless-rrm-oper.yang           | /wireless-rrm-oper:rrm-oper-data                                          |
+| Cisco-IOS-XE-wireless-security-cfg.yang       | /wireless-security-cfg:lsc-cfg-data                                       |
+| Cisco-IOS-XE-wireless-site-cfg.yang           | /wireless-site-cfg:site-cfg-data                                          |
+| Cisco-IOS-XE-wireless-tunnel-cfg.yang         | /wireless-tunnel-cfg:wireless-tunnel-cfg                                  |
+| Cisco-IOS-XE-wireless-wlan-cfg.yang           | /wireless-wlan-cfg:wlan-cfg-data                                          |
+| Cisco-IOS-XE-yang-interfaces-cfg.yang         | /yang-interfaces-cfg:yang-interfaces-cfg-data                             |
