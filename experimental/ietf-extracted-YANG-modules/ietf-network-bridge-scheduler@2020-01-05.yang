@@ -19,12 +19,12 @@ module ietf-network-bridge-scheduler {
      WG List:  <mailto:netmod@ietf.org>
 
      Editor:   Vladimir Vassilev
-               <mailto:vladimir@transpacket.com>";
+               <mailto:vladimir@lightside-instruments.com>";
   description
     "This module contains a collection of YANG definitions for
      description and management of network bridge schedulers.
 
-     Copyright (c) 2019 IETF Trust and the persons identified as
+     Copyright (c) 2020 IETF Trust and the persons identified as
      authors of the code. All rights reserved.
 
      Redistribution and use in source and binary forms, with or
@@ -37,7 +37,7 @@ module ietf-network-bridge-scheduler {
      This version of this YANG module is part of RFC XXXX; see
      the RFC itself for full legal notices.";
 
-  revision 2019-07-05 {
+  revision 2020-01-05 {
     description
       "Initial revision.";
     reference
@@ -127,56 +127,9 @@ module ietf-network-bridge-scheduler {
        configured traffic-class.";
   }
 
-  augment "/flow:flows/flow:flow" {
-    leaf traffic-class {
-      type leafref {
-        path "/netbr:bridge/sched:traffic-classes/sched:traffic-class";
-      }
-      description
-        "Specifies the traffic class of a flow.
-         When not present the default traffic class is used.";
-    }
-  }
-
-  augment "/netbr:bridge/netbr:ports/netbr:port" {
-    leaf class {
-      type port-class-ref;
-    }
-    leaf class-instance-index {
-      type uint32;
-    }
-  }
-
-  augment "/netbr:bridge" {
-    leaf default-traffic-class {
-      type traffic-class-ref;
-      description
-        "Specifies the traffic-class for flows without
-         /flow:flows/flow:flow/sched:traffic-class leaf.";
-    }
-    leaf default-port-class {
-      type traffic-class-ref;
-      description
-        "Specifies the traffic-class for flows without
-         /flow:flows/flow:flow/sched:traffic-class leaf.";
-    }
-    container traffic-classes {
-      leaf-list traffic-class {
-        type identityref {
-          base traffic-class;
-        }
-      }
-    }
-    container port-classes {
-      leaf-list port-class {
-        type identityref {
-          base port-class;
-        }
-      }
-    }
-  }
-
   grouping gate-controller-input-config {
+    description
+      "Common gate controller input configuration data definitions.";
     leaf constant-propagation-delay {
       type uint64;
       units "picoseconds";
@@ -198,17 +151,25 @@ module ietf-network-bridge-scheduler {
     leaf queue-len {
       type uint32;
       units "bytes";
+      description
+        "Length of the queue.";
     }
   }
 
   grouping gate-controller-queue-state {
+    description
+      "Common gate controller queue state data definitions.";
     leaf queued-pkts {
       type uint64;
       config false;
+      description
+        "Number of packets queued.";
     }
     leaf queued-bytes {
       type uint64;
       config false;
+      description
+        "Number of bytes of the packets queued.";
     }
     leaf discards {
       type uint64;
@@ -236,44 +197,147 @@ module ietf-network-bridge-scheduler {
     leaf error-discards {
       type uint64;
       config false;
+      description
+        "Unintended discards caused by error
+         in the scheduler.";
+    }
+  }
+
+  augment "/flow:flows/flow:flow" {
+    description
+      "Adds traffic-class to the flow model.";
+    leaf traffic-class {
+      type leafref {
+        path "/netbr:bridge/sched:traffic-classes/sched:traffic-class";
+      }
+      description
+        "Specifies the traffic class of a flow.
+         When not present the default traffic class is used.";
+    }
+  }
+
+  augment "/netbr:bridge/netbr:ports/netbr:port" {
+    description
+      "Adds port class and class-instance-index leafs.";
+    leaf class {
+      type port-class-ref;
+      description
+        "A port class allows discrimination of ports based on features
+         and supported scheduler options.";
+    }
+    leaf class-instance-index {
+      type uint32;
+      description
+        "Index enumerating the instances of the same port class.";
+    }
+  }
+
+  augment "/netbr:bridge" {
+    description
+      "Adds scheduler specific data to the bridge model.";
+    leaf default-traffic-class {
+      type traffic-class-ref;
+      description
+        "Specifies the traffic-class for flows without
+         /flow:flows/flow:flow/sched:traffic-class leaf.";
+    }
+    leaf default-port-class {
+      type traffic-class-ref;
+      description
+        "Specifies the traffic-class for flows without
+         /flow:flows/flow:flow/sched:traffic-class leaf.";
+    }
+    container traffic-classes {
+      description
+        "Contains the leaf-list of available traffic classes.";
+      leaf-list traffic-class {
+        type identityref {
+          base traffic-class;
+        }
+        description
+          "Leaf-list of available traffic classes.";
+      }
+    }
+    container port-classes {
+      description
+        "Contains the leaf-list of available port classes.";
+      leaf-list port-class {
+        type identityref {
+          base port-class;
+        }
+        description
+          "Leaf-list of available port classes.";
+      }
     }
   }
 
   augment "/if:interfaces/if:interface" {
+    description
+      "Augments the interface model with scheduler specific data.";
     container scheduler {
+      description
+        "Each egress capable interface has scheduler. The scheduler
+         is a tree of interconnected gate controllers.";
       container gate-controllers {
+        description
+          "Contains the list of gate controllers.";
         list gate-controller {
           key "id";
+          description
+            "The gate controller model can be augmented by
+             external modules defining custom gate controller
+             types.";
           leaf id {
             type string;
+            description
+              "Gate controller identifier.";
           }
           leaf type {
             type identityref {
               base gate-controller;
             }
             mandatory true;
+            description
+              "Gate controller type.";
           }
           container inputs {
+            description
+              "Contains the list of inputs.";
             list input {
               key "class index";
+              description
+                "Double key list. There can be multiple
+                 instances of each input class.";
               leaf class {
                 type identityref {
                   base gate-controller-input;
                 }
+                description
+                  "Input class.";
               }
               leaf index {
                 type uint32;
+                description
+                  "Index of the input instance of the corresponding
+                   input class.";
               }
               uses gate-controller-queue-state;
             }
           }
           container input-classes {
+            description
+              "Contains the list of input-classes.";
             list input-class {
               key "class";
+              description
+                "Contains configuration and state data that is common
+                 for all instances of certain input class.";
               leaf class {
                 type identityref {
                   base gate-controller-input;
                 }
+                description
+                  "Input class.";
               }
               uses gate-controller-queue-state;
             }
@@ -284,25 +348,49 @@ module ietf-network-bridge-scheduler {
   }
 
   augment "/netbr:bridge" {
+    description
+      "Augments the bridge module with
+       scheduler specific configuration data.";
     container scheduler-classes {
+      description
+        "Contains list of scheduler-classes.";
       list scheduler-class {
         key "egress-port-class";
+        description
+          "All ports of same class inherit the scheduler configuration.
+           The instance specific scheduler configuration defined under
+           /interfaces/interface/scheduler can override this
+           configuration.";
         leaf egress-port-class {
           type sched:port-class-ref;
+          description
+            "The port class the scheduler coonfiguration
+             applies for.";
         }
         container inputs {
+          description
+            "Contains list of inputs.";
           list input {
             key "traffic-class ingress-port-class";
+            description
+              "Double key list. There can be multiple
+               instances of each input class.";
             leaf traffic-class {
               type traffic-class-ref;
+              description
+                "Reference to traffic class.";
             }
             leaf ingress-port-class {
               type port-class-ref;
+              description
+                "Reference to port class.";
             }
             leaf gate-controller {
               type leafref {
                 path "../../../gate-controllers/gate-controller/id";
               }
+              description
+                "Reference to gate controller id.";
             }
             leaf input-class {
               type leafref {
@@ -310,45 +398,76 @@ module ietf-network-bridge-scheduler {
                    + "[id=current()/../gate-controller]"
                    + "/inputs/input/class";
               }
+              description
+                "Reference to a input class defined for the specified
+                 gate controller.";
             }
             leaf base-index {
               type uint32;
               default "0";
+              description
+                "Base index for the inputs of this class.";
             }
           }
         }
         container gate-controllers {
+          description
+            "Contains the list of gate controllers.";
           list gate-controller {
             key "id";
+            description
+              "The gate controller model can be augmented by
+               external modules defining custom gate controller
+               types.";
             leaf id {
               type string;
+              description
+                "Gate controller identifier.";
             }
             leaf type {
               type identityref {
                 base gate-controller;
               }
               mandatory true;
+              description
+                "Gate controller type.";
             }
             container inputs {
+              description
+                "Contains the list of inputs.";
               list input {
                 key "class";
+                description
+                  "Double key list. There can be multiple
+                   instances of each input class.";
                 leaf class {
                   type identityref {
                     base gate-controller-input;
                   }
                   mandatory true;
+                  description
+                    "Input class.";
                 }
                 leaf instance-count {
                   type uint32;
+                  description
+                    "Number of input instances of the specified
+                     class.";
                 }
                 uses gate-controller-input-config;
               }
             }
             container output {
+              description
+                "Configuration of the gate-controller input
+                  the output is connected to.";
               leaf gate-controller {
                 type leafref {
                   path "../../../gate-controller/id";
                 }
+                description
+                  "Specifies the gate-controller
+                   this output is connected to.";
               }
               leaf input-class {
                 type leafref {
@@ -356,6 +475,9 @@ module ietf-network-bridge-scheduler {
                      + "[id=current()/../gate-controller]/"
                      + "inputs/input/class";
                 }
+                description
+                  "Specifies the input-class of the gate-controller
+                   the input this output is connected to.";
               }
               leaf index {
                 type uint32;
