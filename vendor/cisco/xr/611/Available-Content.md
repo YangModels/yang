@@ -554,10 +554,6 @@
 ## Admin Models
 ## IETF Models
 ## openconfig Models
-## Tail-F Models
-## Other supporting Models
-[cisco-xr-ietf-interfaces-deviations.yang](cisco-xr-ietf-interfaces-deviations.yang)  
-[cisco-xr-netconf-monitoring-deviations.yang](cisco-xr-netconf-monitoring-deviations.yang)  
 [cisco-xr-openconfig-bgp-deviations.yang](cisco-xr-openconfig-bgp-deviations.yang)  
 [cisco-xr-openconfig-bgp-policy-deviations.yang](cisco-xr-openconfig-bgp-policy-deviations.yang)  
 [cisco-xr-openconfig-if-aggregate-deviations.yang](cisco-xr-openconfig-if-aggregate-deviations.yang)  
@@ -567,6 +563,10 @@
 [cisco-xr-openconfig-mpls-deviations.yang](cisco-xr-openconfig-mpls-deviations.yang)  
 [cisco-xr-openconfig-telemetry-deviations.yang](cisco-xr-openconfig-telemetry-deviations.yang)  
 [cisco-xr-openconfig-vlan-deviations.yang](cisco-xr-openconfig-vlan-deviations.yang)  
+## Tail-F Models
+## Other supporting Models
+[cisco-xr-ietf-interfaces-deviations.yang](cisco-xr-ietf-interfaces-deviations.yang)  
+[cisco-xr-netconf-monitoring-deviations.yang](cisco-xr-netconf-monitoring-deviations.yang)  
 [cisco-xr-routing-policy-deviations.yang](cisco-xr-routing-policy-deviations.yang)  
 ## Other supporting files
 [platform-metadata.json](platform-metadata.json)  

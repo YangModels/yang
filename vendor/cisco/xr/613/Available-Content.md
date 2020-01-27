@@ -611,11 +611,6 @@
 [openconfig-telemetry.yang](openconfig-telemetry.yang)  
 [openconfig-types.yang](openconfig-types.yang)  
 [openconfig-vlan.yang](openconfig-vlan.yang)  
-## Tail-F Models
-## Other supporting Models
-[Cisco-IOS-XR-ip-bfd-oper-sub1-deviations.yang](Cisco-IOS-XR-ip-bfd-oper-sub1-deviations.yang)  
-[Cisco-IOS-XR-policy-repository-deviations.yang](Cisco-IOS-XR-policy-repository-deviations.yang)  
-[cisco-xr-ietf-netconf-monitoring-deviations.yang](cisco-xr-ietf-netconf-monitoring-deviations.yang)  
 [cisco-xr-openconfig-bgp-deviations.yang](cisco-xr-openconfig-bgp-deviations.yang)  
 [cisco-xr-openconfig-bgp-policy-deviations.yang](cisco-xr-openconfig-bgp-policy-deviations.yang)  
 [cisco-xr-openconfig-if-aggregate-deviations.yang](cisco-xr-openconfig-if-aggregate-deviations.yang)  
@@ -625,6 +620,11 @@
 [cisco-xr-openconfig-mpls-deviations.yang](cisco-xr-openconfig-mpls-deviations.yang)  
 [cisco-xr-openconfig-telemetry-deviations.yang](cisco-xr-openconfig-telemetry-deviations.yang)  
 [cisco-xr-openconfig-vlan-deviations.yang](cisco-xr-openconfig-vlan-deviations.yang)  
+## Tail-F Models
+## Other supporting Models
+[Cisco-IOS-XR-ip-bfd-oper-sub1-deviations.yang](Cisco-IOS-XR-ip-bfd-oper-sub1-deviations.yang)  
+[Cisco-IOS-XR-policy-repository-deviations.yang](Cisco-IOS-XR-policy-repository-deviations.yang)  
+[cisco-xr-ietf-netconf-monitoring-deviations.yang](cisco-xr-ietf-netconf-monitoring-deviations.yang)  
 [cisco-xr-routing-policy-deviations.yang](cisco-xr-routing-policy-deviations.yang)  
 [iana-if-type.yang](iana-if-type.yang)  
 ## Other supporting files
