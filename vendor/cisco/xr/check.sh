@@ -11,9 +11,8 @@
 # should be removed.
 #
 platform_dir="vendor/cisco/xr"
-to_check="623 632 642 651 652 653 662 663 701"
+to_check="623 632 642 651 652 653 662 663 701 711"
 debug=0
-
 checkDir () {
     if [ "$debug" -eq "1" ]; then
 	echo Checking yang files in $platform_dir/$1
