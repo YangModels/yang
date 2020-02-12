@@ -1,3 +1,5 @@
+# README
+[README.md](README.md)
 # Cisco IOS XR Release 6.4.2 Models
 ## Unified Models
 ## Native Config Models
@@ -995,6 +997,6 @@
 [capabilities-ncs6k.xml](capabilities-ncs6k.xml)  
 [capabilities-xrv9k.xml](capabilities-xrv9k.xml)  
 ## Inconsistent Models
-[xrv9k](xrv9k)  
-[ncs6k](ncs6k)  
 [asr9k-x64](asr9k-x64)  
+[ncs6k](ncs6k)  
+[xrv9k](xrv9k)  

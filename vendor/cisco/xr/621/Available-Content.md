@@ -1,3 +1,5 @@
+# README
+[README.md](README.md)
 # Cisco IOS XR Release 6.2.1 Models
 ## Unified Models
 ## Native Config Models
@@ -748,5 +750,5 @@
 [capabilities-xrv9k.xml](capabilities-xrv9k.xml)  
 [capabilities-xrvr.xml](capabilities-xrvr.xml)  
 ## Inconsistent Models
-[Cisco-IOS-XR-plat-chas-invmgr-oper.incompatible](Cisco-IOS-XR-plat-chas-invmgr-oper.incompatible)  
 [Cisco-IOS-XR-aaa-locald-cfg.incompatible](Cisco-IOS-XR-aaa-locald-cfg.incompatible)  
+[Cisco-IOS-XR-plat-chas-invmgr-oper.incompatible](Cisco-IOS-XR-plat-chas-invmgr-oper.incompatible)  

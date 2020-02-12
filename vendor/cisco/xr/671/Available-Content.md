@@ -878,16 +878,6 @@
 [openconfig-vlan-types.yang](openconfig-vlan-types.yang)  
 [openconfig-vlan.yang](openconfig-vlan.yang)  
 [openconfig-yang-types.yang](openconfig-yang-types.yang)  
-## Tail-F Models
-[tailf-actions.yang](tailf-actions.yang)  
-[tailf-cli-extensions.yang](tailf-cli-extensions.yang)  
-[tailf-common.yang](tailf-common.yang)  
-[tailf-meta-extensions.yang](tailf-meta-extensions.yang)  
-## Other supporting Models
-[Cisco-IOS-XR-ip-bfd-oper-sub1-deviations.yang](Cisco-IOS-XR-ip-bfd-oper-sub1-deviations.yang)  
-[cisco-semver.yang](cisco-semver.yang)  
-[cisco-xr-ietf-netconf-monitoring-deviations.yang](cisco-xr-ietf-netconf-monitoring-deviations.yang)  
-[cisco-xr-ietf-yang-library-deviations.yang](cisco-xr-ietf-yang-library-deviations.yang)  
 [cisco-xr-openconfig-acl-deviations.yang](cisco-xr-openconfig-acl-deviations.yang)  
 [cisco-xr-openconfig-alarms-deviations.yang](cisco-xr-openconfig-alarms-deviations.yang)  
 [cisco-xr-openconfig-bfd-deviations.yang](cisco-xr-openconfig-bfd-deviations.yang)  
@@ -907,6 +897,16 @@
 [cisco-xr-openconfig-system-deviations.yang](cisco-xr-openconfig-system-deviations.yang)  
 [cisco-xr-openconfig-telemetry-deviations.yang](cisco-xr-openconfig-telemetry-deviations.yang)  
 [cisco-xr-openconfig-vlan-deviations.yang](cisco-xr-openconfig-vlan-deviations.yang)  
+## Tail-F Models
+[tailf-actions.yang](tailf-actions.yang)  
+[tailf-cli-extensions.yang](tailf-cli-extensions.yang)  
+[tailf-common.yang](tailf-common.yang)  
+[tailf-meta-extensions.yang](tailf-meta-extensions.yang)  
+## Other supporting Models
+[Cisco-IOS-XR-ip-bfd-oper-sub1-deviations.yang](Cisco-IOS-XR-ip-bfd-oper-sub1-deviations.yang)  
+[cisco-semver.yang](cisco-semver.yang)  
+[cisco-xr-ietf-netconf-monitoring-deviations.yang](cisco-xr-ietf-netconf-monitoring-deviations.yang)  
+[cisco-xr-ietf-yang-library-deviations.yang](cisco-xr-ietf-yang-library-deviations.yang)  
 [iana-if-type.yang](iana-if-type.yang)  
 [nc-notifications.yang](nc-notifications.yang)  
 [notifications.yang](notifications.yang)  
