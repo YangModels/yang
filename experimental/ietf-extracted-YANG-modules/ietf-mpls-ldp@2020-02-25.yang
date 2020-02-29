@@ -34,7 +34,12 @@ module ietf-mpls-ldp {
 
   import ietf-ip {
     prefix "ip";
-    reference "RFC 8344: A YANG Data Model for IP Management";
+    reference "RFC 7277: A YANG Data Model for IP Management";
+  }
+
+  import ietf-key-chain {
+    prefix "key-chain";
+    reference "RFC 8177: YANG Data Model for Key Chains";
   }
 
   organization
@@ -48,12 +53,12 @@ module ietf-mpls-ldp {
 
      Editor:   Rajiv Asati
                <mailto:rajiva@cisco.com>
-
      Editor:   Xufeng Liu
                <mailto:xufeng.liu.ietf@gmail.com>
 
      Editor:   Santosh Esale
                <mailto:sesale@juniper.net>
+
      Editor:   Xia Chen
                <mailto:jescia.chenxia@huawei.com>
 
@@ -66,7 +71,7 @@ module ietf-mpls-ldp {
      Distribution Protocol (LDP). It is also the base model to
      be augmented for Multipoint LDP (mLDP).
 
-     Copyright (c) 2018 IETF Trust and the persons identified as
+     Copyright (c) 2020 IETF Trust and the persons identified as
      authors of the code.  All rights reserved.
 
      Redistribution and use in source and binary forms, with or
@@ -82,10 +87,7 @@ module ietf-mpls-ldp {
      // RFC Editor: replace XXXX with actual RFC number and remove
      // this note
 
-  revision 2018-10-22 {
-    // RFC Editor: replace the above date 2018-10-22 with the date of
-    // publication and remove this note.
-
+  revision 2020-02-25 {
     description
       "Initial revision.";
     reference
@@ -97,28 +99,6 @@ module ietf-mpls-ldp {
   /*
    * Typedefs
    */
-  typedef ldp-address-family {
-    type identityref {
-      base rt:address-family;
-    }
-    description
-      "LDP address family type.";
-  }
-
-  typedef duration32-inf {
-    type union {
-      type uint32;
-      type enumeration {
-        enum "infinite" {
-          description "The duration is infinite.";
-        }
-      }
-    }
-    units seconds;
-    description
-      "Duration represented as 32 bit seconds with infinite.";
-  }
-
   typedef advertised-received {
     type enumeration {
       enum advertised {
@@ -142,7 +122,7 @@ module ietf-mpls-ldp {
       }
     }
     description
-      "Received or advertised.";
+      "Downstream or upstream.";
   }
 
   typedef label-adv-mode {
@@ -177,6 +157,14 @@ module ietf-mpls-ldp {
   /*
    * Identities
    */
+  identity mpls-ldp {
+    base rt:control-plane-protocol;
+    description
+      "LDP protocol.";
+    reference
+      "RFC 5036: LDP Specification";
+  }
+
   identity adjacency-flag-base {
     description "Base type for adjacency flags.";
   }
@@ -199,7 +187,7 @@ module ietf-mpls-ldp {
 
   grouping adjacency-state-attributes {
     description
-      "The operational state attributes of an LDP hello adjacency,
+      "The operational state attributes of an LDP Hello adjacency,
        which can used for basic and extended discoveris, in IPv4 and
        IPv6 address families.";
 
@@ -213,7 +201,7 @@ module ietf-mpls-ldp {
     }
     container hello-holdtime {
       description
-        "Containing hello holdtime state information.";
+        "Containing Hello holdtime state information.";
       leaf adjacent {
         type uint16;
         units seconds;
@@ -257,7 +245,6 @@ module ietf-mpls-ldp {
            subsystem, then this node contains the time the local
            management subsystem re-initialized itself.";
       }
-
       leaf hello-received {
         type yang:counter64;
         description
@@ -281,24 +268,31 @@ module ietf-mpls-ldp {
         range 15..3600;
       }
       units seconds;
-      default 15;
       description
         "The time interval for which a LDP link Hello adjacency
          is maintained in the absence of link Hello messages from
-         the LDP neighbor";
+         the LDP neighbor.
+         This leaf may be configured at the per-interface level or
+         the global level, with precedence given to the value at the
+         per-interface level.  If the leaf is not configured at
+         either level, the default value at the global level is
+         used.";
     }
     leaf hello-interval {
       type uint16 {
         range 5..1200;
       }
       units seconds;
-      default 5;
       description
         "The interval between consecutive LDP link Hello messages
-         used in basic LDP discovery";
+         used in basic LDP discovery.
+         This leaf may be configured at the per-interface level or
+         the global level, with precedence given to the value at the
+         per-interface level.  If the leaf is not configured at
+         either level, the default value at the global level is
+         used.";
     }
   } // basic-discovery-timers
-
   grouping binding-address-state-attributes {
     description
       "Operational state attributes of an address binding, used in
@@ -316,7 +310,7 @@ module ietf-mpls-ldp {
       }
       description
         "LDP peer from which this address is received.";
-      uses ldp-peer-ref;
+      uses ldp-peer-ref-from-binding;
     }
   } // binding-address-state-attributes
 
@@ -329,7 +323,7 @@ module ietf-mpls-ldp {
       key "lsr-id label-space-id advertisement-type";
       description
         "List of advertised and received peers.";
-      uses ldp-peer-ref {
+      uses ldp-peer-ref-from-binding {
         description
           "The LDP peer from which this binding is received, or to
            which this binding is advertised.
@@ -350,7 +344,7 @@ module ietf-mpls-ldp {
       leaf used-in-forwarding {
         type boolean;
         description
-          "'true' if the lable is used in forwarding.";
+          "'true' if the label is used in forwarding.";
       }
     } // peer
   } // binding-label-state-attributes
@@ -360,39 +354,48 @@ module ietf-mpls-ldp {
       "Per peer graceful restart attributes.
        On the local side, these attributes are configuration and
        operational state data. One the peer side, these attributes
-       are operational state data reveiced from the peer.";
+       are operational state data received from the peer.";
 
     container graceful-restart {
       description
         "Attributes for graceful restart.";
-      leaf enable {
+      leaf enabled {
         type boolean;
-        default false;
         description
-          "Enable or disable graceful restart.";
+          "Enable or disable graceful restart.
+           This leaf may be configured at the per-peer level or the
+           global level, with precedence given to the value at the
+           per-peer level.  If the leaf is not configured at either
+           level, the default value at the global level is used.";
       }
       leaf reconnect-time {
         type uint16 {
           range 10..1800;
         }
         units seconds;
-        default 120;
         description
           "Specifies the time interval that the remote LDP peer
            must wait for the local LDP peer to reconnect after the
-           remote peer detects the LDP communication failure.";
+           remote peer detects the LDP communication failure.
+           This leaf may be configured at the per-peer level or the
+           global level, with precedence given to the value at the
+           per-peer level.  If the leaf is not configured at either
+           level, the default value at the global level is used.";
       }
       leaf recovery-time {
         type uint16 {
           range 30..3600;
         }
         units seconds;
-        default 120;
         description
           "Specifies the time interval, in seconds, that the remote
            LDP peer preserves its MPLS forwarding state after
            receiving the Initialization message from the restarted
-           local LDP peer.";
+           local LDP peer.
+           This leaf may be configured at the per-peer level or the
+           global level, with precedence given to the value at the
+           per-peer level.  If the leaf is not configured at either
+           level, the default value at the global level is used.";
       }
     } // graceful-restart
   } // graceful-restart-attributes-per-peer
@@ -414,41 +417,127 @@ module ietf-mpls-ldp {
     }
   }
 
-  grouping ldp-peer-ref {
+  grouping ldp-peer-ref-absolute {
     description
       "An absolute reference to an LDP peer, by the LDP ID, which
        consists of the LSR ID and the Label Space ID.";
 
+    leaf protocol-name {
+      type leafref {
+        path "/rt:routing/rt:control-plane-protocols/"
+          + "rt:control-plane-protocol/rt:name";
+      }
+      description
+        "The name of the LDP protocol instance.";
+    }
     leaf lsr-id {
       type leafref {
-        path "/rt:routing/rt:control-plane-protocols/ldp:mpls-ldp/"
-          + "ldp:peers/ldp:peer/ldp:lsr-id";
+        path "/rt:routing/rt:control-plane-protocols/"
+          + "rt:control-plane-protocol"
+          + "[rt:name=current()/../protocol-name]/"
+          + "ldp:mpls-ldp/ldp:peers/ldp:peer/ldp:lsr-id";
       }
       description
         "The LSR ID of the peer, as a portion of the peer LDP ID.";
     }
     leaf label-space-id {
       type leafref {
-        path "/rt:routing/rt:control-plane-protocols/ldp:mpls-ldp/"
-          + "ldp:peers/ldp:peer/ldp:label-space-id";
+        path "/rt:routing/rt:control-plane-protocols/"
+          + "rt:control-plane-protocol"
+          + "[rt:name=current()/../protocol-name]/"
+          + "ldp:mpls-ldp/ldp:peers/"
+          + "ldp:peer[ldp:lsr-id=current()/../lsr-id]/"
+          + "ldp:label-space-id";
+      }
+      description
+        "The Label Space ID of the peer, as a portion of the peer
+         LDP ID.";
+    }
+  } // ldp-peer-ref-absolute
+
+  grouping ldp-peer-ref-from-binding {
+    description
+      "A relative reference to an LDP peer, by the LDP ID, which
+       consists of the LSR ID and the Label Space ID.";
+
+    leaf lsr-id {
+      type leafref {
+        path "../../../../../../../ldp:peers/ldp:peer/ldp:lsr-id";
+      }
+      description
+        "The LSR ID of the peer, as a portion of the peer LDP ID.";
+    }
+    leaf label-space-id {
+      type leafref {
+        path "../../../../../../../ldp:peers/"
+          + "ldp:peer[ldp:lsr-id=current()/../lsr-id]/"
+          + "ldp:label-space-id";
       }
       description
         "The Label Space ID of the peer, as a portion of the peer
            LDP ID.";
     }
-  } // ldp-peer-ref
+  } // ldp-peer-ref-from-binding
 
-  grouping ldp-peer-ref-container {
+  grouping ldp-peer-ref-from-interface {
     description
-      "A container containing an absolute reference to an LDP peer.";
+      "A relative reference to an LDP peer, by the LDP ID, which
+       consists of the LSR ID and the Label Space ID.";
 
     container peer {
       description
         "Reference to an LDP peer, by the LDP ID, which consists of
          the LSR ID and the Label Space ID.";
-      uses ldp-peer-ref;
+      leaf lsr-id {
+        type leafref {
+          path "../../../../../../../../../ldp:peers/ldp:peer/"
+            + "ldp:lsr-id";
+        }
+        description
+          "The LSR ID of the peer, as a portion of the peer LDP ID.";
+      }
+      leaf label-space-id {
+        type leafref {
+          path "../../../../../../../../../ldp:peers/"
+            + "ldp:peer[ldp:lsr-id=current()/../lsr-id]/"
+            + "ldp:label-space-id";
+        }
+        description
+          "The Label Space ID of the peer, as a portion of the peer
+           LDP ID.";
+      }
     } // peer
-  } // ldp-peer-ref
+  } // ldp-peer-ref-from-interface
+
+  grouping ldp-peer-ref-from-target {
+    description
+      "A relative reference to an LDP peer, by the LDP ID, which
+       consists of the LSR ID and the Label Space ID.";
+
+    container peer {
+      description
+        "Reference to an LDP peer, by the LDP ID, which consists of
+         the LSR ID and the Label Space ID.";
+      leaf lsr-id {
+        type leafref {
+          path "../../../../../../../../ldp:peers/ldp:peer/"
+            + "ldp:lsr-id";
+        }
+        description
+          "The LSR ID of the peer, as a portion of the peer LDP ID.";
+      }
+      leaf label-space-id {
+        type leafref {
+          path "../../../../../../../../ldp:peers/"
+            + "ldp:peer[ldp:lsr-id=current()/../lsr-id]/"
+            + "ldp:label-space-id";
+        }
+        description
+          "The Label Space ID of the peer, as a portion of the peer
+           LDP ID.";
+      }
+    } // peer
+  } // ldp-peer-ref-from-target
 
   grouping peer-attributes {
     description
@@ -460,23 +549,29 @@ module ietf-mpls-ldp {
         range 45..3600;
       }
       units seconds;
-      default 180;
       description
         "The time interval after which an inactive LDP session
          terminates and the corresponding TCP session closes.
          Inactivity is defined as not receiving LDP packets from the
-         peer.";
+         peer.
+         This leaf may be configured at the per-peer level or the
+         global level, with precedence given to the value at the
+         per-peer level.  If the leaf is not configured at either
+         level, the default value at the global level is used.";
     }
     leaf session-ka-interval {
       type uint16 {
         range 15..1200;
       }
       units seconds;
-      default 60;
       description
         "The interval between successive transmissions of keepalive
          packets. Keepalive packets are only sent in the absence of
-         other LDP packets transmitted over the LDP session.";
+         other LDP packets transmitted over the LDP session.
+         This leaf may be configured at the per-peer level or the
+         global level, with precedence given to the value at the
+         per-peer level.  If the leaf is not configured at either
+         level, the default value at the global level is used.";
     }
   } // peer-attributes
 
@@ -488,24 +583,33 @@ module ietf-mpls-ldp {
     container authentication {
       description
         "Containing authentication information.";
-      choice auth-type-selection {
+      choice authentication-type {
         description
-          "Options for expressing authentication setting.";
-        case auth-key {
-          leaf md5-key {
+          "Choice of authentication.";
+        case password {
+          leaf key {
             type string;
             description
-              "MD5 Key string.";
+              "This leaf specifies the authentication key. The length
+               of the key may be dependent on the cryptographic
+               algorithm.";
           }
+          leaf crypto-algorithm {
+            type identityref {
+              base key-chain:crypto-algorithm;
+            }
+            description
+              "Cryptographic algorithm associated with key.";
+           }
         }
       }
-    } // authentication
+    }
   } // peer-authentication
 
   grouping peer-state-derived {
     description
       "The peer state information derived from the LDP protocol
-       operatoins.";
+       operations.";
 
     container label-advertisement-mode {
       config false;
@@ -530,7 +634,9 @@ module ietf-mpls-ldp {
       type uint16;
       units seconds;
       config false;
-      description "Time to send the next KeepAlive message.";
+      description
+        "Time duration from now until sending the next KeepAlive
+         message.";
     }
 
     container received-peer-state {
@@ -541,32 +647,34 @@ module ietf-mpls-ldp {
       uses graceful-restart-attributes-per-peer;
 
       container capability {
-        description "Configure capability.";
+        description "Peer capability information.";
         container end-of-lib {
           description
-            "Configure end-of-lib capability.";
-          leaf enable {
+            "Peer's end-of-lib capability.";
+          leaf enabled {
             type boolean;
             description
-              "Enable end-of-lib capability.";
+              "'true' if peer's end-of-lib capability is enabled.";
           }
         }
         container typed-wildcard-fec {
           description
-            "Configure typed-wildcard-fec capability.";
-          leaf enable {
+            "Peer's typed-wildcard-fec capability.";
+          leaf enabled {
             type boolean;
             description
-              "Enable typed-wildcard-fec capability.";
+              "'true' if peer's typed-wildcard-fec capability is
+                enabled.";
           }
         }
         container upstream-label-assignment {
           description
-            "Configure upstream label assignment capability.";
-          leaf enable {
+            "Peer's upstream label assignment capability.";
+          leaf enabled {
             type boolean;
             description
-              "Enable upstream label assignment.";
+              "'true' if peer's upstream label assignment is
+               enabled.";
           }
         }
       } // capability
@@ -639,9 +747,12 @@ module ietf-mpls-ldp {
     } // tcp-connection
 
     leaf up-time {
-      type string;
+      type rt-types:timeticks64;
       config false;
-      description "Up time. The interval format in ISO 8601.";
+      description
+        "The number of time ticks (hundredths of a second) since the
+         the state of the session with the peer changed to
+         OPERATIONAL.";
     }
 
     container statistics {
@@ -750,7 +861,7 @@ module ietf-mpls-ldp {
     leaf notification {
       type yang:counter64;
       description
-        "The number of messages sent or received.";
+        "The number of notification messages sent or received.";
     }
   } // statistics-peer-received-sent
 
@@ -758,12 +869,25 @@ module ietf-mpls-ldp {
    * Configuration data and operational state data nodes
    */
 
-  augment "/rt:routing/rt:control-plane-protocols" {
-    description "LDP augmentation.";
+  augment "/rt:routing/rt:control-plane-protocols/"
+        + "rt:control-plane-protocol" {
+    when "derived-from-or-self(rt:type, 'ldp:mpls-ldp')" {
+      description
+        "This augmentation is only valid for a control-plane
+         protocol instance of LDP (type 'mpls-ldp').";
+    }
+    description
+      "LDP augmentation to routing control-plane protocol
+       configuration and state.";
 
     container mpls-ldp {
-      presence
-        "Enables the LDP protocol.";
+      must "not (../../rt:control-plane-protocol"
+        + "[derived-from-or-self(rt:type, 'ldp:mpls-ldp')]"
+        + "[rt:name!=current()/../rt:name])"
+      {
+        description "Only one LDP instance is allowed.";
+      }
+
       description
         "Containing configuration and operational data for the LDP
          protocol.";
@@ -778,12 +902,12 @@ module ietf-mpls-ldp {
              used for augmentations.";
           reference
             "RFC5036: Sec. 1.5.";
-        } // capability
+        }
 
         container graceful-restart {
           description
             "Attributes for graceful restart.";
-          leaf enable {
+          leaf enabled {
             type boolean;
             default false;
             description
@@ -844,14 +968,14 @@ module ietf-mpls-ldp {
             description
               "Containing data related to the IPv4 address family.";
 
-            leaf enable {
+            leaf enabled {
               type boolean;
               default true;
               description
                 "'true' to enable the address family.";
             }
 
-            leaf label-distribution-controlmode {
+            leaf label-distribution-control-mode {
               type enumeration {
                 enum independent {
                   description
@@ -885,7 +1009,7 @@ module ietf-mpls-ldp {
                      message received from or advertised to a peer.";
                 }
                 uses binding-address-state-attributes;
-              } // binding-address
+              }
 
               list fec-label {
                 key "fec";
@@ -899,7 +1023,7 @@ module ietf-mpls-ldp {
                      or advertised to a peer.";
                 }
                 uses binding-label-state-attributes;
-              } // fec-label
+              }
             } // bindings
           } // ipv4
         } // address-families
@@ -907,15 +1031,22 @@ module ietf-mpls-ldp {
 
       container discovery {
         description
-          "Neibgbor discovery configuration and operational state.";
+          "Neighbor discovery configuration and operational state.";
 
         container interfaces {
           description
-            "A list of interfaces for LDP Basic Descovery.";
+            "A list of interfaces for LDP Basic Discovery.";
           reference
             "RFC5036: LDP Specification. Sec 2.4.1.";
 
-          uses basic-discovery-timers;
+          uses basic-discovery-timers {
+            refine "hello-holdtime" {
+              default 15;
+            }
+            refine "hello-interval" {
+              default 5;
+            }
+          }
 
           list interface {
             key "name";
@@ -926,7 +1057,7 @@ module ietf-mpls-ldp {
               type uint16;
               units seconds;
               config false;
-              description "Time to send the next hello message.";
+              description "Time to send the next Hello message.";
             }
 
             container address-families {
@@ -939,37 +1070,36 @@ module ietf-mpls-ldp {
                 description
                   "IPv4 address family.";
 
-                leaf enable {
+                leaf enabled {
                   type boolean;
                   default true;
                   description
                     "Enable the address family on the interface.";
                 }
 
-                // ipv4
                 container hello-adjacencies {
                   config false;
                   description
-                    "Containing a list of hello adjacencies.";
+                    "Containing a list of Hello adjacencies.";
 
                   list hello-adjacency {
                     key "adjacent-address";
                     config false;
-                    description "List of hello adjacencies.";
+                    description "List of Hello adjacencies.";
 
                     leaf adjacent-address {
                       type inet:ipv4-address;
                       description
-                        "Neighbor address of the hello adjacency.";
+                        "Neighbor address of the Hello adjacency.";
                     }
 
                     uses adjacency-state-attributes;
-                    uses ldp-peer-ref-container;
-                  } // hello-adjacency
-                } // hello-adjacencies
+                    uses ldp-peer-ref-from-interface;
+                  }
+                }
               } // ipv4
             } // address-families
-          } // list interface
+          } // interface
         } // interfaces
 
         container targeted
@@ -1004,13 +1134,13 @@ module ietf-mpls-ldp {
               "LDP policy to control the acceptance of extended
                neighbor discovery Hello messages.";
 
-            leaf enable {
+            leaf enabled {
               type boolean;
               default false;
               description
                 "'true' to accept; 'false' to deny.";
             }
-          } // hello-accept
+          }
 
           container address-families {
             description
@@ -1024,27 +1154,27 @@ module ietf-mpls-ldp {
               container hello-adjacencies {
                 config false;
                 description
-                  "Containing a list of hello adjacencies.";
+                  "Containing a list of Hello adjacencies.";
 
                 list hello-adjacency {
                   key "local-address adjacent-address";
-                  description "List of hello adjacencies.";
+                  description "List of Hello adjacencies.";
 
                   leaf local-address {
                     type inet:ipv4-address;
                     description
-                      "Local address of the hello adjacency.";
+                      "Local address of the Hello adjacency.";
                   }
                   leaf adjacent-address {
                     type inet:ipv4-address;
                     description
-                      "Neighbor address of the hello adjacency.";
+                      "Neighbor address of the Hello adjacency.";
                   }
 
                   uses adjacency-state-attributes;
-                  uses ldp-peer-ref-container;
-                } // hello-adjacency
-              } // hello-adjacencies
+                  uses ldp-peer-ref-from-target;
+                }
+              }
 
               list target {
                 key "adjacent-address";
@@ -1054,16 +1184,15 @@ module ietf-mpls-ldp {
                 leaf adjacent-address {
                   type inet:ipv4-address;
                   description
-                    "Configures a remote LDP neighbor and enables
-                     extended LDP discovery of the specified
-                     neighbor.";
+                    "Configures a remote LDP neighbor for the
+                     extended LDP discovery.";
                 }
 
-                leaf enable {
+                leaf enabled {
                   type boolean;
                   default true;
                   description
-                    "Enable the target.";
+                    "'true' to enable the target.";
                 }
                 leaf local-address {
                   type inet:ipv4-address;
@@ -1085,7 +1214,14 @@ module ietf-mpls-ldp {
           "Peers configuration attributes.";
 
         uses peer-authentication;
-        uses peer-attributes;
+        uses peer-attributes {
+          refine session-ka-holdtime {
+            default 180;
+          }
+          refine session-ka-interval {
+            default 60;
+          }
+        }
 
         list peer {
           key "lsr-id label-space-id";
@@ -1114,10 +1250,6 @@ module ietf-mpls-ldp {
           }
 
           uses peer-authentication;
-          container capability {
-            description
-              "Per peer capability";
-          }
 
           container address-families {
             description
@@ -1131,21 +1263,21 @@ module ietf-mpls-ldp {
               container hello-adjacencies {
                 config false;
                 description
-                  "Containing a list of hello adjacencies.";
+                  "Containing a list of Hello adjacencies.";
 
                 list hello-adjacency {
                   key "local-address adjacent-address";
-                  description "List of hello adjacencies.";
+                  description "List of Hello adjacencies.";
 
                   leaf local-address {
                     type inet:ipv4-address;
                     description
-                      "Local address of the hello adjacency.";
+                      "Local address of the Hello adjacency.";
                   }
                   leaf adjacent-address {
                     type inet:ipv4-address;
                     description
-                      "Neighbor address of the hello adjacency.";
+                      "Neighbor address of the Hello adjacency.";
                   }
 
                   uses adjacency-state-attributes;
@@ -1154,10 +1286,11 @@ module ietf-mpls-ldp {
                     type if:interface-ref;
                     description "Interface for this adjacency.";
                   }
-                } // hello-adjacency
-              } // hello-adjacencies
+                }
+              }
             } // ipv4
           } // address-families
+
           uses peer-state-derived;
         } // list peer
       } // peers
@@ -1171,7 +1304,7 @@ module ietf-mpls-ldp {
     description
       "Clears the session to the peer.";
     input {
-      uses ldp-peer-ref {
+      uses ldp-peer-ref-absolute {
         description
           "The LDP peer to be cleared. If this is not provided
            then all peers are cleared.
@@ -1188,7 +1321,15 @@ module ietf-mpls-ldp {
       container hello-adjacency {
         description
           "Link adjacency or targettted adjacency. If this is not
-           provided then all hello adjacencies are cleared";
+           provided then all Hello adjacencies are cleared";
+        leaf protocol-name {
+          type leafref {
+            path "/rt:routing/rt:control-plane-protocols/"
+              + "rt:control-plane-protocol/rt:name";
+          }
+          description
+            "The name of the LDP protocol instance.";
+        }
         choice hello-adjacency-type {
           description "Adjacency type.";
           case targeted {
@@ -1202,7 +1343,7 @@ module ietf-mpls-ldp {
                   "The target address. If this is not provided then
                    all targeted adjacencies are cleared";
               }
-            } // targeted
+            }
           }
           case link {
             container link {
@@ -1212,7 +1353,8 @@ module ietf-mpls-ldp {
               leaf next-hop-interface {
                 type leafref {
                   path "/rt:routing/rt:control-plane-protocols/"
-                    + "mpls-ldp/discovery/interfaces/interface/name";
+                    + "rt:control-plane-protocol/mpls-ldp/discovery/"
+                    + "interfaces/interface/name";
                 }
                 description
                   "Interface connecting to next-hop. If this is not
@@ -1228,20 +1370,20 @@ module ietf-mpls-ldp {
                   "IP address of next-hop. If this is not provided
                    then adjacencies to all next-hops on the given
                    interface are cleared.";
-              } // next-hop-address
-            } // link
+              }
+            }
           }
-        }
-      }
-    }
-  }
+        } // hello-adjacency-type
+      } // hello-adjacency
+    } // input
+  } // mpls-ldp-clear-hello-adjacency
 
   rpc mpls-ldp-clear-peer-statistics {
     description
       "Clears protocol statistics (e.g. sent and received
        counters).";
     input {
-      uses ldp-peer-ref {
+      uses ldp-peer-ref-absolute {
         description
           "The LDP peer whose statistics are to be cleared.
            If this is not provided then all peers' statistics are
@@ -1264,7 +1406,12 @@ module ietf-mpls-ldp {
       type oper-status-event-type;
       description "Event type.";
     }
-    uses ldp-peer-ref-container;
+    container peer {
+      description
+        "Reference to an LDP peer, by the LDP ID, which consists of
+         the LSR ID and the Label Space ID.";
+      uses ldp-peer-ref-absolute;
+    }
   }
 
   notification mpls-ldp-hello-adjacency-event {
@@ -1274,6 +1421,14 @@ module ietf-mpls-ldp {
     leaf event-type {
       type oper-status-event-type;
       description "Event type.";
+    }
+    leaf protocol-name {
+      type leafref {
+        path "/rt:routing/rt:control-plane-protocols/"
+          + "rt:control-plane-protocol/rt:name";
+      }
+      description
+        "The name of the LDP protocol instance.";
     }
     choice hello-adjacency-type {
       description
@@ -1287,7 +1442,7 @@ module ietf-mpls-ldp {
             description
               "The target adjacent address learned.";
           }
-        } // targeted
+        }
       }
       case link {
         container link {
@@ -1309,10 +1464,10 @@ module ietf-mpls-ldp {
               "IP address of the next hop. This can be IPv4 or IPv6
                address.";
           }
-        } // link
+        }
       }
-    }
-  }
+    } // hello-adjacency-type
+  } // mpls-ldp-hello-adjacency-event
 
   notification mpls-ldp-fec-event {
     description
@@ -1321,7 +1476,15 @@ module ietf-mpls-ldp {
       type oper-status-event-type;
       description "Event type.";
     }
-    leaf prefix {
+    leaf protocol-name {
+      type leafref {
+        path "/rt:routing/rt:control-plane-protocols/"
+          + "rt:control-plane-protocol/rt:name";
+      }
+      description
+        "The name of the LDP protocol instance.";
+    }
+    leaf fec {
       type inet:ip-prefix;
       description
         "The address prefix element of the FEC whose status
