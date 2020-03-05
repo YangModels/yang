@@ -5,7 +5,7 @@
 #
 base_dir="`pwd`/experimental/ieee/"
 #to_check="802.1 802.3 1588"
-to_check="802.1 1588"
+to_check="802.1 1588 1906.1"
 
 # relax constraint for now
 # add --ietf if you want to do strict IETF checking
