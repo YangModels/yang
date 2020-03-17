@@ -31,6 +31,7 @@ listed below. As model content may differ based on platform capabilities, sample
 |----------|-----------------|
 | ASR 1000 | [capability-asr1k.xml](capability-asr1k.xml) |
 | ASR 900 RSP2/RSP3, ASR 920, NCS 520 and NCS 4200 | [capability-asr900.xml](capability-asr900.xml) |
+| Catalyst 3650/3850 | [capability-cat3k.xml](capability-cat3k.xml) |
 | Catalyst 9200 | [capability-cat9200.xml](capability-cat9200.xml) |
 | Catalyst 9300 | [capability-cat9300.xml](capability-cat9300.xml) |
 | Catalyst 9400 | [capability-cat9400.xml](capability-cat9400.xml) |
@@ -189,11 +190,11 @@ listed below. As model content may differ based on platform capabilities, sample
 * cisco-ia.yang
 * cisco-policy-filters.yang
 * cisco-xe-ietf-ospf-deviation.yang
-* cisco-xe-* openconfig-access-points-deviation.yang
-* cisco-xe-* openconfig-acl-deviation.yang
-* cisco-xe-* openconfig-bgp-deviation.yang
-* cisco-xe-* openconfig-if-ip-deviation.yang
-* cisco-xe-* openconfig-openflow-deviation.yang
+* cisco-xe-openconfig-access-points-deviation.yang
+* cisco-xe-openconfig-acl-deviation.yang
+* cisco-xe-openconfig-bgp-deviation.yang
+* cisco-xe-openconfig-if-ip-deviation.yang
+* cisco-xe-openconfig-openflow-deviation.yang
 
 #### Experimental YANG Models
 
