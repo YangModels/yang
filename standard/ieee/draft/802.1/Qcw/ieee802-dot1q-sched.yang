@@ -35,24 +35,60 @@ module ieee802-dot1q-sched {
   description
     "This module provides for management of IEEE Std 802.1Q Bridges
     that support Scheduled Traffic Enhancements.";
-  revision 2019-06-24 {
-    description
-      "Update for P802.1Qcw/D0.4";
-    reference
-      "IEEE Std 802.1Q-2018, Bridges and Bridged Networks.";
-  }
-  revision 2018-09-10 {
-    description
-      "Update for P802.1Qcw/D0.1";
-    reference
-      "IEEE Std 802.1Q-2018, Bridges and Bridged Networks.";
-  }
   feature scheduled-traffic {
     description
       "Each Port supports the Enhancements for Scheduled Traffic.";
     reference
-      "";
+      "IEEE Std 802.1Q-2018";
   }
+  
+  identity set-gate-states {
+    base dot1q-types:type-of-operation;
+    description
+      "Operation to set the gate states.";
+  }
+  identity set-and-hold-mac {
+    base dot1q-types:type-of-operation;
+    description
+      "Operation to set and hold mac.";
+  }
+  identity set-and-release-mac {
+    base dot1q-types:type-of-operation;
+    description
+      "Operation to set and release mac.";
+  }
+  
+ grouping sched-gate-control-entries {
+   uses dot1q-types:base-gate-control-entries {
+     refine "gate-control-entry/operation-name" {
+       must "(. = 'set-gate-states') or
+             (. = 'set-and-hold-mac') or
+             (. = 'set-and-release-mac')";
+     }
+     refine "gate-control-entry/time-interval-value" {
+       must "(. <= ../../../supported-interval-max )";
+     }     
+     augment "gate-control-entry" {
+       leaf gate-state-value {
+         type uint8;
+         mandatory true;
+         description 
+           "gateStatesValue is the gate states for this entry for the
+           Port. The gates are immediately set to the states in
+           gateStatesValue when this entry executes. The bits of the
+           octet represent the gate states for the corresponding
+           traffic classes; the most-significant bit corresponds to
+           traffic class 7, the least-significant bit to traffic class
+           0. A bit value of 0 indicates closed; a bit value of 1
+           indicates open.";
+         reference
+           "12.29.1.2.2 of IEEE Std 802.1Q-2018
+           8.6.8.4 of IEEE Std 802.1Q-2018";
+       }
+     }
+   }
+ }
+  
   augment "/if:interfaces/if:interface/dot1q:bridge-port" {
     if-feature "scheduled-traffic";
     description
@@ -64,7 +100,9 @@ module ieee802-dot1q-sched {
         traffic class. All writable objects in this table must be
         persistent over power up restart/reboot.";
       reference
-        "";
+        "12.29.1.1 of IEEE Std 802.1Q-2018
+        8.6.8.4 of IEEE Std 802.1Q-2018
+        8.6.9 of IEEE Std 802.1Q-2018";
       leaf traffic-class {
         type dot1q-types:traffic-class-type;
         description
@@ -79,7 +117,9 @@ module ieee802-dot1q-sched {
           supported by the underlying MAC. The value must be retained
           across reinitializations of the management system.";
         reference
-          "";
+          "12.29.1.1.1 of IEEE Std 802.1Q-2018
+          8.6.8.4 of IEEE Std 802.1Q-2018
+          8.6.9 of IEEE Std 802.1Q-2018";
       }
       leaf transmission-overrun {
         type yang:counter64;
@@ -90,17 +130,21 @@ module ieee802-dot1q-sched {
           still being transmitted by a MAC at the time when the
           transmission gate for the queue closed.";
         reference
-          "";
+          "12.29.1.1.2 of IEEE Std 802.1Q-2018
+          8.6.8.4 of IEEE Std 802.1Q-2018
+          8.6.9 of IEEE Std 802.1Q-2018";
       }
     }
     container gate-parameters {
       description
-        "A list that contains the per-port managable parameters for
+        "A list that contains the per-port manageable parameters for
         traffic scheduling. For a given Port, an entry in the table
         exists. All writable objects in this table must be persistent
         over power up restart/reboot.";
       reference
-        "";
+        "12.29.1 of IEEE Std 802.1Q-2018
+        8.6.8.4 of IEEE Std 802.1Q-2018
+        8.6.9 of IEEE Std 802.1Q-2018";
       leaf gate-enabled {
         type boolean;
         default "false";
@@ -110,7 +154,9 @@ module ieee802-dot1q-sched {
           must be retained across reinitializations of the management
           system.";
         reference
-          "";
+          "12.29.1 of IEEE Std 802.1Q-2018
+          8.6.8.2 of IEEE Std 802.1Q-2018
+          8.6.9.4.14 of IEEE Std 802.1Q-2018";
       }
       leaf admin-gate-states {
         type uint8;
@@ -125,7 +171,8 @@ module ieee802-dot1q-sched {
           must be retained across reinitializations of the management
           system.";
         reference
-          "";
+          "12.29.1 of IEEE Std 802.1Q-2018
+          8.6.9.4.5 of IEEE Std 802.1Q-2018";
       }
       leaf oper-gate-states {
         type uint8;
@@ -138,72 +185,71 @@ module ieee802-dot1q-sched {
           least-significant bit to traffic class 0. A bit value of 0
           indicates closed; a bit value of 1 indicates open.";
         reference
-          "";
+          "12.29.1 of IEEE Std 802.1Q-2018
+          8.6.9.4.22 of IEEE Std 802.1Q-2018";
       }
-      list admin-control-list {
-        key "index";
+      container admin-control-list {
+      	must "(count(./gate-control-entry) <= ../supported-list-max)" {
+			error-message "Number of elements in admin-control-list must not be greater than supported-list-max";
+		}
+		config true;
         description
           "AdminControlList is the administrative value of the gate
-          control list for the Port.
-          
+          control list for the Port.       
           The value must be retained across reinitializations of the
           management system.";
         reference
-          "";
-        leaf index {
-          type uint32;
-          description
-            "This index is provided in order to provide a unique key
-            per list entry.
-            
-            The value of index for each entry shall be unique (but not
-            necessarily contiguous).";
-        }
-        uses dot1q-types:gate-control-entry;
+          "12.29.1.2 of IEEE Std 802.1Q-2018
+          8.6.8.4 of IEEE Std 802.1Q-2018
+          8.6.9.4.2 of IEEE Std 802.1Q-2018";
+        uses sched-gate-control-entries;
       }
-      list oper-control-list {
-        key "index";
+      container oper-control-list {  
+        must "(count(./gate-control-entry) <= ../supported-list-max)" {
+			error-message "Number of elements in oper-control-list must not be greater than supported-list-max";
+		}  
         config false;
         description
           "OperControlList is the operational value of the gate
           control list for the Port.";
         reference
-          "";
-        leaf index {
-          type uint32;
-          description
-            "This index is provided in order to provide a unique key
-            per list entry.
-            
-            The value of index for each entry shall be unique (but not
-            necessarily contiguous).";
-        }
-        uses dot1q-types:gate-control-entry;
+          "12.29.1.2 of IEEE Std 802.1Q-2018
+          8.6.8.4 of IEEE Std 802.1Q-2018
+          8.6.9.4.19 of IEEE Std 802.1Q-2018";
+        
+        uses sched-gate-control-entries;
       }
       container admin-cycle-time {
+      	must "(. <= ../supported-cycle-max)" {
+			error-message "admin-cycle-time must not be greater than supported-cycle-max";
+		}
         description
           "AdminCycleTime specifies the administrative value of the
-          gating cycle time for the Port.
-          
+          gating cycle time for the Port.        
           AdminCycleTime is a rational number of seconds, defined by
-          an integer numerator and an integer denominator.
-          
+          an integer numerator and an integer denominator.      
           The value must be retained across reinitializations of the
           management system.";
         reference
-          "";
+          "12.29.1 of IEEE Std 802.1Q-2018
+          8.6.8.4 of IEEE Std 802.1Q-2018
+          8.6.9.4.3 of IEEE Std 802.1Q-2018";
         uses ieee802:rational-grouping;
       }
       container oper-cycle-time {
+      	must "(. <= ../supported-cycle-max)" {
+			error-message "oper-cycle-time must not be greater than supported-cycle-max";
+		}
         config false;
         description
           "OperCycleTime specifies the operational value of the gating
-          cycle time for the Port.
-          
+          cycle time for the Port.        
           OperCycleTime is a rational number of seconds, defined by an
           integer numerator and an integer denominator.";
         reference
-          "";
+          "12.29.1 of IEEE Std 802.1Q-2018
+          8.6.8.4 of IEEE Std 802.1Q-2018
+          8.6.9.4.20 of IEEE Std 802.1Q-2018";
         uses ieee802:rational-grouping;
       }
       leaf admin-cycle-time-extension {
@@ -219,7 +265,8 @@ module ieee802-dot1q-sched {
           The value must be retained across reinitializations of the
           management system.";
         reference
-          "";
+          "12.29.1 of IEEE Std 802.1Q-2018
+          8.6.9.4.4 of IEEE Std 802.1Q-2018";
       }
       leaf oper-cycle-time-extension {
         type uint32;
@@ -232,7 +279,8 @@ module ieee802-dot1q-sched {
           configuration is being installed. This is the operational
           value.";
         reference
-          "";
+          "12.29.1 of IEEE Std 802.1Q-2018
+          8.6.9.4.21 of IEEE Std 802.1Q-2018";
       }
       container admin-base-time {
         description
@@ -243,7 +291,8 @@ module ieee802-dot1q-sched {
           The value must be retained across reinitializations of the
           management system.";
         reference
-          "";
+          "12.29.1 of IEEE Std 802.1Q-2018
+          8.6.9.4.1 of IEEE Std 802.1Q-2018";
         uses ieee802:ptp-time-grouping;
       }
       container oper-base-time {
@@ -253,7 +302,8 @@ module ieee802-dot1q-sched {
           cycles begin, expressed as an IEEE 1588 precision time
           protocol (PTP) timescale.";
         reference
-          "";
+          "12.29.1 of IEEE Std 802.1Q-2018
+          8.6.9.4.18 of IEEE Std 802.1Q-2018";
         uses ieee802:ptp-time-grouping;
       }
       leaf config-change {
@@ -266,7 +316,8 @@ module ieee802-dot1q-sched {
           should only be done when the various administrative
           parameters are all set to appropriate values.";
         reference
-          "";
+          "12.29.1 of IEEE Std 802.1Q-2018
+          8.6.9.4.7 of IEEE Std 802.1Q-2018";
       }
       container config-change-time {
         config false;
@@ -274,7 +325,8 @@ module ieee802-dot1q-sched {
           "The time at which the next config change is scheduled to
           occur.";
         reference
-          "";
+          "12.29.1 of IEEE Std 802.1Q-2018
+          8.6.9.4.9 of IEEE Std 802.1Q-2018";
         uses ieee802:ptp-time-grouping;
       }
       leaf tick-granularity {
@@ -287,14 +339,15 @@ module ieee802-dot1q-sched {
           The value must be retained across reinitializations of the
           management system.";
         reference
-          "";
+          "12.29.1 of IEEE Std 802.1Q-2018";
       }
       container current-time {
         config false;
         description
           "The current time as maintained by the local system.";
         reference
-          "";
+          "12.29.1 of IEEE Std 802.1Q-2018
+          8.6.9.4.10 of IEEE Std 802.1Q-2018";
         uses ieee802:ptp-time-grouping;
       }
       leaf config-pending {
@@ -305,7 +358,8 @@ module ieee802-dot1q-sched {
           value is TRUE if a configuration change is in progress but
           has not yet completed.";
         reference
-          "";
+          "12.29.1 of IEEE Std 802.1Q-2018
+          8.6.9.4.8 of IEEE Std 802.1Q-2018";
       }
       leaf config-change-error {
         type yang:counter64;
@@ -316,7 +370,8 @@ module ieee802-dot1q-sched {
           schedule still running and the requested base time was in
           the past.";
         reference
-          "";
+          "12.29.1 of IEEE Std 802.1Q-2018
+          8.6.9.3.1 of IEEE Std 802.1Q-2018";
       }
       leaf supported-list-max {
         type uint32;
@@ -328,7 +383,8 @@ module ieee802-dot1q-sched {
           determine the port’s control list capacity prior to
           computation.";
         reference
-          "";
+          "12.29.1.5 of IEEE Std 802.1Q-2018
+          8.6.9.4.21 of IEEE Std 802.1Q-2018";
       }
       container supported-cycle-max {
         config false;
@@ -336,7 +392,7 @@ module ieee802-dot1q-sched {
           "The maximum value supported by this Port of the
           AdminCycleTime and OperCycleTime parameters.";
         reference
-          "";
+          "12.29.1.6 of IEEE Std 802.1Qcw";
         uses ieee802:rational-grouping;
       }
       leaf supported-interval-max {
@@ -346,7 +402,7 @@ module ieee802-dot1q-sched {
           "The maximum value supported by this Port of
           TimeIntervalValue parameter.";
         reference
-          "";
+          "12.29.1.7 of IEEE Std 802.1Qcw";
       }
     }
   }
