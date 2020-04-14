@@ -1,0 +1,242 @@
+module ietf-system-node-metadata {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-system-node-metadata";
+  prefix sys-metadata;
+
+  import ietf-system-capabilities {
+    prefix sysc;
+    reference
+      "RFC XXXX: YANG Modules for describing System Capabilities and
+       Yang-Push Notification Capabilities";
+  }
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC XXXX: Currenltly draft-ietf-netmod-rfc6991-bis-02, Common
+       YANG Data tpes";
+  }
+
+  organization
+    "IETF NETCONF (Network Configuration) Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/netconf/>
+     WG List:  <mailto:netconf@ietf.org>
+
+     Editor:   Benoit Claise
+               <mailto:bclaise@cisco.com>
+
+     Editor:   Munish Nayyar
+               <mailto:mnayyar@cisco.com>
+
+     Editor:   Adithya Reddy Sesani
+               <mailto:adithyas@cisco.com>
+    ";
+  description
+    "This document proposes a YANG module that provides per-node
+     capabilities for optimum operational data collection.
+
+     This YANG module augments the YANG Modules for describing
+     System Capabilities and Yang-Push Notification capabilities
+     [RFC XXXX].
+
+     This module defines augmented nodes to publish the
+     metadata information specific to YANG node-identifier as per
+     ietf-system-capabilities datatree.
+
+     Complementary RPCs, based on the same node capabilities,
+     simplify the data collection oeprations.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this document
+     are to be interpreted as described in BCP 14 (RFC 2119)
+     (RFC 8174) when, and only when, they appear in all
+     capitals, as shown here.
+
+     Copyright (c) 2020 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Simplified BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (http://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+     for full legal notices.";
+
+  revision 2020-03-23 {
+    description
+      "Initial version";
+    reference
+      "RFC XXX: Per-Node Capabilities For Closed Loop Automation.";
+  }
+
+  feature optimized-measurement-point-feature {
+    description
+      "Support for optimized measurement point within data tree.";
+  }
+
+  grouping system-node-metadata-info {
+    description
+      "group of metadata properties associated to the
+       node-instance.";
+    leaf minimum-observable-period {
+      type uint64;
+      units "nanoseconds";
+      description
+        "The minimum observable period for this node-selector. Don't
+         poll or stream more frequently that mininum observable
+         period in nanoseconds as the corresponding counter is not
+         updated more frequently.";
+    }
+    leaf suggested-observable-period {
+      type uint64;
+      units "nanoseconds";
+      description
+        "The suggested observable period for this node-selector.
+         This value represents factory default suggested
+         information, only available at implementation time.";
+    }
+    leaf optimized-measurement-point {
+      if-feature "optimized-measurement-point-feature";
+      type empty;
+      description
+        "This node-selector is an optimized measurement point.";
+    }
+    leaf corresponding-mib-oid {
+      type yang:object-identifier-128;
+      description
+        "The object identifier (OID) assigned to a SMIv2 definition,
+         corresponding to this node-selector.";
+    }
+    leaf related-node {
+      type yang:node-instance-identifier;
+      description
+        "In case the node instance is an operational node then the
+         associated node-instance-identifier represents the config
+         leaf directly related to this operational node. In case the
+         node instance is an config node then the associated
+         node-instance-identifier represents the operational leaf
+         directly related to this configuration node. A typical
+         example is the relationship between the admin-status and
+         oper-status, which is impossible to detect automatically in
+         a non-NMDA environment or for non-openconfig YANG moduels.
+         The related-node SHOULD NOT reported for NMDA architectures
+         and openconfig YANG modules.";
+    }
+  }
+
+  augment
+    "/sysc:system-capabilities/sysc:datastore-capabilities/"
+     + "sysc:per-node-capabilities/"
+     + "sysc:node-selection/sysc:node-selector" {
+    description
+      "Metdata information tied to the per-node-capabilities";
+    uses system-node-metadata-info;
+  }
+
+  rpc get-measurement-metadata {
+    description
+      "RPC that returns the optimized measurement per-node
+       capabilities and some measurement paremeters. This RPC
+       is added to allow clients to learn dynamically changing
+       metadata for a specific leaf on a server.
+
+       If the server supports the optimized-measurement-point
+       feature, then the output data refers to
+       optimized-measurement-point. The server will internally
+       find the optimized-measurement-point. If it can not find it,
+       then no ouput is returned (for the
+       optimized-measurement-point, computed-observable-period,
+       and active-measurements).
+
+       If the server doesn't support the optimized-measurement-point
+       feature, then the output data refers to input node selector.";
+    input {
+      leaf node-selector {
+        type yang:node-instance-identifier;
+        description
+          "node instance for which metadata is requested";
+      }
+    }
+    output {
+      leaf optimized-measurement-point {
+        if-feature "optimized-measurement-point-feature";
+        type yang:node-instance-identifier;
+        description
+          "The node-selector is searched up the data tree chain to
+           find the parent node that is the optimized measurement
+           point (if the optimized-measurement-point-feature is
+           supported).
+
+           If the node-selector itself is the optimized point then
+           same data node is returned in the output.
+
+           If the node-selector has no optimized measurement point
+           then this optimized-measurement-point leaf is not
+           returned.";
+      }
+      leaf computed-observable-period {
+        type uint64;
+        units "nanoseconds";
+        description
+          "the computed observable period for this node-selector (and
+           optimized-measurement-point). The system internally
+           dynamically computes the suggested observable period
+           (relevant for polling or streaming cadence) which can be
+           greater-or-equal to the minimal-observable-period.
+           Since this value is dynamic, this metadata is only
+           available in a run time environment.";
+      }
+      list active-measurements {
+        description
+          "list of existing subscriptions for this node-selector. If
+           there are no active subscriptions then system calculate
+           the measurement-period and this list is not-returned,
+           else, each instance in this list will be pair of active
+           measurement with intended and actual period used by the
+           system";
+        leaf subscribed-measurement-period {
+          type uint64;
+          units "nanoseconds";
+          description
+            "Currently subscribed measurement period for this
+             node-selector (and optimized-measurement-point)";
+        }
+      }
+    }
+  }
+
+  rpc get-system-node-capabilities {
+    description
+      "RPC to get the capabilities for the nodes in the subtree of
+       the input.
+       If the input node passed is a leaf/leaf-list, then
+       the same node metadata is returned in the output.
+       If the input node is not leaf/leaf-list then metadata of its
+       subtree nodes is returned.";
+    input {
+      leaf node-selector {
+        type yang:node-instance-identifier;
+        description
+          "node instance whose subtree which metadata is requested.";
+      }
+    }
+    output {
+      list node-selector-capability {
+        description
+          "metadata of nodes in the subtree of node-selector.";
+        leaf node {
+          type yang:node-instance-identifier;
+          description
+            "instance path of the node inside subtree of
+             node-selector.";
+        }
+        uses system-node-metadata-info;
+      }
+    }
+  }
+}
