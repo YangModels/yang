@@ -18,7 +18,7 @@ checkDir ()
 
     echo Checking yang files in $dir
     exit_status=""
-    pyang_flags="--verbose -p $cwd/$ieee_dir/../ietf/RFC/ -p $cwd/$ieee_dir/draft/802 -p $cwd/$ieee_dir/published/802 -p $cwd/$ieee_dir/published/802.1"
+    pyang_flags="--verbose -p . -p $cwd/$ieee_dir/../ietf/RFC/ -p $cwd/$ieee_dir/draft/802 -p $cwd/$ieee_dir/published/802 -p $cwd/$ieee_dir/published/802.1"
 
     cd $dir
 
