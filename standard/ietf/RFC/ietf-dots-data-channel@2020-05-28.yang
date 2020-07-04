@@ -1,0 +1,807 @@
+module ietf-dots-data-channel {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-dots-data-channel";
+  prefix data-channel;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "Section 4 of RFC 6991";
+  }
+  import ietf-access-control-list {
+    prefix ietf-acl;
+    reference
+      "RFC 8519: YANG Data Model for Network Access
+                 Control Lists (ACLs)";
+  }
+  import ietf-packet-fields {
+    prefix packet-fields;
+    reference
+      "RFC 8519: YANG Data Model for Network Access
+                 Control Lists (ACLs)";
+  }
+
+  organization
+    "IETF DDoS Open Threat Signaling (DOTS) Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/dots/>
+     WG List:  <mailto:dots@ietf.org>
+
+     Editor:  Mohamed Boucadair
+              <mailto:mohamed.boucadair@orange.com>
+
+     Editor:  Konda, Tirumaleswar Reddy.K
+              <mailto:TirumaleswarReddy_Konda@McAfee.com>
+
+     Author:  Jon Shallow
+              <mailto:jon.shallow@nccgroup.com>
+
+     Author:  Kaname Nishizuka
+              <mailto:kaname@nttv6.jp>
+
+     Author:  Liang Xia
+              <mailto:frank.xialiang@huawei.com>
+
+     Author:  Prashanth Patil
+              <mailto:praspati@cisco.com>
+
+     Author:  Andrew Mortensen
+              <mailto:amortensen@arbor.net>
+
+     Author:  Nik Teague
+              <mailto:nteague@ironmountain.co.uk>";
+  description
+    "This module contains YANG definition for configuring
+     aliases for resources and filtering rules using DOTS
+     data channel.
+
+     Copyright (c) 2020 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Simplified BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (http://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 8783; see
+     the RFC itself for full legal notices.";
+
+  revision 2020-05-28 {
+    description
+      "Initial revision.";
+    reference
+      "RFC 8783: Distributed Denial-of-Service Open Threat
+                 Signaling (DOTS) Data Channel Specification";
+  }
+
+  typedef activation-type {
+    type enumeration {
+      enum activate-when-mitigating {
+        value 1;
+        description
+          "The Access Control List (ACL) is installed only when
+           a mitigation is active for the DOTS client.";
+      }
+      enum immediate {
+        value 2;
+        description
+          "The ACL is immediately activated.";
+      }
+      enum deactivate {
+        value 3;
+        description
+          "The ACL is maintained by the DOTS server, but it is
+           deactivated.";
+      }
+    }
+    description
+      "Indicates the activation type of an ACL.";
+  }
+
+  typedef operator {
+    type bits {
+      bit not {
+        position 0;
+        description
+          "If set, logical negation of operation.";
+      }
+      bit match {
+        position 1;
+        description
+          "Match bit.  This is a bitwise match operation
+           defined as '(data & value) == value'.";
+      }
+      bit any {
+        position 3;
+        description
+          "Any bit.  This is a match on any of the bits in
+           bitmask.  It evaluates to 'true' if any of the bits
+           in the value mask are set in the data,
+           i.e., '(data & value) != 0'.";
+      }
+    }
+    description
+      "Specifies how to apply the defined bitmask.
+       'any' and 'match' bits must not be set simultaneously.";
+  }
+
+  grouping tcp-flags {
+    leaf operator {
+      type operator;
+      default "match";
+      description
+        "Specifies how to interpret the TCP flags.";
+    }
+    leaf bitmask {
+      type uint16;
+      mandatory true;
+      description
+        "The bitmask matches the last 4 bits of byte 12
+         and byte 13 of the TCP header.  For clarity, the 4 bits
+         of byte 12 corresponding to the TCP data offset field
+         are not included in any matching.";
+    }
+    description
+      "Operations on TCP flags.";
+  }
+
+  typedef fragment-type {
+    type bits {
+      bit df {
+        position 0;
+        description
+          "Don't fragment bit for IPv4.
+           Must be set to 0 when it appears in an IPv6 filter.";
+      }
+      bit isf {
+        position 1;
+        description
+          "Is a fragment.";
+      }
+      bit ff {
+        position 2;
+        description
+          "First fragment.";
+      }
+      bit lf {
+        position 3;
+        description
+          "Last fragment.";
+      }
+    }
+    description
+      "Different fragment types to match against.";
+  }
+
+  grouping target {
+    description
+      "Specifies the targets of the mitigation request.";
+    leaf-list target-prefix {
+      type inet:ip-prefix;
+      description
+        "IPv4 or IPv6 prefix identifying the target.";
+    }
+    list target-port-range {
+      key "lower-port";
+      description
+        "Port range.  When only lower-port is
+         present, it represents a single port number.";
+      leaf lower-port {
+        type inet:port-number;
+        mandatory true;
+        description
+          "Lower port number of the port range.";
+      }
+      leaf upper-port {
+        type inet:port-number;
+        must '. >= ../lower-port' {
+          error-message
+            "The upper-port number must be greater than
+             or equal to the lower-port number.";
+        }
+        description
+          "Upper port number of the port range.";
+      }
+    }
+    leaf-list target-protocol {
+      type uint8;
+      description
+        "Identifies the target protocol number.
+
+         Values are taken from the IANA protocol registry:
+         https://www.iana.org/assignments/protocol-numbers/
+
+         For example, 6 for TCP or 17 for UDP.";
+    }
+    leaf-list target-fqdn {
+      type inet:domain-name;
+      description
+        "FQDN identifying the target.";
+    }
+    leaf-list target-uri {
+      type inet:uri;
+      description
+        "URI identifying the target.";
+    }
+  }
+
+  grouping fragment-fields {
+    leaf operator {
+      type operator;
+      default "match";
+      description
+        "Specifies how to interpret the fragment type.";
+    }
+    leaf type {
+      type fragment-type;
+      mandatory true;
+      description
+        "Indicates what fragment type to look for.";
+    }
+    description
+      "Operations on fragment types.";
+  }
+
+  grouping aliases {
+    description
+      "Top-level container for aliases.";
+    list alias {
+      key "name";
+      description
+        "List of aliases.";
+      leaf name {
+        type string;
+        description
+          "The name of the alias.";
+      }
+      uses target;
+      leaf pending-lifetime {
+        type int32;
+        units "minutes";
+        config false;
+        description
+          "Indicates the pending validity lifetime of the alias
+           entry.";
+      }
+    }
+  }
+
+  grouping ports {
+    choice source-port {
+      container source-port-range-or-operator {
+        uses packet-fields:port-range-or-operator;
+        description
+          "Source port definition.";
+      }
+      description
+        "Choice of specifying the source port or referring to
+         a group of source port numbers.";
+    }
+    choice destination-port {
+      container destination-port-range-or-operator {
+        uses packet-fields:port-range-or-operator;
+        description
+          "Destination port definition.";
+      }
+      description
+        "Choice of specifying a destination port or referring
+         to a group of destination port numbers.";
+    }
+    description
+      "Choice of specifying a source or destination port numbers.";
+  }
+
+  grouping access-lists {
+    description
+      "Specifies the ordered set of Access Control Lists.";
+    list acl {
+      key "name";
+      ordered-by user;
+      description
+        "An ACL is an ordered list of Access Control Entries (ACE).
+         Each ACE has a list of match criteria and a list of
+         actions.";
+      leaf name {
+        type string {
+          length "1..64";
+        }
+        description
+          "The name of the access list.";
+        reference
+          "RFC 8519: YANG Data Model for Network Access
+                     Control Lists (ACLs)";
+      }
+      leaf type {
+        type ietf-acl:acl-type;
+        description
+          "Type of access control list.  Indicates the primary
+           intended type of match criteria (e.g., IPv4, IPv6)
+           used in the list instance.";
+        reference
+          "RFC 8519: YANG Data Model for Network Access
+                     Control Lists (ACLs)";
+      }
+      leaf activation-type {
+        type activation-type;
+        default "activate-when-mitigating";
+        description
+          "Indicates the activation type of an ACL.  An ACL can be
+           deactivated, installed immediately, or installed when
+           a mitigation is active.";
+      }
+      leaf pending-lifetime {
+        type int32;
+        units "minutes";
+        config false;
+        description
+          "Indicates the pending validity lifetime of the ACL
+           entry.";
+      }
+      container aces {
+        description
+          "The Access Control Entries container contains
+           a list of ACEs.";
+        list ace {
+          key "name";
+          ordered-by user;
+          description
+            "List of access list entries.";
+          leaf name {
+            type string {
+              length "1..64";
+            }
+            description
+              "A unique name identifying this ACE.";
+            reference
+              "RFC 8519: YANG Data Model for Network Access
+                         Control Lists (ACLs)";
+          }
+          container matches {
+            description
+              "The rules in this set determine what fields will be
+               matched upon before any action is taken on them.
+
+               If no matches are defined in a particular container,
+               then any packet will match that container.
+
+               If no matches are specified at all in an ACE, then any
+               packet will match the ACE.";
+            reference
+              "RFC 8519: YANG Data Model for Network Access
+                         Control Lists (ACLs)";
+            choice l3 {
+              container ipv4 {
+                when "derived-from(../../../../type, "
+                   + "'ietf-acl:ipv4-acl-type')";
+                uses packet-fields:acl-ip-header-fields;
+                uses packet-fields:acl-ipv4-header-fields;
+                container fragment {
+                  description
+                    "Indicates how to handle IPv4 fragments.";
+                  uses fragment-fields;
+                }
+                description
+                  "Rule set that matches IPv4 header.";
+              }
+              container ipv6 {
+                when "derived-from(../../../../type, "
+                   + "'ietf-acl:ipv6-acl-type')";
+                uses packet-fields:acl-ip-header-fields;
+                uses packet-fields:acl-ipv6-header-fields;
+                container fragment {
+                  description
+                    "Indicates how to handle IPv6 fragments.";
+                  uses fragment-fields;
+                }
+                description
+                  "Rule set that matches IPv6 header.";
+              }
+              description
+                "Either IPv4 or IPv6.";
+            }
+            choice l4 {
+              container tcp {
+                uses packet-fields:acl-tcp-header-fields;
+                container flags-bitmask {
+                  description
+                    "Indicates how to handle TCP flags.";
+                  uses tcp-flags;
+                }
+                uses ports;
+                description
+                  "Rule set that matches TCP header.";
+              }
+              container udp {
+                uses packet-fields:acl-udp-header-fields;
+                uses ports;
+                description
+                  "Rule set that matches UDP header.";
+              }
+              container icmp {
+                uses packet-fields:acl-icmp-header-fields;
+                description
+                  "Rule set that matches ICMP/ICMPv6 header.";
+              }
+              description
+                "Can be TCP, UDP, or ICMP/ICMPv6";
+            }
+          }
+          container actions {
+            description
+              "Definitions of action for this ACE.";
+            leaf forwarding {
+              type identityref {
+                base ietf-acl:forwarding-action;
+              }
+              mandatory true;
+              description
+                "Specifies the forwarding action per ACE.";
+              reference
+                "RFC 8519: YANG Data Model for Network Access
+                           Control Lists (ACLs)";
+            }
+            leaf rate-limit {
+              when "../forwarding = 'ietf-acl:accept'" {
+                description
+                  "Rate-limit is valid only when accept action is
+                   used.";
+              }
+              type decimal64 {
+                fraction-digits 2;
+              }
+              units "bytes per second";
+              description
+                "Specifies how to rate-limit the traffic.";
+            }
+          }
+          container statistics {
+            config false;
+            description
+              "Aggregate statistics.";
+            uses ietf-acl:acl-counters;
+          }
+        }
+      }
+    }
+  }
+
+  container dots-data {
+    description
+      "Main container for DOTS data channel.";
+    list dots-client {
+      key "cuid";
+      description
+        "List of DOTS clients.";
+      leaf cuid {
+        type string;
+        description
+          "A unique identifier that is generated by a DOTS client
+           to prevent request collisions.";
+        reference
+          "RFC 8782: Distributed Denial-of-Service Open Threat
+                  Signaling (DOTS) Signal Channel Specification";
+      }
+      leaf cdid {
+        type string;
+        description
+          "A client domain identifier conveyed by a
+           server-domain DOTS gateway to a remote DOTS server.";
+        reference
+          "RFC 8782: Distributed Denial-of-Service Open Threat
+                  Signaling (DOTS) Signal Channel Specification";
+      }
+      container aliases {
+        description
+          "Set of aliases that are bound to a DOTS client.";
+        uses aliases;
+      }
+      container acls {
+        description
+          "Access lists that are bound to a DOTS client.";
+        uses access-lists;
+      }
+    }
+    container capabilities {
+      config false;
+      description
+        "Match capabilities";
+      leaf-list address-family {
+        type enumeration {
+          enum ipv4 {
+            description
+              "IPv4 is supported.";
+          }
+          enum ipv6 {
+            description
+              "IPv6 is supported.";
+          }
+        }
+        description
+          "Indicates the IP address families supported by
+           the DOTS server.";
+      }
+      leaf-list forwarding-actions {
+        type identityref {
+          base ietf-acl:forwarding-action;
+        }
+        description
+          "Supported forwarding action(s).";
+      }
+      leaf rate-limit {
+        type boolean;
+        description
+          "Support of rate-limit action.";
+      }
+      leaf-list transport-protocols {
+        type uint8;
+        description
+          "Upper-layer protocol associated with a filtering rule.
+
+           Values are taken from the IANA protocol registry:
+           https://www.iana.org/assignments/protocol-numbers/
+
+           For example, this field contains 1 for ICMP, 6 for TCP
+           17 for UDP, or 58 for ICMPv6.";
+      }
+      container ipv4 {
+        description
+          "Indicates IPv4 header fields that are supported to enforce
+           ACLs.";
+        leaf dscp {
+          type boolean;
+          description
+            "Support of filtering based on Differentiated Services
+             Code Point (DSCP).";
+        }
+        leaf ecn {
+          type boolean;
+          description
+            "Support of filtering based on Explicit Congestion
+             Notification (ECN).";
+        }
+        leaf length {
+          type boolean;
+          description
+            "Support of filtering based on the Total Length.";
+        }
+        leaf ttl {
+          type boolean;
+          description
+            "Support of filtering based on the Time to Live (TTL).";
+        }
+        leaf protocol {
+          type boolean;
+          description
+            "Support of filtering based on protocol field.";
+        }
+        leaf ihl {
+          type boolean;
+          description
+            "Support of filtering based on the Internet Header
+             Length (IHL).";
+        }
+        leaf flags {
+          type boolean;
+          description
+            "Support of filtering based on the 'flags'.";
+        }
+        leaf offset {
+          type boolean;
+          description
+            "Support of filtering based on the 'offset'.";
+        }
+        leaf identification {
+          type boolean;
+          description
+            "Support of filtering based on the 'identification'.";
+        }
+        leaf source-prefix {
+          type boolean;
+          description
+            "Support of filtering based on the source prefix.";
+        }
+        leaf destination-prefix {
+          type boolean;
+          description
+            "Support of filtering based on the destination prefix.";
+        }
+        leaf fragment {
+          type boolean;
+          description
+            "Indicates the capability of a DOTS server to
+             enforce filters on IPv4 fragments.  That is, the match
+             functionality based on the Layer 3 'fragment' clause
+             is supported.";
+        }
+      }
+      container ipv6 {
+        description
+          "Indicates IPv6 header fields that are supported to enforce
+           ACLs.";
+        leaf dscp {
+          type boolean;
+          description
+            "Support of filtering based on DSCP.";
+        }
+        leaf ecn {
+          type boolean;
+          description
+            "Support of filtering based on ECN.";
+        }
+        leaf length {
+          type boolean;
+          description
+            "Support of filtering based on the Payload Length.";
+        }
+        leaf hoplimit {
+          type boolean;
+          description
+            "Support of filtering based on the Hop Limit.";
+        }
+        leaf protocol {
+          type boolean;
+          description
+            "Support of filtering based on the Next Header field.";
+        }
+        leaf destination-prefix {
+          type boolean;
+          description
+            "Support of filtering based on the destination prefix.";
+        }
+        leaf source-prefix {
+          type boolean;
+          description
+            "Support of filtering based on the source prefix.";
+        }
+        leaf flow-label {
+          type boolean;
+          description
+            "Support of filtering based on the Flow Label.";
+        }
+        leaf fragment {
+          type boolean;
+          description
+            "Indicates the capability of a DOTS server to
+             enforce filters on IPv6 fragments.";
+        }
+      }
+      container tcp {
+        description
+          "Set of TCP fields that are supported by the DOTS server
+           to enforce filters.";
+        leaf sequence-number {
+          type boolean;
+          description
+            "Support of filtering based on the TCP sequence number.";
+        }
+        leaf acknowledgement-number {
+          type boolean;
+          description
+            "Support of filtering based on the TCP acknowledgement
+             number.";
+        }
+        leaf data-offset {
+          type boolean;
+          description
+            "Support of filtering based on the TCP data-offset.";
+        }
+        leaf reserved {
+          type boolean;
+          description
+            "Support of filtering based on the TCP reserved field.";
+        }
+        leaf flags {
+          type boolean;
+          description
+            "Support of filtering, as defined in RFC 8519, based
+             on the TCP flags.";
+        }
+        leaf window-size {
+          type boolean;
+          description
+            "Support of filtering based on the TCP window size.";
+        }
+        leaf urgent-pointer {
+          type boolean;
+          description
+            "Support of filtering based on the TCP urgent pointer.";
+        }
+        leaf options {
+          type boolean;
+          description
+            "Support of filtering based on the TCP options.";
+        }
+        leaf flags-bitmask {
+          type boolean;
+          description
+            "Support of filtering based on the TCP flags bitmask.";
+        }
+        leaf source-port {
+          type boolean;
+          description
+            "Support of filtering based on the source port number.";
+        }
+        leaf destination-port {
+          type boolean;
+          description
+            "Support of filtering based on the destination port
+             number.";
+        }
+        leaf port-range {
+          type boolean;
+          description
+            "Support of filtering based on a port range.
+
+             This includes filtering based on a source port range,
+             destination port range, or both.  All operators
+             (i.e, less than or equal to, greater than or equal to,
+             equal to, and not equal to) are supported.
+
+             In particular, this means that the implementation
+             supports filtering based on
+             source-port-range-or-operator and
+             destination-port-range-or-operator.";
+        }
+      }
+      container udp {
+        description
+          "Set of UDP fields that are supported by the DOTS server
+           to enforce filters.";
+        leaf length {
+          type boolean;
+          description
+            "Support of filtering based on the UDP length.";
+        }
+        leaf source-port {
+          type boolean;
+          description
+            "Support of filtering based on the source port number.";
+        }
+        leaf destination-port {
+          type boolean;
+          description
+            "Support of filtering based on the destination port
+             number.";
+        }
+        leaf port-range {
+          type boolean;
+          description
+            "Support of filtering based on a port range.
+
+             This includes filtering based on a source port range,
+             destination port range, or both.  All operators
+             (i.e, less than or equal, greater than or equal,
+             equal to, and not equal to) are supported.
+
+             In particular, this means that the implementation
+             supports filtering based on
+             source-port-range-or-operator and
+             destination-port-range-or-operator.";
+        }
+      }
+      container icmp {
+        description
+          "Set of ICMP/ICMPv6 fields that are supported by the DOTS
+           server to enforce filters.";
+        leaf type {
+          type boolean;
+          description
+            "Support of filtering based on the ICMP/ICMPv6 type.";
+        }
+        leaf code {
+          type boolean;
+          description
+            "Support of filtering based on the ICMP/ICMPv6 code.";
+        }
+        leaf rest-of-header {
+          type boolean;
+          description
+            "Support of filtering based on the ICMP four-byte
+             field / the ICMPv6 message body.";
+        }
+      }
+    }
+  }
+}
