@@ -2,6 +2,7 @@ module ietf-adaptive-subscription {
   yang-version 1.1;
   namespace "urn:ietf:params:xml:ns:yang:ietf-adaptive-subscription";
   prefix as;
+
   import ietf-subscribed-notifications {
     prefix sn;
   }
@@ -11,6 +12,7 @@ module ietf-adaptive-subscription {
   import ietf-yang-types {
     prefix yang;
   }
+
   organization
     "IETF NETCONF (Network Configuration) Working Group";
   contact
@@ -38,10 +40,17 @@ module ietf-adaptive-subscription {
   }
 
   typedef centiseconds {
-       type uint32;
-       description
-         "A period of time, measured in units of 0.01 seconds.";
-     }
+    type uint32;
+    description
+      "A period of time, measured in units of 0.01 seconds.";
+  }
+
+  typedef seconds {
+    type uint32;
+    description
+      "A period of time, measured in units of 1 seconds.";
+  }
+
   typedef operator {
     type enumeration {
       enum unequal {
@@ -74,58 +83,143 @@ module ietf-adaptive-subscription {
     description
       "definition of the operator";
   }
-  augment "/sn:subscriptions/sn:subscription/yp:update-trigger" {
-         description
-         "This augmentation adds additional subscription parameters
-          that apply specifically to adaptive subscription.";
-    case adaptive-period {
-      container adaptive-periods {
+
+  grouping adaptive-subscription-modifiable {
+    description
+      "This grouping describes the datastore-specific adaptive subscription
+       conditions that can be changed during the lifetime of the
+       subscription.";
+    choice adaptive-subscription {
+      description
+        "Defines necessary conditions for sending an event record to
+               the subscriber.";
+      container adaptive-subscriptions {
+        leaf data-path {
+          type yang:xpath1.0;
+          description
+            "The data path of targeted object";
+        }
+        anydata target {
+          description
+            " The targeted data object that has been subscribed to.";
+        }
         list adaptive-period {
-          key "id";
-          leaf id {
+          key "condition-expression";
+          description
+            "Defines necessary conditions for sending an event record to
+                   the subscriber.";
+          leaf condition-expression {
             type string;
             description
-              "identifier";
+              "A XPath string, representing a logical expression,
+                       which can contain comparisons of datastore values
+                       and logical operations in the XPath format.";
           }
-          leaf op-field {
-            type yang:xpath1.0;
+          leaf watermark {
+            type uint32;
             description
-              "targeted objects";
+              "The watermark for targeted data object. The high
+               watermark, lowe watermark can be specified for the
+               targeted data object.";
           }
-          leaf op-value {
-            type string;
-            description
-              "Compartion value which is static threshold value.";
-          }
-          leaf operator {
-            type operator;
-            description
-              "Comparison type.";
-          }
-         leaf interval {
+          leaf period {
             type centiseconds;
             mandatory true;
             description
               "Duration of time that should occur between periodic
                push updates, in units of 0.01 seconds.";
-        }
-        leaf anchor-time {
-             type yang:date-and-time;
-             description
-               "Designates a timestamp before or after which a series
-                of periodic push updates are determined.  The next
+          }
+          leaf count {
+            type uint16;
+            description
+              "specify the count number of interval that has to pass before
+               successive adaptive periodic push update records for the same
+               subscription are generated for a receiver.";
+          }
+          leaf anchor-time {
+            type yang:date-and-time;
+            description
+              "Designates a timestamp before or after which a series
+               of periodic push updates are determined.  The next
                update will take place at a point in time that is a
                multiple of a period from the 'anchor-time'.
-               If an anchor-time is not provided, then the anchor-time
-               MUST be set with the creation time of the initial
-               update record. ";
-             }
+               For example, for an 'anchor-time' that is set for the
+               top of a particular minute and a period interval of a
+               minute, updates will be sent at the top of every
+               minute that this subscription is active.";
+          }
+        }
         description
-          "List for adaptive periods";
+          "Container for adaptive subscription.";
       }
-          description
-             "Container for adaptive periods.";
     }
   }
- }
+
+  augment "/sn:subscriptions/sn:subscription/yp:update-trigger" {
+    description
+      "This augmentation adds additional subscription parameters
+       that apply specifically to adaptive subscription.";
+    uses adaptive-subscription-modifiable;
+  }
+  augment "/sn:establish-subscription/sn:input/yp:update-trigger" {
+    description
+      "This augmentation adds additional subscription parameters
+         that apply specifically to datastore updates to RPC input.";
+    uses adaptive-subscription-modifiable;
+  }
+
+  notification adaptive-period-update {
+    sn:subscription-state-notification;
+    description
+      "This notification contains a push update that in turn contains
+       data subscribed to via a subscription.  In the case of a
+       periodic subscription, this notification is sent for periodic
+       updates.  It can also be used for synchronization updates of
+       an on-change subscription.  This notification shall only be
+       sent to receivers of a subscription.  It does not constitute
+       a general-purpose notification that would be subscribable as
+       part of the NETCONF event stream by any receiver.";
+    leaf id {
+      type sn:subscription-id;
+      description
+        "This references the subscription that drove the
+         notification to be sent.";
+    }
+    leaf period {
+      type centiseconds;
+      mandatory true;
+      description
+        "Duration of time that should occur between periodic
+         push updates, in units of 0.01 seconds.";
+    }
+    leaf count {
+      type uint16;
+      description
+        "specify the count number of interval that has to pass before
+         successive adaptive periodic push update records for the same
+         subscription are generated for a receiver.";
+    }
+    leaf anchor-time {
+      type yang:date-and-time;
+      description
+        "Designates a timestamp before or after which a series
+         of periodic push updates are determined.  The next
+         update will take place at a point in time that is a
+         multiple of a period from the 'anchor-time'.
+         For example, for an 'anchor-time' that is set for the
+         top of a particular minute and a period interval of a
+         minute, updates will be sent at the top of every
+         minute that this subscription is active.";
+    }
+    uses yp:datastore-criteria {
+      refine "selection-filter/within-subscription" {
+        description
+          "Specifies the selection filter and where it originated
+           from.  If the 'selection-filter-ref' is populated, the
+           filter in the subscription came from the 'filters'
+           container.  Otherwise, it is populated in-line as part
+           of the subscription itself.";
+      }
+    }
+  }
 }

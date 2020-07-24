@@ -1,0 +1,502 @@
+module ietf-if-flexible-encapsulation {
+  yang-version 1.1;
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-if-flexible-encapsulation";
+  prefix if-flex;
+
+  import ietf-interfaces {
+    prefix if;
+    reference
+      "RFC 8343: A YANG Data Model For Interface Management";
+  }
+
+  import iana-if-type {
+    prefix ianaift;
+    reference
+      "RFC 7224: IANA Interface Type YANG Module";
+  }
+
+  import ieee802-dot1q-types {
+    prefix dot1q-types;
+    reference
+      "IEEE Std 802.1Qcp-2018: IEEE Standard for Local and
+       metropolitan area networks -- Bridges and Bridged Networks --
+       Amendment 30: YANG Data Model";
+  }
+
+  import ietf-if-extensions {
+    prefix if-ext;
+    reference
+      "RFC XXXX: Common Interface Extension YANG Data Models";
+  }
+
+  organization
+    "IETF NETMOD (NETCONF Data Modeling Language) Working Group";
+
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/netmod/>
+     WG List:  <mailto:netmod@ietf.org>
+
+     Editor:   Robert Wilton
+               <mailto:rwilton@cisco.com>";
+
+  description
+    "This YANG module describes interface configuration for flexible
+     classification and rewrites of IEEE 802.1Q VLAN tagged Ethernet
+     traffic.
+
+     Copyright (c) 2020 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Simplified BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+     for full legal notices.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.";
+
+  revision 2020-07-13 {
+    description
+      "Latest draft revision";
+    reference
+      "RFC XXXX: Sub-interface VLAN YANG Data Models";
+  }
+
+  feature flexible-rewrites {
+    description
+      "This feature indicates that the network element supports
+        specifying flexible rewrite operations.";
+  }
+
+  feature asymmetric-rewrites {
+    description
+      "This feature indicates that the network element supports
+       specifying different rewrite operations for the ingress
+       rewrite operation and egress rewrite operation.";
+  }
+
+  feature dot1q-tag-rewrites {
+    description
+      "This feature indicates that the network element supports the
+       flexible rewrite functionality specifying 802.1Q tag
+       rewrites.";
+  }
+
+  grouping flexible-match {
+    description
+      "Represents a flexible frame classification:
+
+       The rules for a flexible match are:
+         1. Match-type: default, untagged, priority tag, or tag
+            stack.
+         2. Each tag in the stack of tags matches:
+          a. tag type (802.1Q or 802.1ad) +
+          b. tag value:
+            i.   single tag
+            ii.  set of tag ranges/values.
+            iii. 'any' keyword";
+
+    choice match-type {
+      mandatory true;
+
+      description
+        "Provides a choice of how the frames may be
+         matched";
+
+      case default {
+        description
+          "Default match";
+
+        leaf default {
+          type empty;
+
+          description
+            "Default match.  Matches all traffic not matched to any
+             other peer sub-interface by a more specific
+             encapsulation.";
+        }
+      }
+
+      case untagged {
+        description
+          "Match untagged Ethernet frames only";
+
+        leaf untagged {
+          type empty;
+
+          description
+            "Untagged match.  Matches all untagged traffic.";
+        }
+      }
+
+      case dot1q-priority-tagged {
+        description
+          "Match 802.1Q priority tagged Ethernet frames only";
+
+        container dot1q-priority-tagged {
+          description
+            "802.1Q priority tag match";
+
+          leaf tag-type {
+            type dot1q-types:dot1q-tag-type;
+            mandatory true;
+
+            description
+              "The 802.1Q tag type of matched priority
+               tagged packets";
+          }
+        }
+      }
+
+      case dot1q-vlan-tagged {
+        container dot1q-vlan-tagged {
+          description
+            "Matches VLAN tagged frames";
+
+          container outer-tag {
+            must 'tag-type = "dot1q-types:s-vlan" or '
+               + 'tag-type = "dot1q-types:c-vlan"' {
+
+              error-message
+                "Only C-VLAN and S-VLAN tags can be matched.";
+
+              description
+                "For IEEE 802.1Q interoperability, only C-VLAN and
+                 S-VLAN tags can be matched.";
+            }
+
+            description
+              "Classifies traffic using the outermost (first) VLAN
+               tag on the frame.";
+
+            uses "dot1q-types:"
+               + "dot1q-tag-ranges-or-any-classifier-grouping";
+          }
+
+          container second-tag {
+            must
+              '../outer-tag/tag-type = "dot1q-types:s-vlan" and '
+            + 'tag-type = "dot1q-types:c-vlan"' {
+
+              error-message
+                "When matching two tags, the outermost (first) tag
+                 must be specified and of S-VLAN type and the second
+                 outermost tag must be of C-VLAN tag type.";
+
+              description
+                "For IEEE 802.1Q interoperability, when matching two
+                 tags, it is required that the outermost (first) tag
+                 exists and is an S-VLAN, and the second outermost
+                 tag is a C-VLAN.";
+            }
+
+            presence "Also classify on the second VLAN tag.";
+
+            description
+              "Classifies traffic using the second outermost VLAN tag
+               on the frame.";
+
+            uses "dot1q-types:"
+               + "dot1q-tag-ranges-or-any-classifier-grouping";
+          }
+
+          leaf match-exact-tags {
+            type empty;
+            description
+              "If set, indicates that all 802.1Q VLAN tags in the
+               Ethernet frame header must be explicitly matched, i.e.
+               the EtherType following the matched tags must not be a
+               802.1Q tag EtherType.  If unset then extra 802.1Q VLAN
+               tags are allowed.";
+          }
+        }
+      }
+    }
+  }
+
+  grouping dot1q-tag-rewrite {
+    description
+      "Flexible rewrite grouping.  Can be either be expressed
+       symmetrically, or independently in the ingress and/or egress
+       directions.";
+
+    leaf pop-tags {
+      type uint8 {
+        range "1..2";
+      }
+
+      description
+        "The number of 802.1Q VLAN tags to pop, or translate if used
+         in conjunction with push-tags.
+
+         Popped tags are the outermost tags on the frame.";
+    }
+
+    container push-tags {
+      presence "802.1Q tags are pushed or translated";
+
+      description
+        "The 802.1Q tags to push on the front of the frame, or
+         translate if configured in conjunction with pop-tags.";
+
+      container outer-tag {
+        must 'tag-type = "dot1q-types:s-vlan" or '
+           + 'tag-type = "dot1q-types:c-vlan"' {
+
+          error-message "Only C-VLAN and S-VLAN tags can be pushed.";
+
+          description
+            "For IEEE 802.1Q interoperability, only C-VLAN and S-VLAN
+             tags can be pushed.";
+        }
+
+        description
+          "The outermost (first) VLAN tag to push onto the frame.";
+
+        uses dot1q-types:dot1q-tag-classifier-grouping;
+      }
+
+      container second-tag {
+        must '../outer-tag/tag-type = "dot1q-types:s-vlan" and '
+           + 'tag-type = "dot1q-types:c-vlan"' {
+
+          error-message
+            "When pushing/rewriting two tags, the outermost tag must
+             be specified and of S-VLAN type and the second outermost
+             tag must be of C-VLAN tag type.";
+
+          description
+            "For IEEE 802.1Q interoperability, when pushing two tags,
+             it is required that the outermost tag exists and is an
+             S-VLAN, and the second outermost tag is a C-VLAN.";
+        }
+
+        presence
+          "In addition to the first tag, also push/rewrite a second
+           VLAN tag.";
+
+        description
+          "The second outermost VLAN tag to push onto the frame.";
+
+        uses dot1q-types:dot1q-tag-classifier-grouping;
+      }
+    }
+  }
+
+  grouping flexible-rewrite {
+    description
+      "Grouping for flexible rewrites of fields in the L2 header.
+
+       Restricted to flexible 802.1Q VLAN tag rewrites, but could be
+       extended to cover rewrites of other fields in the L2 header in
+       future.";
+
+    container dot1q-tag-rewrite {
+      if-feature "dot1q-tag-rewrites";
+
+      description
+        "802.1Q VLAN tag rewrite.
+
+         Translate operations are expressed as a combination of tag
+         push and pop operations.  E.g., translating the outer tag is
+         expressed as popping a single tag, and pushing a single tag.
+         802.1Q tags that are translated SHOULD preserve the PCP and
+         DEI fields unless if a different QoS behavior has been
+         specified.";
+      uses dot1q-tag-rewrite;
+    }
+  }
+  augment "/if:interfaces/if:interface/if-ext:encapsulation/"
+        + "if-ext:encaps-type" {
+    when "derived-from-or-self(../if:type,
+                               'ianaift:ethernetCsmacd') or
+          derived-from-or-self(../if:type,
+                               'ianaift:ieee8023adLag') or
+          derived-from-or-self(../if:type, 'ianaift:l2vlan') or
+          derived-from-or-self(../if:type,
+                               'if-ext:ethSubInterface')" {
+
+        description
+          "Applies only to Ethernet-like interfaces and
+           sub-interfaces.";
+    }
+
+    description
+      "Augment the generic interface encapsulation with flexible
+       match and rewrite for VLAN sub-interfaces.";
+
+    case flexible {
+      description
+        "Flexible encapsulation and rewrite";
+
+      container flexible {
+        description
+          "Flexible encapsulation allows for the matching of ranges
+           and sets of 802.1Q VLAN Tags and performing rewrite
+           operations on the VLAN tags.
+
+           The structure is also designed to be extended to allow for
+           matching/rewriting other fields within the L2 frame header
+           if required.";
+
+        container match {
+          description
+            "Flexibly classifies Ethernet frames to a sub-interface
+             (or interface) based on the L2 header fields.
+
+             Only frames matching the classification configured on a
+             sub-interface/interface are processed on that
+             sub-interface/interface.
+
+             Frames that do not match any sub-interface are processed
+             directly on the parent interface, if it is associated
+             with a forwarding instance, otherwise they are dropped.
+
+             If a frame could be classified to multiple
+             sub-interfaces then they get classified to the
+             sub-interface with the most specific match.  E.g.,
+             matching two VLAN tags in the frame is more specific
+             than matching the outermost VLAN tag, which is more
+             specific than the catch all 'default' match.";
+
+          uses flexible-match;
+        }
+
+        container rewrite {
+          if-feature "flexible-rewrites";
+
+          description
+            "L2 frame rewrite operations.
+
+             Rewrites allows for modifications to the L2 frame header
+             as it transits the interface/sub-interface.  Examples
+             include adding a VLAN tag, removing a VLAN tag, or
+             rewriting the VLAN Id carried in a VLAN tag.";
+
+          choice direction {
+            description
+              "Whether the rewrite policy is symmetrical or
+               asymmetrical.";
+
+            case symmetrical {
+              container symmetrical {
+                uses flexible-rewrite;
+
+                description
+                  "Symmetrical rewrite.  Expressed in the ingress
+                   direction, but the reverse operation is applied to
+                   egress traffic.
+
+                   E.g., if a tag is pushed on ingress traffic, then
+                   the reverse operation is a 'pop 1', that is
+                   performed on traffic egressing the interface, so
+                   a peer device sees a consistent L2 encapsulation
+                   for both ingress and egress traffic.";
+              }
+            }
+
+            case asymmetrical {
+              if-feature "asymmetric-rewrites";
+
+              description
+                "Asymmetrical rewrite.
+
+                 Rewrite operations may be specified in only a single
+                 direction, or different rewrite operations may be
+                 specified in each direction.";
+
+              container ingress {
+                uses flexible-rewrite;
+
+                description
+                  "A rewrite operation that only applies to ingress
+                   traffic.
+
+                   Ingress rewrite operations are performed before
+                   the frame is subsequently processed by the
+                   forwarding operation.";
+              }
+
+              container egress {
+                uses flexible-rewrite;
+
+                description
+                  "A rewrite operation that only applies to egress
+                   traffic.";
+              }
+            }
+          }
+        }
+
+        container local-traffic-default-encaps {
+          presence "A local traffic default encapsulation has been
+                    specified.";
+
+          description
+            "Specifies the 802.1Q VLAN tags to use by default for
+             locally sourced traffic from the interface.
+
+             Used for encapsulations that match a range of VLANs (or
+             'any'), where the source VLAN Ids are otherwise
+             ambiguous.";
+
+          container outer-tag {
+            must 'tag-type = "dot1q-types:s-vlan" or '
+               + 'tag-type = "dot1q-types:c-vlan"' {
+
+              error-message
+                "Only C-VLAN and S-VLAN tags can be matched.";
+
+              description
+                "For IEEE 802.1Q interoperability, only C-VLAN and
+                 S-VLAN tags can be matched.";
+            }
+
+            description
+              "The outermost (first) VLAN tag for locally sourced
+               traffic.";
+
+            uses dot1q-types:dot1q-tag-classifier-grouping;
+          }
+
+          container second-tag {
+            must
+              '../outer-tag/tag-type = "dot1q-types:s-vlan" and '
+            + 'tag-type = "dot1q-types:c-vlan"' {
+
+              error-message
+                "When specifying two tags, the outermost (first) tag
+                 must be specified and of S-VLAN type and the second
+                 outermost tag must be of C-VLAN tag type.";
+
+              description
+                "For IEEE 802.1Q interoperability, when specifying
+                 two tags, it is required that the outermost (first)
+                 tag exists and is an S-VLAN, and the second
+                 outermost tag is a C-VLAN.";
+            }
+
+            presence
+              "Indicates existence of a second outermost VLAN tag.";
+
+            description
+              "The second outermost VLAN tag for locally sourced
+               traffic.";
+
+            uses dot1q-types:dot1q-tag-classifier-grouping;
+          }
+        }
+      }
+    }
+  }
+}
