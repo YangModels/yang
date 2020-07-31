@@ -8,10 +8,10 @@
 
 ## XPaths Obsoleted
 
-- - native/network-clock/input-source-synce/controller
-- - native/network-clock/input-source-synce/controller/name
-- - native/network-clock/input-source-synce/controller/number
-- - native/network-clock/input-source-synce/controller/word
+- native/network-clock/input-source-synce/controller
+- native/network-clock/input-source-synce/controller/name
+- native/network-clock/input-source-synce/controller/number
+- native/network-clock/input-source-synce/controller/word
 
 ### Reason
 

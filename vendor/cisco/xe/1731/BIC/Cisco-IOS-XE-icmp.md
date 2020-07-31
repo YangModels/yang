@@ -20,7 +20,7 @@ Old node 'ip icmp rate-limit redirect' was invalid hence obsoleted.
 
 ## XPaths Modified
 
-- - native/ip/icmp/rate-limit/unreachable/time
+- native/ip/icmp/rate-limit/unreachable/time
 
 ### Description
 
