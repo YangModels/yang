@@ -24,7 +24,8 @@ platform_dir="vendor/cisco/xr"
 # NOTE: please just have the directories you are checking here
 to_check="711"
 
-debug=0
+debug=1
+
 checkDir () {
     if [ "$debug" -eq "1" ]; then
 	echo Checking yang files in $platform_dir/$1

@@ -17,7 +17,7 @@ to_check="7.0-3-I7-8 9.3-5"
 
 inc_path="."
 pyang_flags="--lax-quote-checks"
-debug="0"
+debug="1"
 
 checkDir () {
     if [ "$debug" -eq "1" ]; then

@@ -30,7 +30,7 @@ platform_dir="vendor/cisco/xe"
 to_check="cedge/1721 cedge/1721/MIBS 1721 1721/MIBS"
 
 inc_path="."
-debug=0
+debug=1
 
 checkDir () {
     if [ "$debug" -eq "1" ]; then
