@@ -43,10 +43,10 @@ checkDir () {
 	    printf "PYANG: Errors in $f\n"
 	    printf "$errors\n"
 	    exit_status="failed!"
-	    if [ "$debug" -eq "1" ]; then
-		printf "\n\n*** EARLY EXIT DUE TO ERROR ***\n\n"
-		exit 1
-	    fi
+	    # if [ "$debug" -eq "1" ]; then
+	    # 	printf "\n\n*** EARLY EXIT DUE TO ERROR ***\n\n"
+	    # 	exit 1
+	    # fi
 	fi
     done
     cd $cwd
