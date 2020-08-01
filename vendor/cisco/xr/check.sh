@@ -10,9 +10,22 @@
 # When a new set of models is committed for a version, the previous
 # should be removed.
 #
+# 2020-08-01 einarnn:
+#
+# Deprecating use of yanglint at least until Focal Fossa Ubuntu release
+# is out.
+#
+# Added note to maintainers to just have the release being checked in
+# in `to_check`.
+#
+#
 platform_dir="vendor/cisco/xr"
-to_check="623 632 642 651 652 653 662 663 701 702 711"
+
+# NOTE: please just have the directories you are checking here
+to_check="711"
+
 debug=0
+
 checkDir () {
     if [ "$debug" -eq "1" ]; then
 	echo Checking yang files in $platform_dir/$1
@@ -25,21 +38,15 @@ checkDir () {
 	if [ "$debug" -eq "1" ]; then
 	    echo Checking $f...
 	fi
-        errors=`yanglint $f 2>&1`
-        if [ "$?" -eq 1 ]; then
-	    if [ "$debug" -eq "1" ]; then
-		printf "YANGLINT: found errors in $f, secondary pyang check running...\n"
-	    fi
-	    errors=`pyang --lax-quote-checks $yanglint_flags $f 2>&1 | grep -v "warning:"`
-	    if [ ! -z "$errors" ]; then
-		printf "PYANG: Errors in $f\n"
-		printf "$errors\n"
-		exit_status="failed!"
-		if [ "$debug" -eq "1" ]; then
-		    printf "\n\n*** EARLY EXIT DUE TO ERROR ***\n\n"
-		    exit 1
-		fi
-	    fi
+	errors=`pyang --lax-quote-checks $yanglint_flags $f 2>&1 | grep -v "warning:"`
+	if [ ! -z "$errors" ]; then
+	    printf "PYANG: Errors in $f\n"
+	    printf "$errors\n"
+	    exit_status="failed!"
+	    # if [ "$debug" -eq "1" ]; then
+	    # 	printf "\n\n*** EARLY EXIT DUE TO ERROR ***\n\n"
+	    # 	exit 1
+	    # fi
 	fi
     done
     cd $cwd
