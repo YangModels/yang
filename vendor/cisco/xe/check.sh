@@ -10,6 +10,14 @@
 # release is added, the current first release (left to right) should
 # be removed.
 #
+# 2020-08-01 einarnn:
+#
+# Deprecating use of yanglint at least until Focal Fossa Ubuntu release
+# is out.
+#
+# Added note to maintainers to just have the release being checked in
+# in `to_check`.
+#
 # 2017-09-21 einarnn:
 #
 # 16.4.1 currently excluded because this release does not include all
@@ -17,7 +25,10 @@
 # ietf-routing draft without versioned imports.
 #
 platform_dir="vendor/cisco/xe"
-to_check="1691 1691/MIBS 1693 1693/MIBS 16101 16101/MIBS 16111 16111/MIBS 16121 16121/MIBS 1711 1711/MIBS cedge/1721 cedge/1721/MIBS 1721 1721/MIBS"
+
+# NOTE: please just have the directories you are checking here
+to_check="cedge/1721 cedge/1721/MIBS 1721 1721/MIBS"
+
 inc_path="."
 debug=0
 
@@ -42,22 +53,16 @@ checkDir () {
 	if [ "$debug" -eq "1" ]; then
 	    echo Checking $f...
 	fi
-        errors=`yanglint $yanglint_flags $f 2>&1`
-        if [ "$?" -eq 1 ]; then
-	    if [ "$debug" -eq "1" ]; then
-		printf "YANGLINT: found errors in $f, secondary pyang check running...\n"
-	    fi
-	    errors=`YANG_INSTALL="." pyang --lax-quote-checks $yanglint_flags $f 2>&1 | grep -v "warning:"`
-	    if [ ! -z "$errors" ]; then
-		printf "PYANG: Errors in $f\n"
-		printf "$errors\n"
-		exit_status="failed!"
-		if [ "$debug" -eq "1" ]; then
-		    printf "\n\n*** EARLY EXIT DUE TO ERROR ***\n\n"
-		    exit 1
-		fi
-	    fi
-        fi
+	errors=`YANG_INSTALL="." pyang --lax-quote-checks $yanglint_flags $f 2>&1 | grep -v "warning:"`
+	if [ ! -z "$errors" ]; then
+	    printf "PYANG: Errors in $f\n"
+	    printf "$errors\n"
+	    exit_status="failed!"
+	    # if [ "$debug" -eq "1" ]; then
+	    # 	printf "\n\n*** EARLY EXIT DUE TO ERROR ***\n\n"
+	    # 	exit 1
+	    # fi
+	fi
     done
     cd $cwd
     
