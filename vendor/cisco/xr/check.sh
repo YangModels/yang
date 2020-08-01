@@ -24,7 +24,7 @@ platform_dir="vendor/cisco/xr"
 # NOTE: please just have the directories you are checking here
 to_check="711"
 
-debug=1
+debug=0
 
 checkDir () {
     if [ "$debug" -eq "1" ]; then
