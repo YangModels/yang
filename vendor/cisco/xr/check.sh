@@ -10,8 +10,20 @@
 # When a new set of models is committed for a version, the previous
 # should be removed.
 #
+# 2020-08-01 einarnn:
+#
+# Deprecating use of yanglint at least until Focal Fossa Ubuntu release
+# is out.
+#
+# Added note to maintainers to just have the release being checked in
+# in `to_check`.
+#
+#
 platform_dir="vendor/cisco/xr"
+
+# NOTE: please just have the directories you are checking here
 to_check="711"
+
 debug=0
 checkDir () {
     if [ "$debug" -eq "1" ]; then
