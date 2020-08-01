@@ -11,7 +11,7 @@
 # should be removed.
 #
 platform_dir="vendor/cisco/xr"
-to_check="623 632 642 651 652 653 662 663 701 702 711"
+to_check="711"
 debug=0
 checkDir () {
     if [ "$debug" -eq "1" ]; then
@@ -25,20 +25,14 @@ checkDir () {
 	if [ "$debug" -eq "1" ]; then
 	    echo Checking $f...
 	fi
-        errors=`yanglint $f 2>&1`
-        if [ "$?" -eq 1 ]; then
+	errors=`pyang --lax-quote-checks $yanglint_flags $f 2>&1 | grep -v "warning:"`
+	if [ ! -z "$errors" ]; then
+	    printf "PYANG: Errors in $f\n"
+	    printf "$errors\n"
+	    exit_status="failed!"
 	    if [ "$debug" -eq "1" ]; then
-		printf "YANGLINT: found errors in $f, secondary pyang check running...\n"
-	    fi
-	    errors=`pyang --lax-quote-checks $yanglint_flags $f 2>&1 | grep -v "warning:"`
-	    if [ ! -z "$errors" ]; then
-		printf "PYANG: Errors in $f\n"
-		printf "$errors\n"
-		exit_status="failed!"
-		if [ "$debug" -eq "1" ]; then
-		    printf "\n\n*** EARLY EXIT DUE TO ERROR ***\n\n"
-		    exit 1
-		fi
+		printf "\n\n*** EARLY EXIT DUE TO ERROR ***\n\n"
+		exit 1
 	    fi
 	fi
     done
