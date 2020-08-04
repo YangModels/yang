@@ -27,7 +27,7 @@
 platform_dir="vendor/cisco/xe"
 
 # NOTE: please just have the directories you are checking here
-to_check="cedge/1721 cedge/1721/MIBS 1721 1721/MIBS"
+to_check="1731 1731/MIBS"
 
 inc_path="."
 debug=0
@@ -42,6 +42,7 @@ checkDir () {
     cd $1
     exit_status=""
     yanglint_flags=""
+    pyang_flags="--ignore-error=LEAFREF_IDENTIFIER_NOT_FOUND --ignore-error=STRICT_XPATH_FUNCTION"
     if [ `basename $PWD` == "MIBS" ]; then
         yanglint_flags="-p . -p .."
     else
@@ -53,7 +54,10 @@ checkDir () {
 	if [ "$debug" -eq "1" ]; then
 	    echo Checking $f...
 	fi
-	errors=`YANG_INSTALL="." pyang --lax-quote-checks $yanglint_flags $f 2>&1 | grep -v "warning:"`
+	errors=`YANG_INSTALL="." pyang --lax-quote-checks $yanglint_flags $pyang_flags $f 2>&1 | \
+	    grep -v "warning:" | \
+	    grep -v "takes 1-2 arguments but called with 0" | \
+            grep -v "takes 3-4 arguments but called with 2"`
 	if [ ! -z "$errors" ]; then
 	    printf "PYANG: Errors in $f\n"
 	    printf "$errors\n"
