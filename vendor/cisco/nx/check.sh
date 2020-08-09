@@ -11,7 +11,10 @@
 # be removed.
 #
 platform_dir="vendor/cisco/nx"
-to_check="7.0-3-I7-5 7.0-3-I7-7 9.3-3"
+
+# NOTE: please just have the directories you are checking here
+to_check="7.0-3-I7-8 9.3-5"
+
 inc_path="."
 pyang_flags="--lax-quote-checks"
 debug="0"
