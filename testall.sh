@@ -5,7 +5,9 @@
 #
 
 ./vendor/fujitsu/yang-validate.sh
-./vendor/cisco/check.sh
+./vendor/cisco/nx/check.sh
+./vendor/cisco/xr/check.sh
+./vendor/cisco/xe/check.sh
 ./standard/ietf/check.sh
 ./standard/bbf/check.sh
 ./experimental/ieee/check.sh
