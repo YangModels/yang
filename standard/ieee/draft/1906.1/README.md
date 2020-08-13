@@ -12,7 +12,7 @@ This folder implements a definition, terminology, conceptual model, and standard
 
 1. A good place to begin understanding the model is to review ieee1906-dot1-system.yang and note that it defines the main aspects of IEEE Standard 1906.1-2015.
 2. See the ieee1906-dot1-system files in the Examples folder to corresponding JSON and XML instance data as well as a ieee1906-dot1-system UML diagram.
-3. The IANA ieee19061nanocom identity in iana-if-type@2020-01-10.yang defines interfaces for Nanoscale and Molecular Communication.
+3. The IANA ieee19061nanocom identity in iana-if-type.yang (revision 2020-01-10) defines interfaces for Nanoscale and Molecular Communication.
 4. A complementary module, ieee1906-dot1-si-units.yang, defines the International System of Units. This is meant to be useful in scientific network applications such as nanoscale and quantum networks.
 5. Finally, ieee1906-dot1-math.yang and ieee1906-dot1-function.yang are YANG extensions to make real-time mathematics more amenable on network devices.
 
