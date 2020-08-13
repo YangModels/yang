@@ -8,7 +8,7 @@
 This folder implements a definition, terminology, conceptual model, and standard metrics for ad hoc network communication at the nanoscale are provided. Human-engineered networking is extended by the physical properties of nanoscale communication in ways beyond that defined in existing communication standards. These include in vivo, sub-cellular medical communication, smart materials and sensing at the molecular level, and the ability to operate in environments that would be too harsh for macroscale communication mechanisms to operate. 
 
 
-# How to start ?
+# How to start?
 
 1. A good place to begin understanding the model is to review ieee1906-dot1-system.yang and note that it defines the main aspects of IEEE Standard 1906.1-2015.
 2. See the ieee1906-dot1-system files in the Examples folder to corresponding JSON and XML instance data as well as a ieee1906-dot1-system UML diagram.
