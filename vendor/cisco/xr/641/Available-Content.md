@@ -1,7 +1,13 @@
-# README
-[README.md](README.md)
 # Cisco IOS XR Release 6.4.1 Models
-## Unified Models
+[README.md](README.md)  
+## Platform Capabilities
+[platform-metadata.json](platform-metadata.json)  
+[capabilities-asr9k-px.xml](capabilities-asr9k-px.xml)  
+[capabilities-asr9k-x64.xml](capabilities-asr9k-x64.xml)  
+[capabilities-hfr-px.xml](capabilities-hfr-px.xml)  
+[capabilities-ncs5k.xml](capabilities-ncs5k.xml)  
+[capabilities-ncs6k.xml](capabilities-ncs6k.xml)  
+[capabilities-xrv9k.xml](capabilities-xrv9k.xml)  
 ## Native Config Models
 [Cisco-IOS-XR-Ethernet-SPAN-cfg.yang](Cisco-IOS-XR-Ethernet-SPAN-cfg.yang)  
 [Cisco-IOS-XR-Ethernet-SPAN-subscriber-cfg.yang](Cisco-IOS-XR-Ethernet-SPAN-subscriber-cfg.yang)  
@@ -979,17 +985,9 @@
 [slice_control.yang](slice_control.yang)  
 [slice_control_types.yang](slice_control_types.yang)  
 [zen.yang](zen.yang)  
-## Other supporting files
-[platform-metadata.json](platform-metadata.json)  
-[capabilities-asr9k-px.xml](capabilities-asr9k-px.xml)  
-[capabilities-asr9k-x64.xml](capabilities-asr9k-x64.xml)  
-[capabilities-hfr-px.xml](capabilities-hfr-px.xml)  
-[capabilities-ncs5k.xml](capabilities-ncs5k.xml)  
-[capabilities-ncs6k.xml](capabilities-ncs6k.xml)  
-[capabilities-xrv9k.xml](capabilities-xrv9k.xml)  
 ## Inconsistent Models
 [asr9k-px](asr9k-px)  
-[asr9k-x64](asr9k-x64)  
-[hfr-px](hfr-px)  
 [ncs6k](ncs6k)  
 [xrv9k](xrv9k)  
+[asr9k-x64](asr9k-x64)  
+[hfr-px](hfr-px)  

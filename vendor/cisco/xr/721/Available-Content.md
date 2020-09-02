@@ -974,6 +974,7 @@
 [Cisco-IOS-XR-segment-routing-srv6-datatypes.yang](Cisco-IOS-XR-segment-routing-srv6-datatypes.yang)  
 [Cisco-IOS-XR-tty-management-datatypes.yang](Cisco-IOS-XR-tty-management-datatypes.yang)  
 [Cisco-IOS-XR-tunnel-gre-datatypes.yang](Cisco-IOS-XR-tunnel-gre-datatypes.yang)  
+[cisco-semver.yang](cisco-semver.yang)  
 ## Native Action Models
 [Cisco-IOS-XR-authenticated-variable-act.yang](Cisco-IOS-XR-authenticated-variable-act.yang)  
 [Cisco-IOS-XR-cfgmgr-rollback-act.yang](Cisco-IOS-XR-cfgmgr-rollback-act.yang)  
@@ -1301,7 +1302,6 @@
 [bh_cardmgr.yang](bh_cardmgr.yang)  
 [bh_esd.yang](bh_esd.yang)  
 [ccc.yang](ccc.yang)  
-[cisco-semver.yang](cisco-semver.yang)  
 [cisco-xr-ietf-netconf-acm-deviations.yang](cisco-xr-ietf-netconf-acm-deviations.yang)  
 [cisco-xr-ietf-netconf-monitoring-deviations.yang](cisco-xr-ietf-netconf-monitoring-deviations.yang)  
 [cisco-xr-ietf-yang-library-deviations.yang](cisco-xr-ietf-yang-library-deviations.yang)  

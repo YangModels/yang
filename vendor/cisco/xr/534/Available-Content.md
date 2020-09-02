@@ -1,7 +1,5 @@
-# README
-[README.md](README.md)
 # Cisco IOS XR Release 5.3.4 Models
-## Unified Models
+[README.md](README.md)  
 ## Native Config Models
 [Cisco-IOS-XR-cdp-cfg.yang](Cisco-IOS-XR-cdp-cfg.yang)  
 [Cisco-IOS-XR-config-mibs-cfg.yang](Cisco-IOS-XR-config-mibs-cfg.yang)  
@@ -114,13 +112,9 @@
 [Cisco-IOS-XR-ip-iarm-datatypes.yang](Cisco-IOS-XR-ip-iarm-datatypes.yang)  
 [Cisco-IOS-XR-ipv4-bgp-datatypes.yang](Cisco-IOS-XR-ipv4-bgp-datatypes.yang)  
 [Cisco-IOS-XR-tty-management-datatypes.yang](Cisco-IOS-XR-tty-management-datatypes.yang)  
-## Native Action Models
-## Admin Models
 ## IETF Models
 [ietf-inet-types.yang](ietf-inet-types.yang)  
 [ietf-yang-types.yang](ietf-yang-types.yang)  
-## openconfig Models
-## Tail-F Models
 ## Other supporting Models
 [bgp-multiprotocol.yang](bgp-multiprotocol.yang)  
 [bgp-operational.yang](bgp-operational.yang)  
@@ -132,5 +126,3 @@
 [cisco-xr-routing-policy-deviations.yang](cisco-xr-routing-policy-deviations.yang)  
 [policy-types.yang](policy-types.yang)  
 [routing-policy.yang](routing-policy.yang)  
-## Other supporting files
-## Inconsistent Models

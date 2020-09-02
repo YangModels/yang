@@ -1,7 +1,8 @@
-# README
-[README.md](README.md)
 # Cisco IOS XR Release 6.1.1 Models
-## Unified Models
+[README.md](README.md)  
+## Platform Capabilities
+[platform-metadata.json](platform-metadata.json)  
+[capabilities-asr9k-px.xml](capabilities-asr9k-px.xml)  
 ## Native Config Models
 [Cisco-IOS-XR-Ethernet-SPAN-cfg.yang](Cisco-IOS-XR-Ethernet-SPAN-cfg.yang)  
 [Cisco-IOS-XR-Ethernet-SPAN-subscriber-cfg.yang](Cisco-IOS-XR-Ethernet-SPAN-subscriber-cfg.yang)  
@@ -553,9 +554,6 @@
 [Cisco-IOS-XR-cfgmgr-rollback-act.yang](Cisco-IOS-XR-cfgmgr-rollback-act.yang)  
 [Cisco-IOS-XR-snmp-test-trap-act.yang](Cisco-IOS-XR-snmp-test-trap-act.yang)  
 [Cisco-IOS-XR-syslog-act.yang](Cisco-IOS-XR-syslog-act.yang)  
-## Admin Models
-## IETF Models
-## openconfig Models
 [cisco-xr-openconfig-bgp-deviations.yang](cisco-xr-openconfig-bgp-deviations.yang)  
 [cisco-xr-openconfig-bgp-policy-deviations.yang](cisco-xr-openconfig-bgp-policy-deviations.yang)  
 [cisco-xr-openconfig-if-aggregate-deviations.yang](cisco-xr-openconfig-if-aggregate-deviations.yang)  
@@ -565,17 +563,13 @@
 [cisco-xr-openconfig-mpls-deviations.yang](cisco-xr-openconfig-mpls-deviations.yang)  
 [cisco-xr-openconfig-telemetry-deviations.yang](cisco-xr-openconfig-telemetry-deviations.yang)  
 [cisco-xr-openconfig-vlan-deviations.yang](cisco-xr-openconfig-vlan-deviations.yang)  
-## Tail-F Models
 ## Other supporting Models
 [cisco-xr-ietf-interfaces-deviations.yang](cisco-xr-ietf-interfaces-deviations.yang)  
 [cisco-xr-netconf-monitoring-deviations.yang](cisco-xr-netconf-monitoring-deviations.yang)  
 [cisco-xr-routing-policy-deviations.yang](cisco-xr-routing-policy-deviations.yang)  
-## Other supporting files
-[platform-metadata.json](platform-metadata.json)  
-[capabilities-asr9k-px.xml](capabilities-asr9k-px.xml)  
 ## Inconsistent Models
-[Cisco-IOS-XR-aaa-locald-cfg.incompatible](Cisco-IOS-XR-aaa-locald-cfg.incompatible)  
-[Cisco-IOS-XR-crypto-macsec-mka-cfg.incompatible](Cisco-IOS-XR-crypto-macsec-mka-cfg.incompatible)  
 [Cisco-IOS-XR-infra-dumper-cfg.incompatible](Cisco-IOS-XR-infra-dumper-cfg.incompatible)  
-[Cisco-IOS-XR-ip-bfd-oper.incompatible](Cisco-IOS-XR-ip-bfd-oper.incompatible)  
+[Cisco-IOS-XR-crypto-macsec-mka-cfg.incompatible](Cisco-IOS-XR-crypto-macsec-mka-cfg.incompatible)  
+[Cisco-IOS-XR-aaa-locald-cfg.incompatible](Cisco-IOS-XR-aaa-locald-cfg.incompatible)  
 [Cisco-IOS-XR-qos-ma-bng-cfg.incompatible](Cisco-IOS-XR-qos-ma-bng-cfg.incompatible)  
+[Cisco-IOS-XR-ip-bfd-oper.incompatible](Cisco-IOS-XR-ip-bfd-oper.incompatible)  

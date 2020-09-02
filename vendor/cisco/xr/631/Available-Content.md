@@ -1,7 +1,16 @@
-# README
-[README.md](README.md)
 # Cisco IOS XR Release 6.3.1 Models
-## Unified Models
+[README.md](README.md)  
+## Platform Capabilities
+[platform-metadata.json](platform-metadata.json)  
+[capabilities-asr9k-px.xml](capabilities-asr9k-px.xml)  
+[capabilities-asr9k-x64.xml](capabilities-asr9k-x64.xml)  
+[capabilities-ncs1001.xml](capabilities-ncs1001.xml)  
+[capabilities-ncs1k.xml](capabilities-ncs1k.xml)  
+[capabilities-ncs5500.xml](capabilities-ncs5500.xml)  
+[capabilities-ncs5k.xml](capabilities-ncs5k.xml)  
+[capabilities-ncs6k.xml](capabilities-ncs6k.xml)  
+[capabilities-xrv9k.xml](capabilities-xrv9k.xml)  
+[capabilities-xrvr.xml](capabilities-xrvr.xml)  
 ## Native Config Models
 [Cisco-IOS-XR-Ethernet-SPAN-cfg.yang](Cisco-IOS-XR-Ethernet-SPAN-cfg.yang)  
 [Cisco-IOS-XR-Ethernet-SPAN-subscriber-cfg.yang](Cisco-IOS-XR-Ethernet-SPAN-subscriber-cfg.yang)  
@@ -758,7 +767,6 @@
 [Cisco-IOS-XR-sysmgr-act.yang](Cisco-IOS-XR-sysmgr-act.yang)  
 [Cisco-IOS-XR-traceroute-act.yang](Cisco-IOS-XR-traceroute-act.yang)  
 [Cisco-IOS-XR-upgrade-fpd-ng-act.yang](Cisco-IOS-XR-upgrade-fpd-ng-act.yang)  
-## Admin Models
 ## IETF Models
 [ietf-inet-types.yang](ietf-inet-types.yang)  
 [ietf-interfaces.yang](ietf-interfaces.yang)  
@@ -834,17 +842,6 @@
 [Cisco-IOS-XR-policy-repository-deviations.yang](Cisco-IOS-XR-policy-repository-deviations.yang)  
 [cisco-xr-ietf-netconf-monitoring-deviations.yang](cisco-xr-ietf-netconf-monitoring-deviations.yang)  
 [iana-if-type.yang](iana-if-type.yang)  
-## Other supporting files
-[platform-metadata.json](platform-metadata.json)  
-[capabilities-asr9k-px.xml](capabilities-asr9k-px.xml)  
-[capabilities-asr9k-x64.xml](capabilities-asr9k-x64.xml)  
-[capabilities-ncs1001.xml](capabilities-ncs1001.xml)  
-[capabilities-ncs1k.xml](capabilities-ncs1k.xml)  
-[capabilities-ncs5500.xml](capabilities-ncs5500.xml)  
-[capabilities-ncs5k.xml](capabilities-ncs5k.xml)  
-[capabilities-ncs6k.xml](capabilities-ncs6k.xml)  
-[capabilities-xrv9k.xml](capabilities-xrv9k.xml)  
-[capabilities-xrvr.xml](capabilities-xrvr.xml)  
 ## Inconsistent Models
 [Cisco-IOS-XR-aaa-locald-cfg.incompatible](Cisco-IOS-XR-aaa-locald-cfg.incompatible)  
 [Cisco-IOS-XR-plat-chas-invmgr-oper.incompatible](Cisco-IOS-XR-plat-chas-invmgr-oper.incompatible)  
