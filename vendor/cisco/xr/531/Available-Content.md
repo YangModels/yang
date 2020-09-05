@@ -1,7 +1,5 @@
-# README
-[README.md](README.md)
 # Cisco IOS XR Release 5.3.1 Models
-## Unified Models
+[README.md](README.md)  
 ## Native Config Models
 [Cisco-IOS-XR-cdp-cfg.yang](Cisco-IOS-XR-cdp-cfg.yang)  
 [Cisco-IOS-XR-config-mibs-cfg.yang](Cisco-IOS-XR-config-mibs-cfg.yang)  
@@ -104,11 +102,3 @@
 [Cisco-IOS-XR-infra-alarm-logger-datatypes.yang](Cisco-IOS-XR-infra-alarm-logger-datatypes.yang)  
 [Cisco-IOS-XR-ip-iarm-datatypes.yang](Cisco-IOS-XR-ip-iarm-datatypes.yang)  
 [Cisco-IOS-XR-tty-management-datatypes.yang](Cisco-IOS-XR-tty-management-datatypes.yang)  
-## Native Action Models
-## Admin Models
-## IETF Models
-## openconfig Models
-## Tail-F Models
-## Other supporting Models
-## Other supporting files
-## Inconsistent Models

@@ -1,7 +1,5 @@
-# README
-[README.md](README.md)
 # Cisco IOS XR Release 6.0.0 Models
-## Unified Models
+[README.md](README.md)  
 ## Native Config Models
 [Cisco-IOS-XR-Ethernet-SPAN-cfg.yang](Cisco-IOS-XR-Ethernet-SPAN-cfg.yang)  
 [Cisco-IOS-XR-Ethernet-SPAN-subscriber-cfg.yang](Cisco-IOS-XR-Ethernet-SPAN-subscriber-cfg.yang)  
@@ -391,14 +389,7 @@
 [Cisco-IOS-XR-mpls-ldp-oper-datatypes.yang](Cisco-IOS-XR-mpls-ldp-oper-datatypes.yang)  
 [Cisco-IOS-XR-mpls-te-datatypes.yang](Cisco-IOS-XR-mpls-te-datatypes.yang)  
 [Cisco-IOS-XR-tty-management-datatypes.yang](Cisco-IOS-XR-tty-management-datatypes.yang)  
-## Native Action Models
-## Admin Models
-## IETF Models
-## openconfig Models
-## Tail-F Models
 ## Other supporting Models
 [cisco-xr-bgp-deviations.yang](cisco-xr-bgp-deviations.yang)  
 [cisco-xr-bgp-policy-deviations.yang](cisco-xr-bgp-policy-deviations.yang)  
 [cisco-xr-routing-policy-deviations.yang](cisco-xr-routing-policy-deviations.yang)  
-## Other supporting files
-## Inconsistent Models
