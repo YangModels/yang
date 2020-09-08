@@ -48,7 +48,7 @@ module ietf-crypto-types {
      (RFC 8174) when, and only when, they appear in all
      capitals, as shown here.";
 
-  revision 2020-07-10 {
+  revision 2020-08-20 {
     description
       "Initial version";
     reference
@@ -89,6 +89,30 @@ module ietf-crypto-types {
        'generate-certificate-signing-request' action.";
   }
 
+  feature certificate-expiration-notification {
+    description
+      "Indicates that the server implements the
+       'certificate-expiration' notification.";
+  }
+
+  feature password-encryption {
+    description
+      "Indicates that the server supports password
+       encryption.";
+  }
+
+  feature symmetric-key-encryption {
+    description
+      "Indicates that the server supports password
+       encryption.";
+  }
+
+  feature private-key-encryption {
+    description
+      "Indicates that the server supports password
+       encryption.";
+  }
+
   /*************************************************/
   /*   Base Identities for Key Format Structures   */
   /*************************************************/
@@ -108,6 +132,7 @@ module ietf-crypto-types {
   /****************************************************/
   /*   Identities for Private Key Format Structures   */
   /****************************************************/
+
   identity rsa-private-key-format {
     base "private-key-format";
     description
@@ -179,7 +204,6 @@ module ietf-crypto-types {
     reference
       "RFC 4253: The Secure Shell (SSH) Transport Layer Protocol";
   }
-
   identity subject-public-key-info-format {
     base "public-key-format";
     description
@@ -227,7 +251,6 @@ module ietf-crypto-types {
          Canonical Encoding Rules (CER) and Distinguished
          Encoding Rules (DER).";
   }
-
   identity encrypted-one-symmetric-key-format {
     if-feature "encrypted-one-symmetric-key-format";
     base "symmetric-key-format";
@@ -439,6 +462,7 @@ module ietf-crypto-types {
     reference
       "RFC 5652: Cryptographic Message Syntax (CMS)";
   }
+
   /*********************************************************/
   /*   Typedefs for ASN.1 structures related to RFC 5280   */
   /*********************************************************/
@@ -518,9 +542,9 @@ module ietf-crypto-types {
          and Certificate Revocation List (CRL) Profile.";
   }
 
-  /**********************************************/
-  /*   Groupings for keys and/or certificates   */
-  /**********************************************/
+  /*****************/
+  /*   Groupings   */
+  /*****************/
 
   grouping encrypted-key-value-grouping {
     description
@@ -539,9 +563,46 @@ module ietf-crypto-types {
       must "../encrypted-by";
       mandatory true;
       description
-        "The key data, encrypted using the referenced symmetric
-         or asymmetric key.  The format of the encrypted value
-         is identicated by the associated key format identity.";
+        "The value, encrypted using the referenced symmetric
+         or asymmetric key.";
+    }
+  }
+
+  grouping password-grouping {
+    description
+      "A password that MAY be encrypted.";
+    choice password-type {
+      nacm:default-deny-write;
+      mandatory true;
+      description
+        "Choice between password types.";
+      case cleartext-password {
+        leaf cleartext-password {
+          nacm:default-deny-all;
+          type string;
+          description
+            "The cleartext value of the password.";
+        }
+      }
+      case encrypted-password {
+        if-feature password-encryption;
+        container encrypted-password {
+          description
+           "A container for the encrypted password value.  The
+            format of the 'encrypted-value' node is a CMS
+            EnvelopedData structure, per Section 8 in RFC 5652,
+            encoded using ASN.1 distinguished encoding rules
+            (DER), as specified in ITU-T X.690.";
+          reference
+            "RFC 5652: Cryptographic Message Syntax (CMS)
+             ITU-T X.690:
+               Information technology - ASN.1 encoding rules:
+               Specification of Basic Encoding Rules (BER),
+               Canonical Encoding Rules (CER) and Distinguished
+               Encoding Rules (DER).";
+          uses encrypted-key-value-grouping;
+        }
+      }
     }
   }
 
@@ -553,7 +614,10 @@ module ietf-crypto-types {
       type identityref {
         base symmetric-key-format;
       }
-      description "Identifies the symmetric key's format.";
+      description
+        "Identifies the symmetric key's format.  Implementations
+         SHOULD ensure that the incoming symmetric key value is
+         encoded in the specified format.";
     }
     choice key-type {
       nacm:default-deny-write;
@@ -580,10 +644,13 @@ module ietf-crypto-types {
         }
       }
       case encrypted-key {
+        if-feature symmetric-key-encryption;
         container encrypted-key {
           must "../key-format";
           description
-            "A container for the encrypted symmetric key value.";
+            "A container for the encrypted symmetric key value.
+             The interpretation of the 'encrypted-value' node
+             is via the 'key-format' node";
           uses encrypted-key-value-grouping;
         }
       }
@@ -599,7 +666,10 @@ module ietf-crypto-types {
         base public-key-format;
       }
       mandatory true;
-      description "Identifies the key's format.";
+      description
+        "Identifies the public key's format. Implementations SHOULD
+         ensure that the incoming public key value is encoded in the
+         specified format.";
     }
     leaf public-key {
       nacm:default-deny-write;
@@ -613,14 +683,18 @@ module ietf-crypto-types {
 
   grouping asymmetric-key-pair-grouping {
     description
-      "A private key and its associated public key.";
+      "A private key and its associated public key.  Implementations
+       SHOULD ensure that the two keys are a matching pair.";
     uses public-key-grouping;
     leaf private-key-format {
       nacm:default-deny-write;
       type identityref {
         base private-key-format;
       }
-      description "Identifies the key's format.";
+      description
+        "Identifies the private key's format.  Implementations SHOULD
+         ensure that the incoming private key value is encoded in the
+         specified format.";
     }
     choice private-key-type {
       nacm:default-deny-write;
@@ -647,11 +721,13 @@ module ietf-crypto-types {
         }
       }
       case encrypted-private-key {
+        if-feature private-key-encryption;
         container encrypted-private-key {
           must "../private-key-format";
           description
-           "A container for the encrypted asymmetric private
-             key value.";
+           "A container for the encrypted asymmetric private key
+            value.  The interpretation of the 'encrypted-value'
+            node is via the 'private-key-format' node";
           uses encrypted-key-value-grouping;
         }
       }
@@ -663,6 +739,7 @@ module ietf-crypto-types {
       "A notification for when a certificate is about to, or
       already has, expired.";
     notification certificate-expiration {
+      if-feature certificate-expiration-notification;
       description
         "A notification indicating that the configured certificate
          is either about to expire or has already expired.  When to
