@@ -39,6 +39,7 @@ module ietf-mpls {
 
      Editor:   Kamran Raza
                <mailto:skraza@cisco.com>
+
      Editor:   Rakesh Gandhi
                <mailto:rgandhi@cisco.com>
 
@@ -69,18 +70,11 @@ module ietf-mpls {
   // RFC Ed.: update the date below with the date of RFC publication
   // and remove this note.
 
-  revision 2020-08-17 {
+  revision 2020-10-15 {
     description
       "Initial revision.";
     reference
       "RFC XXXX: A YANG Data Model for base MPLS";
-  }
-
-  feature mpls {
-    description
-      "Indicates support for MPLS switching.";
-    reference
-      "RFC3031";
   }
 
   /* Identities */
@@ -91,9 +85,15 @@ module ietf-mpls {
       "This identity represents the MPLS address family.";
   }
 
+  identity mpls-unicast {
+    base mpls:mpls;
+    description
+      "This identity represents the MPLS unicast address family.";
+  }
+
   identity label-block-alloc-mode {
     description
-      "Base identity label-block allocation mode.";
+      "Base identity for label-block allocation mode.";
   }
 
   identity label-block-alloc-mode-manager {
@@ -146,17 +146,18 @@ module ietf-mpls {
 
   typedef nhlfe-role {
     type enumeration {
-      enum PRIMARY {
+      enum primary {
         description
-          "Next-hop acts as primary traffic carrying.";
+          "Next-hop acts as primary for carrying traffic.";
       }
-      enum BACKUP {
+      enum backup {
         description
           "Next-hop acts as backup.";
       }
-      enum PRIMARY_AND_BACKUP {
+      enum primary-and-backup {
         description
-          "Next-hop acts as primary and backup simultaneously.";
+          "Next-hop acts as primary and backup simultaneously
+           for carry traffic.";
       }
     }
     description
@@ -165,13 +166,19 @@ module ietf-mpls {
 
   grouping nhlfe-single-contents {
     description
-      "MPLS simple NHLFE contents.";
+      "A grouping that describes single Next Hop Label Forwarding
+       Entry (NHLFE) and its associated parameters as described in
+       the MPLS architecture. This grouping is specific to the case
+       when a single next-hop is associated with the route.";
     uses rt-types:mpls-label-stack;
   }
 
   grouping nhlfe-multiple-contents {
     description
-      "MPLS NHLFE contents.";
+      "A grouping that describes a set of NHLFE(s) and their
+       associated parameters as described in the MPLS architecture.
+       This grouping is used when multiple next-hops are associated
+       with the route.";
     leaf index {
       type string;
       description
@@ -187,9 +194,12 @@ module ietf-mpls {
          reference the backup next-hop entry in the NHLFE list.
          The value of this index has no semantic meaning
          other than for referencing the entry.";
+      reference
+        "RFC4090 and RFC5714";
     }
     leaf loadshare {
       type uint16;
+      default "1";
       description
         "This value is used to compute a loadshare to perform un-equal
          load balancing when multiple outgoing next-hop(s) are
@@ -210,28 +220,35 @@ module ietf-mpls {
   grouping interfaces-mpls {
     description
       "List of MPLS interfaces.";
-    list interface {
-      key "name";
+    container interfaces {
       description
-        "List of MPLS interfaces.";
-      leaf name {
-        type if:interface-ref;
+        "List of MPLS enabled interaces.";
+      list interface {
+        key "name";
         description
-          "The name of a configured MPLS interface.";
-      }
-      leaf enabled {
-        type boolean;
-        description
-          "'true' if mpls encapsulation is enabled on the interface.
-           'false' if mpls encapsulation is disabled on the interface.";
-      }
-      leaf maximum-labeled-packet {
-        type uint32;
-        units "octets";
-        description
-          "Maximum labeled packet size.";
-        reference
-          "RFC3032, section 3.2.";
+          "MPLS enabled interface entry.";
+        leaf name {
+          type if:interface-ref;
+          description
+            "A reference to the name of a interface in the system that
+             is to be enabled for MPLS.";
+        }
+        leaf mpls-enabled {
+          type boolean;
+          default "false";
+          description
+            "'true' if mpls encapsulation is enabled on the interface.
+             'false' if mpls encapsulation is disabled on the
+             interface.";
+        }
+        leaf maximum-labeled-packet {
+          type uint32;
+          units "octets";
+          description
+            "Maximum labeled packet size.";
+          reference
+            "RFC3032, section 3.2.";
+        }
       }
     }
   }
@@ -250,10 +267,10 @@ module ietf-mpls {
   grouping label-blocks {
     description
       "Label-block allocation grouping.";
-    container label-blocks {
+    container mpls-label-blocks {
       description
         "Label-block allocation container.";
-      list label-block {
+      list mpls-label-block {
         key "index";
         unique "start-label end-label";
         description
@@ -266,18 +283,20 @@ module ietf-mpls {
         }
         leaf start-label {
           type rt-types:mpls-label;
-          must '. >= ../end-label' {
-            error-message "The start-label must be less than or equal "
-                        + "to end-label";
+          must '. <= ../end-label' {
+            error-message
+              "The start-label must be less than or equal "
+            + "to end-label";
           }
           description
             "Label-block start.";
         }
         leaf end-label {
           type rt-types:mpls-label;
-          must '. <= ../start-label' {
-            error-message "The end-label must be greater than or equal "
-                        + "to start-label";
+          must '. >= ../start-label' {
+            error-message
+              "The end-label must be greater than or equal "
+            + "to start-label";
           }
           description
             "Label-block end.";
@@ -289,18 +308,10 @@ module ietf-mpls {
           description
             "Label-block allocation mode.";
         }
-        leaf free-labels-count {
-          when "derived-from-or-self(../block-allocation-mode, "
-             + "'mpls:label-block-alloc-mode-manager')";
-          type yang:counter32;
-          config false;
-          description
-            "Label-block free labels count.";
-        }
         leaf inuse-labels-count {
           when "derived-from-or-self(../block-allocation-mode, "
              + "'mpls:label-block-alloc-mode-manager')";
-          type yang:counter32;
+          type yang:gauge32;
           config false;
           description
             "Label-block inuse labels count.";
@@ -314,7 +325,7 @@ module ietf-mpls {
       "A grouping of native MPLS RIB properties.";
     leaf destination-prefix {
       type leafref {
-        path "../local-label";
+        path "../mpls-local-label";
       }
       description
         "MPLS destination prefix.";
@@ -325,19 +336,18 @@ module ietf-mpls {
         "A context associated with the native MPLS route.";
     }
   }
-
   grouping rib-active-route-mpls-input {
     description
       "A grouping applicable to native MPLS RIB 'active-route'
        RPC input augmentation.";
     leaf destination-address {
       type leafref {
-        path "../local-label";
+        path "../mpls-local-label";
       }
       description
         "MPLS native active route destination.";
     }
-    leaf local-label {
+    leaf mpls-local-label {
       type rt-types:mpls-label;
       description
         "MPLS local label.";
@@ -345,7 +355,6 @@ module ietf-mpls {
   }
 
   augment "/rt:routing" {
-    if-feature "mpls";
     description
       "MPLS augmentation.";
     container mpls {
@@ -362,7 +371,6 @@ module ietf-mpls {
   /* MPLS routes augmentation */
 
   augment "/rt:routing/rt:ribs/rt:rib/rt:routes/rt:route" {
-    if-feature "mpls";
     description
       "This augmentation is applicable to all MPLS routes.";
     leaf mpls-enabled {
@@ -371,14 +379,14 @@ module ietf-mpls {
       description
         "Indicates whether MPLS is enabled for this route.";
     }
-    leaf local-label {
+    leaf mpls-local-label {
       when "../mpls-enabled = 'true'";
       type rt-types:mpls-label;
       description
         "MPLS local label associated with the route.";
     }
     uses rib-mpls-properties {
-      /* MPLS AF aaugmentation to native MPLS RIB */
+      /* MPLS AF augmentation to native MPLS RIB */
       when "derived-from-or-self(../../rt:address-family, "
          + "'mpls:mpls')" {
         description
@@ -421,7 +429,7 @@ module ietf-mpls {
       "Input MPLS augmentation for the 'active-route' action
        statement.";
     uses rib-active-route-mpls-input {
-      /* MPLS AF aaugmentation to native MPLS RIB */
+      /* MPLS AF augmentation to native MPLS RIB */
       when "derived-from-or-self(../rt:address-family, "
          + "'mpls:mpls')" {
         description
