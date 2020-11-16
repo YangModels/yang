@@ -24,7 +24,7 @@ module ietf-l2-topology {
       "RFC 6991:Common YANG Data Types";
   }
   import iana-if-type {
-    prefix ift;
+    prefix ianaift;
     reference
       "RFC 7224: IANA Interface Type YANG Module";
   }
@@ -109,7 +109,7 @@ module ietf-l2-topology {
   }
 
   identity eth-encapsulation-type {
-    base ift:iana-interface-type;
+    base ianaift:iana-interface-type;
     description
       "Base identity from which specific Ethernet
        encapsulation types are derived.";
@@ -164,35 +164,6 @@ module ietf-l2-topology {
        Networks over Layer 3 Networks";
   }
 
-  identity tp-state-type {
-    description
-      "Base type for termination point state.";
-  }
-
-  identity inuse {
-    base tp-state-type;
-    description
-      "The termination point is in forwarding state.";
-  }
-
-  identity blocking {
-    base tp-state-type;
-    description
-      "The termination point is in blocking state.";
-  }
-
-  identity down {
-    base tp-state-type;
-    description
-      "The termination point is in down state.";
-  }
-
-  identity unknown {
-    base tp-state-type;
-    description
-      "The termination point is in unknown state.";
-  }
-
   typedef vni {
     type uint32 {
       range "0..16777215";
@@ -205,8 +176,8 @@ module ietf-l2-topology {
        The use of value '0' is implementation-specific.";
     reference
       "RFC 7348: Virtual eXtensible Local Area  Network (VXLAN):
-                 A Framework for Overlaying Virtualized Layer 2
-                 Networks over Layer 3 Networks";
+       A Framework for Overlaying Virtualized Layer 2
+       Networks over Layer 3 Networks";
   }
 
   typedef l2-flag-type {
@@ -280,11 +251,11 @@ module ietf-l2-topology {
   grouping l2-network-type {
     description
       "Indicates the topology type to be L2.";
-    container l2-network {
-      presence "Indicates L2 Network";
+    container l2-topology {
+      presence "Indicates L2 Network Topology.";
       description
         "The presence of the container node indicates
-         L2 Topology.";
+         L2 Network Topology.";
     }
   }
 
@@ -318,36 +289,44 @@ module ietf-l2-topology {
         description
           "Node name.";
       }
-      leaf description {
-        type string;
-        description
-          "Node description.";
-      }
-      leaf-list management-address {
-        type inet:ip-address;
-        description
-          "IP address used for
-           management purpose.";
-      }
-      leaf sys-mac-address {
-        type yang:mac-address;
-        description
-          "MAC address used to identify layer 2 node.
-           This MAC address can be used as interface
-           MAC address.";
-      }
-      leaf management-vlan-id {
-        if-feature "VLAN";
-        type dot1q-types:vlanid;
-        description
-          "VLAN ID used for management
-           purpose.";
-      }
       leaf-list flags {
         type node-flag-type;
         description
           "Node flags. It can be used to indicates
            node flag attributes.";
+      }
+      leaf-list bridge-id {
+        type string {
+         pattern '[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){7}';
+        }
+        description
+          "This is the bridge identifier represented as
+           hexadecimal 8 octet string.  It has 4 bits of
+           priority, 12 bits of MSTI-ID and the base bridge
+           identifier. There may be multiple one for each
+           spanning tree instance.";
+        reference
+          "RFC 7727: Spanning Tree Protocol (STP) Application of
+          the Inter-Chassis Communication Protocol (ICCP)";
+      }
+      leaf-list management-address {
+        type inet:ip-address;
+        description
+          "IP address used for management purpose.";
+      }
+      leaf management-mac {
+        type yang:mac-address;
+        description
+          "This is a MAC address used the bridge management.
+           It can be the Bridge Base VID, interface
+           MAC address or other. ";
+      }
+      leaf management-vlan {
+        type string;
+        description
+          "This is a VLAN that supports the Management address.
+           The actual VLAN ID type and value would be a member of
+           this VLAN.";
       }
     }
   }
@@ -384,6 +363,18 @@ module ietf-l2-topology {
           "Unidirectional Link delay in
            microseconds.";
       }
+      leaf auto-nego {
+        type boolean;
+        default "true";
+        description
+          "Set to true if auto negotiation is supported.
+           Set to false if auto negotiation is not supported.";
+      }
+      leaf duplex {
+        type duplex-mode;
+        description
+          "Expose the duplex mode, full duplex or half-duplex.";
+      }
     }
   }
 
@@ -393,166 +384,108 @@ module ietf-l2-topology {
     container l2-termination-point-attributes {
       description
         "Containing L2 termination point attributes.";
-      leaf description {
+      leaf interface-name {
         type string;
         description
-          "L2 termination point description. It also
-           can be seen as port description.";
+          "Name of the interface.  The name can (but does not
+           have to) correspond to an interface reference of a
+           containing node's interface, i.e., the path name of a
+           corresponding interface data node on the containing
+           node reminiscent of data type interface-ref defined
+           in RFC 8343. It should be noted that data type
+           interface-ref of RFC 8343 cannot be used directly,
+           as this data type is used to reference an interface
+           in a datastore of a single node in the network, not
+           to uniquely reference interfaces across a network.";
       }
-      leaf maximum-frame-size {
+      leaf mac-address {
+        type yang:mac-address;
+        description
+          "Interface MAC address for logical link control.";
+      }
+      leaf-list port-number {
         type uint32;
         description
-          "Maximum L2 frame size that can be transported on
-           the data link layer, e.g. Ethernet frame.
-           If L2 frame is an Ethernet frame, the maximum frame size
-           should include Frame Check Sequence(FCS) and should not
-           include preamble,Start Frame Delimiter and Inter frame
-           gap.";
+          " List of port numbers of the Bridge ports for which each
+            entry contains Bridge management information.";
       }
-      choice l2-termination-point-type {
+      leaf-list unnumbered-id {
+        type uint32;
         description
-          "Indicates termination-point type
-           specific attributes.";
-        case ethernet {
-          leaf mac-address {
-            type yang:mac-address;
-            description
-              "Interface MAC address.";
-          }
-          leaf eth-encapsulation {
-            type identityref {
-              base eth-encapsulation-type;
-            }
-            description
-              "Encapsulation type of this
-               termination point.";
-          }
-          leaf lag {
-            type boolean;
-            default "false";
-            description
-              "Defines whether lag is enabled or disabled.
-               When it is set to true, the lag is enabled.";
-          }
-          leaf-list member-link-tp {
-            when "../lag = 'true'" {
-              description
-                "Relevant only when the lag interface is enabled.";
-            }
-            type leafref {
-              path "/nw:networks/nw:network/nw:node/nt:termination-point/nt:tp-id";
-            }
-            description
-              "Member link termination points.";
-          }
-          leaf auto-nego {
-            type boolean;
-            default "true";
-            description
-              "Set to true if auto negotiation is supported.
-               Set to false if auto negotiation is not supported.";
-          }
-          leaf duplex {
-            type duplex-mode;
-            description
-              "Expose the duplex mode, full duplex or half-duplex.";
-          }
-          leaf default-untagged-vlan {
-            when "derived-from-or-self(../eth-encapsulation, 'l2t:vlan')" {
-              description
-                "Only applies when the type of the Ethernet
-                 encapsulation is 'vlan'.";
-            }
-            if-feature "VLAN";
-            type dot1q-types:vlanid;
-            description
-              "Port VLAN ID is the VLAN identifier that
-               will be assigned to any untagged frames entering
-               the switch on the specific port.";
-          }
-          list vlans {
-            when "derived-from-or-self(../eth-encapsulation, 'l2t:vlan')" {
-              description
-                "Only applies when the type of the Ethernet
-                 encapsulation is 'vlan'.";
-            }
-            if-feature "VLAN";
-            key "vlan-id";
-            description
-              "Interface configured VLANs.";
-            leaf vlan-id {
-              type dot1q-types:vlanid;
-              description
-                "VLAN ID.";
-            }
-            leaf name {
-              type string {
-                length "1..31";
-              }
-              description
-                "VLAN name.";
-            }
-          }
-          list qinq {
-            when "derived-from-or-self(../eth-encapsulation, 'l2t:qinq')" {
-              description
-                "Only applies when the type of the Ethernet
-                 encapsulation is 'qinq'.";
-            }
-            if-feature "QinQ";
-            key "svlan-id cvlan-id";
-            description
-              "Interface configured SVLANs and CVLANs.";
-            leaf svlan-id {
-              type dot1q-types:vlanid;
-              description
-                "Service VLAN ID.";
-            }
-            leaf cvlan-id {
-              type dot1q-types:vlanid;
-              description
-                "Customer VLAN ID.";
-            }
-          }
-          container vxlan {
-            when "derived-from-or-self(../eth-encapsulation, 'l2t:vxlan')" {
-              description
-                "Only applies when the type of the Ethernet
-                 encapsulation is 'vxlan'.";
-            }
-            if-feature "VXLAN";
-            leaf vni-id {
-              type vni;
-              description
-                "VXLAN Network Identifier (VNI).";
-            }
-            description
-              "Vxlan encapsulation type.";
-          }
-        }
-        case legacy {
-          leaf layer-2-address {
-            type yang:phys-address;
-            description
-              "Interface Layer 2 address.";
-          }
-          leaf encapsulation {
-            type identityref {
-              base ift:iana-interface-type;
-            }
-            description
-              "Other legacy encapsulation type of this
-               termination point.";
-          }
-        }
+          "List of unnumbered interface identifiers.
+           The unnumbered interface identifier will correspond to
+           the ifIndex value of the interface, i.e., the ifIndex value
+           of the ifEntry that represents the interface in
+           implementations where the Interfaces Group MIB
+           (RFC 2863) is supported.";
       }
-      leaf tp-state {
+      leaf encapsulation-type {
         type identityref {
-          base tp-state-type;
+          base eth-encapsulation-type;
         }
-        config false;
         description
-          "State of the termination point.";
+          "Encapsulation type of this
+                 termination point.";
+      }
+      leaf outer-tag {
+        if-feature "VLAN";
+        type dot1q-types:vid-range-type;
+        description
+          "The outermost VLAN tag. It may include a list of VLAN
+           Ids, or non overlapping VLAN ranges.";
+      }
+      leaf outer-tpid {
+        if-feature "QinQ";
+        type dot1q-types:dot1q-tag-type;
+        description
+          "Identifies a specific 802.1Q tag type of outermost VLAN tag.";
+      }
+      leaf inner-tag {
+        if-feature "VLAN";
+        type dot1q-types:vid-range-type;
+        description
+          "The inner VLAN tag. It may include a list of VLAN
+           Ids, or non overlapping VLAN ranges.";
+      }
+      leaf inner-tpid {
+        if-feature "QinQ";
+        type dot1q-types:dot1q-tag-type;
+        description
+          "Identifies a specific 802.1Q tag type of inner VLAN tag.";
+      }
+      leaf lag {
+        type boolean;
+        default "false";
+        description
+          "Defines whether lag is supported or not.
+           When it is set to true, the lag is supported.";
+      }
+      leaf-list member-link-tp {
+        when "../lag = 'true'" {
+          description
+            "Relevant only when the lag interface is supported.";
+        }
+        type leafref {
+          path "/nw:networks/nw:network/nw:node/nt:termination-point/nt:tp-id";
+        }
+        description
+          "List of member link termination points associated with
+          specific l2 termination point.";
+      }
+      container vxlan {
+        when "derived-from-or-self(../encapsulation-type, 'l2t:vxlan')" {
+          description
+            "Only applies when the type of the Ethernet
+             encapsulation is 'vxlan'.";
+        }
+        if-feature "VXLAN";
+        leaf vni-id {
+          type vni;
+          description
+            "VXLAN Network Identifier (VNI).";
+        }
+        description
+          "Vxlan encapsulation type.";
       }
     }
   }
@@ -563,7 +496,7 @@ module ietf-l2-topology {
     uses l2-network-type;
   }
   augment "/nw:networks/nw:network" {
-    when '/nw:networks/nw:network/nw:network-types/l2t:l2-network' {
+    when '/nw:networks/nw:network/nw:network-types/l2t:l2-topology' {
       description
         "Augmentation parameters apply only for networks
          with L2 topology.";
@@ -574,7 +507,7 @@ module ietf-l2-topology {
     uses l2-topology-attributes;
   }
   augment "/nw:networks/nw:network/nw:node" {
-    when '/nw:networks/nw:network/nw:network-types/l2t:l2-network' {
+    when '/nw:networks/nw:network/nw:network-types/l2t:l2-topology' {
       description
         "Augmentation parameters apply only for networks
          with L2 topology.";
@@ -585,7 +518,7 @@ module ietf-l2-topology {
     uses l2-node-attributes;
   }
   augment "/nw:networks/nw:network/nt:link" {
-    when '/nw:networks/nw:network/nw:network-types/l2t:l2-network' {
+    when '/nw:networks/nw:network/nw:network-types/l2t:l2-topology' {
       description
         "Augmentation parameters apply only for networks
          with L2 topology.";
@@ -595,7 +528,7 @@ module ietf-l2-topology {
     uses l2-link-attributes;
   }
   augment "/nw:networks/nw:network/nw:node/nt:termination-point" {
-    when '/nw:networks/nw:network/nw:network-types/l2t:l2-network' {
+    when '/nw:networks/nw:network/nw:network-types/l2t:l2-topology' {
       description
         "Augmentation parameters apply only for networks
          with L2 topology.";
