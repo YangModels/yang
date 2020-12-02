@@ -4,11 +4,12 @@
 # all standard modules are on its internal module path.
 #
 ietf_dir="standard/ietf"
+ieee_dir="standard/ieee"
 to_check="RFC"
 
 # relax constraint for now
 # add --ietf if you want to do strict IETF checking
-pyang_flags="--verbose"
+pyang_flags="--verbose --path $ieee_dir/published/"
 
 checkDir () {
     local dir="$ietf_dir/$1"
@@ -38,4 +39,3 @@ printf "\n    pyang $pyang_flags MODULE\n\n"
 for d in $to_check; do
     checkDir $d
 done
-
