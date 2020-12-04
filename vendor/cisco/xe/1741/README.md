@@ -50,13 +50,13 @@ listed below. As model content may differ based on platform capabilities, sample
 
 #### Native Models Added
 
-* Cisco-IOS-XE-geo.yang
-* Cisco-IOS-XE-isis-oper.yang
-* Cisco-IOS-XE-stack-member-oper.yang
+* Cisco-IOS-XE-geo.yang
+* Cisco-IOS-XE-isis-oper.yang
+* Cisco-IOS-XE-stack-member-oper.yang
 * Cisco-IOS-XE-app-hosting.yang
-* Cisco-IOS-XE-ethinternal-subslot.yang
-* Cisco-IOS-XE-hsrp-events.yang
-* Cisco-IOS-XE-hsrp-oper.yang
+* Cisco-IOS-XE-ethinternal-subslot.yang
+* Cisco-IOS-XE-hsrp-events.yang
+* Cisco-IOS-XE-hsrp-oper.yang
 * Cisco-IOS-XE-wireless-rrm-rpc.yang
 
 #### Other Models Added
@@ -203,7 +203,6 @@ listed below. As model content may differ based on platform capabilities, sample
 * Cisco-IOS-XE-wireless-wlan-cfg.yang 
 * Cisco-IOS-XE-zone.yang
 
-
 #### Other Models Modified
 
 * cisco-ia.yang 
@@ -225,7 +224,6 @@ listed below. As model content may differ based on platform capabilities, sample
 * Cisco-IOS-XE-wireless-radio-cfg.yang
 
 These experimental YANG models are in the early status of design and are likely to change
-
 
 ### Backward Incompatible Changes
 
