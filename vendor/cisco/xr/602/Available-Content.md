@@ -1,7 +1,5 @@
-# README
-[README.md](README.md)
 # Cisco IOS XR Release 6.0.2 Models
-## Unified Models
+[README.md](README.md)  
 ## Native Config Models
 [Cisco-IOS-XR-Ethernet-SPAN-cfg.yang](Cisco-IOS-XR-Ethernet-SPAN-cfg.yang)  
 [Cisco-IOS-XR-Ethernet-SPAN-subscriber-cfg.yang](Cisco-IOS-XR-Ethernet-SPAN-subscriber-cfg.yang)  
@@ -438,8 +436,6 @@
 [Cisco-IOS-XR-mpls-ldp-oper-datatypes.yang](Cisco-IOS-XR-mpls-ldp-oper-datatypes.yang)  
 [Cisco-IOS-XR-mpls-te-datatypes.yang](Cisco-IOS-XR-mpls-te-datatypes.yang)  
 [Cisco-IOS-XR-tty-management-datatypes.yang](Cisco-IOS-XR-tty-management-datatypes.yang)  
-## Native Action Models
-## Admin Models
 ## IETF Models
 [ietf-inet-types.yang](ietf-inet-types.yang)  
 [ietf-interfaces.yang](ietf-interfaces.yang)  
@@ -458,7 +454,6 @@
 [openconfig-mpls-types.yang](openconfig-mpls-types.yang)  
 [openconfig-mpls.yang](openconfig-mpls.yang)  
 [openconfig-types.yang](openconfig-types.yang)  
-## Tail-F Models
 ## Other supporting Models
 [bgp-multiprotocol.yang](bgp-multiprotocol.yang)  
 [bgp-operational.yang](bgp-operational.yang)  
@@ -477,5 +472,3 @@
 [iana-if-type.yang](iana-if-type.yang)  
 [policy-types.yang](policy-types.yang)  
 [routing-policy.yang](routing-policy.yang)  
-## Other supporting files
-## Inconsistent Models

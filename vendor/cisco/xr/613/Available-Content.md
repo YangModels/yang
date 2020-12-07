@@ -1,7 +1,9 @@
-# README
-[README.md](README.md)
 # Cisco IOS XR Release 6.1.3 Models
-## Unified Models
+[README.md](README.md)  
+## Platform Capabilities
+[platform-metadata.json](platform-metadata.json)  
+[capabilities-asr9k-px.xml](capabilities-asr9k-px.xml)  
+[capabilities-ncs-5500.xml](capabilities-ncs-5500.xml)  
 ## Native Config Models
 [Cisco-IOS-XR-Ethernet-SPAN-cfg.yang](Cisco-IOS-XR-Ethernet-SPAN-cfg.yang)  
 [Cisco-IOS-XR-Ethernet-SPAN-subscriber-cfg.yang](Cisco-IOS-XR-Ethernet-SPAN-subscriber-cfg.yang)  
@@ -582,7 +584,6 @@
 [Cisco-IOS-XR-cfgmgr-rollback-act.yang](Cisco-IOS-XR-cfgmgr-rollback-act.yang)  
 [Cisco-IOS-XR-snmp-test-trap-act.yang](Cisco-IOS-XR-snmp-test-trap-act.yang)  
 [Cisco-IOS-XR-syslog-act.yang](Cisco-IOS-XR-syslog-act.yang)  
-## Admin Models
 ## IETF Models
 [ietf-inet-types.yang](ietf-inet-types.yang)  
 [ietf-interfaces.yang](ietf-interfaces.yang)  
@@ -622,21 +623,16 @@
 [cisco-xr-openconfig-mpls-deviations.yang](cisco-xr-openconfig-mpls-deviations.yang)  
 [cisco-xr-openconfig-telemetry-deviations.yang](cisco-xr-openconfig-telemetry-deviations.yang)  
 [cisco-xr-openconfig-vlan-deviations.yang](cisco-xr-openconfig-vlan-deviations.yang)  
-## Tail-F Models
 ## Other supporting Models
 [Cisco-IOS-XR-ip-bfd-oper-sub1-deviations.yang](Cisco-IOS-XR-ip-bfd-oper-sub1-deviations.yang)  
 [Cisco-IOS-XR-policy-repository-deviations.yang](Cisco-IOS-XR-policy-repository-deviations.yang)  
 [cisco-xr-ietf-netconf-monitoring-deviations.yang](cisco-xr-ietf-netconf-monitoring-deviations.yang)  
 [cisco-xr-routing-policy-deviations.yang](cisco-xr-routing-policy-deviations.yang)  
 [iana-if-type.yang](iana-if-type.yang)  
-## Other supporting files
-[platform-metadata.json](platform-metadata.json)  
-[capabilities-asr9k-px.xml](capabilities-asr9k-px.xml)  
-[capabilities-ncs-5500.xml](capabilities-ncs-5500.xml)  
 ## Inconsistent Models
-[Cisco-IOS-XR-aaa-locald-cfg.incompatible](Cisco-IOS-XR-aaa-locald-cfg.incompatible)  
 [Cisco-IOS-XR-ip-iarm-v4-oper-sub1.incompatible](Cisco-IOS-XR-ip-iarm-v4-oper-sub1.incompatible)  
-[Cisco-IOS-XR-ip-iarm-v6-oper-sub1.incompatible](Cisco-IOS-XR-ip-iarm-v6-oper-sub1.incompatible)  
 [Cisco-IOS-XR-ip-sbfd-oper-sub1.incompatible](Cisco-IOS-XR-ip-sbfd-oper-sub1.incompatible)  
+[Cisco-IOS-XR-aaa-locald-cfg.incompatible](Cisco-IOS-XR-aaa-locald-cfg.incompatible)  
 [Cisco-IOS-XR-plat-chas-invmgr-oper.incompatible](Cisco-IOS-XR-plat-chas-invmgr-oper.incompatible)  
 [Cisco-IOS-XR-wdsysmon-fd-oper-sub1.incompatible](Cisco-IOS-XR-wdsysmon-fd-oper-sub1.incompatible)  
+[Cisco-IOS-XR-ip-iarm-v6-oper-sub1.incompatible](Cisco-IOS-XR-ip-iarm-v6-oper-sub1.incompatible)  

@@ -1,6 +1,18 @@
-# README
-[README.md](README.md)
 # Cisco IOS XR Release 7.0.1 Models
+[README.md](README.md)  
+## Platform Capabilities
+[platform-metadata.json](platform-metadata.json)  
+[capabilities-asr9k-x64.xml](capabilities-asr9k-x64.xml)  
+[capabilities-ncs1001.xml](capabilities-ncs1001.xml)  
+[capabilities-ncs1004.xml](capabilities-ncs1004.xml)  
+[capabilities-ncs1k.xml](capabilities-ncs1k.xml)  
+[capabilities-ncs540.xml](capabilities-ncs540.xml)  
+[capabilities-ncs540l.xml](capabilities-ncs540l.xml)  
+[capabilities-ncs5500.xml](capabilities-ncs5500.xml)  
+[capabilities-ncs560.xml](capabilities-ncs560.xml)  
+[capabilities-ncs5k.xml](capabilities-ncs5k.xml)  
+[capabilities-ncs6k.xml](capabilities-ncs6k.xml)  
+[capabilities-xrv9k.xml](capabilities-xrv9k.xml)  
 ## Unified Models
 [Cisco-IOS-XR-um-arp-cfg.yang](Cisco-IOS-XR-um-arp-cfg.yang)  
 [Cisco-IOS-XR-um-grpc-cfg.yang](Cisco-IOS-XR-um-grpc-cfg.yang)  
@@ -894,6 +906,7 @@
 [Cisco-IOS-XR-segment-routing-srv6-datatypes.yang](Cisco-IOS-XR-segment-routing-srv6-datatypes.yang)  
 [Cisco-IOS-XR-tty-management-datatypes.yang](Cisco-IOS-XR-tty-management-datatypes.yang)  
 [Cisco-IOS-XR-tunnel-gre-datatypes.yang](Cisco-IOS-XR-tunnel-gre-datatypes.yang)  
+[cisco-semver.yang](cisco-semver.yang)  
 ## Native Action Models
 [Cisco-IOS-XR-authenticated-variable-act.yang](Cisco-IOS-XR-authenticated-variable-act.yang)  
 [Cisco-IOS-XR-cfgmgr-rollback-act.yang](Cisco-IOS-XR-cfgmgr-rollback-act.yang)  
@@ -1205,7 +1218,6 @@
 [bh_esd.yang](bh_esd.yang)  
 [canb_cli_clear.yang](canb_cli_clear.yang)  
 [ccc.yang](ccc.yang)  
-[cisco-semver.yang](cisco-semver.yang)  
 [cisco-xr-ietf-netconf-acm-deviations.yang](cisco-xr-ietf-netconf-acm-deviations.yang)  
 [cisco-xr-ietf-netconf-monitoring-deviations.yang](cisco-xr-ietf-netconf-monitoring-deviations.yang)  
 [control_driver.yang](control_driver.yang)  
@@ -1238,19 +1250,6 @@
 [valtest.yang](valtest.yang)  
 [vplatform.yang](vplatform.yang)  
 [zen.yang](zen.yang)  
-## Other supporting files
-[platform-metadata.json](platform-metadata.json)  
-[capabilities-asr9k-x64.xml](capabilities-asr9k-x64.xml)  
-[capabilities-ncs1001.xml](capabilities-ncs1001.xml)  
-[capabilities-ncs1004.xml](capabilities-ncs1004.xml)  
-[capabilities-ncs1k.xml](capabilities-ncs1k.xml)  
-[capabilities-ncs540.xml](capabilities-ncs540.xml)  
-[capabilities-ncs540l.xml](capabilities-ncs540l.xml)  
-[capabilities-ncs5500.xml](capabilities-ncs5500.xml)  
-[capabilities-ncs560.xml](capabilities-ncs560.xml)  
-[capabilities-ncs5k.xml](capabilities-ncs5k.xml)  
-[capabilities-ncs6k.xml](capabilities-ncs6k.xml)  
-[capabilities-xrv9k.xml](capabilities-xrv9k.xml)  
 ## Inconsistent Models
 [ncs540l](ncs540l)  
 [xrv9k](xrv9k)  

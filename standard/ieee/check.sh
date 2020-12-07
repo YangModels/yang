@@ -5,12 +5,7 @@
 # Also assumes that the script is run from the root of the yang master.
 #
 ieee_dir="standard/ieee"
-to_check="draft/802 draft/802.1 draft/802.1/ABcu draft/802.1/CBcv draft/802.1/Qcr draft/802.1/Qcw draft/802.1/Qcx draft/802.1/Qcz draft/802.1/x draft/802.3 draft/1906.1 published/802 published/802.1"
-
-# relax constraint for now
-# add --ietf if you want to do strict IETF checking
-#pyang_flags="--verbose --canonical --max-identifier-length 70 ../../../ietf/RFC/ -p ../../draft/"
-
+to_check="draft/802 draft/802.1 draft/802.1/ABcu draft/802.1/CBcv draft/802.1/CBdb draft/802.1/Qcr draft/802.1/Qcw draft/802.1/Qcx draft/802.1/Qcz draft/802.1/x draft/802.3 draft/1906.1 published/802 published/802.1"
 
 checkDir () 
 {
@@ -18,7 +13,7 @@ checkDir ()
 
     echo Checking yang files in $dir
     exit_status=""
-    pyang_flags="--verbose -p . -p $cwd/$ieee_dir/../ietf/RFC/ -p $cwd/$ieee_dir/draft/802 -p $cwd/$ieee_dir/published/802 -p $cwd/$ieee_dir/published/802.1"
+    pyang_flags="--verbose -p . -p $cwd/$ieee_dir/../ietf/RFC/ -p $cwd/$ieee_dir/published/802 -p $cwd/$ieee_dir/published/802.1"
 
     cd $dir
 
