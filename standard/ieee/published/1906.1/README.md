@@ -1,6 +1,8 @@
 
 # About
 
+A set of YANG modules describing nanoscale communication systems and their associated physical quantities in conformance with IEEE Std 1906.1-2015—a common framework for all nanoscale communication technologies—are comprised by this data model. Physics unique to the nanoscale are represented by the model.
+
 1. IEEE 1906.1.1 (https://standards.ieee.org/project/1906_1_1.html) defines a common YANG [RFC 6020/7950] data model for IEEE 1906.1-2015 nanoscale communication systems.
 
 2. IEEE 1906.1-2015 (https://standards.ieee.org/standard/1906_1-2015.html) defines nanoscale communication. It also specifies a framework for describing all nanoscale communication systems in terms of fulfilling the definition of a nanoscale network, universal framework components, and metrics.
