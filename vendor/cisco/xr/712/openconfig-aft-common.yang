@@ -1,0 +1,222 @@
+submodule openconfig-aft-common {
+  belongs-to "openconfig-aft" {
+    prefix "oc-aft";
+  }
+
+  import openconfig-interfaces { prefix "oc-if"; }
+  import openconfig-extensions { prefix "oc-ext"; }
+  import openconfig-yang-types { prefix "oc-yang"; }
+  import openconfig-inet-types { prefix "oc-inet"; }
+  import openconfig-mpls-types { prefix "oc-mplst"; }
+  import openconfig-policy-types { prefix "oc-pol-types"; }
+  import openconfig-aft-types { prefix "oc-aftt"; }
+
+  oc-ext:openconfig-version "0.3.0";
+
+  organization
+    "OpenConfig working group";
+
+  contact
+    "OpenConfig working group
+    www.openconfig.net";
+
+  description
+    "Submodule containing definitions of groupings that are re-used
+    across multiple contexts within the AFT model.";
+
+  revision 2017-05-10 {
+    description
+      "Refactor to provide concretised per-AF schemas per AFT.";
+    reference "0.3.0";
+  }
+
+  grouping aft-common-nhop-structural {
+    description
+      "Structural grouping describing a next-hop entry.";
+
+    container next-hops {
+      description
+        "The list of next-hops that are to be used for entry within
+        the AFT table. The structure of each next-hop is address
+        family independent, such that it is possible to resolve fully
+        how the next-hop is treated. For example:
+
+        - Where ingress IPv4 unicast packets are to be forwarded via
+          an MPLS LSP, the next-hop list should indicate the MPLS
+          label stack that is used to the next-hop.
+        - Where ingress MPLS labelled packets are to be forwarded to
+          an IPv6 nexthop (for example, a CE within a VPN, then the
+          popped label stack, and IPv6 next-hop address should be
+          indicated).";
+
+      list next-hop {
+        key "index";
+
+        description
+          "A next-hop associated with the forwarding instance. The
+          entries within the next-hop list should only reflect
+          next-hops that are actively used by the local system.
+          That is to say inactive, backup or FRR next-hops should
+          not be included within this list.";
+
+        leaf index {
+          type leafref {
+            path "../config/index";
+          }
+          description
+            "A unique index identifying the next-hop entry for the
+            AFT entry";
+
+        }
+
+        container config {
+          description
+            "Configuration parameters relating to the AFT next-hop
+            entry";
+
+          uses aft-common-entry-nexthop-config;
+        }
+
+        container state {
+          config false;
+          description
+            "Operational state parameters relating to the AFT
+            next-hop entry";
+
+          uses aft-common-entry-nexthop-config;
+          uses aft-common-entry-nexthop-state;
+        }
+
+        uses oc-if:interface-ref;
+      }
+    }
+  }
+
+  grouping aft-common-entry-state {
+    description
+      "Operational state parameters relating to a forwarding entry";
+
+    leaf packets-forwarded {
+      type oc-yang:counter64;
+      description
+        "The number of packets which have matched, and been forwarded,
+         based on the AFT entry.";
+    }
+
+    leaf octets-forwarded {
+      type oc-yang:counter64;
+      description
+        "The number of octets which have matched, and been forwarded,
+         based on the AFT entry";
+    }
+  }
+
+  grouping aft-common-entry-nexthop-config {
+    description
+      "Configuration parameters relating to a next-hop entry for a AFT
+      entry";
+
+    leaf index {
+      type uint64;
+      description
+        "A unique entry for the next-hop.";
+    }
+  }
+
+  grouping aft-common-entry-nexthop-state {
+    description
+      "Parameters relating to a next-hop within the AFT entry";
+
+    leaf weight {
+      type uint32;
+      description
+        "The weight of the next-hop. Traffic is balanced according to
+        the ratio described by the relative weights of the next hops
+        that exist for the AFT entry. Note that all next-hops that are
+        specified are assumed to be active next-hops and therefore
+        eligible (and selected) to be installed in the FIB, and hence
+        used for packet forwarding.";
+    }
+
+    leaf ip-address {
+      type oc-inet:ip-address;
+      description
+        "The IP address of the next-hop system.";
+    }
+
+    leaf mac-address {
+      type oc-yang:mac-address;
+      description
+        "The MAC address of the next-hop if resolved by the local
+        network instance.";
+    }
+
+    leaf-list popped-mpls-label-stack {
+      type oc-mplst:mpls-label;
+      description
+        "The MPLS label stack to be popped from the packet when
+        switched by the system. The stack is encoded as a leaf-list
+        such that the first entry is the label that is outer-most (i.e.,
+        furthest from the bottom of the stack) label
+        stack to be popped.
+
+        If the local system pops the outer-most label 400, then the
+        value of this list is [400,]. If the local system removes two
+        labels, the outer-most being 500, and the second of which is
+        400, then the value of the list is [500, 400].
+
+        A swap operation is reflected by entries in the
+        popped-mpls-label-stack and pushed-mpls-label-stack nodes.";
+    }
+
+    leaf-list pushed-mpls-label-stack {
+      type oc-mplst:mpls-label;
+      ordered-by user;
+      description
+        "The MPLS label stack imposed when forwarding packets to the
+        next-hop
+        - the stack is encoded as a leaf list whereby the order of the
+          entries is such that the first entry in the list is the
+          label at the bottom of the stack to be pushed.
+
+        To this end, a packet which is to forwarded to a device using
+        a service label of 42, and a transport label of 8072 will be
+        represented with a label stack list of [42, 8072].
+
+        The MPLS label stack list is ordered by the user, such that no
+        system re-ordering of leaves is permitted by the system.
+
+        A swap operation is reflected by entries in the
+        popped-mpls-label-stack and pushed-mpls-label-stack nodes.";
+
+    }
+
+    leaf decapsulate-header {
+      type oc-aftt:encapsulation-header-type;
+      description
+        "When forwarding a packet to the specified next-hop, the local
+        system performs a decapsulation of the packet - removing the
+        specified header type. In the case that no next-hop is
+        specified, the packet header is removed, and a subsequent
+        forwarding lookup is performed on the packet encapsulated
+        within the header, matched within the relevant AFT within the
+        specified network-instance.";
+    }
+
+    leaf encapsulate-header {
+      type oc-aftt:encapsulation-header-type;
+      description
+        "When forwarding a packet to the specified next-hop the local
+        system performs an encapsulation of the packet - adding the
+        specified header type.";
+    }
+
+    leaf origin-protocol {
+      type identityref {
+        base "oc-pol-types:INSTALL_PROTOCOL_TYPE";
+      }
+      description
+        "The protocol from which the AFT entry was learned.";
+    }
+  }
+}

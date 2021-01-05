@@ -1,6 +1,8 @@
-# README
-[README.md](README.md)
 # Cisco IOS XR Release 6.7.1 Models
+[README.md](README.md)  
+## Platform Capabilities
+[platform-metadata.json](platform-metadata.json)  
+[capabilities-asr9k-px.xml](capabilities-asr9k-px.xml)  
 ## Unified Models
 [Cisco-IOS-XR-um-access-list-datatypes.yang](Cisco-IOS-XR-um-access-list-datatypes.yang)  
 [Cisco-IOS-XR-um-arp-cfg.yang](Cisco-IOS-XR-um-arp-cfg.yang)  
@@ -760,6 +762,7 @@
 [Cisco-IOS-XR-segment-routing-srv6-datatypes.yang](Cisco-IOS-XR-segment-routing-srv6-datatypes.yang)  
 [Cisco-IOS-XR-tty-management-datatypes.yang](Cisco-IOS-XR-tty-management-datatypes.yang)  
 [Cisco-IOS-XR-tunnel-gre-datatypes.yang](Cisco-IOS-XR-tunnel-gre-datatypes.yang)  
+[cisco-semver.yang](cisco-semver.yang)  
 ## Native Action Models
 [Cisco-IOS-XR-authenticated-variable-act.yang](Cisco-IOS-XR-authenticated-variable-act.yang)  
 [Cisco-IOS-XR-cfgmgr-rollback-act.yang](Cisco-IOS-XR-cfgmgr-rollback-act.yang)  
@@ -792,7 +795,6 @@
 [Cisco-IOS-XR-traceroute-act.yang](Cisco-IOS-XR-traceroute-act.yang)  
 [Cisco-IOS-XR-upgrade-fpd-ng-act.yang](Cisco-IOS-XR-upgrade-fpd-ng-act.yang)  
 [Cisco-IOS-XR-zapdisk-act.yang](Cisco-IOS-XR-zapdisk-act.yang)  
-## Admin Models
 ## IETF Models
 [ietf-datastores.yang](ietf-datastores.yang)  
 [ietf-inet-types.yang](ietf-inet-types.yang)  
@@ -904,12 +906,8 @@
 [tailf-meta-extensions.yang](tailf-meta-extensions.yang)  
 ## Other supporting Models
 [Cisco-IOS-XR-ip-bfd-oper-sub1-deviations.yang](Cisco-IOS-XR-ip-bfd-oper-sub1-deviations.yang)  
-[cisco-semver.yang](cisco-semver.yang)  
 [cisco-xr-ietf-netconf-monitoring-deviations.yang](cisco-xr-ietf-netconf-monitoring-deviations.yang)  
 [cisco-xr-ietf-yang-library-deviations.yang](cisco-xr-ietf-yang-library-deviations.yang)  
 [iana-if-type.yang](iana-if-type.yang)  
 [nc-notifications.yang](nc-notifications.yang)  
 [notifications.yang](notifications.yang)  
-## Other supporting files
-[capabilities-asr9k-px.xml](capabilities-asr9k-px.xml)  
-## Inconsistent Models
