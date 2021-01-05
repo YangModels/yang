@@ -35,6 +35,24 @@ module ieee802-dot1q-psfp {
   description
     "This module provides management of 802.1Q bridge components that
     support Per Stream Filtering and Policing (PSFP).";
+  
+  revision 2020-07-07 {
+    description
+      "Published as part of IEEE Std 802.1Qcw.
+      Initial version.";
+    reference
+      "IEEE Std 802.1Qcw - Bridges and Bridged Networks — Amendment: 
+      YANG Data Models for Scheduled Traffic, Frame Preemption, and 
+      Per-Stream Filtering and Policing.";
+  }
+
+  feature psfp {
+    description
+      "Per Stream Filtering and Policing supported.";
+    reference
+      "IEEE Std 802.1Q-2018";
+  }
+
   identity set-gate-and-ipv {
     base dot1q-types:type-of-operation;
     description
@@ -55,26 +73,27 @@ module ieee802-dot1q-psfp {
     reference
       "8.6.5.1.2 of IEEE Std 802.1Q-2018";
   }
-  typedef flow-meter-ref-type {
-    type leafref {
-      path
-        '/dot1q:bridges'+
-        '/dot1q:bridge'+
-        '/dot1q:component'+
-        '/psfp:flow-meters'+
-        '/psfp:flow-meter-instance-table'+
-        '/psfp:flow-meter-instance-id';
-    }
-    description
-      "This type is used to refer to a flow meter instance.";
-  }
   
   grouping stream-gate-control-entries {
+    description
+      "A GateControlEntry consists of an operation name, followed by
+      four parameters associated with the operation. The first 
+      parameter is a gateStatesValue; the second parameter is an IPV
+      value; the third parameter is a timeIntervalValue; and the 
+      fourth parameter is an IntervalOctetMaxValue. 
+      IntervalOctetMaxValue is optional.";
     uses dot1q-types:base-gate-control-entries {
       refine "gate-control-entry/operation-name" {
         must ". = 'set-gate-and-ipv'";
       }
+      refine "gate-control-entry/time-interval-value" {
+        must "(. <= ../../../../supported-interval-max )";
+      } 
       augment "gate-control-entry" {
+        description
+          "Augment gate-control-entry from base-gate-control-entries
+          with parameters gate-states-value, ipv-spec and 
+          interval-octet-max.";
         leaf gate-state-value {
           type sfsg:gate-state-value-type;
           mandatory true;
@@ -92,6 +111,14 @@ module ieee802-dot1q-psfp {
             frames that pass the gate.";
           reference
             "12.31.3.2.3 of IEEE Std 802.1Q-2018";
+        }
+        leaf interval-octet-max {
+          type uint32;
+          description
+            "An unsigned integer, denoting a IntervalOctetMax in MSDU
+            octets";
+          reference
+            "12.31.3.2.5 of IEEE Std 802.1Qcw";
         }
       }
     }
@@ -118,7 +145,7 @@ module ieee802-dot1q-psfp {
       type yang:counter64;
       config false;
       description
-        "A count of frames that passed the stream filter.";
+        "A count of frames that passed the stream gate.";
       reference
         "8.6.5.1 of IEEE Std 802.1Q-2018";
     }
@@ -126,7 +153,7 @@ module ieee802-dot1q-psfp {
       type yang:counter64;
       config false;
       description
-        "A count of frames that did not pass the stream filter.";
+        "A count of frames that did not pass the stream gate.";
       reference
         "8.6.5.1 of IEEE Std 802.1Q-2018";
     }
@@ -156,10 +183,10 @@ module ieee802-dot1q-psfp {
       reference
         "8.6.5.1 of IEEE Std 802.1Q-2018";
     }
-    leaf flow-meter-ref {
-      type psfp:flow-meter-ref-type;
+    leaf flow-meter-instance-id {
+      type uint32;
       description
-        "A reference to the flow meter associated with this filter.";
+        "Flow meter instance that is associated with the stream filter.";
       reference
         "8.6.5.5 of IEEE Std 802.1Qcr
         12.31.2.6 of IEEE Std 802.1Qcr";
@@ -167,9 +194,9 @@ module ieee802-dot1q-psfp {
     leaf flow-meter-enable {
       type boolean;
       description
-      	"If it is set to TRUE, flow-meter-ref identifies the flow meter 
-      	instance associated with the stream filter. If it is set to FALSE, no 
-      	flow meter instance is associated with the stream filter.";
+        "If it is set to TRUE, flow-meter-ref identifies the flow meter 
+        instance associated with the stream filter. If it is set to FALSE, no 
+        flow meter instance is associated with the stream filter.";
       reference
         "8.6.5.5 of IEEE Std 802.1Qcr
         12.31.2.6 of IEEE Std 802.1Qcr";
@@ -183,15 +210,32 @@ module ieee802-dot1q-psfp {
       transitions";
     leaf supported-list-max {
       type uint32;
-      config false;
       description
         "The maximum value supported by this Bridge component of the
         AdminControlListLength and OperControlListLength parameters.
         It is available for use by schedule computation software to
         determine the Bridge component’s control list capacity prior
-        to computation.";
+        to computation. The object may optionally be read-only.";
       reference
         "12.31.1.4 of IEEE Std 802.1Q-2018";
+    }
+    container supported-cycle-max {
+      description
+        "The maximum value supported by this Bridge component of the
+        AdminCycleTime and OperCycleTime parameters. The object may
+        optionally be read-only.";
+      reference
+        "12.31.1.5 of IEEE Std 802.1Qcw";
+      uses ieee802:rational-grouping;
+    }
+    leaf supported-interval-max {
+      type uint32;
+      description
+        "The maximum value supported by this Bridge component of the
+        TimeIntervalValue parameter. The object may optionally
+        be read-only.";
+      reference
+        "12.31.1.6 of IEEE Std 802.1Qcw";
     }
   }
   augment
@@ -228,6 +272,10 @@ module ieee802-dot1q-psfp {
     }
     
     container admin-control-list {
+      must "(count(./gate-control-entry) <= ../../supported-list-max)" {
+        error-message "Number of elements in admin-control-list must 
+        not be greater than supported-list-max";
+      }
       config true;
       description
         "The AdminControlList and OperControlList are ordered
@@ -242,6 +290,10 @@ module ieee802-dot1q-psfp {
     }
     
     container oper-control-list {
+      must "(count(./gate-control-entry) <= ../../supported-list-max)" {
+        error-message "Number of elements in oper-control-list must 
+        not be greater than supported-list-max";
+      }
       config false;
       description
         "The AdminControlList and OperControlList are ordered
@@ -256,6 +308,9 @@ module ieee802-dot1q-psfp {
     }
     
     container admin-cycle-time {
+      must "(. <= ../../supported-cycle-max)" {
+        error-message "admin-cycle-time must not be greater than supported-cycle-max";
+      }
       description
         "The administrative value of the gating cycle for the Port.
         This value can be changed by management, and is used by the
@@ -268,6 +323,9 @@ module ieee802-dot1q-psfp {
       uses ieee802:rational-grouping;
     }
     container oper-cycle-time {
+      must "(. <= ../../supported-cycle-max)" {
+        error-message "oper-cycle-time must not be greater than supported-cycle-max";
+      }
       config false;
       description
         "The operational value of the gating cycle for the Port. This
@@ -463,6 +521,10 @@ module ieee802-dot1q-psfp {
       description
         "This container comprises all flow meter related nodes.";
       list flow-meter-instance-table {
+        must "(count(.) <= ../max-flow-meter-instances)" {
+          error-message "Number of elements in flow-meter-instance-table
+          must not be greater than max-flow-meter-instances.";
+        }
         key "flow-meter-instance-id";
         description
           "There is one Flow Meter Instance Table per Bridge
@@ -544,13 +606,13 @@ module ieee802-dot1q-psfp {
           type enumeration {
             enum color-blind {
               description
-                "Color-blind (i.e., frames are marked either green or
-                red";
+                "Color-blind (i.e., the color of a frame is ignored
+                by the bandwidth profile algorithm).";
             }
             enum color-aware {
               description
-                "Color-aware (i.e., frames are marked green, yellow,
-                or red";
+                "Color-aware (i.e., the color of a frame is considered 
+                by the bandwidth profile algorithm).";
             }
           }
           mandatory true;
@@ -601,10 +663,9 @@ module ieee802-dot1q-psfp {
       }
       leaf max-flow-meter-instances {
         type uint32;
-        config false;
         description
           "The maximum number of Flow Meter instances supported by
-          this Bridge component.";
+          this Bridge component. The object may optionally be read-only.";
         reference
           "12.31.1.3 of IEEE Std 802.1Q-2018";
       }

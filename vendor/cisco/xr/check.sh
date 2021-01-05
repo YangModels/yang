@@ -22,7 +22,7 @@
 platform_dir="vendor/cisco/xr"
 
 # NOTE: please just have the directories you are checking here
-to_check="711"
+to_check="711 721"
 
 debug=0
 
