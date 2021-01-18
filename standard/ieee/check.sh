@@ -5,7 +5,7 @@
 # Also assumes that the script is run from the root of the yang master.
 #
 ieee_dir="standard/ieee"
-to_check="draft/802 draft/802.1 draft/802.1/ABcu draft/802.1/CBcv draft/802.1/CBdb draft/802.1/Qcr draft/802.1/Qcw draft/802.1/Qcx draft/802.1/Qcz draft/802.1/x draft/802.3 published/1906.1 published/802 published/802.1"
+to_check="draft/802 draft/802.1 draft/802.1/ABcu draft/802.1/CBcv draft/802.1/CBdb draft/802.1/Qcw draft/802.1/QRev draft/802.1/Qcz draft/802.1/x draft/802.3 published/1906.1 published/802 published/802.1"
 
 checkDir () 
 {
