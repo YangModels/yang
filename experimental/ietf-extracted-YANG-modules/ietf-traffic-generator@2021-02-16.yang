@@ -31,7 +31,7 @@ module ietf-traffic-generator {
     "This module contains a collection of YANG definitions for
      description and management of network interconnect testers.
 
-     Copyright (c) 2020 IETF Trust and the persons identified as
+     Copyright (c) 2021 IETF Trust and the persons identified as
      authors of the code.  All rights reserved.
 
      Redistribution and use in source and binary forms, with or
@@ -43,7 +43,7 @@ module ietf-traffic-generator {
      This version of this YANG module is part of RFC XXXX; see
      the RFC itself for full legal notices.";
 
-  revision 2020-09-05 {
+  revision 2021-02-16 {
     description
       "Initial revision.";
     reference
@@ -71,16 +71,39 @@ module ietf-traffic-generator {
       "The device can generate ethernet traffic.";
   }
 
-  feature ethernet-vlan {
-    if-feature "ethernet";
-    description
-      "The device can generate vlan tagged ethernet traffic.";
-  }
-
   feature realtime-epoch {
     description
       "The device can generate traffic precisely
        at configured realtime epoch.";
+  }
+
+  identity testframe-type {
+    description
+      "Base identity for all testframe types.";
+  }
+
+  identity static {
+    base testframe-type;
+    description
+      "Identity for static testframe.
+       The frame data and size are constant.";
+  }
+
+  identity dynamic {
+    base testframe-type;
+    description
+      "Identity to be used as base for dynamic
+       testframe type identities defined
+       in external modules.
+
+       When used itself it identifies dynamic testframe
+       where the last 18 octets of the payload contain
+       incrementing sequence number field (8 octets)
+       followed by timestamp field in the
+       IEEE 1588-2008 format (10 octets). If frame data is defined
+       for the last 18 octets of the payload it will be ignored
+       and overwritten with dynamic data according to this
+       specification.";
   }
 
   grouping common-data {
@@ -104,6 +127,15 @@ module ietf-traffic-generator {
   grouping burst-data {
     description
       "Generated traffic burst parameters.";
+    leaf testframe-type {
+      type identityref {
+        base tg:testframe-type;
+      }
+      default "tg:static";
+      description
+        "In case of dynamic testframes this leaf specifies
+         the dynamic testframe identity.";
+    }
     leaf frame-size {
       type uint32;
       mandatory true;
@@ -127,23 +159,17 @@ module ietf-traffic-generator {
          Minimum standard ethernet frame-size is 64 bytes but
          generators might support smaller sizes for validation.";
     }
-    choice frame-data-type {
-      description
-        "Choice of frame data type generated.";
-      case raw-frame-data {
-        leaf frame-data {
-          type string {
-            pattern '([0-9A-F]{2})*';
-          }
-          must 'string-length(.)<=(../frame-size*2)';
-          description
-            "The raw frame data specified as hexadecimal string.
-             The specified data can be shorter then the ../frame-size
-             value specifying only the header or the header and the
-             payload without for example the 4 byte CRC Checksum
-             in the case of a Ethernet frame.";
-        }
+    leaf frame-data {
+      type string {
+        pattern '([0-9A-F]{2})*';
       }
+      must 'string-length(.)<=(../frame-size*2)';
+      description
+        "The raw  frame data specified as hexadecimal string.
+         The specified data can be shorter then the ../frame-size
+         value specifying only the header or the header and the
+         payload with or without the 4 byte CRC Checksum
+         in the case of a Ethernet frame.";
     }
     leaf interframe-gap {
       type uint32;
@@ -232,47 +258,6 @@ module ietf-traffic-generator {
       description
         "Length/Type field of the generated Ethernet packet.";
     }
-    container vlan {
-      if-feature "ethernet-vlan";
-      description
-        "VLAN tag fields..";
-      leaf id {
-        type uint16 {
-          range "0..4095";
-        }
-        mandatory true;
-        description
-          "VLAN id.";
-      }
-      leaf tpid {
-        type uint16;
-        default "33024";
-        description
-          "Configures the Tag Protocol Identifier (TPID)
-           of the 802.1q VLAN tag sent. This value is used
-           together with the vlan id for filtering incoming
-           vlan tagged packets.";
-      }
-      leaf pcp {
-        type uint8 {
-          range "0..7";
-        }
-        default "0";
-        description
-          "Configures the IEEE 802.1p Priority Code Point (PCP) value
-           of the transmitted 802.1q VLAN tag.";
-      }
-      leaf cfi {
-        type uint8 {
-          range "0..1";
-        }
-        default "0";
-        description
-          "Configures the Canonical Format Identifier (CFI) field
-           (shall be 0 for Ethernet switches) of the transmitted
-           802.1q VLAN tag.";
-      }
-    }
   }
 
   augment "/if:interfaces/if:interface" {
@@ -311,33 +296,6 @@ module ietf-traffic-generator {
         }
       }
       uses common-data;
-    }
-  }
-
-  augment "/if:interfaces-state/if:interface/if:statistics" {
-    description
-      "Counters of generated traffic octets and packets.";
-    leaf generated-pkts {
-      type yang:counter64;
-      description
-        "Traffic generator packets sent.";
-    }
-    leaf generated-octets {
-      type yang:counter64;
-      description
-        "Traffic generator octets sent.";
-    }
-    leaf generated-ingress-pkts {
-      if-feature "ingress-direction";
-      type yang:counter64;
-      description
-        "Traffic generator packets generated in ingress mode.";
-    }
-    leaf generated-ingress-octets {
-      if-feature "ingress-direction";
-      type yang:counter64;
-      description
-        "Traffic generator octets generated in ingress mode.";
     }
   }
 
