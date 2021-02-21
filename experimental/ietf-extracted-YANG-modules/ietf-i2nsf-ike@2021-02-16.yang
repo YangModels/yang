@@ -46,8 +46,7 @@ module ietf-i2nsf-ike {
   description
 
     "This module contains IPsec IKE case model for the SDN-based
-    IPsec flow protection service. An NSF will implement this
-    module.
+    IPsec flow protection service.
 
     Copyright (c) 2020 IETF Trust and the persons identified as
     authors of the code.  All rights reserved.
@@ -69,7 +68,7 @@ module ietf-i2nsf-ike {
     (RFC 2119) (RFC 8174) when, and only when, they appear
     in all capitals, as shown here.";
 
-  revision "2020-10-30" {
+  revision "2021-02-16" {
     description "Initial version.";
     reference
       "RFC XXXX: Software-Defined Networking
@@ -96,10 +95,10 @@ module ietf-i2nsf-ike {
         description
           "IKE/IPsec configuration is loaded
           into IKE implementation. The IPsec policies
-          are transferred to the NSF's kernel but the
+          are transferred to the NSF but the
           IPsec SAs are not established immediately.
           The IKE implementation will negotiate the
-          IPsec SAs when the NSF's kernel requests it
+          IPsec SAs when they are required.
           (i.e. through an ACQUIRE notification).";
       }
       enum start {
@@ -116,7 +115,7 @@ module ietf-i2nsf-ike {
       started.";
   }
 
-  typedef pfs-group{
+  typedef fs-group {
     type uint16;
     description
       "DH groups for IKE and IPsec SA rekey.";
@@ -126,21 +125,20 @@ module ietf-i2nsf-ike {
        Diffie-Hellman Group Transform IDs.
        Section 3.3.2 in RFC 7296.";
   }
-
   typedef auth-protocol-type {
     type enumeration {
       enum ikev2 {
         value 2;
         description
           "IKEv2 authentication protocol. It is the
-          only defined right now. An enum is used for
-          further extensibility.";
+          only one defined right now. An enum is
+          used for further extensibility.";
        }
     }
     description
       "IKE authentication protocol version specified in the
       Peer Authorization Database (PAD). It is defined as
-      enumerate to allow new IKE versions in the
+      enumerated to allow new IKE versions in the
       future.";
     reference
       "RFC 7296.";
@@ -163,7 +161,7 @@ module ietf-i2nsf-ike {
       }
       enum digital-signature {
         description
-          "Select digital signature method.";
+          "Select digital signature as the authentication method.";
         reference
           "RFC 7296 and RFC 7427.";
       }
@@ -182,30 +180,32 @@ module ietf-i2nsf-ike {
   container ipsec-ike {
     description
       "IKE configuration for a NSF. It includes PAD
-      parameters, IKE connections information and state
+      parameters, IKE connection information and state
       data.";
 
     container pad {
       description
-        "Configuration of Peer Authorization Database
-        (PAD). The PAD contains information about IKE
-        peer (local and remote). Therefore, the Security
-        Controller also stores authentication
-        information for this NSF and can include
-        several entries for the local NSF not only
-        remote peers. Storing local and remote
-        information makes possible to specify that this
-        NSF with identity A will use some particular
-        authentication with remote NSF with identity B
-        and what are the authentication mechanisms
-        allowed to B.";
+        "Configuration of the Peer Authorization Database
+        (PAD). Each entry of PAD contains authentication
+        information of either the local peer or the remote peer.
+        Therefore, the I2NSF Controller stores authentication
+        information (and credentials) not only for the remote NSF
+        but also for the local NSF. The local NSF MAY use the
+        same identity for different types of authentication
+        and credentials. Pointing to the entry for a local NSF
+        (e.g., A) and the entry for remote NSF (e.g., B)
+        is possible to specify all the required information to
+        carry out the authentication between A and B (see
+        ../conn-entry/local and ../conn-entry/remote).";
+
       list pad-entry {
         key "name";
         ordered-by user;
         description
           "Peer Authorization Database (PAD) entry. It
           is a list of PAD entries ordered by the
-          I2NSF Controller.";
+          I2NSF Controller and each entry is
+          univocally identified by a name";
         leaf name {
           type string;
           description
@@ -221,12 +221,12 @@ module ietf-i2nsf-ike {
             peer (this NSF).";
           reference
             "Section 4.4.3.1 in RFC 4301.";
-          case ipv4-address{
+          case ipv4-address {
             leaf ipv4-address {
               type inet:ipv4-address;
               description
-                "Specifies the identity as a
-                single four (4) octet.";
+                "Specifies the identity as
+                a single four (4) octet IPv4 address.";
             }
           }
           case ipv6-address{
@@ -236,7 +236,7 @@ module ietf-i2nsf-ike {
                 "Specifies the identity as a
                 single sixteen (16) octet IPv6
                 address. An example is
-                2001:DB8::8:800:200C:417A.";
+                2001:db8::8:800:200c:417a.";
             }
           }
           case fqdn-string {
@@ -244,7 +244,7 @@ module ietf-i2nsf-ike {
               type inet:domain-name;
                description
                  "Specifies the identity as a
-                 Fully-QualifiedDomain Name
+                 Fully-Qualified Domain Name
                  (FQDN) string. An example is:
                  example.com. The string MUST
                  NOT contain any terminators
@@ -260,7 +260,7 @@ module ietf-i2nsf-ike {
                 address string. An example is,
                 jsmith@example.com. The string
                 MUST NOT contain any
-                terminators e.g., NULL, CR,
+                terminators (e.g., NULL, CR,
                 etc.).";
               reference
                 "RFC 5322.";
@@ -268,28 +268,35 @@ module ietf-i2nsf-ike {
           }
           case dnx509 {
             leaf dnx509 {
-              type string;
+              type binary;
               description
-                "Specifies the identity as a
-                ASN.1 X.500 Distinguished
-                Name. An example is
-                C=US,O=Example
-                Organisation,CN=John Smith.";
+                "The binary
+                Distinguished Encoding Rules (DER)
+                encoding of an ASN.1 X.500
+                Distinguished Name, as specified in IKEv2.";
               reference
-                "RFC 2247.";
+                "RFC 5280. Section 3.5 in RFC 7296.";
             }
           }
           case gnx509 {
             leaf gnx509 {
-              type string;
+              type binary;
               description
-                "ASN.1 X.509 GeneralName. RFC
-                5280.";
+                "ASN.1 X.509 GeneralName
+                structure as
+                specified in RFC 5280,
+                encoded using ASN.1
+                distinguished encoding rules
+                (DER), as specified in ITU-T
+                X.690.";
+              reference
+                "RFC 5280";
             }
+
           }
           case id-key {
             leaf id-key {
-              type string;
+              type binary;
               description
                 "Opaque octet stream that may be
                 used to pass vendor-specific
@@ -303,8 +310,8 @@ module ietf-i2nsf-ike {
             leaf id-null {
               type empty;
               description
-                "ID_NULL identification used
-                when IKE identification payload
+                "The ID_NULL identification is used
+                when the IKE identification payload
                 is not used." ;
               reference
                 "RFC 7619.";
@@ -326,9 +333,10 @@ module ietf-i2nsf-ike {
             Controller to configure the
             authentication method (pre-shared key,
             eap, digitial-signature, null) that
-            will use a particular peer and the
-            credentials, which will depend on the
-            selected authentication method.";
+            will be used with a particular peer and
+            the credentials to use, which will
+            depend on the selected authentication
+            method.";
 
           leaf auth-method {
             type auth-method-type;
@@ -343,10 +351,12 @@ module ietf-i2nsf-ike {
           container eap-method {
             when "../auth-method = 'eap'";
             leaf eap-type {
-              type uint8;
+              type uint64 {range "1 .. 4294967295"; }
               mandatory true;
               description
-                "EAP method type. This
+                "EAP method type specified with
+                a value extracted from the
+                IANA Registry. This
                 information provides the
                 particular EAP method to be
                 used. Depending on the EAP
@@ -357,7 +367,9 @@ module ietf-i2nsf-ike {
               "EAP method description used when
               authentication method is 'eap'.";
             reference
-              "Section 2.16 in RFC 7296.";
+              "IANA Registry; Extensible Authentication
+              Protocol (EAP); Registry; Method Types.
+              Section 2.16 in RFC 7296.";
           }
           container pre-shared {
             when
@@ -366,12 +378,14 @@ module ietf-i2nsf-ike {
             leaf secret {
               nacm:default-deny-all;
               type yang:hex-string;
-              mandatory true;
               description
                 "Pre-shared secret value. The
                 NSF has to prevent read access
                 to this value for security
-                reasons.";
+                reasons. This value MUST be
+                set if the EAP method uses a
+                pre-shared key or pre-shared
+                authentication has been chosen.";
             }
             description
               "Shared secret value for PSK or
@@ -384,18 +398,18 @@ module ietf-i2nsf-ike {
               or .='eap']";
             leaf ds-algorithm {
               type uint8;
-              default 1;
+              default 14;
               description
                 "The digital signature
                 algorithm is specified with a
                 value extracted from the IANA
-                Registry. Default is RSA Digital
-                Signature. Depending on the
-                algorithm, the following leafs
+                Registry. Default is the generic
+                Digital Signature method. Depending
+                on the algorithm, the following leafs
                 MUST contain information. For
-                example if digital signature
-                involves a certificate then leaf
-                'cert-data' and 'private-key'
+                example if digital signature or the
+                EAP method involves a certificate
+                then leaf 'cert-data' and 'private-key'
                 will contain this information.";
             reference
               "IANA Registry; Internet Key
@@ -404,7 +418,6 @@ module ietf-i2nsf-ike {
             }
 
             choice public-key {
-              mandatory true;
               leaf raw-public-key {
                 type binary;
                 description
@@ -425,24 +438,24 @@ module ietf-i2nsf-ike {
               leaf cert-data {
                 type binary;
                 description
-                  "X.509 certificate data -
-                  PEM4. If raw-public-key
-                  is defined this leaf is
-                  empty.";
-               }
-               description
-                 "If the I2NSF Controller
-                 knows that the NSF
-                 already owns a private key
-                 associated to this public key
-                 (the NSF generated the pair
-                 public key/private key out of
-                 band), it will only configure
-                 one of the leaf of this
-                 choice but not the leaf
-                 private-key. The NSF, based on
-                 the public key value, can know
-                 the private key to be used.";
+                  "X.509 certificate data in DER
+                  format. If raw-public-key is
+                  defined, this leaf is empty.";
+                reference "RFC 5280";
+              }
+              description
+                "If the I2NSF Controller
+                knows that the NSF
+                already owns a private key
+                associated to this public key
+                (e.g., the NSF generated the pair
+                public key/private key out of
+                band), it will only configure
+                one of the leaf of this
+                choice but not the leaf
+                private-key. The NSF, based on
+                the public key value, can know
+                the private key to be used.";
             }
             leaf private-key {
               nacm:default-deny-all;
@@ -487,6 +500,8 @@ module ietf-i2nsf-ike {
                 (DER),as specified in ITU-T
                 X.690. If it is not defined
                 the default value is empty.";
+             reference
+               "RFC 5280";
             }
             leaf crl-uri  {
               type inet:uri;
@@ -494,6 +509,8 @@ module ietf-i2nsf-ike {
                 "X.509 CRL certificate URI.
                 If it is not defined
                 the default value is empty.";
+              reference
+                "RFC 5280";
             }
             leaf oscp-uri {
               type inet:uri;
@@ -501,6 +518,8 @@ module ietf-i2nsf-ike {
                 "OCSP URI.
                 If it is not defined
                 the default value is empty.";
+              reference
+                "RFC 2560 and RFC 5280";
             }
             description
               "Digital Signature container.";
@@ -514,8 +533,8 @@ module ietf-i2nsf-ike {
       description
         "IKE peer connection information. This list
         contains the IKE connection for this peer
-        with other peers. This will be translated in
-        real time by IKE Security Associations
+        with other peers. This will create in
+        real time IKE Security Associations
         established with these nodes.";
       leaf name {
         type string;
@@ -546,19 +565,35 @@ module ietf-i2nsf-ike {
         type auth-protocol-type;
         default ikev2;
         description
-          "IKE version. Only version 2 is supported
-          so far.";
+          "IKE version. Only version 2 is supported.";
       }
-      leaf fragmentation {
-        type boolean;
-        default false;
+
+      container fragmentation {
+        leaf enable {
+          type boolean;
+          default false;
+          description
+            "Whether or not to enable IKEv2
+            fragmentation (true or
+            false).";
+          reference
+            "RFC 7383.";
+        }
+        leaf mtu {
+          when "../enable='true'";
+          type uint16 { range "68..65535"; }
+          description
+            "MTU that IKEv2 can use
+            for IKEv2 fragmentation.";
+          reference
+            "RFC 7383.";
+        }
         description
-          "Whether or not to enable IKE
-          fragmentation as per RFC 7383 (true or
-          false).";
-        reference
-          "RFC 7383.";
+          "IKEv2 fragmentation as per RFC 7383. If the
+          IKEv2 fragmentation is enabled it is possible
+          to specify the MTU.";
       }
+
       container ike-sa-lifetime-soft {
         description
           "IKE SA lifetime soft. Two lifetime values
@@ -573,7 +608,7 @@ module ietf-i2nsf-ike {
           default 0;
           description
             "Time in seconds between each IKE SA
-            rekey.The value 0 means infinite.";
+            rekey. The value 0 means infinite.";
         }
         leaf reauth-time {
           type uint32;
@@ -602,31 +637,32 @@ module ietf-i2nsf-ike {
         reference
           "RFC 7296.";
       }
-      leaf-list authalg {
-        type nsfikec:integrity-algorithm-type;
+      leaf-list ike-sa-intr-alg {
+        type nsfikec:intr-alg-t;
         default 12;
         ordered-by user;
         description
-          "Authentication algorithm for establishing
+          "Integrity algorithm for establishing
           the IKE SA. This list is ordered following
           from the higher priority to lower priority.
           First node of the list will be the algorithm
-          with higher priority.";
+          with higher priority.
+          Default value 12 (AUTH_HMAC_SHA2_256_128)";
       }
-      list encalg {
+      list ike-sa-encr-alg {
         key id;
         min-elements 1;
         ordered-by user;
         leaf id {
-          type uint8;
+          type uint16;
           description
-            "The index of the list with the
-            different encryption algorithms and its
-            key-length (if required). E.g. AES-CBC,
-            128 bits";
+            "An identifier that unequivocally
+            identifies each entry of the list,
+             i.e., an encryption algorithm and
+             its key-length (if required)";
         }
         leaf algorithm-type {
-          type nsfikec:encryption-algorithm-type;
+          type nsfikec:encr-alg-t;
           default 12;
           description
             "Default value 12 (ENCR_AES_CBC)";
@@ -642,10 +678,10 @@ module ietf-i2nsf-ike {
           SAs. This list is ordered following
           from the higher priority to lower priority.
           First node of the list will be the algorithm
-          with higher priority.";
+          with higher priority";
       }
       leaf dh-group {
-        type pfs-group;
+        type fs-group;
         default 14;
         description
           "Group number for Diffie-Hellman
@@ -654,10 +690,11 @@ module ietf-i2nsf-ike {
       }
       leaf half-open-ike-sa-timer {
         type uint32;
+        units "seconds";
         default 0;
         description
           "Set the half-open IKE SA timeout
-          duration.";
+          duration. The value 0 implies infinite.";
         reference
           "Section 2 in RFC 7296.";
       }
@@ -666,7 +703,8 @@ module ietf-i2nsf-ike {
         default 0;
         description
           "Number of half-open IKE SAs that activate
-          the cookie mechanism." ;
+          the cookie mechanism. The value 0 implies
+          infinite." ;
         reference
           "Section 2.6 in RFC 7296.";
       }
@@ -738,11 +776,11 @@ module ietf-i2nsf-ike {
           }
           description
             "List of entries which will constitute
-            the representation of the SPD. Since we
-            have IKE in this case, it is only
-            required to send a IPsec policy from
-            this NSF where 'local' is this NSF and
-            'remote' the other NSF. The IKE
+            the representation of the SPD. In this
+            case, since the NSF implements IKE, it
+            is only required to send a IPsec policy
+            from this NSF where 'local' is this NSF
+            and 'remote' the other NSF. The IKE
             implementation will install IPsec
             policies in the NSF's kernel in both
             directions (inbound and outbound) and
@@ -753,23 +791,25 @@ module ietf-i2nsf-ike {
           "Section 2.9 in RFC 7296.";
       }
       container child-sa-info {
-        leaf-list pfs-groups {
-          type pfs-group;
+        leaf-list fs-groups {
+          type fs-group;
           default 0;
           ordered-by user;
           description
-            "If non-zero, perfect forward secrecy
-            is required when requesting new
-            IPsec SA. The non-zero value is
-            the required group number. This list is
-            ordered following from the higher
-            priority to lower priority. First node
-            of the list will be the algorithm
+            "If non-zero, forward secrecy is
+            required when a new IPsec SA is being
+            created.  The (non-zero) value indicates
+            the group number to use for the key
+            exchange process used to achieve forward
+            secrecy.
+            This list is ordered following from the
+            higher priority to lower priority. First
+            node of the list will be the algorithm
             with higher priority.";
         }
         container child-sa-lifetime-soft {
           description
-            "Soft IPsec SA lifetime soft.
+            "Soft IPsec SA lifetime.
             After the lifetime the action is
             defined in this container
             in the leaf action.";
@@ -846,6 +886,7 @@ module ietf-i2nsf-ike {
         }
         leaf established {
           type uint64;
+          units "seconds";
           description
             "Seconds since this IKE SA has been
             established.";
@@ -854,13 +895,13 @@ module ietf-i2nsf-ike {
           type uint64;
           units "seconds";
           description
-            "Seconds before IKE SA MUST be rekeyed.";
+            "Seconds before IKE SA is rekeyed.";
         }
         leaf current-reauth-time {
           type uint64;
           units "seconds";
           description
-            "Seconds before IKE SA MUST be
+            "Seconds before IKE SA is
             re-authenticated.";
         }
         description
@@ -872,17 +913,17 @@ module ietf-i2nsf-ike {
     container number-ike-sas {
       config false;
       leaf total {
-        type uint64;
+        type yang:gauge64;
         description
           "Total number of active IKE SAs.";
       }
       leaf half-open {
-        type uint64;
+        type yang:gauge64;
         description
           "Number of half-open active IKE SAs.";
       }
       leaf half-open-cookies {
-        type uint64;
+        type yang:gauge64;
         description
           "Number of half open active IKE SAs with
           cookie activated.";

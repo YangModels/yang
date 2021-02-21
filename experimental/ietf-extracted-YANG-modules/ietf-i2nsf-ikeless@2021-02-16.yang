@@ -4,6 +4,11 @@ module ietf-i2nsf-ikeless {
 
   prefix "nsfikels";
 
+  import ietf-inet-types {
+    prefix inet;
+    reference "RFC 6991: Common YANG Data Types";
+  }
+
   import ietf-yang-types {
     prefix yang;
     reference "RFC 6991: Common YANG Data Types";
@@ -31,6 +36,7 @@ module ietf-i2nsf-ikeless {
 
   Author: Rafael Marin-Lopez
           <mailto:rafa@um.es>
+
   Author: Gabriel Lopez-Millan
           <mailto:gabilm@um.es>
 
@@ -61,7 +67,7 @@ module ietf-i2nsf-ikeless {
     (RFC 2119) (RFC 8174) when, and only when, they appear
     in all capitals, as shown here.";
 
-  revision "2020-10-30" {
+  revision "2021-02-16" {
     description "Initial version.";
     reference
       "RFC XXXX: Software-Defined Networking
@@ -180,25 +186,18 @@ module ietf-i2nsf-ikeless {
               "Security Parameter Index (SPI)'s
               IPsec SA.";
           }
+
           leaf ext-seq-num {
             type boolean;
             default true;
             description
-              "True if this IPsec SA is using
-              extended sequence numbers. True 64
-              bit counter, false 32 bit.";
+              "True if this IPsec SA is using extended
+              sequence numbers. If true, the 64-bit
+              extended sequence number counter is used;
+              if false, the normal 32-bit sequence
+              number counter is used.";
           }
-          leaf seq-number-counter {
-            type uint64;
-            default 0;
-            description
-              "A 64-bit counter when this IPsec
-              SA is using Extended Sequence
-              Number or 32-bit counter when it
-              is not. It used to generate the
-              initial Sequence Number field
-              in ESP headers.";
-          }
+
           leaf seq-overflow {
             type boolean;
             default false;
@@ -213,17 +212,18 @@ module ietf-i2nsf-ikeless {
               Encryption with Associated Data
               (AEAD) is used (leaf
               esp-algorithms/encryption/algorithm-type)
-              this flag MUST BE false.";
+              this flag MUST BE false. Setting this
+              flag to true is strongly discouraged.";
           }
-          leaf anti-replay-window {
+          leaf anti-replay-window-size {
             type uint32;
-            default 32;
+            default 64;
             description
-              "A 32-bit counter and a bit-map (or
-              equivalent) used to determine
-              whether an inbound ESP packet is a
-              replay. If set to 0 no anti-replay
-              mechanism is performed.";
+              "To set the anti-replay window size.
+              The default value is set to 64
+              following RFC 4303 recommendation.";
+            reference
+               "Section 3.4.3 in RFC 4303";
           }
           container traffic-selector {
             uses nsfikec:selector-grouping;
@@ -260,7 +260,7 @@ module ietf-i2nsf-ikeless {
                  (ESP).";
 
               leaf encryption-algorithm {
-                type nsfikec:encryption-algorithm-type;
+                type nsfikec:encr-alg-t;
                 default 12;
                 description
                   "Configuration of ESP
@@ -276,7 +276,7 @@ module ietf-i2nsf-ikeless {
                    "ESP encryption key value.
                    If this leaf is not defined
                    the key is not defined
-                   (e.g. encryption is NULL).
+                   (e.g., encryption is NULL).
                    The key length is
                    determined by the
                    length of the key set in
@@ -289,7 +289,7 @@ module ietf-i2nsf-ikeless {
                 description
                   "ESP encryption IV value. If
                   this leaf is not defined the
-                  IV is not defined (e.g.
+                  IV is not defined (e.g.,
                   encryption is NULL)";
               }
             }
@@ -299,12 +299,13 @@ module ietf-i2nsf-ikeless {
                 "Configuration of integrity for
                 IPsec Encapsulation Security
                 Payload (ESP). This container
-                allows to configure integrity
-                algorithm when no AEAD
+                allows configuration of integrity
+                algorithms when no AEAD
                 algorithms are used, and
                 integrity is required.";
+
               leaf integrity-algorithm {
-                type nsfikec:integrity-algorithm-type;
+                type nsfikec:intr-alg-t;
                 default 12;
                 description
                   "Message Authentication Code
@@ -316,13 +317,14 @@ module ietf-i2nsf-ikeless {
                   the integrity leaf is not
                   used.";
               }
+
               leaf key {
                 nacm:default-deny-all;
                 type yang:hex-string;
                 description
                   "ESP integrity key value.
                   If this leaf is not defined
-                  the key is not defined (e.g.
+                  the key is not defined (e.g.,
                   AEAD algorithm is chosen and
                   integrity algorithm is not
                   required). The key length is
@@ -354,6 +356,15 @@ module ietf-i2nsf-ikeless {
           container tunnel {
             when "../mode = 'tunnel'";
             uses nsfikec:tunnel-grouping;
+            leaf-list dscp-values {
+              type inet:dscp;
+              description
+                "DSCP values allowed for packets carried over
+                this IPsec SA. If no values are specified, no
+                DSCP-specific filtering is applied";
+              reference
+                "Section 4.4.2.1. in RFC 4301.";
+            }
             description
               "Endpoints of the IPsec tunnel.";
           }
@@ -384,26 +395,50 @@ module ietf-i2nsf-ikeless {
             description
               "State data about the anti-replay
               window.";
-            leaf replay-window {
-              type uint64;
+
+            container replay-window {
+              leaf w {
+                type uint32;
+                description
+                  "Size of the replay window.";
+              }
+              leaf t {
+                type uint64;
+                description
+                  "Highest sequence number
+                  authenticated so far,
+                  upper bound of window ";
+              }
+              leaf b {
+                type uint64;
+                description
+                  "Lower bound of window.";
+              }
               description
-                "Current state of the replay
-                window.";
+                "This container contains three
+                parameters that defines the state
+                of the replay window: window size (w),
+                highest sequence number authenticated (t)
+                and lower bound of the window (b).";
+              reference
+                "Appendix A in RFC 4303.";
             }
+
             leaf packet-dropped {
-              type uint64;
+              type yang:counter64;
               description
-                "Packets detected out of the
-                replay window and dropped
-                because they are replay
-                packets.";
+                "Packets dropped
+                because they are
+                replay packets.";
             }
+
             leaf failed {
-              type uint32;
+              type yang:counter64;
               description
                 "Number of packets detected out
                 of the replay window.";
             }
+
             leaf seq-number-counter {
               type uint64;
               description
@@ -418,7 +453,7 @@ module ietf-i2nsf-ikeless {
         } /*ipsec-sa-state*/
 
         description
-          "List of SAD entries that conforms the SAD.";
+          "List of SAD entries that forms the SAD.";
       } /*list sad-entry*/
     } /*container sad*/
   }/*container ipsec-ikeless*/
@@ -427,9 +462,13 @@ module ietf-i2nsf-ikeless {
   notification sadb-acquire {
     if-feature ikeless-notification;
     description
-      "An IPsec SA is required. The traffic-selector
-      container contains information about the IP packet
-      that triggers the acquire notification.";
+      "The NSF detects and notifies that
+      an IPsec SA is required for an
+      outbound IP packet that has matched a SPD entry.
+      The traffic-selector container in this
+      notification contains information about
+      the IP packet that triggered this
+      notification.";
     leaf ipsec-policy-name {
       type string;
       mandatory true;
@@ -465,7 +504,7 @@ module ietf-i2nsf-ikeless {
       mandatory true;
       description
         "It contains the SAD entry name (unique) of
-        the IPsec SA that has expired.  It is assumed
+        the IPsec SA that is about to expire.  It is assumed
         the I2NSF Controller will have a copy of the
         IPsec SA information (except the cryptographic
         material and state data) indexed by this name
@@ -485,12 +524,19 @@ module ietf-i2nsf-ikeless {
     container lifetime-current {
       description
         "IPsec SA current lifetime. If
-        soft-lifetime-expired is true this container is
-        set with the lifetime information about current
-        soft lifetime.";
+        soft-lifetime-expired is true
+        this container is set with the
+        lifetime information about current
+        soft lifetime.
+        It can help the NSF Controller
+        to know which of the (soft) lifetime
+        limits raised the event: time, bytes,
+        packets or idle.";
+
       uses nsfikec:lifetime;
     }
   }
+
   notification sadb-seq-overflow {
     if-feature ikeless-notification;
     description "Sequence overflow notification.";
@@ -499,17 +545,21 @@ module ietf-i2nsf-ikeless {
       mandatory true;
       description
         "It contains the SAD entry name (unique) of
-        the IPsec SA that is about to have sequence
+        the IPsec SA that is about to have a sequence
         number overflow and rollover is not permitted.
-        It is assumed the I2NSF Controller will have
-        a copy of the IPsec SA information (except the
+        When the NSF issues this event before reaching
+        a sequence number overflow is implementation
+        specific and out of scope of this specification.
+        It is assumed the I2NSF Controller will have a
+        copy of the IPsec SA information (except the
         cryptographic material and state data) indexed
-        by this name (unique identifier) so the it can
+        by this name (unique identifier) so it can
         know all the information (crypto algorithms,
-        etc.) about the IPsec SA that has expired in
+        etc.) about the IPsec SA in
         order to perform a rekey of the IPsec SA.";
     }
   }
+
   notification sadb-bad-spi {
     if-feature ikeless-notification;
     description
