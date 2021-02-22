@@ -2,17 +2,9 @@ module ietf-te-service-mapping-types {
   yang-version 1.1;
   namespace
     "urn:ietf:params:xml:ns:yang:ietf-te-service-mapping-types";
-  prefix tsm-types;
+  prefix tsmt;
 
-  /* Import inet-types */
-
-  import ietf-inet-types {
-    prefix inet;
-    reference
-      "RFC 6991: Common YANG Data Types";
-  }
-
-  /* Import inet-types */
+  /* Import te-types */
 
   import ietf-te-types {
     prefix te-types;
@@ -80,7 +72,7 @@ module ietf-te-service-mapping-types {
      parameters and policies as a common grouping applicable to
      variuous service models (e.g., L1CSM, L2SM, L3SM, etc.)
 
-     Copyright (c) 2020 IETF Trust and the persons identified as
+     Copyright (c) 2021 IETF Trust and the persons identified as
      authors of the code.  All rights reserved.
 
      Redistribution and use in source and binary forms, with or
@@ -99,7 +91,7 @@ module ietf-te-service-mapping-types {
      described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
      they appear in all capitals, as shown here.";
 
-  revision 2020-11-02 {
+  revision 2021-02-20 {
     description
       "Initial revision.";
     reference
@@ -167,11 +159,10 @@ module ietf-te-service-mapping-types {
        the properties of the tunnel (e.g., b/w)";
   }
 
-  identity template {
+  identity none {
     base map-type;
     description
-      "The VPN service selects an TE mapping template with path
-       constraints and optimization criteria";
+      "The VPN service is not mapped to any underlying TE";
   }
 
   /*
@@ -218,14 +209,9 @@ module ietf-te-service-mapping-types {
    */
 
   typedef te-mapping-template-id {
-    type inet:uri;
+    type string;
     description
-      "Identifier for a TE mapping template.  The precise
-       structure of the te-mapping-template-id will be up
-       to the implementation. The identifier SHOULD be
-       chosen such that the same template will always be
-       identified through the same identifier, even if the
-       data model is instantiated in separate datastores.";
+      "Identifier for a TE mapping template.";
   }
 
   /*
@@ -237,11 +223,12 @@ module ietf-te-service-mapping-types {
       "The reference to TE.";
     choice te {
       description
-        "The TE";
+        "How the VPN is mapped to a VN, Topology, Tunnel, SR Policy
+         etc.";
       case vn {
-        leaf-list vn-list {
+        leaf-list vn {
           type leafref {
-            path "/vn:vn/vn:vn-list/vn:vn-id";
+            path "/vn:vn/vn:vn/vn:vn-id";
           }
           description
             "The reference to VN";
@@ -256,10 +243,12 @@ module ietf-te-service-mapping-types {
           description
             "An identifier to the TE Topology Model where the abstract
              nodes and links of the Topology can be found for Type 2
-             VNS";
+             VNs as defined in RFC 8453";
           reference
             "RFC 8795: YANG Data Model for Traffic Engineering (TE)
-             Topologies";
+             Topologies
+             RFC 8453: Framework for Abstraction and Control of TE
+             Networks (ACTN)";
         }
         leaf abstract-node {
           type leafref {
@@ -273,7 +262,7 @@ module ietf-te-service-mapping-types {
         }
       }
       case te-tunnel {
-        leaf-list te-tunnel-list {
+        leaf-list te-tunnel {
           type te:tunnel-ref;
           description
             "Reference to TE Tunnels";
@@ -308,18 +297,16 @@ module ietf-te-service-mapping-types {
           }
         }
       }
-      case te-mapping-template {
-        if-feature "template";
-        leaf te-mapping-template-ref {
-          type leafref {
-            path "/tsm-types:te-mapping-templates/"
-               + "tsm-types:te-mapping-template/tsm-types:id";
-          }
-          description
-            "An identifier to the TE Mapping Template where the TE
-             constraints and optimization criteria are specified.";
-        }
+    }
+    leaf te-mapping-template-ref {
+      if-feature "template";
+      type leafref {
+        path "/tsmt:te-mapping-templates/"
+           + "tsmt:te-mapping-template/tsmt:id";
       }
+      description
+        "An identifier to the TE Mapping Template where the TE
+         constraints and optimization criteria are specified.";
     }
   }
 
@@ -330,14 +317,14 @@ module ietf-te-service-mapping-types {
       "The reference to TE endpoints.";
     choice te {
       description
-        "The TE";
+        "How the TE endpoint is defined by VN's AP or TE's LTP";
       case vn {
-        leaf-list ap-list {
+        leaf-list ap {
           type leafref {
-            path "/vn:ap/vn:access-point-list/vn:access-point-id";
+            path "/vn:ap/vn:ap/vn:ap-id";
           }
           description
-            "The reference to VN AP";
+            "The reference to VN's AP";
           reference
             "RFC 8453: Framework for Abstraction and Control of TE
              Networks (ACTN)";
@@ -358,6 +345,49 @@ module ietf-te-service-mapping-types {
 
   //grouping
 
+  grouping vnap-ref {
+    description
+      "The reference to VNAP.";
+    leaf vnap {
+      type leafref {
+        path "/vn:ap/vn:ap/vn:vn-ap/vn:vn-ap-id";
+      }
+      description
+        "The reference to VNAP";
+      reference
+        "RFC 8453: Framework for Abstraction and Control of TE
+         Networks (ACTN)";
+    }
+  }
+
+  //grouping
+
+  grouping te-policy {
+    description
+      "Various underlying TE policy requirements";
+    leaf color {
+      type uint32;
+      description
+        "Maps to the underlying colored TE resources";
+    }
+    leaf protection-type {
+      type identityref {
+        base te-types:lsp-protection-type;
+      }
+      description
+        "Desired protection level for the underlying
+         TE resources";
+    }
+    leaf availability-type {
+      type identityref {
+        base availability-type;
+      }
+      description
+        "Availability Requirement for the Service";
+    }
+  }
+  //grouping
+
   grouping te-mapping {
     description
       "Mapping between Services and TE";
@@ -372,12 +402,10 @@ module ietf-te-service-mapping-types {
           "Isolation Requirements, Tunnel Bind or
            Tunnel Selection";
       }
-      leaf availability-type {
-        type identityref {
-          base availability-type;
-        }
+      container te-policy {
+        uses te-policy;
         description
-          "Availability Requirement for the Service";
+          "Desired Underlying TE Policy";
       }
       uses te-ref;
     }
@@ -404,9 +432,9 @@ module ietf-te-service-mapping-types {
         type identityref {
           base map-type;
         }
-        must "0 = derived-from-or-self(.,'template')" {
+        must "0 = derived-from-or-self(.,'none')" {
           error-message "The map-type must be other than "
-                      + "TE mapping template";
+                      + "none";
         }
         description
           "Map type for the VN/Tunnel creation/
