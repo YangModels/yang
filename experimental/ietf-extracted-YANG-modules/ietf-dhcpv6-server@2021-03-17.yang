@@ -56,6 +56,11 @@ module ietf-dhcpv6-server {
     This version of this YANG module is part of RFC XXXX; see
     the RFC itself for full legal notices.";
 
+  revision 2021-03-17 {
+    description "Version update for draft -19 publication.";
+    reference "I-D: draft-ietf-dhc-dhcpv6-yang-19";
+  }
+
   revision 2021-02-22 {
     description "Version update for draft -18 publication.";
     reference "I-D: draft-ietf-dhc-dhcpv6-yang-18";
@@ -127,7 +132,7 @@ module ietf-dhcpv6-server {
     description "Denotes that the server implements DHCPv6 prefix
       delegation.";
     reference "RFC 8415: Dynamic Host Configuration Protocol for
-      IPv6 (DHCPv6), Section 6.2";
+      IPv6 (DHCPv6), Section 6.3";
   }
 
   /*
@@ -176,7 +181,7 @@ module ietf-dhcpv6-server {
       description "When set to 'true', Specifies that the pool
         supports client-server exchanges involving two messages.";
       reference "RFC 8415: Dynamic Host Configuration Protocol for
-        IPv6 (DHCPv6), Section 5.2";
+        IPv6 (DHCPv6), Section 5.1";
     }
   }
 
@@ -218,8 +223,8 @@ module ietf-dhcpv6-server {
     }
     leaf valid-lifetime {
       type dhcpv6-common:timer-seconds32;
-      description "The valid lifetime for the leased prefix
-        expressed in seconds.";
+      description "The valid lifetime for the lease expressed
+        in seconds.";
       reference "RFC 8415: Dynamic Host Configuration Protocol for
         IPv6 (DHCPv6), Section 6";
     }
@@ -392,7 +397,6 @@ module ietf-dhcpv6-server {
       }
     }
   }
-
   /*
    * Data Nodes
    */
@@ -477,7 +481,7 @@ module ietf-dhcpv6-server {
         leaf id {
           type uint32;
           mandatory true;
-          description "Equivalent to subnet ID.";
+          description "Unique identifier for the network range.";
         }
         leaf description {
           type string;
@@ -517,11 +521,13 @@ module ietf-dhcpv6-server {
               mandatory true;
               description "End IPv6 address for the pool.";
             }
-            leaf max-address-count {
+            leaf max-address-utilization {
               type dhcpv6-common:threshold;
               mandatory true;
-              description "Maximum number of addresses that can
-                be simultaneously allocated from this pool.";
+              description "Maximum amount of the addresses in the
+                pool which can be simultaneously allocated,
+                calculated as a percentage of the available
+                addresses (end-address minus start-address).";
             }
             uses resource-config;
             container host-reservations {
@@ -596,8 +602,10 @@ module ietf-dhcpv6-server {
             leaf max-pd-space-utilization {
               type dhcpv6-common:threshold;
               mandatory true;
-              description "Maximum percentage utilization of the
-                prefix pool in this pool.";
+              description "Maximum amount of the prefixes in the
+                pool which can be simultaneously allocated,
+                calculated as a percentage of the available
+                prefixes, rounded up.";
             }
             uses resource-config;
             container host-reservations {
@@ -660,38 +668,44 @@ module ietf-dhcpv6-server {
 
   notification address-pool-utilization-threshold-exceeded {
     description "Notification sent when the address pool
-      utilization exceeds the configured threshold.";
+      utilization exceeds the threshold configured in
+      max-address-utilization.";
     leaf pool-id {
       type leafref {
         path "/dhcpv6-server/network-ranges/network-range/" +
           "address-pools/address-pool/pool-id";
       }
-      description "Leafref to the address pool which the notification
+      mandatory true;
+      description "Leafref to the address pool that the notification
         is being generated for.";
     }
-    leaf total-address-count {
+    leaf total-pool-addresses {
       type uint64;
       mandatory true;
-      description "Count of the total addresses in the pool.";
+      description "Total number of addresses in the pool
+        (end-address minus start-address).";
     }
-    leaf max-address-count {
+    leaf max-allocated-addresses {
       type uint64;
       mandatory true;
-      description "Maximum count of addresses that can be allocated
-        in the pool. This value may be less than count of total
-        addresses.";
+      description "Maximum number of addresses that can be
+        simultaneously allocated from the pool. This value may be
+        less than count of total addresses. Calculated as the
+        max-address-utilization (percentage) of the
+        total-pool-addresses, rounded up.";
     }
     leaf allocated-address-count {
       type uint64;
       mandatory true;
-      description "Count of allocated addresses in the pool.";
+      description "Number of addresses allocated from the pool.";
     }
   }
 
   notification prefix-pool-utilization-threshold-exceeded {
     if-feature prefix-delegation;
     description "Notification sent when the prefix pool
-      utilization exceeds the configured threshold.";
+      utilization exceeds the threshold configured in
+      max-pd-space-utilization.";
     leaf pool-id {
       type leafref {
         path "/dhcpv6-server/network-ranges/network-range/" +
@@ -700,23 +714,60 @@ module ietf-dhcpv6-server {
       mandatory true;
       description "Unique identifier for the pool.";
     }
-    leaf max-pd-space-utilization {
-      type leafref {
-        path "/dhcpv6-server/network-ranges/network-range/" +
-          "prefix-pools/prefix-pool/max-pd-space-utilization";
-      }
-      mandatory true;
-      description "PD space utilization threshold.";
-    }
-    leaf pd-space-utilization {
+    leaf total-pool-prefixes {
       type uint64;
-      description "Current PD space utilization";
+      mandatory true;
+      description "Total number of prefixes in the pool.";
+    }
+    leaf max-allocated-prefixes {
+      type uint64;
+      mandatory true;
+      description "Maximum number of prefixes that can be
+        simultaneously allocated from the pool. This value may be
+        less than count of total prefixes. Calculated as the
+        max-precfix-utilization (percentage) of the
+        total-pool-prefixes, rounded up.";
+    }
+    leaf allocated-prefixes-count {
+      type uint64;
+      mandatory true;
+      description "Number of prefixes allocated from the pool.";
     }
   }
 
   notification invalid-client-detected {
     description "Notification sent when the server detects an
       invalid client.";
+    leaf message-type {
+      type enumeration {
+        enum solicit {
+          description "Solicit (1) message.";
+        }
+        enum request {
+          description "Request (3) message.";
+        }
+        enum confirm {
+          description "Confirm (4) message.";
+        }
+        enum renew {
+          description "Renew (5) message.";
+        }
+        enum rebind {
+          description "Rebind (6) message.";
+        }
+        enum release {
+          description "Release (8) message.";
+        }
+        enum decline {
+          description "Decline (9) message.";
+        }
+        enum info-request {
+          description "Information request (11) message.";
+        }
+      }
+      description "The message type received by the server that
+        has caused the error.";
+    }
     leaf duid {
       type dhcpv6-common:duid;
       description "Client DUID.";
@@ -781,7 +832,12 @@ module ietf-dhcpv6-server {
       or renewed by the client.";
     input {
       leaf lease-address-to-delete {
-        type inet:ipv6-address;
+        type leafref {
+          path "../../dhcpv6-server/network-ranges/network-range" +
+            "/address-pools/address-pool/active-leases/active-lease"
++
+            "/leased-address";
+        }
           mandatory true;
         description "IPv6 address of an active lease that will be
           deleted from the server.";
@@ -796,14 +852,19 @@ module ietf-dhcpv6-server {
   }
   rpc delete-prefix-lease {
     nacm:default-deny-all;
+    if-feature prefix-delegation;
     description "Deletes a client's active prefix lease from the
       server's lease database. Note, this will not cause the prefix
       to be revoked from the client, and the lease may be refreshed
       or renewed by the client.";
     input {
       leaf lease-prefix-to-delete {
-        type inet:ipv6-prefix;
-          mandatory true;
+        type leafref {
+          path "../../dhcpv6-server/network-ranges/network-range" +
+            "/prefix-pools/prefix-pool/active-leases/active-lease" +
+            "/leased-prefix";
+        }
+        mandatory true;
         description "IPv6 prefix of an active lease that will be
           deleted from the server.";
       }
