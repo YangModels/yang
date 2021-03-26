@@ -5,7 +5,7 @@
 - [YANG Models and Platform Capabilities for Cisco IOS XE 17.5.1](#yang-models-and-platform-capabilities-for-cisco-ios-xe-1751)
   - [Major Model Changes In 17.5.1](#major-model-changes-in-1751)
     - [Native Models Added](#native-models-added)
-    - [Other Models Added](#other-models-added)
+    - [Deviation Models Added](#deviation-models-added)
     - [Native Models Modified](#native-models-modified)
     - [Other Models Modified](#other-models-modified)
     - [Experimental YANG Models](#experimental-yang-models)
