@@ -16,7 +16,11 @@
 
 ## XPaths Modified
 
+- config-interface-authentication-grouping(grouping)/authentication/timer/reauthenticate/timer-val/value-config/value-config
+
 ### Description
+
+The base type has changed from uint16 to uint32
 
 ## XPaths Added
 

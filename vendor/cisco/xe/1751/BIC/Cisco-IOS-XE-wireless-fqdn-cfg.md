@@ -16,7 +16,15 @@
 
 ## XPaths Modified
 
+- st-fqdn-cfg(grouping)/url-list-name
+
 ### Description
+
+A new pattern expression '[^#'%?+ ]+' added
+
+### Reason
+
+Adding a uniform validation for input in YANG (matching the matching TDL validation)
 
 ## XPaths Added
 

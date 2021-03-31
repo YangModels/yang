@@ -16,7 +16,15 @@
 
 ## XPaths Modified
 
+- native/interface/tunnel/mode/ethernet-config/gre/ipv4
+
 ### Description
+
+when expression may be different than before
+
+### Reason
+
+when statement is modified with correct path since the older path got obsolete.
 
 ## XPaths Added
 

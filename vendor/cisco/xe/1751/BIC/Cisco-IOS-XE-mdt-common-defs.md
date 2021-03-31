@@ -16,7 +16,11 @@
 
 ## XPaths Modified
 
+- mdt-receiver-id(grouping)
+
 ### Description
+
+Status changed from deprecated to current
 
 ## XPaths Added
 

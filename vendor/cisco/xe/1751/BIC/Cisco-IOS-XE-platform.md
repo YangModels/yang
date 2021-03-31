@@ -16,7 +16,15 @@
 
 ## XPaths Modified
 
+- native/platform/qos/match-statistics/per-ace
+
 ### Description
+
+A new Must expression added
+
+### Reason
+
+cli-diff-dependency not supported by confd
 
 ## XPaths Added
 

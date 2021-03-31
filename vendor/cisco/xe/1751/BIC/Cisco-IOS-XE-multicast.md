@@ -8,6 +8,8 @@
 
 ## XPaths Obsoleted
 
+- native/ipv6/multicast/vrf
+
 ### Description
 
 ## XPaths Deprecated

@@ -16,7 +16,11 @@
 
 ## XPaths Modified
 
+- config-service-template-grouping(grouping)/service-template(list)/absolute-timer
+
 ### Description
+
+The base type has  changed from uint16 to uint32
 
 ## XPaths Added
 

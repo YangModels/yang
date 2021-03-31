@@ -16,7 +16,15 @@
 
 ## XPaths Modified
 
+- native/performance/monitor/context/mode
+
 ### Description
+
+The when expression may be different than before
+
+### Reason
+
+Because the container 'mode' is not actually in-used in 17.4.1, It should be safe to change the when statement in 17.5.1.
 
 ## XPaths Added
 

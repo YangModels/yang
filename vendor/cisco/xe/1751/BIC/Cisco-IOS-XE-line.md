@@ -16,7 +16,13 @@
 
 ## XPaths Modified
 
+- line-grouping(grouping)/exec-timeout/minutes
+- line-grouping(grouping)/exec-timeout/seconds
+
 ### Description
+
+1. The range '[(0, 35791)]' is  added
+2. The range '[(0, 2147483)]' is added
 
 ## XPaths Added
 

@@ -16,7 +16,15 @@
 
 ## XPaths Modified
 
+- native/segment-routing/traffic-eng/interface/name
+
 ### Description
+
+A new must expression added
+
+### Reason
+
+cli-diff-dependency not supported by confd
 
 ## XPaths Added
 

@@ -16,7 +16,16 @@
 
 ## XPaths Modified
 
+- feature-usage-config(grouping)/enable
+- general-cfg-data/feature-usage-cfg/enable
+
 ### Description
+
+The must expression may be more constrained than before
+
+### Reason
+
+Validation error on EWC platform when using default value
 
 ## XPaths Added
 
