@@ -1,4 +1,4 @@
-## Cisco-IOS-XE-- lisp-oper
+## Cisco-IOS-XE-lisp-oper
 
 
 - [XPaths Obsoleted](#xpaths-obsoleted)

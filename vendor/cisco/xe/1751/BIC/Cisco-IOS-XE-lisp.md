@@ -1,4 +1,4 @@
-## Cisco-IOS-XE-lisp
+## Cisco-IOS-XE-lisp.yang
 
 
 - [XPaths Obsoleted](#xpaths-obsoleted)

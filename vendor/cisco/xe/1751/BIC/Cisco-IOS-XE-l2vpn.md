@@ -7,7 +7,7 @@
 - [XPaths Added](#xpaths-added)
 
 ## XPaths Obsoleted
-i
+
 - native/interface/pseudowire/pseudowire-sequencing/sequencing-option/resync-case(case)/resync
 - native/l2vpn/pseudowire/tlv/template/tlv
 - native/l2vpn/pseudowire/tlv/template/tlv/tlv-description

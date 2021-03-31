@@ -1,4 +1,4 @@
-## Cisco-IOS-XE-nat
+## Cisco-IOS-XE-nat.yang
 
 
 - [XPaths Obsoleted](#xpaths-obsoleted)
