@@ -1,0 +1,143 @@
+module cisco-svo-conditions {
+    namespace "http://cisco.com/yang/svo/conditions";
+    prefix svo-conds;
+
+    import ietf-yang-types { prefix yang; }
+
+    import tailf-common { prefix tailf; }
+
+    import tailf-ncs-alarms { prefix al; }
+
+    import cisco-svo-alarms { prefix svo-al; }
+
+    organization "Cisco Systems";
+
+    description
+        "This module defines the structure for representing a Condition and augments the alarms
+        section with an action for retrieving the device current conditions";
+
+    revision 2020-12-04 { 
+       description "Model version for SVO Release 12.1.0 "; 
+       reference cisco-svo-conditions.yang; 
+    }
+ 
+
+    grouping condition-key-parameters {
+        description "Parameters identifying a condition.";
+
+        leaf device {
+            type string;
+            description
+                        "If a managed device is associated to the condition, this leaf is the name of that
+                        device.";
+            tailf:info "The device the condition belongs to";
+        }
+
+        leaf type {
+            type al:alarm-type-t;
+            description
+                        "This leaf and the leaf 'specific-problem', together provides a unique identification
+                        of the condition type.";
+            tailf:info "Unique identification of the condition type";
+        }
+
+        leaf managed-object {
+            type al:managed-object-t;
+            description "The object associated to the condition'.";
+            tailf:info "The object associated to the condition";
+        }
+
+        leaf specific-problem {
+            type string;
+            description
+                        "This leaf is used when the 'type' leaf cannot uniquely identify the condition type.
+                        Normally, this is not the case, and this leaf is the empty string.";
+            tailf:info "Condition type refinement";
+        }
+    }
+
+    grouping condition-list {
+        container conditions {
+
+            list condition {
+                key "device type managed-object specific-problem";
+
+                description
+                                "The list of conditions. Each entry in the list holds one condition for a given type
+                                and device, managed object.";
+
+                uses condition-key-parameters;
+
+                leaf timestamp {
+                    type yang:date-and-time;
+                    mandatory true;
+                    description "A timestamp when the condition was raised";
+                    tailf:info "A timestamp when the condition was raised";
+                }
+
+                leaf perceived-severity {
+                    type al:severity-t;
+                    description "The severity of the condition.";
+                    tailf:info "The severity of the condition";
+                }
+
+                leaf condition-text {
+                    type al:alarm-text-t;
+                    description "Text representation of the condition";
+                    tailf:info "Text representation of the condition";
+                }
+
+                uses svo-al:common-ext-alarm-parameters;
+            }
+        }
+    }
+
+    grouping condition-list-errors {
+        container errors {
+           leaf operation-error {
+             type string;
+             description "Operation error";
+           }
+           list error {
+                key "device";
+                description "The list of errors returned by a device during the retrieve-conditions process (e.g.
+                                partial data returned due to connection problems). An empty list indicates that no
+                                errors occurred from devices";
+
+                leaf device {
+                    type string;
+                    description "Name of the device";
+                }
+
+                leaf message {
+                    type string;
+                }
+            }
+        }
+    }
+
+    augment /al:alarms {
+
+        tailf:action retrieve-conditions {
+            description "Retrieve the current device conditions.";
+            tailf:info "Retrieve the current device conditions";
+
+            tailf:actionpoint retrieve-conditions-point;
+
+            input {
+                leaf exclude-same-root-cause {
+                    type boolean;
+                    default false;
+                    description "the retrive condition action can include or exclude the same root cause alarm from the expected result. 
+                      Once this attribute is marked true, all the correlated alarms will be filtered out from the query result";
+                }
+            }
+            output {
+                uses condition-list;
+
+                uses condition-list-errors;
+            }
+        }
+    }
+}
+
