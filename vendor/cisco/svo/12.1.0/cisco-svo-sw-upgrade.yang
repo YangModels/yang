@@ -1,0 +1,423 @@
+module cisco-svo-sw-upgrade {
+  yang-version 1.1;
+  namespace "http://cisco.com/yang/cisco-svo-sw-upgrade";
+  prefix svo-sw-upg;
+
+  import tailf-ncs { prefix ncs; }
+  import ietf-inet-types { prefix inet; }
+  import tailf-common { prefix tailf; }
+  
+  import cisco-svo-file-transfer { prefix svo-ft; }
+
+  organization
+    "Cisco Systems, Inc.";
+
+  contact
+    "Cisco Systems, Inc.
+    Customer Service
+
+    Postal: 170 West Tasman Drive
+    San Jose, CA 95134
+
+    Tel: +1 800 553-NETS
+
+    E-mail: cs-yang@cisco.com";
+
+  description
+    "YANG definition for SW upgrade.
+     The SW upgrade is split into two phases:
+     - download of the contents to local file system
+     - activation of the new contents";
+
+  revision 2020-12-04 { 
+     description "Model version for SVO Release 12.1.0 "; 
+     reference cisco-svo-sw-upgrade; 
+  }
+
+
+  typedef sw-component {
+    description "Defines the type of SW component";
+    type enumeration {
+      enum "SVO" {
+        value 1;
+      }
+      enum "AdminPlane" {
+          value 2;
+        }
+      enum "NCS2K" {
+        value 3;
+      }
+      enum "OS" {
+        value 4;
+      }
+      enum "ExternalSwitch" {
+        value 5;
+      }
+    }
+  }
+  
+  typedef device-scope {
+	description "Defines the scope of the action from device point of view";
+	type enumeration {
+	  enum "All-Parallel" {
+	    description "The action is applicable to all devices in parallel";
+	    value 1;
+	  }
+	  enum "All-Sequential" {
+	    description "The action is applicable to all devices, one device per time";
+	    value 2;
+	  }
+	  enum "Individual" {
+		description "The action is applicable to one device only";
+	    value 3;
+	  }
+	}
+  } 
+  
+  typedef protocol-type {
+    description "Defines the supported protocols for download of package";
+    type enumeration {
+      enum "sftp" {
+        value 1;
+      }
+    }
+  }
+
+  grouping sw-component-info {
+	leaf version {
+	  type string;
+	  description "Version of the SW package";
+	}
+	leaf filename {
+	  type string;
+	  description "File name of the SW package";
+	}
+	leaf crc-valid {
+	  type boolean;
+	  description "Valid CRC of the SW package";
+	}
+	leaf size {
+	  type uint64;
+	  description "File size of the SW package";
+	}
+  }
+
+  grouping sw-packages {
+    list sw-package {
+      key "sw-package-id";
+      leaf sw-package-id {
+        type sw-component;
+        description "SW component of the SVO architecture";
+      }
+      uses sw-component-info;
+    }
+  }
+  
+  grouping sw-images {
+    list sw-image {
+      key "sw-image-id";
+      leaf sw-image-id {
+        type string;
+        description "ISO image containing SW packages";
+      }
+      uses sw-packages;
+    }
+  }
+
+  grouping action-output {
+  	// global response of the action. 
+  	// In case of status == Failed the other response containers are not present
+  	uses svo-ft:rpc-response-status;
+
+  	container component-responses {
+  	  presence "Action involved SW component";
+  		list component {
+  	  	  key "component-id";
+  	  	  leaf component-id {
+  	  		type sw-component;
+  	  	}
+  	    uses svo-ft:rpc-response-status;
+  	  }
+  	}
+  	
+  	container device-responses {
+      presence "Action involved devices";
+      description "Specific response status per device";
+  	  list device-response-status {
+  	    description 
+  		  "contains the status of the request for every device";
+  	    key "device";
+  	    leaf device {
+  		  type leafref {
+  			path '/ncs:devices/ncs:device/ncs:name';
+  		  }
+  	    }
+        uses svo-ft:rpc-response-status;
+      }
+  	}
+  }
+	
+  augment "/ncs:software" {
+
+    tailf:action download {
+      tailf:info "Action for downloading software package";
+            
+      tailf:actionpoint download;
+      description "Download the full SW pkg to local file system";
+      input {
+        leaf protocol {
+          type protocol-type;
+          description 
+            "Protocol to be used to download the package";
+        }
+        choice credential {
+	        case user-password {
+            leaf user {
+              type string;
+              description
+                "user name to be used to download the package";
+            }
+            leaf password {
+              type string;
+	            tailf:suppress-echo true;
+              description
+                "password to be used to download the package"; 
+            }
+          }
+          case authgroup {
+            leaf group-name {
+              type string;
+              description 
+                "authorization group configured for download";
+            }
+          }
+        } 
+        leaf remote-file-path {
+          // an URI that may contain or not protocol and user credential
+          // it depends if specified by the above fields 
+          type inet:uri;
+          mandatory true;
+          description
+            "Remote file path. A URI for the remote file path.
+             Format 1: //host[:port]/path
+             Ex: //[2001:db8:0:1::10]:22/home/user/sample
+             Format 2: sftp://user[:password]@host[:port]/path. 
+             Ex: sftp://test:verify@[2001:db8:0:1::10]:22/home/user/sample";
+        }
+      }
+      output {
+        uses svo-ft:rpc-response-status;
+      }
+    }
+
+    tailf:action list-packages {
+      tailf:info "List all available software packages";
+      tailf:actionpoint list-packages;
+      description "List all the software packages present in the local file system";
+      output {
+        uses svo-ft:rpc-response-status;
+        container images {
+          when "current()/../status = 'Successful'";
+          uses sw-images;
+        }
+      }
+    }
+    
+    tailf:action download-devices {
+      tailf:info "Action for the download of new software to devices";
+      description "Download the new software package to the specified devices";
+      tailf:actionpoint download-devices;
+      input {
+        leaf local-pkg-name {
+	      description "The name of the full SW package";
+	      type string;
+	      mandatory true;
+        }
+        leaf-list component {
+          type sw-component;
+      	  must "current() = 'NCS2K' or current() = 'ExternalSwitch'";
+      	  min-elements 1;
+      	  description "List of devices to download";
+        }
+        leaf scope {
+      	  type device-scope;
+      	  default All-Parallel;
+      	  when "current()/../component = 'NCS2K'";
+      	  description "Applicable only when component NCS2K is specified";
+        }
+        leaf device {
+          when "current()/../scope = 'Individual'";
+          description 
+            "NCS2K chassis to be downloaded. 
+            Applicable only when component NCS2K is specified";
+          type leafref {
+            path '/ncs:devices/ncs:device/ncs:name';
+          }
+        }
+      }
+      output {
+    	uses action-output;
+      }
+    }
+    
+    tailf:action terminate-download-devices {
+      tailf:info "Terminate the download of new software to devices";
+      description "Terminate the current running download action";
+      tailf:actionpoint terminate-download-devices;
+      input {
+        leaf-list component {
+      	  type sw-component;
+          must "current() = 'NCS2K' or current() = 'ExternalSwitch'";
+          min-elements 1;
+          description "List of devices to download";
+        }
+        leaf scope {
+          type device-scope;
+          default All-Parallel;
+          when "current()/../component = 'NCS2K'";
+          description "Applicable only when component NCS2K is specified";
+        }
+        leaf device {
+          when "current()/../scope = 'Individual'";
+          description 
+            "NCS2K chassis to be terminated. 
+            Applicable only when component NCS2K is specified";
+          type leafref {
+            path '/ncs:devices/ncs:device/ncs:name';
+          }
+        }
+      }
+      output {
+        uses action-output;	  
+      }
+    }
+    
+    tailf:action activate {
+      tailf:info "Action for the activation of new software";
+      description "Activate the specified SW components";
+      tailf:actionpoint activate;
+      input {
+    	leaf local-pkg-name {
+          description "The name of the full SW package";
+    	  type string;
+    	  mandatory true;
+    	}
+    	leaf-list component {
+    	  type sw-component;
+    	  min-elements 1;
+    	  description "List of SW components to activate";
+    	}
+    	leaf scope {
+    	  type device-scope;
+    	  default All-Parallel;
+    	  when "current()/../component = 'NCS2K'";
+    	 description "Applicable only when component NCS2K is specified";
+    	}
+        leaf device {
+          when "current()/../scope = 'Individual'";
+          description 
+            "NCS2K chassis to be downloaded. 
+            Applicable only when component NCS2K is specified";
+          type leafref {
+            path '/ncs:devices/ncs:device/ncs:name';
+          }
+        }
+      }
+      output {
+    	uses action-output;
+      }
+    }
+  }
+
+  notification sw-download-notification {
+    description
+      "notification for full SW pkg download events.";
+    leaf remote-file-path {
+      type inet:uri;
+      description
+        "Remote file path used in transfer RPC.";
+    }
+
+    uses svo-ft:rpc-response-status;
+
+    container progress {
+      when "current()/../status = 'In-progress'";
+      description
+        "progress status when response is in-progress";
+      leaf bytes-transferred {
+        type uint64;
+        description
+          "bytes transferred";
+      }
+      leaf speed {
+        type uint64;
+        description
+          "transfer speed expressed in bytes per seconds";
+      }
+      leaf percentage-complete {
+        type uint8;
+        description
+          "percentage completed";
+      }
+      leaf remaining-time {
+        type uint32;
+      description 
+          "estimated remaining time in milliseconds";
+      }
+    }
+  } 
+
+  notification sw-download-device-notification {
+    description
+      "notification for NCS2K / ExternalSwitch SW pkg download events.";
+    leaf local-pkg-name {
+      type string;
+      description
+        "local device pkg name";
+    }
+    leaf device {
+      type leafref {
+   	    path '/ncs:devices/ncs:device/ncs:name';
+      }
+    }
+    	
+    uses svo-ft:rpc-response-status;
+
+    container progress {
+      when "current()/../status = 'In-progress'";
+      description
+        "progress status when response is in-progress";
+      leaf bytes-transferred {
+        type uint64;
+        description
+          "bytes transferred";
+      }
+      leaf percentage-complete {
+        type uint8;
+        description
+          "percentage completed";
+      }
+    }
+  }
+  
+  notification activate-notification {
+    description 
+      "final notification to report the status of activation";
+    leaf local-pkg-name {
+      type string;
+      description 
+        "the name of the activated pkg";
+    }
+    leaf component {
+      type sw-component;
+    }
+    leaf device {
+      when "current()/../component = 'NCS2K' or current()/../component = 'ExternalSwitch'";
+      type leafref {
+        path '/ncs:devices/ncs:device/ncs:name';
+      }
+    }
+    uses svo-ft:rpc-response-status;
+  }
+
+}

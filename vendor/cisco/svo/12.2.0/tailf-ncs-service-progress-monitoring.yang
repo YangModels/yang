@@ -1,0 +1,426 @@
+submodule tailf-ncs-service-progress-monitoring {
+  yang-version 1.1;
+  belongs-to tailf-ncs {
+    prefix ncs;
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+
+  include tailf-ncs-plan;
+
+  organization "Tail-f Systems";
+
+  description
+    "This submodule contains a collection of YANG definitions for
+     Service Progress Monitoring (SPM) in NCS.
+
+     Copyright 2019 Cisco Systems, Inc.
+     All rights reserved.
+     Permission is hereby granted to redistribute this file without
+     modification.";
+
+  revision 2018-06-01 {
+    description
+      "Initial revision";
+  }
+
+  /*
+   * Plan Component State
+   */
+
+  identity any-state {
+    description
+      "Can be used in SPM and plan trigger policies to denote any plan state.";
+    base ncs:plan-state;
+  }
+
+  /*
+   * Plan Component Types
+   */
+
+  identity any {
+    description
+      "Can be used in SPM and plan triggers to denote any component type.";
+    base ncs:plan-component-type;
+  }
+
+  /*
+   * Groupings
+   */
+
+  typedef spm-trigger-status {
+    type enumeration {
+      enum passed {
+        tailf:code-name spm-passed;
+      }
+      enum failed {
+        tailf:code-name spm-failed;
+      }
+    }
+  }
+
+  grouping service-progress-monitoring-trigger-action {
+    tailf:action timeout {
+      description
+        "This action should be used by a custom model that is separate
+         from the service (which may be made by someone else),
+         and it must be refined with an actionpoint.
+
+         Any callback action to be invoked when SPM trigger must
+         always have the five leaves defined as input to this action
+         as initial arguments, they are populated by the NSO system.";
+
+      input {
+        leaf service {
+          description
+            "The path to the service.";
+          type instance-identifier;
+          mandatory true;
+        }
+
+        leaf trigger {
+          description "The name of the trigger that fired.";
+          type leafref {
+            path "/ncs:service-progress-monitoring/ncs:trigger/ncs:name";
+          }
+          mandatory true;
+        }
+
+        leaf policy {
+          description "The name of the policy that fired.";
+          type leafref {
+            path "/ncs:service-progress-monitoring/ncs:policy/ncs:name";
+          }
+          mandatory true;
+        }
+
+        leaf timeout {
+          description "What timeout has triggered.";
+          type enumeration {
+            enum violation {tailf:code-name spm-violation-timeout;}
+            enum jeopardy {tailf:code-name spm-jeopardy-timeout;}
+            enum success {tailf:code-name spm-success-timeout;}
+          }
+          mandatory true;
+        }
+
+        leaf status {
+          description "SPM passed or failed.";
+          type spm-trigger-status;
+          mandatory true;
+        }
+      }
+    }
+  }
+
+  grouping service-progress-monitoring-data {
+    container service-progress-monitoring {
+      config false;
+
+      description
+        "Service Progress Monitoring triggers.
+         A service may have multiple SPMs.
+         For example, if a CPE is added at a later stage it would have
+         its own SPM defined, separate from the main SPM of the service.
+         However, in many cases there will be just one SPM per service.
+
+         The overall status for a trigger can be determined by reading
+         the trigger-status{<name>}/status leaf. The success-time
+         leaf will be set when the policy evaluates to true, i.e. when
+         that part of the product is considered to be delivered by the
+         policy expression. Note that this is operational data.
+         ";
+
+      list trigger-status {
+        description
+          "The operation status of the trigger.";
+
+        key name;
+
+        leaf name {
+          type string;
+          description
+            "The trigger name.";
+        }
+
+        leaf policy {
+          type string;
+          description
+            "Name of policy.";
+        }
+
+        leaf start-time {
+          type yang:date-and-time;
+          tailf:cli-value-display-template "$(.|datetime)";
+          description
+            "Time when the triggers started ticking.";
+        }
+
+        leaf jeopardy-time {
+          type yang:date-and-time;
+          tailf:cli-value-display-template "$(.|datetime)";
+          description
+            "Time when the conditions are evaluated for a jeopardy trigger.";
+        }
+
+        leaf jeopardy-result {
+          type spm-trigger-status;
+          description
+            "The result will be 'passed' if no jeopardy was detected at
+             jeopardy-time, 'failed' if it was detected. It is not set until
+             it has been evaluated. It will be set to 'passed' if the
+             condition is satisfied prior to the timeout expiring as well.";
+        }
+
+        leaf violation-time {
+          type yang:date-and-time;
+          tailf:cli-value-display-template "$(.|datetime)";
+          description
+            "Time when the conditions are evaluated for a violation trigger.";
+        }
+
+        leaf violation-result {
+          type spm-trigger-status;
+          description
+            "The result will be 'passed' if no violation was detected at
+             violation-time, 'failed' if it was detected. It is not set until
+             it has been evaluated. It will be set to 'passed' if the
+             condition is satisfied prior to the timeout expiring as well.";
+        }
+
+        leaf status {
+          type enumeration {
+            enum running {
+              tailf:code-name spm-running;
+              description
+              "Service Progress Monitoring has been started but
+               not yet triggered";
+            }
+            enum jeopardized {
+              tailf:code-name spm-jeopardized;
+              description
+                "The jeopardy timer has triggered and the policy has evaluated
+                 to false.";
+            }
+            enum violated {
+              tailf:code-name spm-violated;
+              description
+                "The violation timer has triggered and the policy has evaluated
+                 to false.";
+            }
+            enum successful {
+              tailf:code-name spm-successful;
+              description
+                "One of the timers have triggered and the policy has evaluated
+                 to true.";
+            }
+          }
+        }
+
+        leaf success-time {
+          type yang:date-and-time;
+          tailf:cli-value-display-template "$(.|datetime)";
+          description
+            "Time when the conditions were evaluated to true,
+             i.e SPM was successful.";
+        }
+      }
+    }
+  }
+
+  container service-progress-monitoring {
+    tailf:info "Service Progress Monitoring policies";
+
+    list policy {
+      tailf:info "Policy definitions for Service Progress Monitoring";
+      description
+        "A list of all the policies.";
+
+      key name;
+      leaf name {
+        type string;
+        description
+          "The name of the policy.";
+      }
+
+      leaf violation-timeout {
+        tailf:info "Violation timeout in seconds";
+        mandatory true;
+        type uint32;
+        units "seconds";
+        description
+          "The timeout in seconds for a policy to be violated.";
+      }
+
+      leaf jeopardy-timeout {
+        tailf:info "Jeopardy timeout in seconds";
+        mandatory true;
+        type uint32;
+        units "seconds";
+        description
+          "The timeout in seconds for a policy to be in jeopardy.";
+      }
+
+      list condition {
+        min-elements 1;
+        description
+          "A list of the conditions that decides whether a policy is
+           fulfilled or not.";
+
+        key name;
+
+        leaf name {
+          type string;
+          description
+            "Name of the condition.";
+        }
+
+        list component-type {
+          min-elements 1;
+
+          description
+            "Each condition can specify what state must be reached for
+             a portion of the components to not trigger the action below.";
+
+          key type;
+
+          leaf type {
+            description
+              "We can either specify a particular component name
+               (trigger/component) or a component-type (which may
+               exist in several instances).";
+            type union {
+              type ncs:plan-component-type-t;
+              type enumeration {
+                enum "component-name" {
+                  tailf:code-name spm-component-name;
+                }
+              }
+            }
+          }
+
+          leaf what {
+            description
+              "Condition put on the component with respect to the
+               ../plan-state and ../status.
+
+               So, either:
+
+                 1. X % of the component states has the status set.
+
+                 2. All of the component states has the status set.
+
+                 3. At least one of the components states has the status set.
+              ";
+            mandatory true;
+            type union {
+              type uint32 {
+                range "0..100";
+              }
+              type enumeration {
+                enum all{
+                  tailf:code-name spm-what-all;
+                }
+                enum at-least-one {
+                  tailf:code-name spm-what-at-least-one;
+                }
+              }
+            }
+          }
+
+          leaf plan-state {
+            mandatory true;
+            type ncs:plan-state-name-t;
+            description
+              "The plans state. init, ready or any specific for the
+               component.";
+          }
+
+          leaf status {
+            type ncs:plan-state-status-t;
+            default "reached";
+            description
+              "status of the new state for the component in the service's plan.
+               reached not-reached or failed.";
+          }
+        }
+      }
+
+      container action {
+        leaf action-path {
+          type instance-identifier {
+            require-instance false;
+          }
+        }
+        leaf always-call {
+          type boolean;
+          default "false";
+          description
+            "If set to true, the action will be invoked also when
+             the condition is evaluated to 'passed'.";
+        }
+      }
+    }
+
+    list trigger {
+      description
+        "A list of all the triggers. A trigger is used to apply a SPM policy
+         to a service.";
+
+      key name;
+
+      leaf name {
+        type string;
+        description
+          "Name of the trigger.";
+      }
+
+      leaf description {
+        type string;
+        description
+          "Service Progress Monitoring trigger description.";
+      }
+
+      leaf policy {
+        tailf:info "Service Progress Monitoring Policy";
+        mandatory true;
+        description
+          "A reference to a policy that should be used with this trigger.";
+        type leafref {
+          path "/ncs:service-progress-monitoring/policy/name";
+        }
+      }
+
+      leaf start-time {
+        type yang:date-and-time;
+        tailf:cli-value-display-template "$(.|datetime)";
+        description
+          "Optionally provide a start-time.
+           If this is unset the SPM server will set the start-time to
+           the commit time of the trigger.";
+      }
+
+      leaf component {
+        type string;
+        description
+          "If the policy contains a condition with the key component-name,
+           this is the component to apply the condition to.";
+      }
+
+      leaf target {
+        mandatory true;
+        description
+          "Instance identifier to whichever service the SPM policy should
+           be applied. Typically this is the creator of the trigger instance.";
+        type instance-identifier {
+          require-instance true;
+        }
+      }
+    }
+  }
+}

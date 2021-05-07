@@ -1,0 +1,351 @@
+module cisco-svo-capabilities {
+    yang-version 1.1;
+    namespace "http://cisco.com/yang/svo/capabilities";
+    prefix svo-cap;
+
+    import tailf-common { prefix tailf; }
+    import cisco-svo-common-base-opt-grp { prefix ccbog; }
+
+    import ietf-inet-types { prefix inet; }
+    import cisco-svo-common-types { prefix cct;}
+    import ietf-yang-types { prefix ietf; }
+    
+
+    organization
+        "Cisco Systems, Inc.";
+
+    contact
+        "Cisco Systems, Inc. Customer Service Postal: 170 West Tasman
+        Drive San Jose, CA 95134 Tel: +1 800 553-NETS E-mail: cs-yang@cisco.com";
+
+    description
+        "YANG definition for hw capabilities";
+
+    revision 2020-12-04 { 
+       description "Model version for SVO Release 12.1.0 "; 
+       reference cisco-svo-capabilities.yang; 
+    }
+ 
+
+    typedef decimal64-1digits-t {
+      type decimal64 {
+           fraction-digits 1;
+       }
+    }
+
+    typedef decimal64-2digits-t {
+      type decimal64 {
+           fraction-digits 2;
+       }
+    }
+
+    typedef decimal64-3digits-t {
+      type decimal64 {
+           fraction-digits 3;
+       }
+    }
+
+    typedef decimal64-4digits-t {
+      type decimal64 {
+           fraction-digits 4;
+       }
+    }
+
+    typedef capability-enable-t {
+        type enumeration {
+            enum disabled {
+                value 0;
+                description "The capabilities described in the file are NOT activated";
+            }
+             enum enabled {
+                value 1;
+                description "The capabilities described in the file are activated";
+            }
+        }
+    }
+
+    
+    typedef capability-originator-t {    
+        type enumeration {
+            enum release-default {
+                value 0;
+                description "this capability is officially present on the release, the Factory reset does not remove it";
+            }
+             enum user-download {
+                value 1;
+                description "this is a user download capability file, the Factory reset will remove it";
+            }
+             enum user-download-failed {
+                value 2;
+                description "this is a user download capability file that has not been downloaded correctly";
+            }
+        }
+    }
+
+    typedef capability-status-t {
+        type enumeration {
+            enum not-defined {
+                value 0;
+                description "Default value or list of allowed values is not present";
+            }
+             enum not-applicable {
+                value 1;
+                description "Default value or list of allowed values is not applicable for given xpath";
+            }
+        }
+    }
+
+
+  typedef hw-identityref-t {
+     type identityref {
+        base cct:common-hw-identity;
+     }
+  }
+
+
+    typedef capabilities-types-t {
+      type union {
+      type capability-status-t; 
+      type decimal64-1digits-t;
+      type decimal64-2digits-t;
+      type decimal64-3digits-t;
+      type decimal64-4digits-t;
+      type int8;
+      type int16;
+      type int32;
+      type int64;
+      type string;
+      type uint8;
+      type uint16;
+      type uint64;
+      type boolean;
+      type binary;
+      type hw-identityref-t;
+      }
+    }
+
+
+    grouping capabilities {
+       choice result-type {
+          case result-type {
+               leaf is-traffic-impact {
+               type boolean;
+               description "When true, this indicates that the provisioning of this attribute can have an effect on the traffic";
+               }
+               leaf default-value {
+               type capabilities-types-t;
+               description "default value for given leaf xpath accoding to actual hw configuration";
+               }
+               choice value-type {
+                 case value-list {
+                    list allowed-values {
+                      key "capability";
+                      leaf capability {
+                      type capabilities-types-t;
+                      }
+                      description "list of values that can be set for given leaf xpath and are valid according to actual hw configuration";
+                    }
+                 }
+                 case value-range {
+                    container capability {
+                      leaf min {
+                         type capabilities-types-t;
+                      }
+                      leaf max {
+                         type capabilities-types-t;
+                      }
+                    }
+                 }
+              }
+
+            list allowed-but-invalid-values {
+               key "capability";
+               leaf capability {
+                  type capabilities-types-t;
+               }
+               description "list of values that can be set for given leaf xpath but that are invalid accoding to actual hw configuration";
+            }
+        }
+        case error-msg {
+          leaf error-message {
+            type string;
+            description "Error message in case of action failure";
+          }
+        }
+      }
+    }
+    
+    typedef protocol-type {
+        description "Defines the supported protocols for download of package";
+        type enumeration {
+            enum "sftp" {
+                value 1;
+            }
+        }
+    }
+    
+    grouping upload-download-input-param {
+        leaf file-name {
+            description "The backup filename to download on the system";
+            type string;
+        }
+        
+        leaf protocol {
+            type protocol-type;
+            description
+                        "Protocol to be used to download the package";
+        }
+        
+        choice credential {
+            case user-password {
+                leaf user {
+                    type string;
+                    description "user name to be used to download the package";
+                }
+                leaf password {
+                    type string;
+                    tailf:suppress-echo true;
+                    description "password to be used to download the package";
+                }
+            }
+            case authgroup {
+                leaf group-name {
+                    type string;
+                    description "authorization group configured for download";
+                }
+            }
+        }
+    }
+    
+    grouping act-grp {
+      description "Grouping for capabilities commands";
+        container commands {
+          description "capabilities commands definitions";
+           tailf:action retrieve-capabilities {
+                tailf:actionpoint retrieve-capabilities;
+                input {
+                    leaf xpath {
+                        type instance-identifier;
+                        description "xpath of the laef for which the capabilities should be retrieved";
+                    }
+                }
+                output {
+                  uses capabilities;
+                }
+            }
+            
+            tailf:action enable-capability {
+                tailf:actionpoint enable-capability;
+                input {
+                    leaf-list file-name {
+                        type string;
+                        description "the list of YAML files contains the new capability";
+                    }
+                }
+                
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+            
+            tailf:action disable-capability {
+                tailf:actionpoint disable-capability;
+                input {
+                    leaf-list file-name {
+                        type string;
+                        description "the capability rule file that will be removed";
+                    }
+                }
+                
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+            
+            tailf:action reset-to-default {
+                tailf:actionpoint reset-to-default;
+                description "restart with the official released capabilities list";                
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }   
+            
+            tailf:action upload-new-capability {
+                tailf:info "upload a new capability file, extension shall be yml";
+                description "upload a new capability file, extension shall be yml";
+                tailf:actionpoint upload-new-capability;
+                input {
+                    uses upload-download-input-param;
+                }
+
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+
+           tailf:action download-capability {
+                tailf:info "download a capability file";
+                description "download a capability file";
+                tailf:actionpoint download-capability;
+                input {                    
+                    uses upload-download-input-param;
+                }
+
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }         
+        }        
+    }
+    
+    grouping oper-capabilities-grp {
+     description "list of all capabilities file are present in the system";
+      list capabilities-list {
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+         config false; 
+                 
+         key "file-name";      
+         leaf file-name {
+           type string;
+         }
+
+         leaf description {
+           type string;
+           description "description of the file content";
+         }
+         
+         leaf status {
+           type capability-enable-t;
+         }
+         
+         leaf originator {
+           type capability-originator-t;
+         }
+         
+         leaf download-time {
+           type ietf:date-and-time;
+         }         
+      }
+    }
+    
+    
+    container capabilities {
+        description "SVO capabilities container";
+        uses act-grp;
+        uses oper-capabilities-grp;
+        
+         
+        leaf remote-file-path {
+            type inet:uri;
+            description "Remote file path. A URI for the remote file path. Format:sftp://user[:password]@host[:port]/path.
+                             Ex: sftp://test:verify@[2001:db8:0:1::10]:22/home/user/sample";
+            tailf:info "Remote file path. A URI for the remote file path. Format:sftp://user[:password]@host[:port]/path.
+                             Ex: sftp://test:verify@[2001:db8:0:1::10]:22/home/user/sample";
+            config true;
+        }
+    
+     }
+
+}

@@ -1,0 +1,212 @@
+submodule tailf-ncs-snmp-notification-receiver {
+  yang-version 1.1;
+  belongs-to tailf-ncs {
+    prefix ncs;
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  include tailf-ncs-devices;
+
+  organization "Tail-f Systems";
+
+  description
+    "This submodule contains a collection of YANG definitions for
+     configuring the SNMP notification receiver in NCS.
+
+     Copyright 2019 Cisco Systems, Inc.
+     All rights reserved.
+     Permission is hereby granted to redistribute this file without
+     modification.";
+
+  revision 2012-08-30 {
+    description
+      "Released as part of NCS-2.0.";
+  }
+
+  typedef snmp-engine-id {
+    type tailf:hex-list;
+    description
+      "The Engine ID specified as a list of colon-specified hexa-
+       decimal octets e.g. '4F:4C:41:71'.";
+    reference
+      "RFC3411: An Architecture for Describing SNMP Management
+                Frameworks";
+  }
+
+  augment /devices/device {
+    leaf snmp-notification-address {
+      tailf:info "Notification address if different from device address";
+      type inet:host;
+      description
+        "The IP address or host name from which SNMP notifications
+         from this device originates, if different than 'address'.
+
+         This leaf is used by NCS to filter unknown SNMP
+         notifications, if /snmp-notification-receiver is enabled.";
+    }
+  }
+
+  container snmp-notification-receiver {
+    tailf:info "Configure reception of SNMP notifications";
+    description
+      "When the SNMP notification receiver is enabled, NCS
+       receives SNMP notifications from its managed devices.
+       NCS forwards these notifications to the NCS applications
+       that have registered their interest in receiving
+       notifications.
+
+       Note that the managed devices can be of any type.  For
+       example, it is possible to receive SNMP notifications from a
+       device that is configured over NETCONF or the CLI.
+
+       In order to handle authenticated or encrypted v3
+       notifications, USM users must be configured in the usm/user
+       list.";
+
+    leaf enabled {
+      tailf:info "Enables the SNMP notification receiver";
+      type boolean;
+      default false;
+      description
+        "Enables the SNMP notification receiver.";
+    }
+
+    container listen {
+      tailf:info "Configuration of the endpoints on which NCS listens";
+      description
+        "Configuration of the transport endpoints on which NCS
+         listens.";
+
+      list udp {
+        tailf:info "Configure notification sender";
+        key "ip port";
+        description
+          "A list of IPv4 and IPv6 addresses and ports to which NCS
+           listens for incoming SNMP notifications.
+
+           If no address is configured in this list, NCS listens
+           on all IPv4 and IPv6 addresses on the host, on port 162, if
+           the SNMP notification receiver is enabled.";
+
+        leaf ip {
+          tailf:info "NCS listen IP address";
+          type inet:ip-address;
+          description
+            "The IPv4 or IPv6 address that NCS uses to listen for
+             incoming SNMP notifications.";
+        }
+        leaf port {
+          tailf:info "NCS listen UDP port number";
+          type inet:port-number;
+          description
+            "The UDP port that NCS uses to listen for incoming
+             SNMP notifications.";
+        }
+      }
+    }
+
+    leaf engine-id {
+      tailf:info "The notification receiver engine id";
+      type snmp-engine-id;
+//      mandatory true;
+      description
+        "The notification receiver SNMP engine's administratively-assigned
+         unique identifier.
+
+         On initial startup, NCS automatically calculates an
+         engine id, as described in RFC 3411.  NCS will initialize
+         this leaf with the automatically created value.
+
+         The operator can configure a new engine id, if needed.";
+      reference "SNMP-FRAMEWORK-MIB.snmpEngineID";
+    }
+
+    container usm {
+      tailf:info "USM parameters";
+      description
+        "USM parameters.";
+
+      grouping password {
+        leaf password {
+          tailf:suppress-echo "true";
+          type tailf:aes-cfb-128-encrypted-string;
+          description
+            "NCS uses this value to create
+             a localized key, as described in RFC 3414.";
+          tailf:info "Explicit password";
+        }
+      }
+
+      list user {
+        tailf:info "List of USM users and their passwords";
+        key name;
+        description
+          "List of USM users and their passwords.
+
+           NCS performs automatic engine-id discovery as needed in
+           order to localize the keys derived from the passwords
+           in this list.
+
+           NCS will accept notifications from any of these users.
+
+           Note that each managed device must also be configured with
+           one of the users in this list, with the same password, in
+           order to be able to send authenticated and encrypted v3
+           notifications.";
+
+        leaf name {
+          type string {
+            length "1..32";
+          }
+          description
+            "USM user name of the user to which Informs are sent from
+             the devices.";
+          reference "SNMP-USER-BASED-SM-MIB.usmUserName";
+          tailf:info "USM user name";
+        }
+        container auth {
+          presence "enables authentication";
+          tailf:info "SNMP authentication parameters";
+          choice protocol {
+            mandatory true;
+            reference "SNMP-USER-BASED-SM-MIB.usmUserAuthProtocol";
+            container md5 {
+              uses password;
+              reference "SNMP-USER-BASED-SM-MIB.usmHMACMD5AuthProtocol";
+            }
+            container sha {
+              uses password;
+              reference "SNMP-USER-BASED-SM-MIB.usmHMACSHAAuthProtocol";
+            }
+          }
+        }
+        container priv {
+          presence "enables privacy";
+          tailf:info "SNMP privacy parameters";
+          must "../auth" {
+            error-message
+              "when privacy is used, authentication must also be used";
+          }
+          choice protocol {
+            mandatory true;
+            reference "SNMP-USER-BASED-SM-MIB.usmUserPrivProtocol";
+            container des {
+              uses password;
+              reference "SNMP-USER-BASED-SM-MIB.usmDESPrivProtocol";
+            }
+            container aes {
+              uses password;
+              reference "SNMP-USM-AES-MIB.usmAesCfb128Protocol";
+            }
+          }
+        }
+      }
+    }
+  }
+}

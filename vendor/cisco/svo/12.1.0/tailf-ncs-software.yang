@@ -1,0 +1,395 @@
+submodule tailf-ncs-software {
+  yang-version 1.1;
+  belongs-to tailf-ncs {
+    prefix ncs;
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  organization "Tail-f Systems";
+
+  description
+    "This submodule defines the Tail-f NCS model for software management.
+
+     This functionality is only available when NCS has been installed
+     using the '--system-install' option to the installer, since it is
+     dependant on the directory structure created by such an installation.
+     See the ncs-installer(1) manual page for details. The actual
+     installation directories can be chosen via the additional options
+     to the installer, but the descriptions in this submodule use the
+     default values for simplicity - i.e. /opt/ncs for 'InstallDir',
+     /etc/ncs for 'ConfigDir', and /var/opt/ncs for 'RunDir'.
+
+     The model provides actions and associated configuration data for
+     management of pre-built packages in the form of tar archives
+     named 'ncs-<ncs-version>-<package-name>-<package-version>.tar.gz'
+     ('.tgz' and '.tar' extensions are also supported). The '.tar.gz'
+     (or other) extension part of the name is not given in listings, and
+     optional in action parameters. Packages in the form of a directory
+     tree are recognized in the /var/opt/ncs/packages directory, and
+     potentially removed from there by the 'install' or 'deinstall'
+     actions, but not otherwise managed.
+
+     Copyright 2019 Cisco Systems, Inc.
+     All rights reserved.
+     Permission is hereby granted to redistribute this file without
+     modification.";
+
+  revision 2014-11-19 {
+    description
+      "Initial revision, released as part of NCS-3.3.";
+  }
+
+  container software {
+    tailf:info "Software management";
+
+    list repository {
+      tailf:info "Remote software repository";
+      key name;
+      description
+        "A repository provides storage of packages and other files, and
+         retrieval methods for those files. It must meet the following
+         requirements (<base-url> is the URL configured for the 'url' leaf):
+
+         1. Access is provided via HTTP or HTTPS.
+         2. If authentication is required, the Basic Authentication Scheme,
+            as described in RFC 1945 section 11.1, is supported.
+         3. A GET request for <base-url>/index.txt returns a plain text
+            list of available files, one per line, including a relative
+            path that can be used together with <base-url> for retrieval
+            of the file.
+         4. A GET request for <base-url>/<path>, where <path> is one of
+            the relative file paths returned by the request in item 3,
+            returns the corresponding file.";
+
+      leaf name {
+        tailf:info "Repository name";
+        type string;
+        description
+          "An arbitrary name for the repository.";
+      }
+      leaf url {
+        tailf:info "Repository URL (https or http scheme)";
+        type inet:uri {
+          pattern "https?://.*";
+        }
+        mandatory true;
+        description
+          "The 'base' URL for the repository, which can be used as described
+           for the 'repository' list. Example:
+
+           With 'url' set to https://support.tail-f.com/delivery, a GET
+           request for /delivery/index.txt sent to https://support.tail-f.com
+           might return a list such as
+
+           download/packages/ncs-3.3-cisco-ios-3.0.2.tar.gz
+           download/packages/ncs-3.3-cisco-iosxr-3.0.1.tar.gz
+           (other files...)
+
+           A GET request for
+           /delivery/download/packages/ncs-3.3-cisco-iosxr-3.0.1.tar.gz
+           sent to https://support.tail-f.com will then return the
+           ncs-3.3-cisco-iosxr-3.0.1.tar.gz package.";
+      }
+      leaf user {
+        type string;
+        description
+          "User name for repository authentication.";
+      }
+      leaf password {
+        tailf:suppress-echo "true";
+        type tailf:aes-cfb-128-encrypted-string;
+        description
+          "Password for repository authentication.";
+      }
+      must "(user and password) or (not(user) and not(password))" {
+        error-message
+          "Both or neither of 'user' and 'password' must be configured.";
+        tailf:dependency "user";
+        tailf:dependency "password";
+      }
+      container packages {
+        tailf:info "Actions for packages in the repository";
+        tailf:action list {
+          description
+            "List packages available in the repository.";
+          tailf:actionpoint ncsinternal {
+            tailf:internal;
+          }
+          input {
+            leaf name-pattern {
+              tailf:info "Pattern to select packages to list";
+              type string;
+              description
+                "Pattern to select packages to list. The pattern can use
+                 '*' to match any sequence of characters and '?' to match
+                 any single character. E.g. '*cisco-iosxr*' would include
+                 only the available versions of that package in the list.";
+            }
+          }
+          output {
+            list package {
+              description
+                "A list of packages available in the repository.";
+              key name;
+              leaf name {
+                type string;
+                description
+                  "The package name.";
+              }
+            }
+          }
+        }
+        tailf:action fetch {
+          tailf:info "Fetch a package from the repository";
+          description
+            "Fetch a package from the repository. If successful, the
+             package is stored in the /opt/ncs/packages directory,
+             and thus available for the 'install' action.";
+          tailf:actionpoint ncsinternal {
+            tailf:internal;
+          }
+          input {
+            leaf package {
+              tailf:info "Package name";
+              type string;
+              mandatory true;
+              description
+                "The name of the package to fetch.";
+            }
+          }
+        }
+      }
+    }
+
+    container packages {
+      tailf:info "Actions for local packages";
+      tailf:action list {
+        tailf:info "List local packages";
+        description
+          "List local packages. The packages to include in the list can
+           optionally be controlled by giving one of the parameters in the
+           'status-selection' choice and/or giving the 'all-versions'
+           parameter. By default all packages are listed, except those that
+           are excluded due to the 'all-versions' parameter not being given,
+           and the packages are listed at most once.";
+        tailf:actionpoint ncsinternal {
+          tailf:internal;
+        }
+        input {
+          choice status-selection {
+            leaf installable {
+              tailf:info "List only installable packages";
+              type empty;
+              description
+                "List only installable packages. A package is considered
+                 installable if it is present in the /opt/ncs/packages
+                 directory and, unless the 'all-versions' parameter is
+                 given, it is built for a compatible system version.";
+            }
+            leaf installed {
+              tailf:info "List only installed packages";
+              type empty;
+              description
+                "List only installed packages, i.e. those present in
+                 the /var/opt/ncs/packages directory.";
+            }
+            leaf loaded {
+              tailf:info "List only loaded packages";
+              type empty;
+              description
+                "List only loaded packages.";
+            }
+          }
+          leaf all-versions {
+            tailf:info "Consider as installable regardless of system version";
+            type empty;
+            description
+              "Consider a package as installable regardless of system version.
+               By default a package is not considered installable if it is
+               built for an incompatible system version, i.e. if the major
+               version (ncs-x.y) differs from the running system.";
+          }
+        }
+        output {
+          list package {
+            key name;
+            description
+              "A list of local packages. If no parameter from the
+               'status-selection' choice was given, one of the leafs from
+               the 'status' choice is included for each package, as follows:
+               If the package is loaded, the 'loaded' leaf is included. If the
+               package is not loaded, but present in the /var/opt/ncs/packages
+               directory, the 'installed' leaf is included. If the package is
+               neither loaded nor present in the /var/opt/ncs/packages
+               directory, the 'installable' leaf is included.";
+            leaf name {
+              type string;
+              description
+                "The package name.";
+            }
+            choice status {
+              leaf installable {
+                type empty;
+                description
+                  "If this leaf is present, the package is considered
+                   installable, and is not installed or loaded.";
+              }
+              leaf installed {
+                type empty;
+                description
+                  "If this leaf is present, the package is installed but
+                   not loaded.";
+              }
+              leaf loaded {
+                type empty;
+                description
+                  "If this leaf is present, the package is loaded.";
+              }
+            }
+          }
+        }
+      }
+      tailf:action upload {
+        tailf:info "Upload a package via NETCONF or REST";
+        description
+          "This action can be used to upload a package via the NETCONF
+           or REST interfaces. It is not feasible to use in the CLI or
+           Web UI, since the value for the 'package-data' leaf is the
+           actual package file contents in base64 encoding. If the upload
+           is successful, the package is stored in the /opt/ncs/packages
+           directory, and thus available for the 'install' action.";
+        tailf:actionpoint ncsinternal {
+          tailf:internal;
+        }
+        input {
+          leaf package {
+            tailf:info "Package name";
+            type string;
+            mandatory true;
+            description
+              "The package name, i.e. the file name of the package
+               when stored in the file system.";
+          }
+          leaf package-data {
+            tailf:info "Package data";
+            type binary;
+            mandatory true;
+            description
+              "The contents of the package, base64 encoded.";
+          }
+        }
+      }
+      tailf:action fetch {
+        tailf:info "Fetch a package from the file system";
+        description
+          "Fetch a package by copying it from the file system.
+           If successful, the package is stored in the /opt/ncs/packages
+           directory, and thus available for the 'install' action.";
+        tailf:actionpoint ncsinternal {
+          tailf:internal;
+        }
+        input {
+          leaf package-from-file {
+            tailf:info "File name";
+            type string;
+            mandatory true;
+            description
+              "The full pathname of the file to be copied.";
+          }
+        }
+      }
+      tailf:action install {
+        tailf:info "Install a package";
+        description
+          "Install a package. The package must be present in the
+           /opt/ncs/packages directory. The installation consists of
+           creating a symbolic link from /var/opt/ncs/packages to the
+           package location in /opt/ncs/packages, thus making it
+           available for the 'packages reload' action, or for a system
+           restart with package reload.";
+        tailf:actionpoint ncsinternal {
+          tailf:internal;
+        }
+        input {
+          leaf package {
+            tailf:info "Package name";
+            type string;
+            mandatory true;
+            description
+              "The name of the package to install. The 'ncs-<ncs-version>-'
+               part of the package name may be omitted, in which case an
+               appropriate version (if any) will be chosen when multiple
+               versions are present in /opt/ncs/packages.";
+          }
+          leaf replace-existing {
+            tailf:info "Replace any previously installed version(s)";
+            type empty;
+            description
+              "By default, the installation will fail if any version of the
+               package is already installed. If this parameter is given,
+               previously installed version(s) will instead be deinstalled
+               before proceeding with the installation.";
+          }
+          leaf allow-version-mismatch {
+            tailf:info "Allow install regardless of system version";
+            type empty;
+            description
+              "By default, if the 'package' parameter is the full name of a
+               package built for an incompatible system version, i.e. where
+               the major version (ncs-x.y) differs from the running system,
+               the installation will fail. If this parameter is given, the
+               installation will proceed anyway. This is mainly useful when
+               preparing for a major system upgrade, and the intent is to
+               load the package at the start of the new (compatible) version
+               of the system.";
+          }
+        }
+        output {
+          leaf installed {
+            type string;
+            description
+              "On successful installation, this leaf gives full name
+               of the package that was installed.";
+          }
+        }
+      }
+      tailf:action deinstall {
+        tailf:info "Deinstall a package";
+        description
+          "Deinstall a package, i.e. remove it from the /var/opt/ncs/packages
+           directory. If the package was installed by making a symbolic link
+           from /var/opt/ncs/packages (the 'install' action always does
+           this), only the link is removed, and the actual package is not
+           affected (i.e. if the package was installed by the 'install'
+           action, the package remains present in /opt/ncs/packages). The
+           'install' action will never result in multiple versions of a
+           package being installed, but if other methods have caused this,
+           the action will deinstall them all if only the 'plain' package
+           name (e.g. 'cisco-iosxr') is given.";
+        tailf:actionpoint ncsinternal {
+          tailf:internal;
+        }
+        input {
+          leaf package {
+            tailf:info "Package name";
+            type string;
+            mandatory true;
+            description
+              "The name of the package to deinstall. The 'ncs-<ncs-version>-'
+               part of the package name may be omitted, and in this case
+               also the '-<package-version>' part may be omitted. If
+               multiple versions of a package are installed, all versions
+               matching a partial name will be deinstalled.";
+          }
+        }
+      }
+    }
+  }
+}

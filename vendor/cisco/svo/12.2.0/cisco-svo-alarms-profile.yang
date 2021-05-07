@@ -1,0 +1,1090 @@
+module cisco-svo-alarms-profile {
+  namespace "http://cisco.com/yang/svo/alarms-profile";
+  prefix svo-al-profile;
+
+  import tailf-common {
+    prefix tailf;
+  }
+
+  import tailf-ncs-alarms { prefix al; }
+  
+  import cisco-svo-common-equipment-types { prefix ccet; }
+  
+  import cisco-svo-alarm-type { prefix svo-al-t; }
+  
+  import cisco-svo-alarms-dictionary { prefix svo-al-dict; }
+
+  import org-openroadm-interfaces { prefix openROADM-if; revision-date 2018-09-28; }
+
+  import cisco-svo-common-sonet-sdh-types { prefix ccssdht; }
+  
+  import cisco-svo-common-zr-plus-types { prefix ccszrt; }
+
+
+  organization "Cisco Systems, Inc.";
+
+  contact
+    "Cisco Systems, Inc.
+      Customer Service
+
+			Postal: 170 West Tasman Drive
+			San Jose, CA 95134
+
+			Tel: +1 800 553-NETS
+
+			E-mail: cs-yang@cisco.com";
+
+  description
+    "This module defines SVO alarm profiles.
+     SVO alarm profiles.
+     Functionality is implemented via two lists..
+     First is the list of profile. Every profile contains the list of alarms with changed severity
+     Every elemnt in this list has:
+       alarm-type like svo-al-t:SSM-ST3 (mandatory)
+       alarm-reported (true/false with default true) (optionaly)
+         in case of false it means that this alarm becomes not-reported as severity
+         and will be not present in the outstanding alarms
+       alarm-sa-severity and alarm-nsa-severity (mandatory at least one of them if alarm-reported is true)
+
+     The second list is an association between the profile and a list of resources to which the profile is applied.
+     The foreseen reference are:
+	     - system (the whole svo)
+	     - equipment-type (list of actual/configured equipments types of module / passive unit)
+	     Specific resource instance:
+	     - device (the name of the physical device within svo)
+	     - chassis (uid of a particular chassis)
+	     - module (uid/slot of specific module)
+	     - port (uid/slot/port-id[/lane-id] of specific port)
+	     - interface (type, name of specific interface)
+	     - oxc (name of specific cross-connection)
+	     - ms isc port (uid/ms isc id/ms isc port of ECU multishelf ports)
+
+     The equipment-type is matched versus the Equipment Type reported within the field alarm-type in the alarm:
+     That is the actual type within the manufacturing-data.
+     Is it possible also to add or use in the resource list the Configured Equipment Type
+     (Without namespace): in this case the equipment-type in the profile data will be
+     matched to the Equipment Type of the Alarm and also to the associated Configured Equipment Type.
+     For example suppose that we have an Alarm on PPM having actual type 10G-ER-1550nm:
+     In this case the associated alarm will have the field equipment-type = 10G-ER-1550nm. So in order 
+     to associate the profile to this resource we have 2 options:
+     1) Use the actual type like 10G-ER-1550nm or a sub part of it like 10G-ER
+     2) Use the configured equipment type (The yang type without namespace) PPM-1-PORT
+           <profile-resource>
+          	 <resource-id>1</resource-id>
+          	 <resource-profile-type>profile-equipment-type</resource-profile-type>
+          	 <equipment-type>PPM-1-PORT</equipment-type>
+           </profile-resource>
+
+     Every Alarm has a managed object and the associated equipment-type that is normally the actual-type of the card
+     In some cases (for the ancillary elements like BITS) we have the equipment of another element
+     In other cases we have a fixed equipment-type value
+     Here the list of all cases:
+
+     - Elements associated to Module both active or passive: equipment-type of alarm is the actual-type 
+        (if not present (the pre-provisioned one) then the configured one) 
+     - BITS -> Use the TNC actual-type/configured-type
+     - NE (low level device) -> fixed value like NCS2K
+     - ENVIRONMENT ALARM -> Use BACKPLANE actual-type/configured-type for M15, ECU for M6
+     - EXT SYNCHREF -> Use the TNC actual-type/configured-type
+     - FAN-TRAY use the actual-type (FAN-TRAY for pre-provisioned case)
+     - BACKPLANE use the actual-type (BACKPLANE for pre-provisioned case)
+     - PWR use the actual-type (PWR for pre-provisioned case)
+     - MSETHER -> Use the ECU actual-type/configured-type
+     - LCD  -> Use the LCD actual-type/configured-type for M6 (LCD for pre-provisioned case), FAN-TRAY for M15
+     - USB-FLASH  -> Use BACKPLANE actual-type/configured-type
+     - SHELF use fixed configured types of chassis: NCS2015-ANSI or NCS2006-ANSI for active chassis or 
+        the passive-shelf types
+     - NE-SYNCHREF -> Use Shelf value
+     - PPM -> Use the PPM actual-type/configured-type value
+	 
+	   Every specific resource instance like chassis, module, has a boolean flag include-children that indicates if the
+        matched resource association must be applied also to the child of the described resource:
+	   Suppose for example that we have a resource chassis (with uid=5) associated to a given profile (profile-a) 
+	   with include-children=true. In that case, once we have an alarm with manged object as direct or indirect child 
+        of it like 
+	   /svo/chassis[uid='5']/module[slot='3'] or 
+        /svo/interface[type='openROADM-if:opticalTransport'][name='/5/3/COM-RX']
+	   then the same profile-a is applied to that alarm.
+	   In case of include-children = false, the profile of parent object is not applied to the current child resource.
+	   The general rule has an exception for the ancillary element of the chassis: every ancillary element is considered 
+        as chassis level element. For this reason if we have profile-a applied to the chassis instance (uid=5) then an alarm 
+	   associated to the environment-alarm object of the same chassis use the same profile even if the 
+        include-children flag is set to false.
+	   Within a particular association we can have a list of resources of different type: equipment, interfaces, oxc....
+	
+	   In case of alarm present in more profiles (with different resources), the following rule will be applied:
+	   The priority of resource match will be based upon the granularity of the resource: 
+        much more the resource is specific then the priority is higher. 
+	   For this reason the priority of matching will be (from low to high):
+	
+	   System -> Equipment Type -> Device -> Chassis/PassiveUnit -> 
+            Module -> Port -> Interface -> Cross Connection/Ms Isc Port
+     Note that for Module associated to PPM the apply-to-inherited will be ignored
+     PPM Module will be considered as child of Module in the alarm profiles evaluation";
+
+   revision 2021-04-16 { 
+      description "Model version for SVO Release 12.2.0 "; 
+      reference cisco-svo-alarms-profile.yang; 
+   }
+ 
+
+  revision 2020-12-04 { 
+      description "Model version for SVO Release 12.1.0 "; 
+      reference cisco-svo-alarms-profile.yang; 
+  }
+
+
+  typedef profile-name-t {
+    type string {
+      length "1..max";
+    }
+    description "Profile Name";
+  }
+
+  typedef association-name-t {
+    type string {
+      length "1..max";
+    }
+    description "Association Name";
+  }
+
+  typedef resource-id-t {
+    type uint8;
+    description "
+      resource id within the association resource list";
+  }
+
+  typedef profile-resource-eqp-t {
+    type string {
+      length "1..max";
+    }
+    description "Equipment Type of Module for the resource profile";
+  }
+
+  typedef profile-resource-device-t {
+    type string {
+      length "1..max";
+    }
+    description "Device name for the resource profile";
+  }
+
+  typedef profile-resource-oxc-t {
+    type string {
+      length "1..max";
+    }
+    description "oxc name for the resource profile";
+  }
+      
+  typedef resource-profile-type-t {
+    type enumeration {
+      enum profile-system;
+      enum profile-equipment-type;
+      enum profile-device;
+      enum profile-chassis;
+      enum profile-passive-unit;
+      enum profile-module;
+      enum profile-port;
+      enum profile-interface;
+      enum profile-oxc;
+      enum profile-ms-isc-port;
+    }
+    description "Kind of Resource profile type.";
+  }
+
+  grouping eqp-resource-grp {
+    description "Equipment Type Resource Group";
+
+    leaf equipment-type {
+      type profile-resource-eqp-t;
+      description "Equipment Type Profile Resource: This is the Equipment Type reported within the Alarm.
+                   In order to better mactch the available Equipment Type of alarms, this field could be a substring of the
+                   Equipment Type to match.
+                   For example we can have an alarm with Equipment Type = _15454-OPT-EDFA-17 and we can match that with simply EDFA-17.
+                   Or for example we can set equipment-type='TNC' in order to match TNC-S or TNC-O";
+    }
+  }
+
+  grouping device-grp {
+    description "Device Resource Group";
+
+    leaf device {
+      type profile-resource-device-t;
+      mandatory true;
+      description "Device name";
+    }
+  }
+
+  grouping chassis-grp {
+    description "Chassis Group";
+
+    leaf chassis-uid {
+      type ccet:uid-t;
+      mandatory true;
+      description "Chassis unique id";
+    }
+  }
+
+  grouping passive-unit-grp {
+    description "Passive Unit Group";
+
+    leaf passive-unit-uid {
+      type ccet:uid-t;
+      mandatory true;
+      description "Passive Unit unique id";
+    }
+  }
+
+  grouping module-grp {
+    description "Module Group";
+
+    leaf slot {
+      type ccet:slot-t;
+      mandatory true;
+      description "Module slot";
+    }
+  }
+
+  grouping port-grp {
+    description "Port Group";
+
+    leaf port-name {
+      type string {
+        length "1..max";
+      }
+      mandatory true;
+      description "port name";
+    }
+  }
+
+  grouping oxc-grp {
+    description "OXC Group";
+
+    leaf oxc-name {
+      type profile-resource-oxc-t;
+      mandatory true;
+      description "OXC name";
+    }
+  }
+
+  grouping interface-grp {
+    description "Interface Group";
+
+    leaf interface-type {
+        type identityref {
+            base openROADM-if:interface-type;
+        }
+        mandatory true;
+        description "Type of the interface.";
+    }
+    leaf interface-name {
+      type string {
+        length "1..max";
+      }
+      mandatory true;
+      description "interface name";
+    }
+  }
+
+  grouping ecu-msc-ports-grp {
+    description "ECU Multishelf Ports Group";
+
+    leaf ms-isc-id {
+      type ccet:ms-isc-id-t;
+      mandatory true;
+      description "Ms isc group identifier";
+    }
+
+    leaf ms-isc-port-id {
+      type ccet:ms-isc-port-t;
+      mandatory true;
+      description "Ms isc Port identifier";
+    }
+  }
+
+  grouping raman-grp {
+    description "Raman Amplifier Group";
+    leaf raman-if {
+      type ccet:port-name-t;
+      description
+        "Identifier of the Raman port interface";
+    }
+  }
+  
+  grouping otdr-grp {
+    description "Otdr Group";
+    leaf otdr-port-name {
+      type ccet:port-name-t;
+      description "Port running the OTDR function";
+    }      
+  }
+
+  grouping env-alarm-grp {
+    description "Environments alarm Group";
+
+    leaf env-alarm-id {
+      type ccet:env-alarm-id-t;
+      description "Env alarm identifier";
+    }
+  }
+
+  grouping sync-bits-grp {
+    description "Sync Bits Group";
+
+    leaf sync-bits-uts-id {
+      type uint8 {
+        range "1..2";
+      }
+    }
+  }
+
+  grouping bits-grp {
+    description "Bits Group";
+
+    leaf bits-uts-id {
+      type uint8 {
+        range "1..2";
+      }
+    }
+  }
+
+  grouping pwr-grp {
+    description "Power Unit Group";
+
+    leaf power-unit-id {
+      type ccet:power-unit-id-t;         
+      description "Power Unit identifier";
+    }
+  }
+
+  grouping ppm-ecu-grp {
+    description "Ppm Ecu Group";
+
+    leaf ppm-id {
+      type uint8 {
+        range "1..5";
+      }
+          
+      description "Ppm Ecu identifier";
+    }
+  }
+
+
+  grouping inherited-grp {
+    description "Inherited Resource Group";
+
+    leaf apply-to-inherited {
+      type boolean;
+      default false;
+      description "This leaf indicates if the assocation must be applied to all the children of this resource";
+    }
+  }
+
+  grouping alarm-entry-grp {
+    description "alarm-entry Group";
+       list alarm-entry {
+          key alarm-type;
+          description "Alarm type";
+
+          leaf alarm-type {
+            type svo-al-t:svo-alarm-type-t;
+            mandatory true;
+            description "This leaf provides a unique identification of the condition type.";
+            tailf:info "Unique identification of the condition type";
+          }
+
+          leaf alarm-reported {
+            type boolean;
+            default true;
+            description
+              "This leaf indicates that this alarm should be reported. Use false to indicate the suppression";
+          }
+
+          leaf alarm-sa-severity {
+            type al:severity-t;
+            description "The severity of the condition in case of service affecting. Not used in case of alarm-sa-reported false";
+            tailf:info "The severity of the condition in case of service affecting.";
+          }
+
+          leaf alarm-nsa-severity {
+            type al:severity-t;
+            description "The severity of the condition in case of not service affecting.";
+            tailf:info "The severity of the condition in case of not service affecting. Not used in case of alarm-nsa-reported false";
+          }
+
+          must "alarm-reported or alarm-sa-severity or alarm-nsa-severity" {
+                error-message "At least one of alarm-reported, alarm-sa-severity, alarm-nsa-severity must be specified";
+          }
+
+          must "not(alarm-sa-severity) or alarm-sa-severity != 'cleared'" {
+                error-message "alarm-sa-severity could not be cleared";
+          }
+
+          must "not(alarm-nsa-severity) or alarm-nsa-severity != 'cleared'" {
+                error-message "alarm-nsa-severity could not be cleared";
+          }
+
+          must "(alarm-reported='false') or 
+                (not(alarm-reported) or alarm-reported='true') and (alarm-nsa-severity or alarm-sa-severity)" {
+                error-message "alarm-reported must be compatible with severity";
+          }
+        }
+  }
+
+  grouping association-grp {
+    description "profile-association Group";
+
+      list profile-association {
+        key association-name;
+        description "Association name";
+
+        leaf association-name {
+          type association-name-t;
+          mandatory true;
+          description "Association name identifier";
+        }
+
+        leaf profile-name {
+          type leafref {
+            path "../../profile/profile-name";
+          }
+          mandatory true;
+          description "Name of the profile to associate a resources list";
+        }
+
+        list profile-resource {
+          key resource-id;
+          description "Association Resource identifier";
+          unique "resource-profile-type equipment-type";
+          unique "resource-profile-type device";
+          unique "resource-profile-type oxc-name";
+          unique "resource-profile-type passive-unit-uid";
+          unique "resource-profile-type interface-name interface-type";
+          unique "resource-profile-type chassis-uid ms-isc-id ms-isc-port-id";
+          unique "resource-profile-type chassis-uid slot";
+          unique "resource-profile-type port-name";
+
+          leaf resource-id {
+            type resource-id-t;
+            description "Association Resource identifier";
+          }
+
+          leaf resource-profile-type {
+            type resource-profile-type-t;
+            default profile-equipment-type;
+            description "Resource Type";
+          }
+
+          uses eqp-resource-grp {
+            when "./resource-profile-type = 'profile-equipment-type'";
+          }
+
+          uses device-grp {
+            when "./resource-profile-type = 'profile-device'";
+          }
+          uses chassis-grp {
+            when "./resource-profile-type = 'profile-chassis' or ./resource-profile-type = 'profile-module' or ./resource-profile-type = 'profile-ms-isc-port'";
+          }
+          uses passive-unit-grp {
+            when "./resource-profile-type = 'profile-passive-unit'";
+          }
+          uses module-grp {
+            when "./resource-profile-type = 'profile-module'";
+          }
+          uses port-grp {
+            when "./resource-profile-type = 'profile-port'";
+          }
+          uses oxc-grp {
+            when "./resource-profile-type = 'profile-oxc'";
+          }
+          uses ecu-msc-ports-grp {
+            when "./resource-profile-type = 'profile-ms-isc-port'";
+          }
+
+          uses interface-grp {
+            when "./resource-profile-type = 'profile-interface'";
+          }
+          uses inherited-grp {
+            when "./resource-profile-type != 'profile-sysyem' and ./resource-profile-type != 'profile-equipment-type' and ./resource-profile-type != 'profile-oxc' and ./resource-profile-type != 'profile-ms-isc-port'";
+          }
+
+          must "resource-profile-type != 'profile-interface' or
+                (resource-profile-type = 'profile-interface' and (interface-type = 'openROADM-if:opticalTransport' or interface-type = 'openROADM-if:otnOdu' or interface-type = 'openROADM-if:otnOtu' or interface-type = 'openROADM-if:opticalChannel' or interface-type = 'openROADM-if:ethernetCsmacd' or interface-type = 'ccssdht:sonet' or interface-type = 'ccssdht:sdh' or interface-type = 'ccszrt:zrPlus'))" {
+            error-message "At the moment the supporte interface-type are otnOdu, otnOtu, opticalChannel, opticalTransport, ethernetCsmacd, sonet, sdh";
+          }
+          must "(resource-profile-type != 'profile-equipment-type') or
+                (resource-profile-type = 'profile-equipment-type' and equipment-type)" {
+            error-message "with profile profile-equipment-type equipment-type must be sppecified";
+          }
+        }
+      }
+  }
+
+  container svo-alarms {
+    tailf:info "SVO alarms container";
+    description "SVO alarms container.";
+
+    container profiles {
+      description "Container of Profiles and Profiles associations";
+
+      list profile {
+        key profile-name;
+        description "Profile";
+
+        leaf profile-name {
+          type profile-name-t;
+          description "Profile name identifier";
+        }
+        
+        uses alarm-entry-grp;
+        must "count(alarm-entry) > 0"
+        {
+          error-message "profile must contain at least one alarm-entry";
+        }
+      }
+
+      uses association-grp;
+    }   
+
+    grouping input-group {
+
+      leaf show-profile {
+        type boolean;
+        default true;
+        description
+          "This leaf indicates that we want to retrieve profiles info";
+      }
+    
+      leaf profile-name {
+        type profile-name-t;
+        description "Profile name identifier";
+      }      
+
+      leaf include-alarms {
+        type boolean;
+        default false;
+        description
+          "This leaf indicates that we want to include alarm details in the profile info";
+      }
+
+      leaf include-associated-resources {
+        type boolean;
+        default false;
+        description
+          "This leaf indicates that we want to include associated resources in the profile info";
+      }
+
+      leaf include-resource-presence {
+        type boolean;
+        default false;
+        description
+          "This leaf indicates that we want to include check of the presence of the resource in the system";
+      }
+ 
+      leaf show-association {
+        type boolean;
+        default false;
+        description
+          "This leaf indicates that we want to retrieve association info";
+      }
+    
+      leaf association-name {
+        type association-name-t;
+        description "Association name identifier";
+      }
+    }
+
+    grouping profile-associated-resources-grp {
+       list associated-resource {
+         leaf association-name {
+           type association-name-t;
+           description "Association name identifier";
+         }
+
+         leaf resource-id {
+           type resource-id-t;
+           description "Association Resource identifier";
+         }
+
+         leaf display-name {
+           type string;
+           description "Display value of current resource";
+         }
+
+         leaf resource-presence {
+           type boolean;
+           default false;
+           description
+             "This leaf indicates the presence of the resource in the system";
+         }
+       }
+    }
+
+    grouping profile-with-associated-resources-grp {
+       list profile {
+        description "Profile";
+
+        leaf profile-name {
+          type profile-name-t;
+          description "Profile name identifier";
+        }
+       
+        uses alarm-entry-grp;
+        uses profile-associated-resources-grp;
+      }
+   }
+
+    tailf:action retrieve-profile-info {
+      description "Retrieve the Alarm Profile Information";
+      tailf:info "Retrieve the Alarm Profile Information";
+
+      tailf:actionpoint action-profile-point;
+
+      input {
+        uses input-group;
+      }
+      output {
+        uses profile-with-associated-resources-grp;
+        uses association-grp;
+        leaf operation-error {
+          type string;
+          description "Operation error";
+        }
+      }
+    }
+    
+    typedef oxc-path-type-t {
+      type enumeration {
+        enum oxc-path1;
+        enum oxc-path2;
+      }
+      description "path1/path2";
+    }
+    
+    grouping alarm-profile-info-oxc-group {
+	  description "input parameters for resource oxc selection";
+
+      leaf oxc-interface-name {
+        type string {
+          length "1..max";
+        }
+        mandatory true;
+        description "interface name";
+      }
+      leaf oxc-path-type {
+        type oxc-path-type-t;
+        mandatory true;
+        description "path1/path2";
+      }
+    }
+     
+    grouping alarm-profile-info-user-group {
+	  description "input parameters for resource user selection";
+
+      leaf user-name {
+        type string {
+          length "1..max";
+        }
+        mandatory true;
+        description "user name";
+      }
+    }
+   
+    grouping alarm-profile-info-input-group {
+ 	  description "input parameters for evaluate-alarm-profiles action";
+     typedef resource-selection-type-t {
+        type enumeration {
+          enum resource-system;
+          enum resource-device;
+          enum resource-chassis;
+          enum resource-passive-unit;
+          enum resource-module;
+          enum resource-port;
+          enum resource-interface;
+          enum resource-oxc;
+          enum resource-ms-isc-port;
+          enum resource-raman;
+          enum resource-otdr;
+          enum resource-backplane;
+          enum resource-bits;
+          enum resource-ecu;
+          enum resource-env-alarm;
+          enum resource-ext-synchref;
+          enum resource-fan-tray;
+          enum resource-lcd-flash;
+          enum resource-pwr;
+          enum resource-usb-flash;
+          enum resource-ppm-ecu;
+          enum resource-user;
+        }
+        description "Kind of Resource selection type.";
+      }
+
+      leaf condition-type {
+        type svo-al-t:svo-alarm-type-t;
+        description
+          "type of alarm (no transient alarm)";
+      }
+
+      choice input-selection {
+        description
+          "input selection for evaluate alarms using explicit managed object path 
+		   or a list of parameters needed to build it";
+
+        case path-selection {
+          description "Evaluate alarms profiles for resource indicated by the given managed object";
+          leaf managed-object {
+            type instance-identifier;
+            description
+              "managed object";
+          }
+        }
+        
+        case resource-selection {        
+          description "Evaluate alarms profiles for resource indicated by the givens paramater.
+		               Those parameters implicitely build the managed object path of the resource";
+          leaf resource-selection-type {
+            type resource-selection-type-t;
+            description
+              "kind of resource for which the evaluation must be done";
+          }
+          uses device-grp {
+           when "./resource-selection-type = 'resource-device'";
+          }
+          uses chassis-grp {
+            when "./resource-selection-type = 'resource-chassis' or ./resource-selection-type = 'resource-module' or ./resource-selection-type = 'resource-ms-isc-port'
+                  or ./resource-selection-type = 'resource-backplane' or ./resource-selection-type = 'resource-bits' or ./resource-selection-type = 'resource-ecu'
+                  or ./resource-selection-type = 'resource-env-alarm' or ./resource-selection-type = 'resource-ext-synchref' or ./resource-selection-type = 'resource-fan-tray'
+                  or ./resource-selection-type = 'resource-lcd-flash' or ./resource-selection-type = 'resource-pwr' or ./resource-selection-type = 'resource-usb-flash'
+                  or ./resource-selection-type = 'resource-ppm-ecu'";
+          }
+
+          uses passive-unit-grp {
+            when "./resource-selection-type = 'resource-passive-unit'";
+          }
+          uses module-grp {
+            when "./resource-selection-type = 'resource-module' or ./resource-selection-type = 'resource-port'";
+          }
+          uses port-grp {
+            when "./resource-selection-type = 'resource-port'";
+          }
+          uses oxc-grp {
+            when "./resource-selection-type = 'resource-oxc'";
+          }
+          uses alarm-profile-info-oxc-group {
+            when "./resource-selection-type = 'resource-oxc'";
+          }
+          uses ecu-msc-ports-grp {
+            when "./resource-selection-type = 'resource-ms-isc-port'";
+          }
+
+          uses interface-grp {
+            when "./resource-selection-type = 'resource-interface'";
+          }
+          
+          uses env-alarm-grp {
+            when "./resource-selection-type = 'resource-env-alarm'";
+          }
+          
+          uses bits-grp {
+            when "./resource-selection-type = 'resource-bits'";
+          }
+          
+          uses sync-bits-grp {
+            when "./resource-selection-type = 'resource-ext-synchref'";
+          }
+          
+          uses pwr-grp {
+            when "./resource-selection-type = 'resource-pwr'";
+          }
+          
+          uses raman-grp {
+            when "./resource-selection-type = 'resource-raman'";
+          }
+          
+          uses otdr-grp {
+            when "./resource-selection-type = 'resource-otdr'";
+          }
+          
+          uses ppm-ecu-grp {
+            when "./resource-selection-type = 'resource-ppm-ecu'";
+          }
+          
+          uses alarm-profile-info-user-group {
+            when "./resource-selection-type = 'resource-user'";
+          } 
+        }
+      }
+      
+      leaf include-inherited {
+        type boolean;
+        description
+          "in case of condition-name not specified, indicates if the alarms must be selected
+          from the given resource with also the inherited resources";
+      }
+    }
+
+    grouping alarm-profile-info-name-group {
+      
+      leaf profile-name {
+        type profile-name-t;
+        description "Profile name identifier";
+      }
+      leaf profile-editable {
+        type boolean;
+        description
+          "editable profile";
+      }
+    }
+
+    grouping alarm-profile-info-severities-group {
+      leaf alarm-reported {
+        type boolean;
+        description
+          "This leaf indicates that this alarm should be reported. Use false to indicate the suppression";
+      }
+          
+      leaf alarm-sa-severity {
+        type al:severity-t;
+        description "The severity of the condition in case of service affecting. Not used in case of alarm-sa-reported false";
+        tailf:info "The severity of the condition in case of service affecting.";
+      }
+
+      leaf alarm-nsa-severity {
+        type al:severity-t;
+        description "The severity of the condition in case of not service affecting.";
+        tailf:info "The severity of the condition in case of not service affecting. Not used in case of alarm-nsa-reported false";
+      }
+    }
+    
+    grouping alarm-profile-info-association-group {
+      
+      leaf association-name {
+        type association-name-t;
+        mandatory true;
+        description "Association name identifier";
+      }
+        
+      leaf resource-id {
+        type resource-id-t;
+        description "Association Resource identifier";
+      }
+
+      leaf resource-profile-type {
+        type resource-profile-type-t;
+        default profile-equipment-type;
+        description "Resource Type";
+      }
+      
+      leaf resource-parameters {
+        type string;
+        description "Resource Parameters (Display String)";
+      }
+    }
+    
+    grouping alarm-profile-info-group {
+      description "group of information for a single profile-association-resource";
+      uses alarm-profile-info-name-group;
+      uses alarm-profile-info-association-group;
+      uses alarm-profile-info-severities-group;
+    }
+
+    grouping alarm-profile-info-active-group {
+      description "group of information for the profile-association-resource best matching the given managed-object/condition";
+      container best-matched-profile {
+        uses alarm-profile-info-group;
+      }
+    }
+
+    grouping alarm-profile-info-alternative-group {
+      description "group of information for the other profile-association-resources matching or not the given managed-object/condition";
+      
+      container matched-profiles {
+        description "group of information for the other profile-association-resources matching the given managed-object/condition";
+        list alarm-profile {
+          uses alarm-profile-info-group;
+        }
+      }
+      container unmatched-profiles {
+        description "group of information for the other profile-association-resources unmatching the given managed-object/condition";
+        list alarm-profile {
+          uses alarm-profile-info-group;
+        }
+      }
+      container not-associated-profiles {
+        description "group of information for the not associated profiles for the specified condition";
+        list alarm-profile {
+          uses alarm-profile-info-group;
+        }
+      }
+    }
+
+    grouping default-severity-group {
+
+      leaf default-sa-severity {
+        type al:severity-t;
+        description "The severity of the condition in case of service affecting. Not used in case of alarm-sa-reported false";
+        tailf:info "The severity of the condition in case of service affecting.";
+      }
+
+      leaf default-nsa-severity {
+        type al:severity-t;
+        description "The severity of the condition in case of not service affecting.";
+        tailf:info "The severity of the condition in case of not service affecting. Not used in case of alarm-nsa-reported false";
+      }
+    }
+
+    grouping default-severity-resources-group {
+      choice severities {
+        description
+          "Severity/resource section choice";
+        case unique-severity {
+          description "Alarm with unique SA/NSA severity for all resources";
+          uses default-severity-group;
+        }
+        case not-unique-severity {
+          description "Alarm with different SA/NSA severities for the resources";
+          list default-severity-resources {
+	    leaf-list resources {
+              type svo-al-dict:resource-t;
+              description "List of possible resources affected by this alarm";
+	    }
+            uses default-severity-group;
+          }
+        }
+      }
+    }
+    
+    grouping alarm-profile-info-output-group {
+      description "group of information for every specified condition";
+      list alarm-entry {
+        key alarm-type;
+        description "Alarm type";
+
+        leaf alarm-type {
+          type svo-al-t:svo-alarm-type-t;
+          mandatory true;
+          description "This leaf provides a unique identification of the condition type.";
+          tailf:info "Unique identification of the condition type";
+        }
+        
+        uses default-severity-resources-group;        
+        uses alarm-profile-info-active-group;
+        uses alarm-profile-info-alternative-group;
+      }
+    }
+
+ 
+    tailf:action evaluate-alarm-profiles {
+      description 
+      "Evaluate Alarm vs current Profiles.
+       Given resource/condition matches the given condition with associated resource to the existing profiles.
+       The resource could be specified in two way:
+         1) by managed-object: path of the specified resource for the alarm
+         2) by resource-selection-type and associated parameters like (resource-chassis, chassis-uid) that
+            implicitly point to a managed-object path:
+            - resource-system: point to managed-object /svo
+            - resource-device: point to managed-object device path 
+                /svo/devices[device='DEVICE']
+            - resource-chassis: point to managed-object chassis path 
+                /svo/chassis[uid=UID]
+            - resource-passive-unit: point to managed-object passive-unit path 
+                /svo/passive-unit[uid=UID]
+            - resource-module: point to managed-object module path 
+                /svo/chassis[uid=UID]/module[slot='SLOT']
+            - resource-port: point to managed-object port path 
+                /svo/chassis[uid=UID]/module[slot='SLOT']/port[port-id='PORT-ID']
+                /svo/chassis[uid=UID]/module[slot='SLOT']/port[port-id='PORT-ID']/lane[lane-id='LANE-ID']
+            - resource-interface: point to managed-object interface path 
+                /svo/interface[type='INTERFACE-TYPE'][name='INTERFACE-NAME']
+                like 
+                /svo/interface[type='openROADM-if:ethernetCsmacd'][name='8/1/2']
+            - resource-oxc: point to managed-object oxc path 
+                /services/svo-xconn:oxc[connection-name='OXC-NAME']/path1/internal-path[if-reference='INTERFACE-NAME'] 
+                /services/svo-xconn:oxc[connection-name='OXC-NAME']/path2/internal-path[if-reference='INTERFACE-NAME'] 
+                like 
+                /services/svo-xconn:oxc[connection-name='xtest4']/path1/internal-path[if-reference='4/PORT-1-RX']
+            - resource-ms-isc-port: point to managed-object ms-isc port path
+                /svo/chassis[uid='UID']/ancillary/ecu-slot/ecu/ms-isc-module[ms-isc-id='ISC-ID']/port[port-id='PORT-ID']
+                like
+                /svo/chassis[uid='1']/ancillary/ecu-slot/ecu/ms-isc-module[ms-isc-id='1']/port[port-id='1']
+            - resource-raman: point to managed-object raman path 
+                /svo/raman-amplifier[raman-if='INTERFACE-NAME']
+                like
+                /svo/raman-amplifier[raman-if='4/4/RAMAN-TX']              
+            - resource-otdr: point to managed-object otdr path 
+                /otdrs/otdr[otdr-port-name='OTDR-NAME']
+                like
+                /otdrs/otdr[otdr-port-name='4/1/1']
+            - resource-backplane: point to managed-object backplane path 
+                /svo/chassis[uid='UID']/ancillary/backplane-module
+            - resource-bits: point to managed-object bits element path
+                /svo/chassis[uid='UID']/ancillary/bits-uts-module/bits-uts[bits-uts-id='BITS-ID']
+                like
+                /svo/chassis[uid='8']/ancillary/bits-uts-module/bits-uts[bits-uts-id='1']
+            - resource-ecu: point to managed-object ecu module path
+                /svo/chassis[uid='UID']/ancillary/ecu-slot/ecu
+            - resource-env-alarm: point to managed-object environment element path
+                /svo/chassis[uid='UID']/ancillary/alarm-contacts/alarm-dry-contact-module/env-alarm[env-alarm-id='ENV-ID']
+                like
+                /svo/chassis[uid='8']/ancillary/alarm-contacts/alarm-dry-contact-module/env-alarm[env-alarm-id='1']
+            - resource-ext-synchref: point to managed-object sync bits element path
+                /svo/chassis[uid='UID']/ancillary/sync-bits-uts-module/sync-bits-uts[sync-bits-uts-id='SYNC-BITS-ID']
+                like
+                /svo/chassis[uid='8']/ancillary/sync-bits-uts-module/sync-bits-uts[sync-bits-uts-id='1']
+            - resource-fan-tray: point to managed-object fan try module path
+                /svo/chassis[uid='UID']/ancillary/fan-tray-module
+            - resource-lcd-flash: point to managed-object usb-flash path 
+                /svo/chassis[uid='UID']/ancillary/lcd-flash-module/usb-flash-module
+            - resource-pwr: point to managed-object power unit module path
+                /svo/chassis[uid='UID']/ancillary/power-monitor/power-unit-module[power-unit-id='POWER-UNIT-ID']
+                like
+                /svo/chassis[uid='1']/ancillary/power-monitor/power-unit-module[power-unit-id='1']
+            - resource-usb-flash: point to managed-object usb-flash module path
+                /svo/chassis[uid='UID']/ancillary/lcd-flash-module/usb-flash-module
+            - resource-ppm-ecu: point to managed-object ppm of ecu path
+                /svo/chassis[uid='UID']/ancillary/ecu-slot/ecu/pluggable-ports-module/ppm-module[ppm-id='PPM-ID']
+                like
+                /svo/chassis[uid='8']/ancillary/ecu-slot/ecu/pluggable-ports-module/ppm-module[ppm-id='1']
+       In case of alarm condition not specified, then the evaluation will be performed for all alarms defined for the
+         specified resource. In case of include-inherited parameter with value true,
+         the alarms will be searched also for the children resources of the specified one.
+         For example with resource-selection-type=resource-chassis,chassis-uid=1,include-inherited=true,
+           we have the evaluation of both chassis alarms and module alarms, cause module is a child of chassis.
+       Output Info:
+         for each selected alarm (the given one or all alarms associated to the given resource)
+           default severity
+           best matching Profile with his Association/Resource
+           all other matching Profiles
+           all the unmatching Profiles
+             Those elements will contains
+                profile-name
+                association-name
+                resource-id
+                resource-profile-type
+                resource-parameters like eqp-type=RAMAN-COP
+                alarm-sa-severity
+                alarm-nsa-severity
+                alarm-reported
+          all the not associated Profiles
+            For this we havealso the information that show if the profile is editable
+           ";
+      
+      tailf:info "Evaluate Alarm vs current Profiles";
+
+      tailf:actionpoint action-profile-point;
+
+      input {
+        uses alarm-profile-info-input-group;
+      }
+      output {
+        uses alarm-profile-info-output-group;
+        leaf operation-error {
+          type string;
+          description "Operation error";
+        }
+      }
+    }
+ 
+  }
+}
+
