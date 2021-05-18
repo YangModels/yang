@@ -40,12 +40,21 @@ module ietf-rift {
       "RFC 8294: Common YANG Data Types for the Routing Area";
   }
 
+  import ietf-key-chain {
+    prefix "key-chain";
+    reference
+      "RFC 8177: YANG Data Model for Key Chains";
+  }
+
   organization
     "IETF RIFT (Routing In Fat Trees) Working Group";
 
   contact
     "WG Web:   <http://tools.ietf.org/wg/rift/>
      WG List:  <mailto:rift@ietf.org>
+
+     Editor:   Bruno Rijsman
+               <mailto:brunorijsman@gmail.com>
 
      Editor:   Zheng Zhang
                <mailto:zhang.zheng@zte.com.cn>
@@ -87,7 +96,7 @@ module ietf-rift {
      (RFC 8174) when, and only when, they appear in all
      capitals, as shown here.";
 
-  revision 2021-02-20 {
+  revision 2021-05-06 {
     description "Initial revision.";
     reference "RFC XXXX: A YANG Data Model for RIFT.";
   }
@@ -106,6 +115,12 @@ module ietf-rift {
     description
       "Support label switching for instance distinguishing in
        section 4.3.7.";
+  }
+
+  feature tie-security {
+    description
+      "Support security function described in section 4.4.3 for
+       the TIE exchange.";
   }
 
   typedef system-id {
@@ -150,7 +165,158 @@ module ietf-rift {
    * Groupings
    */
 
-   grouping base-node-info {
+  grouping address-families {
+    list address-families {
+      key address-family;
+      description
+        "A list of address families enabled on the
+         interface.";
+      leaf address-family {
+        type iana-rt-types:address-family;
+        description
+          "Indication which address families are up on the
+           interface.";
+      }
+    }
+    description
+      "Containing address families on the interface.";
+  }
+
+  grouping hierarchy-indications {
+    leaf hierarchy-indications {
+      type enumeration {
+        enum "leaf-only" {
+          description
+            "The node will never leave the
+             'bottom of the hierarchy'.";
+        }
+        enum "leaf-only-and-leaf-2-leaf-procedures" {
+          description "This means leaf to leaf.";
+        }
+        enum "top-of-fabric" {
+          description "The node is 'top of fabric'.";
+        }
+      }
+      description "The hierarchy indications of this node.";
+    }
+    description "Flags indicating node configuration in case of ZTP";
+  }
+
+  grouping node-capability {
+    leaf protocol-minor-version {
+      type uint16;
+      description
+        "Represents the minor protocol encoding schema
+         version of this node.";
+    }
+    leaf flood-reduction {
+      type boolean;
+      description
+        "If this node enables the flood reduction function.";
+    }
+    container hierarchy-indications {
+      config false;
+      description "The hierarchy-indications of the node.";
+      uses hierarchy-indications;
+    }
+    description
+      "The supported capabilities of this node.";
+  }
+
+  grouping prefix-attribute {
+    leaf metric {
+      type uint32;
+      description "The metric of this prefix.";
+    }
+    leaf-list tags {
+      type uint64;
+      description "The tags of this prefix.";
+    }
+    container monotonic-clock {
+      container prefix-sequence-type {
+        leaf timestamp {
+          type ieee802-1as-timestamp-type;
+          mandatory true;
+          description
+            "The timestamp per 802.1AS can be advertised
+             with the desired prefix North TIEs.";
+        }
+        leaf transaction-id {
+          type uint8;
+          description
+            "As per RFC 8505, a sequence number called a
+             Transaction ID (TID) with a prefix can be
+             advertised.";
+        }
+        description
+          "As described in section 4.3.3, the prefix
+           sequence attribute which can be advertised
+           for mobility.";
+      }
+      description
+        "The monotonic clock for mobile addresses.";
+    }
+    leaf loopback {
+      type boolean;
+      description
+        "Indicates if the interface is a node loopback.
+         According to section 4.3.10, the node's loopback
+         address can be injected into North and South
+         Prefix TIEs for node reachability.";
+    }
+    leaf directly-attached {
+      type boolean;
+      description
+        "Indicates that the prefix is directly attached,
+         i.e. should be routed to even if the node is
+         in overload.";
+    }
+    leaf from-link {
+      type linkid-type;
+      description
+        "In case of locally originated prefixes,
+         i.e. interface addresses this can describe which
+         link the address belongs to.";
+    }
+    description
+      "The attributes of the prefix.";
+  }
+
+  grouping security {
+    choice auth-key-chain {
+      description
+        "Key chain or explicit key parameter specification";
+      case auth-key-chain {
+        leaf key-chain {
+          type key-chain:key-chain-ref;
+          description
+            "key-chain name.";
+        }
+      }
+      case auth-key-explicit {
+        leaf key-id {
+          type uint32;
+          description "Key Identifier";
+        }
+        leaf key {
+          type string;
+          description
+            "Authentication key. The length of the key may be
+             dependent on the cryptographic algorithm.";
+        }
+        leaf crypto-algorithm {
+          type identityref {
+            base key-chain:crypto-algorithm;
+          }
+          description
+            "Cryptographic algorithm associated with key.";
+        }
+      }
+    }
+    description "The security parameters.";
+  }
+
+  grouping base-node-info {
     leaf name {
       type string;
       description
@@ -180,6 +346,7 @@ module ietf-rift {
     }
     description "The base information of a node.";
   } // base-node-info
+
   grouping node-flag {
     leaf overload {
       type boolean;
@@ -264,6 +431,7 @@ module ietf-rift {
       type if:interface-ref;
       description "The name of this interface.";
     }
+    uses address-families;
     description
       "A pair of local and remote link IDs to identify a link between
        two nodes.";
@@ -287,11 +455,6 @@ module ietf-rift {
          normally sum of the bandwidths of all the
          parallel links.";
     }
-    leaf flood-reduction {
-      type boolean;
-      description
-        "If this neighbor enables the flood reduction function.";
-    }
     container received-link-capabilities {
       uses link-capabilities;
       description
@@ -306,12 +469,6 @@ module ietf-rift {
       description
         "Represents the protocol encoding schema version of
          this neighbor.";
-    }
-    leaf protocol-minor-version {
-      type uint16;
-      description
-        "Represents the minor protocol encoding schema
-         version of this neighbor.";
     }
     container sent-offer {
       leaf level {
@@ -498,7 +655,6 @@ module ietf-rift {
          instance type is 'RIFT'.";
     }
     description "RIFT ( Routing in Fat Trees ) YANG model.";
-
     container rift {
       description "RIFT configuration and state data.";
 
@@ -506,9 +662,43 @@ module ietf-rift {
       leaf configured-level {
         type level;
         description
-          "The configured level value of this node.";
+          "The configured level value of this node.
+           If the 'hierarchy-indications' is set to 'leaf-only'
+           or 'leaf-only-and-leaf-2-leaf-procedures', this value
+           means the leaf level.
+           And the combination of this value and
+           'hierarchy-indications' can also be used to indicate
+           the maximum level value of 'top-of-fabric-level'.";
       }
-      uses node-flag;
+      container overload {
+        description
+          "If the overload in TIEs can be set
+           and the timeout value with according type.";
+        leaf overload {
+          type boolean;
+          description "If the overload bit in TIEs can be set.";
+        }
+        choice timeout-type {
+          description
+            "The value of timeout timer for overloading.
+             This makes sense when overload is set to 'TRUE'.";
+          case on-startup {
+            leaf on-startup-timeout {
+              type rt-types:timer-value-seconds16;
+              description
+                "Node goes into overload until this timer expires
+                 when starting up.";
+            }
+          }
+          case immediate {
+            leaf immediate-timeout {
+              type rt-types:timer-value-seconds16;
+              description
+                "Set overload and remove after the timeout expired.";
+            }
+          }
+        }
+      }
 
       leaf protocol-major-version {
         type uint8;
@@ -524,24 +714,7 @@ module ietf-rift {
         description
           "Represents protocol encoding schema minor version.";
       }
-      leaf hierarchy-indications {
-        type enumeration {
-          enum "leaf-only" {
-            description
-              "The node will never leave the
-               'bottom of the hierarchy'.";
-          }
-          enum "leaf-only-and-leaf-2-leaf-procedures" {
-            description "This means leaf to leaf.";
-          }
-          enum "top-of-fabric" {
-            description "The node is 'top of fabric'.";
-          }
-        }
-        config false;
-        description "The hierarchy indications of this node.";
-      }
-
+      uses hierarchy-indications;
       leaf flood-reduction {
         type boolean;
         description
@@ -549,7 +722,6 @@ module ietf-rift {
            section 4.2.3.8. If this value is set to 'FALSE', it
            means that the flood reduction function is disabled.";
       }
-
       leaf nonce-increasing-interval {
         type uint16;
         units seconds;
@@ -567,6 +739,13 @@ module ietf-rift {
            in section 4.4.7.
            If the nonces in received packet exceeds the range
            indicated by this value, the packet MUST be discarded.";
+      }
+      leaf adjusted-lifetime {
+        type rt-types:timer-value-seconds16;
+        units seconds;
+        description
+          "The adjusted lifetime may affect the TIE stability.
+           Be careful to change this parameter.";
       }
       container rx-lie-multicast-address {
         uses addresses;
@@ -608,7 +787,7 @@ module ietf-rift {
            be set to other value associated with different
            RIFT instance.";
       }
-      leaf holdtime {
+      leaf global-holdtime {
         type rt-types:timer-value-seconds16;
         units seconds;
         default "3";
@@ -620,16 +799,54 @@ module ietf-rift {
         default "5";
         description "The TIDE generation interval.";
       }
-
-      leaf tie-security-key-id {
+      container tie-security {
+        if-feature tie-security;
+        uses security;
+        description
+          "As described in section 4.4.3, the security function
+           used for the TIE exchange.";
+      }
+      choice algorithm-type {
+        case spf {
+          description "The algorithm is SPF.";
+        }
+        case all-path {
+          description "The algorithm is all-path.";
+        }
+        description "The possible algorithm types.";
+      }
+      leaf instance-label {
+        if-feature label-switching;
         type uint32;
         description
-          "As described in section 4.4.3, this value implies key
-           type and algorithm.  Value 0 means that no valid
-           fingerprint was computed. This key ID scope is local
-           to the nodes on both ends of the adjacency.";
+          "As per section 4.3.7, a locally significant, downstream
+           assigned, interface specific label may be advertised in
+           its LIEs. This value can be used to distinguish among
+           multiple RIFT instances.";
       }
 
+      container HAL {
+        config false;
+        leaf hal-value {
+          type level;
+          description
+            "The highest defined level value seen from all valid
+             level offers received.";
+        }
+        leaf-list system-id{
+          type system-id;
+          description
+            "The node's system-id of the offered level comes from.";
+        }
+        description
+          "The highest defined level and the offered nodes set.";
+      }
+
+      leaf-list miscabled-links {
+        type linkid-type;
+        config false;
+        description "List of miscabled links.";
+      }
       list interface {
         key "name";
         leaf link-id {
@@ -646,22 +863,7 @@ module ietf-rift {
           description
             "The cost from this interface to the neighbor.";
         }
-        container address-families {
-          description
-            "Containing address families on the interface.";
-          list address-family {
-            key address-family;
-            description
-              "A list of address families enabled on the
-               interface.";
-            leaf address-family {
-              type iana-rt-types:address-family;
-              description
-                "Indication which address families are up on the
-                 interface.";
-            }
-          }
-        }
+        uses address-families;
         container advertised-source-addresses {
           uses addresses;
           description
@@ -669,6 +871,38 @@ module ietf-rift {
              packets.";
         }
         uses direction-type;
+
+        container security {
+          if-feature tie-security;
+          uses security;
+          description
+            "As described in section 4.4.3, the security function
+             used for this interface.";
+        }
+
+        leaf security-checking {
+          type enumeration {
+            enum "no-checking" {
+              description
+                "The security envelop does not be checked.";
+            }
+            enum "permissive" {
+              description
+                "The security envelop checking is permissive.";
+            }
+            enum "loose" {
+              description
+                "The security envelop checking is loose.";
+            }
+            enum "strict" {
+              description
+                "The security envelop checking is strict.";
+            }
+          }
+          description
+            "The possible security checking types.
+             Only one type can be set at the same time.";
+        }
 
         leaf was-the-last-lie-accepted {
           type boolean;
@@ -730,40 +964,6 @@ module ietf-rift {
         description "The interface information on this node.";
       } // list interface
 
-      leaf-list miscabled-links {
-        type linkid-type;
-        config false;
-        description "List of miscabled links.";
-      }
-
-      choice algorithm-type {
-        case spf {
-          description "The algorithm is SPF.";
-        }
-        case all-path {
-          description "The algorithm is all-path.";
-        }
-        description "The possible algorithm types.";
-      }
-
-      leaf hal {
-        type level;
-        config false;
-        description
-          "The highest defined level value seen from all valid
-           level offers received.";
-      }
-
-      leaf instance-label {
-        if-feature label-switching;
-        type uint32;
-        description
-          "As per section 4.3.7, a locally significant, downstream
-           assigned, interface specific label may be advertised in
-           its LIEs. This value can be used to distinguish among
-           multiple RIFT instances.";
-      }
-
       list neighbor {
         key "system-id";
         config false;
@@ -781,16 +981,10 @@ module ietf-rift {
           uses tie-header;
 
           container node {
-            uses base-node-info;
-            leaf flood-reduction {
-              type boolean;
-              description
-                "If the node enable the flood reduction function.";
-            }
-            uses node-flag;
-            leaf startup-time {
-              type uint64;
-              description "Startup time of the node.";
+            leaf level {
+              type level;
+              config false;
+              description "The level of this node.";
             }
             list neighbor {
               key "system-id";
@@ -798,7 +992,27 @@ module ietf-rift {
               uses neighbor-node;
               description "The node TIE information of a neighbor.";
             }
-
+            uses node-capability;
+            uses node-flag;
+            leaf name {
+              type string;
+              description
+                "The name of this node. It won't be used as the key of node,
+                 just used for description.";
+            }
+            leaf pod {
+              type uint32;
+              description
+                "Point of Delivery. The self-contained vertical slice of a
+                 Clos or Fat Tree network containing normally only level 0
+                 and level 1 nodes. It communicates with nodes in other PoDs
+                 via the spine. We number PoDs to distinguish them and use
+                 PoD #0 to denote 'undefined' PoD.";
+            }
+            leaf startup-time {
+              type yang:date-and-time;
+              description "Startup time of the node.";
+            }
             leaf-list miscabled-links {
               type linkid-type;
               config false;
@@ -807,99 +1021,72 @@ module ietf-rift {
             description "The node element information in this TIE.";
           } // node
 
-          container prefix {
-            leaf prefix {
-              type inet:ip-prefix;
-              description "The prefix information.";
+          container prefixes {
+            description
+              "The prefix element information in this TIE.";
+            list prefix {
+              key "prefix";
+              leaf prefix {
+                type inet:ip-prefix;
+                description "The prefix information.";
+              }
+              uses prefix-attribute;
+              description "The prefix set information.";
             }
-
-            choice type {
-              case prefix {
-                description "It is the prefixes TIE element.";
+          }
+          container positive-disaggregation-prefixes {
+            list positive-disaggregation-prefix {
+              key "positive-disaggregation-prefix";
+              leaf positive-disaggregation-prefix {
+                type inet:ip-prefix;
+                description "The prefix information.";
               }
-              case positive-disaggregation {
-                description
-                  "It is the positive disaggregation prefixes
-                   TIE element.";
-              }
-              case negative-disaggregation {
-                description
-                  "It is the negative disaggregation prefixes
-                   TIE element.";
-              }
-              case external {
-                description
-                  "It is the external prefixes TIE element.";
-              }
-              case positive-external-disaggregation {
-                description
-                  "It is the positive external disaggregation
-                   prefixes TIE element.";
-              }
-              case pgp {
-                description
-                  "It is the policy guide prefixes TIE element.";
-              }
-              description "The type of prefix TIE.";
-            }
-
-            leaf metric {
-              type uint32;
-              description "The metric of this prefix.";
-            }
-            leaf-list tags {
-              type uint64;
-              description "The tags of this prefix.";
-            }
-            container monotonic-clock {
-              container prefix-sequence-type {
-                leaf timestamp {
-                  type ieee802-1as-timestamp-type;
-                  mandatory true;
-                  description
-                    "The timestamp per 802.1AS can be advertised
-                     with the desired prefix North TIEs.";
-                }
-                leaf transaction-id {
-                  type uint8;
-                  description
-                    "As per RFC 8505, a sequence number called a
-                     Transaction ID (TID) with a prefix can be
-                     advertised.";
-                }
-                description
-                  "As described in section 4.3.3, the prefix
-                   sequence attribute which can be advertised
-                   for mobility.";
-              }
+              uses prefix-attribute;
               description
-                "The monotonic clock for mobile addresses.";
+                "The positive disaggregation prefix information.";
             }
-            leaf loopback {
-              type boolean;
+            description "The positive disaggregation prefixes set.";
+          }
+          container negative_disaggregation_prefixes {
+            list negative_disaggregation_prefix {
+              key "negative_disaggregation_prefix";
+              leaf negative_disaggregation_prefix {
+                type inet:ip-prefix;
+                description "The prefix information.";
+              }
+              uses prefix-attribute;
               description
-                "Indicates if the interface is a node loopback.
-                 According to section 4.3.10, the node's loopback
-                 address can be injected into North and South
-                 Prefix TIEs for node reachability.";
+                "The negative disaggregation prefix information.";
             }
-            leaf directly-attached {
-              type boolean;
+            description "The negative disaggregation prefixes set.";
+          }
+          container external_prefixes {
+            list external_prefix {
+              key "external_prefix";
+              leaf external_prefix {
+                type inet:ip-prefix;
+                description "The prefix information.";
+              }
+              uses prefix-attribute;
+              description "The external prefix information.";
+            }
+            description "The external prefixes set.";
+          }
+          container positive_external_disaggregation_prefixes {
+            list positive_external_disaggregation_prefix {
+              key "positive_external_disaggregation_prefix";
+              leaf positive_external_disaggregation_prefix {
+                type inet:ip-prefix;
+                description "The prefix information.";
+              }
+              uses prefix-attribute;
               description
-                "Indicates that the prefix is directly attached,
-                 i.e. should be routed to even if the node is
-                 in overload.";
+                "The positive external disaggregation prefix
+                 information.";
             }
-            leaf from-link {
-              type linkid-type;
-              description
-                "In case of locally originated prefixes,
-                 i.e. interface addresses this can describe which
-                 link the address belongs to.";
-            }
-            description "The detail information of a prefix.";
-          } // prefix
-
+            description
+              "The positive external disaggregation prefixes set.";
+          }
           container key-value {
             leaf key {
               type binary;
