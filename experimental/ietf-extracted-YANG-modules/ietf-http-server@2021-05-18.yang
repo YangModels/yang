@@ -34,12 +34,11 @@ module ietf-http-server {
     "WG Web:   <http://datatracker.ietf.org/wg/netconf/>
      WG List:  <mailto:netconf@ietf.org>
      Author:   Kent Watsen <mailto:kent+ietf@watsen.net>";
-
   description
     "This module defines reusable groupings for HTTP servers that
      can be used as a basis for specific HTTP server instances.
 
-     Copyright (c) 2020 IETF Trust and the persons identified
+     Copyright (c) 2021 IETF Trust and the persons identified
      as authors of the code. All rights reserved.
 
      Redistribution and use in source and binary forms, with
@@ -60,7 +59,7 @@ module ietf-http-server {
      (RFC 8174) when, and only when, they appear in all
      capitals, as shown here.";
 
-  revision 2021-02-10 {
+  revision 2021-05-18 {
     description
       "Initial version";
     reference
@@ -69,17 +68,20 @@ module ietf-http-server {
 
   // Features
 
-  feature client-auth-config-supported {
+  feature client-auth-supported {
     description
       "Indicates that the configuration for how to authenticate
-       clients can be configured herein, as opposed to in an
-       application specific location.  That is, to support the
-       consuming data models that prefer to place client
-       authentication with client definitions, rather then
-       in a data model principally concerned with configuring
-       the transport.";
+       clients can be configured herein.  HTTP-level client
+       authentication may not be needed when client authentication
+       is expected to occur only at another protocol layer.";
   }
 
+  feature local-users-supported {
+    description
+      "Indicates that the configuration for users can be
+       configured herein, as opposed to in an application
+       specific location.";
+  }
   feature basic-auth {
     description
       "The 'basic-auth' feature indicates that the server
@@ -105,7 +107,7 @@ module ietf-http-server {
     description
       "A reusable grouping for configuring an HTTP server.
 
-       Note that this grouping uses fairly typical descendent
+       Note that this grouping uses fairly typical descendant
        node names such that a stack of 'uses' statements will
        have name conflicts.  It is intended that the consuming
        data model will resolve the issue (e.g., by wrapping
@@ -124,22 +126,23 @@ module ietf-http-server {
     }
 
     container client-authentication {
-      if-feature "client-auth-config-supported";
+      if-feature "client-auth-supported";
       nacm:default-deny-write;
       presence
         "Indicates that HTTP based client authentication is
-         supported (i.e., the server will request that the
-         HTTP client send authenticate when needed).  This
-         is needed as some HTTP-based protocols may only
-         support, e.g., TLS-level client authentication.";
+         configured.  This statement is present so the mandatory
+         descendant nodes do not imply that this node must be
+         configured.";
       description
-        "Specifies how the HTTP server can authenticate HTTP
-         clients.";
+        "Configures how the HTTP server can authenticate HTTP
+         clients.  The HTTP server will request that the HTTP
+         client send authentication when needed.";
       container users {
+        if-feature "local-users-supported";
         description
           "A list of locally configured users.";
         list user {
-          key user-id;
+          key "user-id";
           description
             "The list of local users configured on this device.";
           leaf user-id {
@@ -148,26 +151,29 @@ module ietf-http-server {
               "The user-id for the authenticating client.";
           }
           choice auth-type {
+            mandatory true;
             description
               "The authentication type.";
-            container basic {
-              if-feature "basic-auth";
-              leaf user-id {
-                type string;
+            case basic {
+              container basic {
+                if-feature "basic-auth";
+                leaf user-id {
+                  type string;
+                  description
+                    "The user-id for the authenticating client.";
+                }
+                leaf password {
+                  nacm:default-deny-write;
+                  type ianach:crypt-hash;
+                  description
+                    "The password for the authenticating client.";
+                }
                 description
-                  "The user-id for the authenticating client.";
+                  "The 'basic' HTTP scheme credentials.";
+                reference
+                  "RFC 7617:
+                    The 'Basic' HTTP Authentication Scheme";
               }
-              leaf password {
-                nacm:default-deny-write;
-                type ianach:crypt-hash;
-                description
-                  "The password for the authenticating client.";
-              }
-              description
-                "The 'basic' HTTP scheme credentials.";
-              reference
-                "RFC 7617:
-                  The 'Basic' HTTP Authentication Scheme";
             }
           }
         }
@@ -186,7 +192,7 @@ module ietf-http-server {
          so that they may be disabled.  Other transports MAY be
          augmented in as 'case' statements by future efforts.";
       case tcp {
-        if-feature tcp-supported;
+        if-feature "tcp-supported";
         container tcp {
           description
             "Container for TCP-based HTTP protocols.";
@@ -194,7 +200,7 @@ module ietf-http-server {
             description
               "A wrapper around the TCP parameters to avoid
                name collisions.";
-            uses "tcps:tcp-server-grouping";
+            uses tcps:tcp-server-grouping;
           }
           container http-server-parameters {
             description
@@ -205,7 +211,7 @@ module ietf-http-server {
         }
       }
       case tls {
-        if-feature tls-supported;
+        if-feature "tls-supported";
         container tls {
           description
             "Container for TLS-based HTTP protocols.";
@@ -213,13 +219,13 @@ module ietf-http-server {
             description
               "A wrapper around the TCP parameters to avoid
                name collisions.";
-            uses "tcps:tcp-server-grouping";
+            uses tcps:tcp-server-grouping;
           }
           container tls-server-parameters {
             description
               "A wrapper around the TLS parameters to avoid
                name collisions.";
-            uses "tlss:tls-server-grouping";
+            uses tlss:tls-server-grouping;
           }
           container http-server-parameters {
             description
@@ -230,5 +236,6 @@ module ietf-http-server {
         }
       }
     }
-  }
+  } // http-server-stack-grouping
+
 }
