@@ -6,6 +6,12 @@ module ietf-bier-te {
 
   prefix bier-te;
 
+  import ietf-inet-types {
+    prefix "inet";
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+
   import ietf-routing {
     prefix "rt";
     reference
@@ -34,15 +40,15 @@ module ietf-bier-te {
      Editor:   Zheng Zhang
                <mailto:zhang.zheng@zte.com.cn>
      Editor:   Cui Wang
-               <mailto:wang.cui1@zte.com.cn>
+               <mailto:lindawangjoy@gmail.com>
      Editor:   Ran Chen
                <mailto:chen.ran@zte.com.cn>
      Editor:   Fangwei Hu
-               <mailto:hu.fangwei@zte.com.cn>
+               <mailto:hufwei@gmail.com>
      Editor:   Mahesh Sivakumar
-               <mailto:masivaku@cisco.com>
+               <mailto:sivakumar.mahesh@gmail.com>
      Editor:   Huanan Chen
-               <mailto:chenhuanan@gsta.com>
+               <mailto:chenhuanan@189.cn>
     ";
 
   description
@@ -70,7 +76,7 @@ module ietf-bier-te {
      (RFC 8174) when, and only when, they appear in all
      capitals, as shown here.";
 
-  revision 2020-02-05 {
+  revision 2021-05-17 {
     description
     "Initial revision.";
     reference
@@ -87,13 +93,6 @@ module ietf-bier-te {
     reference
       "I-D.eckert-bier-te-frr: Protection Methods for BIER-TE";
   }
-  feature bier-te-ecmp {
-    description
-      "Support ECMP feature in BIER TE.";
-    reference
-      "I-D.ietf-bier-te-arch: Traffic Engineering for Bit Index
-       Explicit Replication (BIER-TE), section 3.2.3";
-  }
 
   /*
    * Identities
@@ -108,6 +107,31 @@ module ietf-bier-te {
       "I-D.ietf-bier-te-arch: Traffic Engineering for Bit Index
        Explicit Replication (BIER-TE)";
   }
+
+  typedef encapsulation-type {
+    type enumeration {
+      enum MPLS {
+        description
+          "The forwarding encapsulation is MPLS
+           described in RFC8296 section 2.1.";
+      }
+      enum Ethernet {
+        description
+          "The forwarding encapsulation is Ethernet,
+           which is belonging to non-mpls part
+           described in RFC8296 section 2.2.";
+      }
+      enum IPv6 {
+        description
+          "The forwarding encapsulation is IPv6,
+           which is belonging to non-mpls part
+           described in RFC8296 section 2.2.";
+      }
+    }
+    description
+      "The encapsulation type of the BIER-TE packet.
+       If this type is not set, MPLS is the default type.";
+  } // encapsulation-type
 
   grouping bit-string {
     description
@@ -193,48 +217,88 @@ module ietf-bier-te {
     }
   } // adj-type
 
-  grouping te-bift-id {
-    description "The index of BIER forwarding items. It usually
-                 represents the combination of [SD, BSL, SI].";
-    leaf type {
-      type enumeration {
-        enum mpls {
-          description
-            "The bift-id value is represent the BIER TE mpls
-             forwarding plane. It is a mpls label.";
-        }
-        enum eth {
-          description
-            "The bift-id value is represent the BIER TE ethernet
-             forwarding plane. It is an index of ethernet
-             encapsulation.";
-        }
-        enum other {
-          description "Describes other type of te-bift-id.";
-        }
-      }
-      description "The types of BIER TE bift-id. If this type
-                   is not set, mpls is default type.";
-    }
-    leaf value {
-      type rt-types:mpls-label;
-      mandatory true;
-      description
-        "The bift-id value of the forwarding item. It can be a mpls
-         label or an index of ethernet encapsulation which is used
-         to represent specific combination of [SD, BSL, SI]. The
-         ethernet index value is the same range (20bits) as mpls
-         label.";
-    }
-  } // te-bift-id
-
   grouping te-items {
     description "The BIER TE forwarding items collection.";
 
-    container out-info {
+    list fwd-next-hop {
+      key "next-hop";
       description
-        "The information of out forwarding packets. Includes the
-         outbound interface and the bift-id of next hop.";
+        "The next hop information for forwarding.
+         If ECMP function defined in section 3.2.3 is used,
+         multiple next hops may be existed.
+         If ECMP function is not enabled,
+         the next hop may be one only.";
+
+      leaf next-hop {
+        type inet:ip-address;
+        mandatory true;
+        description "Next hop address.";
+      }
+      leaf dnr-flag {
+        type boolean;
+        description
+          "When the flag is set to 1, the BP of adjacency should not
+           be reset when packet copies are created. The flag makes
+           sense only when the forwarding type is 'connected'.";
+      }
+      container fwd-type {
+        description
+          "The collection of all possible forwarding types.";
+        choice fwd-type {
+          mandatory true;
+          case connected {
+            description
+              "The forwarding type is connected. Mostly connected
+               interfaces.";
+          }
+          case routed {
+            description
+              "The forwarding type is routed. Mostly not connected
+               interfaces.";
+          }
+          case local-decap {
+            description
+              "Means that the packet should be decapsulated and
+               forward out of BIER domain.";
+           }
+          case other {
+            description
+              "Means that the packet should be discarded.";
+          }
+          description
+            "The collection of all possible forwarding types.";
+        }
+      } // fwd-type
+
+      container te-out-bift-id {
+        description
+          "The bift-id information corresponding to a specific
+           outbound interface.";
+
+        list te-out-bift-id {
+          key "encap-type";
+          leaf encap-type {
+            type encapsulation-type;
+            description
+              "The encapsulation type of BIER-TE packet.";
+          }
+          leaf value {
+            type rt-types:mpls-label;
+            mandatory true;
+            description
+              "The bift-id value of the forwarding item.
+               It can be a mpls label or an index for ethernet
+               or IPv6 encapsulation, which is used to represent
+               specific combination of [SD, BSL, SI].
+               The ethernet or IPv6 index value is the same range
+               (20bits) as mpls label.
+               This value MUST not be set to 0.";
+          }
+          description
+            "The bift-id value and the encapsulation type
+             for the BIER-TE packet.";
+        }
+      }
 
       list out-if-list {
         key "fwd-intf";
@@ -247,50 +311,8 @@ module ietf-bier-te {
           description
             "The out interface of this forwarding item.";
         }
-        leaf dnr-flag {
-          type boolean;
-          description
-            "When the flag is set to 1, the BP of adjacency should not
-             be reset when packet copies are created. The flag makes
-             sense only when the forwarding type is 'connected'.";
-        }
-        container fwd-type {
-          description
-            "The collection of all possible forwarding types.";
-          choice fwd-type {
-            mandatory true;
-            case connected {
-              description
-                "The forwarding type is connected. Mostly connected
-                 interfaces.";
-            }
-            case routed {
-              description
-                "The forwarding type is routed. Mostly not connected
-                 interfaces.";
-            }
-            case local-decap {
-              description
-                "Means that the packet should be decapsulated and
-                 forward out of BIER domain.";
-             }
-            case other {
-              description
-                "Means that the packet should be discarded.";
-            }
-            description
-              "The collection of all possible forwarding types.";
-          }
-        } // fwd-type
-
-        container te-out-bift-id {
-          description
-            "The bift-id information corresponding to a specific
-             outbound interface.";
-          uses te-bift-id;
-        }
       }
-    }
+    } // next-hop
   } // te-items
 
   /*
@@ -382,7 +404,24 @@ module ietf-bier-te {
                   description
                     "The bift-id which is used to locate the specific
                      forwarding item.";
-                  uses te-bift-id;
+                  leaf encap-type {
+                    type encapsulation-type;
+                    description
+                      "The encapsulation type for BIER-TE packet.";
+                  }
+
+                  leaf value {
+                    type rt-types:mpls-label;
+                    mandatory true;
+                    description
+                      "The bift-id value of the forwarding item.
+                       It can be a mpls label or an index for
+                       ethernet or IPv6 encapsulation,
+                       which is used to represent specific combination
+                       of [SD, BSL, SI].
+                       The ethernet or IPv6 index value is the same
+                       range (20bits) as mpls label.";
+                  }
                 }
 
                 list fwd-items {
@@ -394,16 +433,6 @@ module ietf-bier-te {
                     mandatory true;
                     description
                       "The bit index of a BIER TE forwarding item.";
-                  }
-
-                  leaf te-ecmp {
-                    if-feature bier-te-ecmp;
-                    type boolean;
-                    description
-                      "The list of the ecmp paths. When the type of
-                       BP is set to ecmp, this interface ecmp list
-                       should be used to balance the load on each
-                       interface.";
                   }
                   uses te-items;
 
@@ -422,8 +451,8 @@ module ietf-bier-te {
                       uses bit-string;
                     }
                     description
-                      "If this link is protected, frr items can be used to
-                       forward flows when this link is down.";
+                      "If this link is protected, frr items can be
+                       used to forward flows when this link is down.";
                   } // te-frr
                 } // fwd-items
               } // si
