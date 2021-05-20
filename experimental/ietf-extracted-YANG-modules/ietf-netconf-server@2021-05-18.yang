@@ -14,7 +14,6 @@ module ietf-netconf-server {
     reference
       "RFC 7407: A YANG Data Model for SNMP Configuration";
   }
-
   import ietf-tcp-client {
     prefix tcpc;
     reference
@@ -29,21 +28,21 @@ module ietf-netconf-server {
 
   import ietf-ssh-common {
     prefix sshcmn;
-    revision-date 2021-02-10; // stable grouping definitions
+    revision-date 2021-05-18; // stable grouping definitions
     reference
       "RFC EEEE: YANG Groupings for SSH Clients and SSH Servers";
   }
 
   import ietf-ssh-server {
     prefix sshs;
-    revision-date 2021-02-10; // stable grouping definitions
+    revision-date 2021-05-18; // stable grouping definitions
     reference
       "RFC EEEE: YANG Groupings for SSH Clients and SSH Servers";
   }
 
   import ietf-tls-server {
     prefix tlss;
-    revision-date 2021-02-10; // stable grouping definitions
+    revision-date 2021-05-18; // stable grouping definitions
     reference
       "RFC FFFF: YANG Groupings for TLS Clients and TLS Servers";
   }
@@ -63,7 +62,7 @@ module ietf-netconf-server {
     "This module contains a collection of YANG definitions
      for configuring NETCONF servers.
 
-     Copyright (c) 2020 IETF Trust and the persons identified
+     Copyright (c) 2021 IETF Trust and the persons identified
      as authors of the code. All rights reserved.
 
      Redistribution and use in source and binary forms, with
@@ -84,7 +83,7 @@ module ietf-netconf-server {
      (RFC 8174) when, and only when, they appear in all
      capitals, as shown here.";
 
-  revision 2021-02-10 {
+  revision 2021-05-18 {
     description
       "Initial version";
     reference
@@ -102,6 +101,7 @@ module ietf-netconf-server {
       "RFC 6242:
          Using the NETCONF Protocol over Secure Shell (SSH)";
   }
+
   feature tls-listen {
     description
       "The 'tls-listen' feature indicates that the NETCONF server
@@ -139,7 +139,7 @@ module ietf-netconf-server {
        without any consideration for how underlying transport
        sessions are established.
 
-       Note that this grouping uses a fairly typical descendent
+       Note that this grouping uses a fairly typical descendant
        node name such that a stack of 'uses' statements will
        have name conflicts.  It is intended that the consuming
        data model will resolve the issue by wrapping the 'uses'
@@ -149,16 +149,25 @@ module ietf-netconf-server {
        to consuming models.";
 
     container client-identity-mappings {
-      if-feature
-        "(tls-listen or tls-call-home) and (sshcmn:ssh-x509-certs)";
       description
         "Specifies mappings through which NETCONF client X.509
-         certificates are used to determine a NETCONF username.
-         If no matching and valid cert-to-name list entry can be
-         found, then the NETCONF server MUST close the connection,
-         and MUST NOT accept NETCONF messages over it.";
+         certificates are used to determine a NETCONF username,
+         per RFC 7407.
+
+         For TLS-based transports, if no matching and valid
+         cert-to-name list entry can be found, then the NETCONF
+         server MUST close the connection, and MUST NOT accept
+         NETCONF messages over it, per Section 7 in RFC 7589.
+         For SSH-based transports, a matching cert-to-name
+         entry overrides the username provided by the SSH
+         implementation, consistent with the second paragraph
+         of Section 3 in RFC 6242.";
       reference
-        "RFC 7407: A YANG Data Model for SNMP Configuration.";
+        "RFC 6242:
+           Using the NETCONF Protocol over Secure Shell (SSH)
+         RFC 7589:
+           Using the NETCONF Protocol over Transport Layer
+           Security (TLS) with Mutual X.509 Authentication";
       uses x509c2n:cert-to-name {
         refine "cert-to-name/fingerprint" {
           mandatory false;
@@ -213,7 +222,28 @@ module ietf-netconf-server {
             description
               "A wrapper around the NETCONF server parameters
                to avoid name collisions.";
-            uses ncs:netconf-server-grouping;
+            uses ncs:netconf-server-grouping {
+              refine "client-identity-mappings" {
+                if-feature "sshcmn:ssh-x509-certs";
+                description
+                  "Augments in an 'if-feature' statement
+                   ensuring the 'client-identity-mappings'
+                   descendant is enabled only when SSH
+                   supports X.509 certificates.";
+              }
+              augment "client-identity-mappings" {
+                description
+                  "Adds a flag indicating if a cert-to-name
+                   is required.";
+                leaf mapping-required {
+                  type boolean;
+                  description
+                    "Indicates that the cert-to-name mapping
+                     is required (i.e., the SSH-level username
+                     is ignored).";
+                }
+              }
+            }
           }
         }
       }
@@ -244,7 +274,7 @@ module ietf-netconf-server {
                avoid name collisions.";
             uses tlss:tls-server-grouping {
               refine "client-authentication" {
-              must 'ca-certs or ee-certs';
+                must 'ca-certs or ee-certs';
                 description
                   "NETCONF/TLS servers MUST validate client
                    certificates.  This configures certificates
@@ -262,7 +292,13 @@ module ietf-netconf-server {
             description
               "A wrapper around the NETCONF server parameters
                to avoid name collisions.";
-            uses ncs:netconf-server-grouping;
+            uses ncs:netconf-server-grouping {
+              refine "client-identity-mappings/cert-to-name" {
+                min-elements 1;
+                description
+                  "The TLS transport requires a mapping.";
+              }
+            }
           }
         }
       }
@@ -308,7 +344,28 @@ module ietf-netconf-server {
             description
               "A wrapper around the NETCONF server parameters
                to avoid name collisions.";
-            uses ncs:netconf-server-grouping;
+            uses ncs:netconf-server-grouping {
+              refine "client-identity-mappings" {
+                if-feature "sshcmn:ssh-x509-certs";
+                description
+                  "Augments in an 'if-feature' statement
+                   ensuring the 'client-identity-mappings'
+                   descendant is enabled only when SSH
+                   supports X.509 certificates.";
+              }
+              augment "client-identity-mappings" {
+                description
+                  "Adds a flag indicating if a cert-to-name
+                   is required.";
+                leaf mapping-required {
+                  type boolean;
+                  description
+                    "Indicates that the cert-to-name mapping
+                     is required (i.e., the SSH-level username
+                     is ignored).";
+                }
+              }
+            }
           }
         }
       }
@@ -339,7 +396,7 @@ module ietf-netconf-server {
                avoid name collisions.";
             uses tlss:tls-server-grouping {
               refine "client-authentication" {
-              must 'ca-certs or ee-certs';
+                must 'ca-certs or ee-certs';
                 description
                   "NETCONF/TLS servers MUST validate client
                    certificates.  This configures certificates
@@ -357,7 +414,13 @@ module ietf-netconf-server {
             description
               "A wrapper around the NETCONF server parameters
                to avoid name collisions.";
-            uses ncs:netconf-server-grouping;
+            uses ncs:netconf-server-grouping {
+              refine "client-identity-mappings/cert-to-name" {
+                min-elements 1;
+                description
+                  "The TLS transport requires a mapping.";
+              }
+            }
           }
         }
       }
@@ -372,13 +435,15 @@ module ietf-netconf-server {
     container listen {
       if-feature "ssh-listen or tls-listen";
       presence
-        "Enables server to listen for NETCONF client connections.";
+        "Indicates that server-listening ports have been configured.
+         This statement is present so the mandatory descendant
+         nodes do not imply that this node must be configured.";
       description
         "Configures listen behavior";
       leaf idle-timeout {
         type uint16;
         units "seconds";
-        default 3600; // one hour
+        default "3600"; // one hour
         description
           "Specifies the maximum number of seconds that a NETCONF
            session may remain idle. A NETCONF session will be
@@ -404,9 +469,13 @@ module ietf-netconf-server {
     container call-home {
       if-feature "ssh-call-home or tls-call-home";
       presence
-        "Enables the NETCONF server to initiate the underlying
+        "Indicates that server-initiated call home connections have
+         been configured.  This statement is present so the mandatory
+         descendant nodes do not imply that this node must be
+         configured.";
+      description
+        "Configures the NETCONF server to initiate the underlying
          transport connection to NETCONF clients.";
-      description "Configures call home behavior.";
       list netconf-client {
         key "name";
         min-elements 1;
@@ -447,8 +516,9 @@ module ietf-netconf-server {
               "Selects between available connection types.";
             case persistent-connection {
               container persistent {
-                presence "Indicates that a persistent connection is
-                          to be maintained.";
+                presence
+                  "Indicates that a persistent connection is to be
+                   maintained.";
                 description
                   "Maintain a persistent connection to the NETCONF
                    client. If the connection goes down, immediately
@@ -507,7 +577,7 @@ module ietf-netconf-server {
                 leaf idle-timeout {
                   type uint16;
                   units "seconds";
-                  default 120; // two minutes
+                  default "120"; // two minutes
                   description
                     "Specifies the maximum number of seconds that
                      a NETCONF session may remain idle. A NETCONF
@@ -572,8 +642,7 @@ module ietf-netconf-server {
     } // container call-home
   } // grouping netconf-server-app-grouping
 
-  // Protocol accessible node, for servers that implement
-  // this module.
+  // Protocol accessible node for servers that implement this module.
   container netconf-server {
     uses netconf-server-app-grouping;
     description
