@@ -29,7 +29,7 @@ module ietf-tls-server {
 
   import ietf-tls-common {
     prefix tlscmn;
-    revision-date 2021-02-10; // stable grouping definitions
+    revision-date 2021-05-18; // stable grouping definitions
     reference
       "RFC FFFF: YANG Groupings for TLS Clients and TLS Servers";
   }
@@ -47,7 +47,7 @@ module ietf-tls-server {
     "This module defines reusable groupings for TLS servers that
      can be used as a basis for specific TLS server instances.
 
-     Copyright (c) 2020 IETF Trust and the persons identified
+     Copyright (c) 2021 IETF Trust and the persons identified
      as authors of the code. All rights reserved.
 
      Redistribution and use in source and binary forms, with
@@ -68,7 +68,7 @@ module ietf-tls-server {
      (RFC 8174) when, and only when, they appear in all
      capitals, as shown here.";
 
-  revision 2021-02-10 {
+  revision 2021-05-18 {
     description
       "Initial version";
     reference
@@ -89,30 +89,45 @@ module ietf-tls-server {
        TLS servers on the server implementing this feature.";
   }
 
-  feature client-auth-config-supported {
+  feature server-ident-x509-cert {
     description
-      "Indicates that the configuration for how to authenticate
-       clients can be configured herein, as opposed to in an
-       application specific location.  That is, to support the
-       consuming data models that prefer to place client
-       authentication with client definitions, rather then
-       in a data model principally concerned with configuring
-       the transport.";
+      "Indicates that the server supports identifying itself
+       using X.509 certificates.";
   }
 
-  feature x509-certificate-auth {
+  feature server-ident-raw-public-key {
+    description
+      "Indicates that the server supports identifying itself
+       using raw public keys.";
+  }
+
+  feature server-ident-psk {
+    description
+      "Indicates that the server supports identifying itself
+       using PSKs (pre-shared or pairwise-symmetric keys).";
+  }
+
+  feature client-auth-supported {
+    description
+      "Indicates that the configuration for how to authenticate
+       clients can be configured herein.  TLS-level client
+       authentication may not be needed when client authentication
+       is expected to occur only at another protocol layer.";
+  }
+
+  feature client-auth-x509-cert {
     description
       "Indicates that the server supports authenticating clients
        using X.509 certificates.";
   }
 
-  feature raw-public-key-auth {
+  feature client-auth-raw-public-key {
     description
       "Indicates that the server supports authenticating clients
-       using ray public keys.";
+       using raw public keys.";
   }
 
-  feature psk-auth {
+  feature client-auth-psk {
     description
       "Indicates that the server supports authenticating clients
        using PSKs (pre-shared or pairwise-symmetric keys).";
@@ -126,7 +141,7 @@ module ietf-tls-server {
        any consideration for how underlying TCP sessions are
        established.
 
-       Note that this grouping uses fairly typical descendent
+       Note that this grouping uses fairly typical descendant
        node names such that a stack of 'uses' statements will
        have name conflicts.  It is intended that the consuming
        data model will resolve the issue (e.g., by wrapping
@@ -152,7 +167,7 @@ module ietf-tls-server {
         description
           "A choice amongst authentication types.";
         case certificate {
-          if-feature x509-certificate-auth;
+          if-feature "server-ident-x509-cert";
           container certificate {
             description
               "Specifies the server identity using a certificate.";
@@ -160,18 +175,18 @@ module ietf-tls-server {
               ks:local-or-keystore-end-entity-cert-with-key-grouping{
               refine "local-or-keystore/local/local-definition" {
                 must 'public-key-format'
-                     + ' = "ct:subject-public-key-info-format"';
+                   + ' = "ct:subject-public-key-info-format"';
               }
               refine "local-or-keystore/keystore/keystore-reference"
-                     + "/asymmetric-key" {
+                   + "/asymmetric-key" {
                 must 'deref(.)/../ks:public-key-format'
-                     + ' = "ct:subject-public-key-info-format"';
+                   + ' = "ct:subject-public-key-info-format"';
               }
             }
           }
         }
         case raw-private-key {
-          if-feature raw-public-key-auth;
+          if-feature "server-ident-raw-public-key";
           container raw-private-key {
             description
               "Specifies the server identity using a raw
@@ -179,17 +194,17 @@ module ietf-tls-server {
             uses ks:local-or-keystore-asymmetric-key-grouping {
               refine "local-or-keystore/local/local-definition" {
                 must 'public-key-format'
-                     + ' = "ct:subject-public-key-info-format"';
+                   + ' = "ct:subject-public-key-info-format"';
               }
               refine "local-or-keystore/keystore/keystore-reference"{
                 must 'deref(.)/../ks:public-key-format'
-                     + ' = "ct:subject-public-key-info-format"';
+                   + ' = "ct:subject-public-key-info-format"';
               }
             }
           }
         }
         case psk {
-          if-feature psk-auth;
+          if-feature "server-ident-psk";
           container psk {
             description
               "Specifies the server identity using a PSK (pre-shared
@@ -210,7 +225,7 @@ module ietf-tls-server {
     } // container server-identity
 
     container client-authentication {
-      if-feature "client-auth-config-supported";
+      if-feature "client-auth-supported";
       nacm:default-deny-write;
       must 'ca-certs or ee-certs or raw-public-keys or psks';
       presence
@@ -227,24 +242,26 @@ module ietf-tls-server {
          is necessarily the same as configured in the '../server-
          identity' node.";
       container ca-certs {
-        if-feature "x509-certificate-auth";
+        if-feature "client-auth-x509-cert";
         presence
-          "Indicates that the TLS server can authenticate TLS clients
-           using configured certificate authority certificates.";
+          "Indicates that CA certificates have been configured.
+           This statement is present so the mandatory descendant
+           nodes do not imply that this node must be configured.";
         description
           "A set of certificate authority (CA) certificates used by
-           the TLS server to authenticate TLS client certificates. A
-           client certificate is authenticated if it has a valid
+           the TLS server to authenticate TLS client certificates.
+           A client certificate is authenticated if it has a valid
            chain of trust to a configured CA certificate.";
         reference
           "RFC BBBB: A YANG Data Model for a Truststore";
         uses ts:local-or-truststore-certs-grouping;
       }
       container ee-certs {
-        if-feature "x509-certificate-auth";
+        if-feature "client-auth-x509-cert";
         presence
-          "Indicates that the TLS server can authenticate TLS
-           clients using configured client certificates.";
+          "Indicates that EE certificates have been configured.
+           This statement is present so the mandatory descendant
+           nodes do not imply that this node must be configured.";
         description
           "A set of client certificates (i.e., end entity
            certificates) used by the TLS server to authenticate
@@ -256,10 +273,11 @@ module ietf-tls-server {
         uses ts:local-or-truststore-certs-grouping;
       }
       container raw-public-keys {
-        if-feature "raw-public-key-auth";
+        if-feature "client-auth-raw-public-key";
         presence
-          "Indicates that the TLS server can authenticate TLS
-           clients using raw public keys.";
+          "Indicates that raw public keys have been configured.
+           This statement is present so the mandatory descendant
+           nodes do not imply that this node must be configured.";
         description
           "A set of raw public keys used by the TLS server to
            authenticate raw public keys presented by the TLS
@@ -269,19 +287,19 @@ module ietf-tls-server {
           "RFC BBBB: A YANG Data Model for a Truststore";
         uses ts:local-or-truststore-public-keys-grouping {
           refine "local-or-truststore/local/local-definition"
-                 + "/public-key" {
+               + "/public-key" {
             must 'public-key-format'
-                 + ' = "ct:subject-public-key-info-format"';
+               + ' = "ct:subject-public-key-info-format"';
           }
           refine "local-or-truststore/truststore"
-                 + "/truststore-reference" {
+               + "/truststore-reference" {
             must 'deref(.)/../*/ts:public-key-format'
-                 + ' = "ct:subject-public-key-info-format"';
+               + ' = "ct:subject-public-key-info-format"';
           }
         }
       }
       leaf psks {
-        if-feature "psk-auth";
+        if-feature "client-auth-psk";
         type empty;
         description
           "Indicates that the TLS server can authenticate TLS clients
@@ -350,4 +368,5 @@ module ietf-tls-server {
       }
     } // container keepalives
   } // grouping tls-server-grouping
-} // module ietf-tls-server
+
+}
