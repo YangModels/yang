@@ -1,0 +1,554 @@
+module ietf-segment-routing-mpls {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-segment-routing-mpls";
+  prefix sr-mpls;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-routing {
+    prefix rt;
+    reference
+      "RFC 8349: A YANG Data Model for Routing
+                 Management (NMDA Version)";
+  }
+  import ietf-routing-types {
+    prefix rt-types;
+    reference
+      "RFC 8294: Common YANG Data Types for the
+                 Routing Area";
+  }
+  import ietf-segment-routing {
+    prefix sr;
+    reference
+      "RFC 9020: YANG Data Model for Segment Routing";
+  }
+  import ietf-segment-routing-common {
+    prefix sr-cmn;
+    reference
+      "RFC 9020: YANG Data Model for Segment Routing";
+  }
+
+  organization
+    "IETF SPRING - SPRING Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/spring/>
+     WG List:  <mailto:spring@ietf.org>
+
+     Author:    Stephane Litkowski
+               <mailto:slitkows.ietf@gmail.com>
+     Author:    Yingzhen Qu
+               <mailto:yingzhen.qu@futurewei.com>
+     Author:    Acee Lindem
+               <mailto:acee@cisco.com>
+     Author:    Pushpasis Sarkar
+               <mailto:pushpasis.ietf@gmail.com>
+     Author:    Jeff Tantsura
+               <jefftant.ietf@gmail.com>
+
+    ";
+  description
+    "This YANG module defines a generic configuration model for
+     the Segment Routing MPLS data plane.
+
+     This YANG module conforms to the Network Management
+     Datastore Architecture (NMDA), as described in RFC 8242.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.
+
+     Copyright (c) 2021 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Simplified BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 9020;
+     see the RFC itself for full legal notices.";
+  reference
+    "RFC 9020: YANG Data Model for Segment Routing";
+
+  revision 2021-05-26 {
+    description
+      "Initial version";
+    reference
+      "RFC 9020: YANG Data Model for Segment Routing";
+  }
+
+  feature mapping-server {
+    description
+      "Support for Segment Routing Mapping Server (SRMS).";
+    reference
+      "RFC 8661: Segment Routing MPLS Interworking
+                 with LDP";
+  }
+
+  feature protocol-srgb {
+    description
+      "Support for per-protocol Segment Routing Global Block
+       (SRGB) configuration.";
+    reference
+      "RFC 8660: Segment Routing with the MPLS
+                 Data Plane";
+  }
+
+  typedef system-id {
+    type string {
+      pattern '[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}';
+    }
+    description
+      "This type defines an IS-IS system-id using a pattern.
+       An example system-id is 0143.0438.AEF0.";
+  }
+
+  typedef router-or-system-id {
+    type union {
+      type rt-types:router-id;
+      type system-id;
+    }
+    description
+      "OSPF/BGP router-id or IS-IS system ID.";
+  }
+
+  grouping sr-control-plane {
+    description
+      "Defines protocol configuration.";
+    container segment-routing {
+      description
+        "Segment Routing global configuration.";
+      leaf enabled {
+        type boolean;
+        default "false";
+        description
+          "Enables Segment Routing control-plane protocol
+           extensions.";
+      }
+      container bindings {
+        if-feature "mapping-server";
+        description
+          "Control of binding advertisement and reception.";
+        container advertise {
+          description
+            "Control advertisement of local mappings
+             in binding TLVs.";
+          leaf-list policies {
+            type leafref {
+              path "/rt:routing/sr:segment-routing/sr-mpls:sr-mpls"
+                 + "/sr-mpls:bindings/sr-mpls:mapping-server"
+                 + "/sr-mpls:policy/sr-mpls:name";
+            }
+            description
+              "List of binding advertisement policies.";
+          }
+        }
+        leaf receive {
+          type boolean;
+          default "true";
+          description
+            "Allow the reception and usage of binding TLVs.";
+        }
+      }
+    }
+  }
+
+  grouping igp-interface {
+    description
+      "Grouping for IGP interface configuration.";
+    container segment-routing {
+      description
+        "Container for SR interface configuration.";
+      container adjacency-sid {
+        description
+          "Adjacency SID (Adj-SID) configuration.";
+        reference
+          "RFC 8660: Segment Routing with the MPLS
+                     Data Plane";
+        list adj-sids {
+          key "value";
+          uses sr-cmn:sid-value-type;
+          leaf value {
+            type uint32;
+            description
+              "Value of the Adj-SID.";
+          }
+          leaf protected {
+            type boolean;
+            default "false";
+            description
+              "It is used to protect the Adj-SID, e.g., using
+               IP Fast Reroute (IPFRR) or MPLS-FRR.";
+          }
+          leaf weight {
+            type uint8;
+            description
+              "The load-balancing factor over parallel adjacencies.";
+            reference
+              "RFC 8402: Segment Routing Architecture
+               RFC 8665: OSPF Extensions for Segment Routing
+               RFC 8667: IS-IS Extensions for Segment
+                         Routing";
+          }
+          description
+            "List of Adj-SIDs and their configuration.";
+        }
+        list advertise-adj-group-sid {
+          key "group-id";
+          description
+            "Control advertisement of S-flag or G-flag.  Enable
+             advertisement of a common Adj-SID for parallel
+             links.";
+          reference
+            "RFC 8665: OSPF Extensions for Segment Routing,
+                       Section 6.1
+             RFC 8667: IS-IS Extensions for Segment
+                       Routing, Section 2.2.1";
+          leaf group-id {
+            type uint32;
+            description
+              "The value is an internal value to identify a
+               group-ID. Interfaces with the same group-ID
+               will be bundled together.";
+          }
+        }
+        leaf advertise-protection {
+          type enumeration {
+            enum single {
+              description
+                "A single Adj-SID is associated with the
+                 adjacency and reflects the protection
+                 configuration.";
+            }
+            enum dual {
+              description
+                "Two Adj-SIDs will be associated with the adjacency
+                 if the interface is protected.  In this case, one
+                 Adj-SID will be advertised with the backup-flag
+                 set and the other with the backup-flag clear.  In
+                 the case where protection is not configured, a
+                 single Adj-SID will be advertised with the
+                 backup-flag clear.";
+            }
+          }
+          description
+            "If set, the Adj-SID refers to a protected adjacency.";
+          reference
+            "RFC 8665: OSPF Extensions for Segment Routing,
+                       Section 6.1
+             RFC 8667: IS-IS Extensions for Segment
+                       Routing, Section 2.2.1";
+        }
+      }
+    }
+  }
+
+  augment "/rt:routing/sr:segment-routing" {
+    description
+      "This augments the routing data model (RFC 8349)
+       with Segment Routing (SR) using the MPLS data plane.";
+    container sr-mpls {
+      description
+        "Segment Routing global configuration and
+         operational state.";
+      container bindings {
+        description
+          "List of bindings.";
+        container mapping-server {
+          if-feature "mapping-server";
+          description
+            "Configuration of mapping-server local entries.";
+          list policy {
+            key "name";
+            description
+              "List mapping-server policies.";
+            leaf name {
+              type string;
+              description
+                "Name of the mapping policy.";
+            }
+            container entries {
+              description
+                "IPv4/IPv6 mapping entries.";
+              list mapping-entry {
+                key "prefix algorithm";
+                description
+                  "Mapping entries.";
+                uses sr-cmn:prefix-sid;
+              }
+            }
+          }
+        }
+        container connected-prefix-sid-map {
+          description
+            "Prefix-SID configuration.";
+          list connected-prefix-sid {
+            key "prefix algorithm";
+            description
+              "List of mappings of Prefix-SIDs to IPv4/IPv6
+               local prefixes.";
+            uses sr-cmn:prefix-sid;
+            uses sr-cmn:last-hop-behavior;
+          }
+        }
+        container local-prefix-sid {
+          description
+            "Local SID configuration.";
+          list local-prefix-sid {
+            key "prefix algorithm";
+            description
+              "List of local IPv4/IPv6 Prefix-SIDs.";
+            uses sr-cmn:prefix-sid;
+          }
+        }
+      }
+      container srgb {
+        description
+          "Global SRGB configuration.";
+        uses sr-cmn:srgb;
+      }
+      container srlb {
+        description
+          "Segment Routing Local Block (SRLB) configuration.";
+        uses sr-cmn:srlb;
+      }
+      list label-blocks {
+        config false;
+        description
+          "List of label blocks currently in use.";
+        leaf lower-bound {
+          type uint32;
+          description
+            "Lower bound of the label block.";
+        }
+        leaf upper-bound {
+          type uint32;
+          description
+            "Upper bound of the label block.";
+        }
+        leaf size {
+          type uint32;
+          description
+            "Number of indexes in the block.";
+        }
+        leaf free {
+          type uint32;
+          description
+            "Number of free indexes in the block.";
+        }
+        leaf used {
+          type uint32;
+          description
+            "Number of indexes in use in the block.";
+        }
+        leaf scope {
+          type enumeration {
+            enum global {
+              description
+                "Global SID.";
+            }
+            enum local {
+              description
+                "Local SID.";
+            }
+          }
+          description
+            "Scope of this label block.";
+        }
+      }
+      container sid-db {
+        config false;
+        description
+          "List of prefix and SID associations.";
+        list sid {
+          key "target sid source source-protocol binding-type";
+          ordered-by system;
+          description
+            "SID binding.";
+          leaf target {
+            type string;
+            description
+              "Defines the target of the binding.  It can be a
+               prefix or something else.";
+          }
+          leaf sid {
+            type uint32;
+            description
+              "Index associated with the prefix.";
+          }
+          leaf algorithm {
+            type uint8;
+            description
+              "Algorithm to be used for the Prefix-SID.";
+            reference
+              "RFC 8665: OSPF Extensions for Segment Routing
+               RFC 8667: IS-IS Extensions for Segment
+                         Routing
+               RFC 8669: Segment Routing Prefix Segment
+                         Identifier Extensions to BGP";
+          }
+          leaf source {
+            type inet:ip-address;
+            description
+              "IP address of the router that owns the binding.";
+          }
+          leaf used {
+            type boolean;
+            description
+              "Indicates if the binding is installed in the
+               forwarding plane.";
+          }
+          leaf source-protocol {
+            type leafref {
+              path "/rt:routing/rt:control-plane-protocols/"
+                 + "rt:control-plane-protocol/rt:name";
+            }
+            description
+              "Routing protocol that owns the binding.";
+          }
+          leaf binding-type {
+            type enumeration {
+              enum prefix-sid {
+                description
+                  "Binding is learned from a Prefix-SID.";
+              }
+              enum binding-tlv {
+                description
+                  "Binding is learned from a binding TLV.";
+              }
+            }
+            description
+              "Type of binding.";
+          }
+          leaf scope {
+            type enumeration {
+              enum global {
+                description
+                  "Global SID.";
+              }
+              enum local {
+                description
+                  "Local SID.";
+              }
+            }
+            description
+              "SID scoping.";
+          }
+        }
+      }
+    }
+  }
+
+  notification segment-routing-srgb-collision {
+    description
+      "This notification is sent when SRGB blocks received from
+       different routers collide.";
+    list srgb-collisions {
+      description
+        "List of SRGB blocks that collide.";
+      leaf lower-bound {
+        type uint32;
+        description
+          "Lower value in the block.";
+      }
+      leaf upper-bound {
+        type uint32;
+        description
+          "Upper value in the block.";
+      }
+      leaf routing-protocol {
+        type leafref {
+          path "/rt:routing/rt:control-plane-protocols/"
+             + "rt:control-plane-protocol/rt:name";
+        }
+        description
+          "Routing protocol reference for SRGB collision.";
+      }
+      leaf originating-rtr-id {
+        type router-or-system-id;
+        description
+          "Originating router ID of this SRGB block.";
+      }
+    }
+  }
+
+  notification segment-routing-global-sid-collision {
+    description
+      "This notification is sent when a new mapping is learned
+       containing a mapping where the SID is already used.
+       The notification generation must be throttled with at least
+       a 5-second gap between notifications.";
+    leaf received-target {
+      type string;
+      description
+        "Target received in the router advertisement that caused
+         the SID collision.";
+    }
+    leaf new-sid-rtr-id {
+      type router-or-system-id;
+      description
+        "Router ID that advertised the colliding SID.";
+    }
+    leaf original-target {
+      type string;
+      description
+        "Target already available in the database with the same SID
+         as the received target.";
+    }
+    leaf original-sid-rtr-id {
+      type router-or-system-id;
+      description
+        "Router ID for the router that originally advertised the
+         colliding SID, i.e., the instance in the database.";
+    }
+    leaf index {
+      type uint32;
+      description
+        "Value of the index used by two different prefixes.";
+    }
+    leaf routing-protocol {
+      type leafref {
+        path "/rt:routing/rt:control-plane-protocols/"
+           + "rt:control-plane-protocol/rt:name";
+      }
+      description
+        "Routing protocol reference for colliding SID.";
+    }
+  }
+
+  notification segment-routing-index-out-of-range {
+    description
+      "This notification is sent when a binding is received
+       containing a segment index that is out of the local
+       configured ranges.  The notification generation must be
+       throttled with at least a 5-second gap between
+       notifications.";
+    leaf received-target {
+      type string;
+      description
+        "A human-readable string representing the target
+         received in the protocol-specific advertisement
+         corresponding to the out-of-range index.";
+    }
+    leaf received-index {
+      type uint32;
+      description
+        "Value of the index received.";
+    }
+    leaf routing-protocol {
+      type leafref {
+        path "/rt:routing/rt:control-plane-protocols/"
+           + "rt:control-plane-protocol/rt:name";
+      }
+      description
+        "Routing protocol reference for out-of-range indexed.";
+    }
+  }
+}
