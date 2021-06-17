@@ -1,0 +1,354 @@
+submodule tailf-ncs-python-vm {
+  yang-version 1.1;
+  belongs-to tailf-ncs {
+    prefix ncs;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+
+  organization "Tail-f Systems";
+
+  description
+    "This submodule contains a collection of YANG definitions for
+     configuring and monitoring the Python Virtual Machine in NCS.
+
+     Copyright 2019 Cisco Systems, Inc.
+     All rights reserved.
+     Permission is hereby granted to redistribute this file without
+     modification.";
+
+  revision 2019-04-09 {
+    description
+      "Released as part of NCS-5.1.
+
+       Removed /python-vm/start-command, /python-vm/auto-start,
+       /python-vm/auto-restart and /python-vm/run-in-terminal.
+
+       Added tailf:hidden to /python-vm/stop and /python-vm/start.";
+  }
+
+  revision 2018-03-01 {
+    description
+      "Released as part of NCS-4.6.
+
+       Added /python-vm/logging/vm-levels.";
+  }
+
+  revision 2017-07-09 {
+    description
+      "Released as part of NCS-4.4.2.1.
+
+       Updated description of /python-vm/start-command,
+       /python-vm/run-in-terminal/terminal-command, and
+       /python-vm/logging/log-file-prefix.";
+  }
+
+  revision 2017-03-16 {
+    description
+      "Released as part of NCS-4.4.
+
+      Changed default for /python-vm/logging/level from level-warning
+      to level-info.";
+  }
+
+  revision 2015-06-16 {
+    description
+      "Initial version";
+  }
+
+  typedef py-log-level-type {
+    type enumeration {
+      enum level-debug {
+        tailf:code-name py-level-debug;
+        description
+          "Detailed information, typically of interest only
+           when diagnosing problems.";
+      }
+      enum level-info {
+        tailf:code-name py-level-info;
+        description
+          "Confirmation that things are working as expected.";
+      }
+      enum level-warning {
+        tailf:code-name py-level-warning;
+        description
+          "An indication that something unexpected happened,
+           or indicative of some problem in the near future.
+           The software is still working as expected.";
+      }
+      enum level-error {
+        tailf:code-name py-level-error;
+        description
+          "Due to a more serious problem, the software has not
+           been able to perform some function.";
+      }
+      enum level-critical {
+        tailf:code-name py-level-critical;
+        description
+          "A serious error, indicating that the program itself
+           may be unable to continue running.";
+      }
+      enum level-off {
+        tailf:code-name py-level-off;
+        description
+          "Turn of logging completely.";
+      }
+    }
+    description
+      "Levels of logging for Python packages in 'logging'.";
+  }
+
+  container python-vm {
+    tailf:info "Control of the NCS Python VM";
+    description
+      "Configuration parameters to control various properties of the
+       Python application code, e.g., logging, and statistics data about
+       the Python application code.";
+
+    container logging {
+      tailf:info "Configure Python Logging";
+
+      leaf log-file-prefix {
+        tailf:info "Write Python VM output to file";
+        type string;
+        default "ncs-python-vm";
+        description
+          "Write Python VM output to filename constructed as
+           <file-prefix>-<id>.log where id will be dynamically
+           allocated at startup of the Python VMs.
+
+           Note: Spurious output from a Python VM that NCS may
+           gather will end up in a log common for all running
+           Python VMs. Its name will be <file-prefix>.log.
+
+           NOTE: If a value is set for
+           /ncs-config/python-vm/logging/log-file-prefix in ncs.conf,
+           the value set here is ignored.";
+      }
+
+      leaf level {
+        tailf:info "Global log-level for all Python VMs";
+        type py-log-level-type;
+        default level-info;
+        description
+          "Global log-level for all Python VMs.";
+      }
+
+      list vm-levels {
+        key node-id;
+        tailf:info "VM or package specific log-levels";
+        description
+          "Configure log-level for specific VMs and packages.
+           Log-levels set here takes precedence over the global log-level.";
+        leaf node-id {
+          type string;
+          tailf:info "vm-name or package-name";
+          tailf:non-strict-leafref {
+            path "/ncs:python-vm/status/start/node-id";
+          }
+        }
+        leaf level {
+          mandatory true;
+          type py-log-level-type;
+          tailf:info "log-level for this particular VM or package";
+          description
+            "log-level for this particular VM or package.";
+        }
+      }
+    }
+
+    container status {
+      tailf:info "Status information from the started Python VMs";
+      description
+        "Status information from the started Python VMs";
+      list start {
+        key node-id;
+        tailf:info "Outcome from starting the Python threads/components";
+        description
+          "The status of all started Python VMs.";
+        config false;
+        tailf:callpoint ncs {
+          tailf:internal;
+        }
+        leaf node-id {
+          type string;
+          description
+            "A symbolic id for a started Python VM.
+             The name is either the package-name of a single
+             package, which code runs in this Python VM. Or the
+             'python-package/vm-name' in which case the Python VM
+             may be running code from several packages.";
+        }
+        list packages {
+          key package-name;
+          description
+            "A list of packages";
+          leaf package-name {
+            type string;
+            description
+              "The package name";
+          }
+          list components {
+            key component-name;
+            description
+              "The components";
+            leaf component-name {
+              type string;
+              description
+                "The component name";
+            }
+            leaf class-name {
+              type string;
+              description
+                "The Python class name";
+            }
+            leaf status {
+              type enumeration {
+                enum started {
+                  tailf:code-name py-class-started;
+                  description
+                    "The Python class was started without errors";
+                }
+                enum failed {
+                  tailf:code-name py-class-failed;
+                  description
+                    "The Python class failed to start";
+                }
+              }
+            }
+            leaf error-info {
+              type string;
+              description
+                "Error information from a failed Python class";
+            }
+          }
+        }
+      }
+
+      list current {
+        key node-id;
+        tailf:info "Current status of the Python threads/components";
+        description
+          "The status of all started Python VMs.";
+        config false;
+        tailf:callpoint ncs {
+          tailf:internal;
+        }
+
+        leaf node-id {
+          type string;
+          description
+            "A symbolic id for a started Python VM.
+             The name is either the package-name of a single
+             package, which code runs in this Python VM. Or the
+             'python-package/vm-name' in which case the Python VM
+             may be running code from several packages.";
+        }
+
+        list packages {
+          key package-name;
+          description
+            "A list of packages";
+
+          leaf package-name {
+            type string;
+            description
+              "The package name";
+          }
+
+          list components {
+            key component-name;
+            description
+              "The components";
+
+            leaf component-name {
+              type string;
+              description
+                "The component name";
+            }
+
+            list class-names {
+              key class-name;
+
+              leaf class-name {
+                type string;
+                description
+                  "The Python class name";
+              }
+
+              leaf 'status' {
+                type enumeration {
+                  enum running {
+                    tailf:code-name py-class-running;
+                    description
+                    "The Python class was started without errors";
+                  }
+                  enum finished {
+                    tailf:code-name py-class-finished;
+                    description
+                    "The Python class failed to start";
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    tailf:action stop {
+      tailf:hidden debug;
+      tailf:info "Stop the Python VM";
+      description
+        "Stop the NCS Python VM.
+
+         Only applicable if auto-start is 'true'.";
+      tailf:actionpoint ncsinternal {
+        tailf:internal;
+      }
+      input {
+        leaf name {
+          mandatory true;
+          description
+            "Name of the machine to be started. This Name can
+             either be a package name or a 'python-vm/vm-name'
+             that can be found in one or several packages.";
+          type string;
+        }
+      }
+      output {
+        leaf result {
+          type string;
+        }
+      }
+    }
+
+    tailf:action start {
+      tailf:hidden debug;
+      tailf:info "Start the Python VM";
+      description
+        "Start the Python VM.
+
+         Only applicable if auto-start is 'true'.";
+      tailf:actionpoint ncsinternal {
+        tailf:internal;
+      }
+      input {
+        leaf name {
+          mandatory true;
+          description
+            "Name of the machine to be started. This Name can
+             either be a package name or a 'python-vm/vm-name'
+             that can be found in one or several packages.";
+          type string;
+        }
+      }
+      output {
+        leaf result {
+          type string;
+        }
+      }
+    }
+  }
+}

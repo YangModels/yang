@@ -1,0 +1,609 @@
+module cisco-svo-node-grp {
+  yang-version 1.1;
+  namespace "http://cisco.com/yang/svo/node-grp";
+  prefix svo-node-grp;
+
+  import tailf-ncs { prefix ncs; }
+  import tailf-common { prefix tailf; }
+  import tailf-ncs-ned { prefix ned; }
+  import ietf-inet-types { prefix inet; }
+  import cisco-svo-common-types { prefix cct; }
+  import cisco-svo-common-equipment-types { prefix ccet; }
+  import cisco-svo-hl-controller-group { prefix svo-hl-ctrlg; }
+  import ietf-yang-types { prefix ietfyt; }
+  import cisco-svo-building-grp { prefix sbg; }
+  import cisco-svo-common-base-opt-grp { prefix ccbog; }
+  
+  organization
+    "Cisco Systems, Inc.";
+
+  contact
+    "Cisco Systems, Inc.
+     Customer Service
+
+     Postal: 170 West Tasman Drive
+     San Jose, CA 95134
+
+     Tel: +1 800 553-NETS
+
+     E-mail: cs-yang@cisco.com";
+
+  description
+    "Grouping YANG definition for SVO node related information.";
+
+    revision 2020-12-04 { 
+       description "Model version for SVO Release 12.1.0 "; 
+       reference cisco-svo-node-grp.yang; 
+    }
+ 
+
+  grouping ntp-svo-grp {
+    container ntp-svo {
+      leaf server-address {
+        type inet:host;
+        default 0.0.0.0;
+        description "Primary server address for SVO";
+      }
+      leaf backup-server-address {
+        type inet:host;
+        default 0.0.0.0;
+        description "Secondary server address for SVO";
+      }
+    }
+  }
+  grouping ntp-devices-grp {
+    container ntp-devices {
+      leaf primary-server {
+        type inet:host;
+        default 0.0.0.0;
+        description "primary server address for the physical devices";
+      }
+      leaf secondary-server {
+        type inet:host;
+        default 0.0.0.0;
+        description "secondary server address for the physical devices";
+      }
+    }
+  }
+  grouping ntp-controllers-grp {
+    container ntp-card-controllers {
+      leaf server-address {
+        type inet:host;
+        default 0.0.0.0;
+        description "primary server address for the SVO card controller";
+      }
+      leaf backup-server-address {
+        type inet:host;
+        default 0.0.0.0;
+        description "secondary server address for the SVO card controller";
+      }
+    }
+  }  
+  grouping ts-cdb-grp {
+    container ntp {
+
+      leaf enable-date-and-time {
+        default false;
+        type boolean;
+      }
+      leaf date-and-time {
+        default 2000-01-01T00:00:00+00:00;
+        type ietfyt:date-and-time;
+      }
+      uses ntp-svo-grp {
+        refine ntp-svo {
+          must "not(server-address or backup-server-address) or 
+                    (server-address and backup-server-address and 
+                    (backup-server-address != server-address)) or
+                    (server-address = '0.0.0.0' and backup-server-address = '0.0.0.0') or
+                    (server-address and not (backup-server-address))" {
+            error-message "(backup)server address not properly set, see manual for further information";
+          }
+        }          
+      }
+      uses ntp-controllers-grp {
+        refine ntp-card-controllers {
+          must "not(server-address or backup-server-address) or 
+                    (server-address and backup-server-address and 
+                    (backup-server-address != server-address)) or
+                    (server-address = '0.0.0.0' and backup-server-address = '0.0.0.0') or
+                    (server-address and not (backup-server-address))" {
+            error-message "primary and secondary card address not properly set, see manual for further information";
+          }
+        }
+      }
+      uses ntp-devices-grp {
+        refine ntp-devices {
+          must "not(primary-server or secondary-server) or 
+                    (primary-server and secondary-server and 
+                    (secondary-server != primary-server)) or
+                    (primary-server = '0.0.0.0' and secondary-server = '0.0.0.0') or
+                    (primary-server and not (secondary-server))" {
+            error-message "primary and secondary card address not properly set, see manual for further information";
+          }
+        }
+      }
+    }
+  }  
+  grouping time-grp {
+    container time-settings {
+      leaf enable-date-and-time {
+        default false;
+        type boolean;
+      }
+      leaf date-and-time {
+        when "../enable-date-and-time = 'true'";
+        type ietfyt:date-and-time;
+      }
+      uses ntp-svo-grp;
+      uses ntp-devices-grp;
+      uses ntp-controllers-grp;
+      leaf time-zone {
+        type cct:time-zone;
+        description "Managed time zone";
+        tailf:validate time_zone_validator {
+          tailf:dependency ".";
+        }
+      }
+      tailf:action supported-time-zones {
+        tailf:info "List of currently supported time zones";
+        tailf:actionpoint supported-time-zones;
+
+        description "List of currently supported time zones";
+
+        output {
+          leaf-list time-zone {
+            type cct:time-zone;
+          }
+        }
+      }      
+      action get-date-and-time {
+        output {
+          leaf date-and-time {
+            type ietfyt:date-and-time;
+            description "current date and time";
+          }
+        }
+      }      
+    }
+  }
+  grouping ne-type {
+    description "Grouping for Netwwork Element Type";
+    
+    leaf authgroup {
+      tailf:info "Authentication credentials for the device";
+      type leafref {
+        path '/ncs:devices/ncs:authgroups/ncs:group/ncs:name';
+      }
+      description
+        "The authentication credentials used when connecting
+          to this managed device.";
+      
+      mandatory true;
+    }
+
+    container device-type {
+      tailf:info "Management protocol for the device";
+      choice ne-type {
+        mandatory true;
+        case netconf {
+          container netconf {
+            tailf:info "Use a netconf NED to talk to the device";
+            presence "use a netconf ned to communicate with the device";            
+            leaf ned-id {
+              tailf:info "The NED Identity";
+              type identityref {
+                base ned:netconf-ned-id;
+              }
+              mandatory true;
+            }
+          }
+        }
+        case generic {
+          container generic {
+            tailf:info "Use a generic NED to talk to the device";
+            presence "use a generic ned to communicate with the device";
+            leaf ned-id {
+              tailf:info "The NED Identity";
+              type identityref {
+                base ned:generic-ned-id;
+              }
+              mandatory true;
+            }
+          }
+        }
+      }
+    }
+  }
+       
+  grouping node-ctrl-grp {
+    description "Grouping for Node control information";
+    container node-controller {
+      list active-or-standby {
+        key "device";
+
+        max-elements 2;
+
+        leaf device {
+          type leafref {
+            path '/ncs:devices/ncs:device/ncs:name';
+          }
+          description "Device associated as buddy";
+        }
+
+        uses svo-hl-ctrlg:svo-controller-group {
+          refine idprom {
+            config false;
+          }
+          /*
+          TODO: no references to config from oper
+          refine optics-pluggable/port-state {
+            must "not((current()='OOS') and (current()/../sfp-vendor-info/cisco-pid = 'ONS-SE-ZE-EL'))" {
+              error-message "Provision of port state not supported for this pluggable!!!";
+            }
+          }
+          */
+          description "SVO node controller list";
+        }
+        description "SVO node controller list";
+        uses svo-controller-hl-actions-group;
+      }
+      description "SVO controller description.";
+    }
+  }
+
+  grouping load-config {
+  	container load-config {
+  	    tailf:action ncs-load {
+  	        tailf:info "Export NCS data and save content in temporary file";
+  	        description "Export NCS data and save content in temporary file";
+  	        tailf:actionpoint ncs-load;
+  	        input {
+  	            leaf xpath {
+  	                description "xpath filter to apply";
+  	                type instance-identifier;
+  	                mandatory true;
+  	            }
+  	        }
+  	        output {
+  	            leaf file-name {
+  	             	type string;
+  	             	description "File name of result";
+  	            }
+  	        }
+  	    }
+	    	
+	  	list ncs-load-file-list {
+	        config false;
+	        key "file-name";
+	        tailf:info "List of config file name ready for download";
+	        description "List of config file name ready for download";
+	        
+	        leaf file-name {
+	        	type string;
+	        	description "File name ready for download";
+	        }
+	        leaf result {
+	         	type boolean;
+	         	description "ncs_load result";
+	        }
+	   }
+	  	
+	  	tailf:action upload-xml-config-file {
+           tailf:info "Upload the XML config file generated by ncs-load command";
+           description "Upload the XML config file generated by ncs-load command";
+           tailf:actionpoint upload-xml-config-file;
+           input {
+        	   uses input-protocol;
+               uses input-credential;
+               
+               leaf file-name {
+ 	             	type string;
+ 	             	description "File name to download";
+ 	           }
+           }
+
+           output {
+               uses ccbog:rpc-status;
+           }
+       }
+	   
+	   uses remote-file-path;
+  	}
+  }
+  
+
+  grouping node-info-grp {
+    description "SVO node description.";
+
+    container node-information {
+      description "
+        SVO node info";
+
+    uses sbg:building-grp;
+
+      leaf name {
+        type string;
+        description "
+          Node Name";
+      }
+
+      list servers {
+  		key name;
+  		max-elements 2;
+  		config false;
+  		
+  		leaf name {
+  			type string;
+  			description "Server name";
+  		}
+  		
+  		leaf role {
+  			type string;
+  			description "Server's role: eg. active/standby/none";
+  		}
+  	  }
+		
+      leaf optical-type {
+        type identityref {
+          base ccet:optical-type;
+        }
+        description "Optical Node Type: ROADM or AMPLIFIER";
+      }
+
+      container network-config {
+        description "Management Network Configuration";
+        leaf ip-address {
+          type inet:ip-address;
+          description "Management IP address";
+        }
+
+        leaf netmask {
+          type inet:ip-address;
+          description "
+            Node Net-Mask";
+        }
+
+        leaf default-gateway {
+          type inet:ip-address;
+          description "
+            Node Default Gateway";
+        }
+      }
+
+      container networking {
+        description 
+         "Network configuration of the SVO setup";
+
+        leaf switch-is-used {
+          description
+            "Indicate if the setup is built using External Switch(es).";
+          default false;
+          type boolean;
+        }
+		
+        leaf switch-is-managed {
+          description
+            "Indicate if the External Switch(es) are managed by SVO app";
+          default false;
+          type boolean;
+        }
+
+        list devices-custom-gateway {
+          key "subnet";
+
+          leaf subnet {
+            type string;
+            description "Devices subnet CIDR. It can be IP4 or IPV6 address with or without mask like for example
+              192.168.2.1
+              192.168.2.0/24
+              fe80:0:0:0:0:0:c0a8:1/120
+            ";
+            tailf:validate netmask_validator {
+              tailf:dependency ".";
+            }
+          }
+
+          leaf gateway {
+            type inet:ip-address;
+            mandatory true;
+            description "Device Gateway";
+          }
+        }
+      }
+
+      leaf tdm-terminology-type {
+        type identityref {
+          base ccet:tdm-terminology-type;
+        }
+        description "
+          System Type, ANSI or ETSI";
+      }
+
+      leaf sw-version {
+        type string;
+        config false;
+        description "
+          Software Version";
+        tailf:cdb-oper {
+            tailf:persistent true;
+        }
+      }
+
+      leaf sw-download-status {
+        type string;
+        config false;
+        description "
+          Software Download status";
+        tailf:cdb-oper {
+            tailf:persistent true;
+        }
+      }
+
+      leaf sw-activation-status {
+        type string;
+        config false;
+        description "
+          Software Activation status of SVO";
+        tailf:cdb-oper {
+            tailf:persistent true;
+        }
+      }
+
+      container admin-plane {
+    	  leaf sw-version {
+    	        type string;
+    	        config false;
+    	        description "Admin Plane Software Version";
+    	  }
+    	  
+    	  leaf sw-activation-status {
+    	      type string;
+    	      config false;
+    	      description "Software Activation status of Admin Plane";
+    	      tailf:cdb-oper {
+    	          tailf:persistent true;
+    	      }
+    	  }
+      }
+     
+      leaf ne-type {
+        type identityref {
+          base ccet:cisco-ne-type;
+        }
+        config false;
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+        description "
+          Net Element Type";
+      }
+
+      container location {
+        description "Node Geo Location";
+        leaf longitude {
+          type string;
+          description "Node Longitude Position";
+        }
+        leaf latitude {
+          type string;
+          description "Node Latitude Position";
+        }
+      }
+      uses time-grp;
+
+      leaf persisted-time-zone {
+        type cct:time-zone;
+        description "Managed time zone";
+        tailf:hidden full;
+        default "UTC";
+      }
+
+      leaf host-type {
+        /* this is an hidden config because it is not expected to change 
+	   after the initial setting done by the SVO app itself */
+	type cct:host-platform;
+	description "Indicates on which kind of host the SVO app is running";
+	tailf:hidden full;
+      }
+      
+      uses load-config;
+      
+    }
+	
+    uses ts-cdb-grp {
+      refine ntp {
+        tailf:hidden full;
+      }
+    }
+  }
+
+  grouping svo-controller-hl-actions-group {
+    description "Grouping for SVO actions";
+    action retrieve-ether-counters {
+      input {
+        leaf port_num {
+          type svo-hl-ctrlg:port-number-t;
+          mandatory true;
+          description "Port number for action";
+        }
+      }
+    }
+    action clear-ether-per-port-counters {
+      input {
+        leaf port_num {
+          type svo-hl-ctrlg:port-number-t;
+          mandatory true;
+          description "Port number for action";
+        }
+      }
+    }
+    action clear-ether-all-port-counters {
+    }
+    action retrieve-ether-all-port-counters {
+    }
+    action svo-hwreset {
+    }
+    action reset-sfp-to-default {
+      input {
+        leaf port_num {
+          type uint32 {
+            range "7..10";
+          }
+          mandatory true;
+          description "Port number for action";
+        }
+      }
+    }
+  }
+  
+  typedef protocol-type {
+      description "Defines the supported protocols for file download";
+      type enumeration {
+          enum "sftp" {
+              value 1;
+          }
+      }
+  }
+  
+  grouping input-protocol {
+      leaf protocol {
+          type protocol-type;
+          description "Protocol to be used to download the file";
+      }
+  }
+  
+  grouping input-credential {
+      choice credential {
+          case user-password {
+              leaf user {
+                  type string;
+                  description "User name to be used to download the file";
+              }
+              leaf password {
+                  type string;
+                  tailf:suppress-echo true;
+                  description "Password to be used to download the file";
+              }
+          }
+          case authgroup {
+              leaf group-name {
+                  type string;
+                  description "Authorization group configured for download";
+              }
+          }
+      }
+  }
+  
+  grouping remote-file-path {
+      leaf remote-file-path {
+          type inet:uri;
+          description "Remote file path. A URI for the remote file path. Format:sftp://user[:password]@host[:port]/path.
+                           Ex: sftp://test:verify@[2001:db8:0:1::10]:22/home/user/sample";
+          tailf:info "Remote file path. A URI for the remote file path. Format:sftp://user[:password]@host[:port]/path.
+                           Ex: sftp://test:verify@[2001:db8:0:1::10]:22/home/user/sample";
+          config true;
+      }
+  }
+  
+}

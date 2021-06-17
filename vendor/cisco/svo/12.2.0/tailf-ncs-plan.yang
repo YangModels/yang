@@ -1,0 +1,1630 @@
+submodule tailf-ncs-plan {
+  yang-version 1.1;
+  belongs-to tailf-ncs {
+    prefix ncs;
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+
+  include tailf-ncs-common;
+  include tailf-ncs-services;
+  include tailf-ncs-devices;
+  include tailf-ncs-log;
+
+  organization "Tail-f Systems";
+
+  description
+    "This submodule contains a collection of YANG definitions for
+     configuring plans in NCS.
+
+     Copyright 2019 Cisco Systems, Inc.
+     All rights reserved.
+     Permission is hereby granted to redistribute this file without
+     modification.";
+
+  revision 2020-02-04 {
+    description
+      "Released as part of NCS-5.2.2.
+
+       Added service log and error-info to zombies.";
+  }
+
+  revision 2019-04-09 {
+    description
+      "Released as part of NCS-5.1.
+
+       Added operation leaf to plan-state-change notification and to
+       subscription list.
+
+       Added ned-id-list in the service's private data.";
+  }
+
+  revision 2018-11-12 {
+    description
+      "Released as part of NCS-4.7.2.
+
+       Major changes to nano services.";
+  }
+
+  revision 2018-06-21 {
+    description
+      "Released as part of NCS-4.7.
+
+       Added commit-queue container in plan.";
+  }
+
+  revision 2017-03-16 {
+    description
+      "Released as part of NCS-4.4.
+
+       Added error-info container in plan for additional error information.";
+  }
+
+  revision 2016-11-24 {
+    description
+      "Released as part of NCS-4.3.
+
+       Major additions to this submodule to incorporate Nano Services.";
+  }
+
+  revision 2016-05-26 {
+    description
+      "Initial revision";
+  }
+
+
+  typedef plan-xpath {
+    type yang:xpath1.0;
+    description
+      "This type represents an XPath 1.0 expression that is evaluated
+       in the following context:
+
+         o  The set of namespace declarations are the prefixes defined
+            in all YANG modules implemented, mapped to the namespace
+            defined in the corresponding module.
+
+         o  The set of variable bindings contains all variables
+            declared with 'ncs:variable' that are in scope, and all
+            variables defined in the service code's 'opaque' key-value
+            list (if any), and the following variables:
+
+            'SERVICE': a nodeset with the service instance node as the
+                       only member, or no nodes if the service
+                       instances is being deleted.
+
+            'ZOMBIE':  a nodeset with the service instance node as the
+                       only member when it is being deleted, or no
+                       nodes if the service instance exists.
+
+            'PLAN':    a nodeset with the 'plan' container for the service
+                       instance as the only member.
+
+
+          o  The function library is the core function library.
+
+          o  If this expression is in a descendant to a 'ncs:foreach'
+             statement, the context node is the node in the node set
+             in the 'ncs:foreach' result.  Otherwise, the context node
+             is initially the service instance node.
+       ";
+  }
+
+  /*
+   * Plan Component Types
+   */
+
+  typedef plan-component-type-t {
+    description
+      "This is a base type from which all service specific plan components
+       can be derived.";
+    type identityref {
+      base plan-component-type;
+    }
+  }
+
+  identity plan-component-type {
+    description
+      "A service plan consists of several different plan components.
+       Each plan component moves forward in the plan as the service
+       comes closer to fulfillment.";
+  }
+
+  identity self {
+    description
+      "A service should when it constructs it's plan, include a column
+       of type 'self', this column can be used by upper layer software to
+       determine which state the service is in as a whole.";
+    base plan-component-type;
+  }
+
+
+  /*
+   * Plan States
+   */
+
+  typedef plan-state-name-t {
+    description
+      "This is a base type from which all plan component specific states can
+       be derived.";
+    type identityref {
+      base plan-state;
+    }
+  }
+
+  typedef plan-state-operation-t {
+    type enumeration {
+      enum created;
+      enum modified;
+      enum deleted;
+    }
+  }
+
+  typedef plan-state-status-t {
+    type enumeration {
+      enum not-reached;
+      enum reached;
+      enum failed {
+        tailf:code-name "plan_failed";
+      }
+    }
+  }
+
+  typedef plan-state-action-status-t {
+    type enumeration {
+      enum not-reached;
+      enum create-reached;
+      enum delete-reached;
+      enum failed {
+        tailf:code-name "plan_action_failed";
+      }
+    }
+  }
+
+  identity plan-state {
+    description
+      "This is the base identity for plan states. A plan component in a
+       plan goes through certain states, some, such as 'init' and
+       'ready', are specified here, and the application augments these
+       with app specific states.";
+  }
+
+  identity init {
+    description
+      "The init state in all plan state lists, primarily used as a
+       place holder with a time stamp.";
+    base plan-state;
+  }
+
+  identity ready {
+    description
+      "The final state in a 'state list' in the plan";
+    base plan-state;
+  }
+
+  /*
+   * Plan Notifications
+   */
+
+  augment "/ncs:services" {
+    container plan-notifications {
+      description
+        "Configuration to send plan-state-change notifications for
+         plan state transitions. A notification can be configured to
+         be sent when a specified service's plan component enters a
+         given state.
+
+         The built in stream 'service-state-changes' is used to send
+         these notifications.";
+      list subscription {
+        key name;
+        unique "service-type component-type state";
+        description
+          "A list of our plan notification subscriptions.";
+
+        leaf name {
+          type string;
+          description
+            "A unique identifier for this subscription.";
+        }
+        leaf service-type {
+          type tailf:node-instance-identifier;
+          tailf:cli-completion-actionpoint "servicepoints-with-plan";
+          description
+            "The type of service. If not set, all service types are
+             subscribed.";
+        }
+        leaf component-type {
+          type plan-component-type-t;
+          description
+            "The type of component in the service's plan. If not set,
+             all component types of the specified service types are
+             subscribed.";
+        }
+        leaf state {
+          type plan-state-name-t;
+          description
+            "The name of the state for the component in the service's plan.
+             If not set, all states of the specified service types and
+             plan components are subscribed.";
+        }
+        leaf operation {
+          type plan-state-operation-t;
+          description
+            "The type of operation performed on the state(s) in the
+             component(s). If not set, all operations are subscribed.";
+        }
+      }
+    }
+  }
+
+  notification plan-state-change {
+    description
+      "This notification indicates that the specified service's
+       plan component has entered the given state.
+
+       This notification is not sent unless the system has been
+       configured to send the notification for some services.";
+    leaf service {
+      type instance-identifier;
+      mandatory true;
+      description
+        "A reference to the service whose plan has been changed.";
+    }
+    leaf component {
+      type string;
+      description
+        "Refers to the name of a component in the service's plan;
+         plan/component/name.";
+    }
+    leaf state {
+      type plan-state-name-t;
+      mandatory true;
+      description
+        "Refers to the name of the new state for the component in
+         the service's plan;
+         plan/component/state";
+    }
+    leaf operation {
+      type plan-state-operation-t;
+      description
+        "The type of operation performed on the given state.";
+    }
+    leaf status {
+      type plan-state-status-t;
+      mandatory true;
+      description
+        "Refers to the status of the new state for the component in
+         the service's plan;
+         plan/component/state/status";
+    }
+  }
+
+  /*
+   * Groupings
+   */
+
+  grouping plan-data {
+    description
+      "This grouping contains the plan data that can show the
+       progress of a Reactive FASTMAP service. This grouping is optional
+       and should only be used by services i.e lists or presence containers
+       that uses the ncs:servicepoint callback";
+    container plan {
+      config false;
+      tailf:cdb-oper {
+        tailf:persistent true;
+      }
+      uses plan-components;
+      container commit-queue {
+        presence "The service is being committed through the commit queue.";
+        list queue-item {
+          key id;
+          leaf id {
+            type uint64;
+            description
+              "If the queue item in the commit queue refers to this service
+               this is the queue number.";
+          }
+        }
+      }
+      leaf failed {
+        type empty;
+        description
+          "This leaf is present if any plan component in the plan is in
+           a failed state; i.e., a state with status 'failed'.";
+      }
+      container error-info {
+        presence "Additional info if plan has failed";
+        leaf message {
+          type string;
+          description
+            "An explanatory message for the failing plan.";
+        }
+        leaf log-entry {
+          type instance-identifier {
+            require-instance false;
+          }
+          description
+            "Reference to a service log entry with additional information.";
+        }
+      }
+    }
+    container plan-history {
+      config false;
+      tailf:cdb-oper {
+        tailf:persistent true;
+      }
+      list plan {
+        key time;
+        description
+          "Every time the plan changes its structure, i.e., a
+           plan component is added or deleted, or a state is added or
+           deleted in a plan component, a copy of the old plan is stored
+           in the plan history list.";
+
+        leaf time {
+          type yang:date-and-time;
+          tailf:cli-value-display-template "$(.|datetime)";
+        }
+        uses plan-components;
+      }
+    }
+  }
+
+  grouping plan-components {
+    description
+      "This grouping contains a list of components that reflects the
+       different steps or stages that a Reactive FASTMAP service comprises.";
+    list component {
+      ordered-by user;
+      key name;
+      description
+        "A component has a type and a list of states.
+         It is required that the first plan component is of type ncs:self.
+         It is also required that the first state of a component is ncs:init
+         and the last state is ncs:ready.
+         A service can in addition to the 'self' component have any number of
+         components. These additional components will have types that are
+         defined by user specified YANG identities.";
+
+      uses plan-component-body {
+        refine "state/status" {
+          mandatory true;
+        }
+      }
+    }
+  }
+
+  grouping plan-component-body {
+    leaf name {
+      type string;
+    }
+    leaf type {
+      description
+        "The plan component type is defined by an YANG identity.
+         It is used to identify the characteristics of a certain component.
+         Therefore, if two components in the same service are of the same
+         type they should be identical with respect to number, type and order
+         of their contained states.";
+
+      type plan-component-type-t;
+      mandatory true;
+    }
+    list state {
+      description
+        "A plan state represents a certain step or stage that a service needs
+         to execute and/or reach. It is identified as an YANG identity.
+         There are two predefined states ncs:init and ncs:ready which is the
+         first respectively last state of a plan component.";
+
+      ordered-by user;
+      key name;
+      leaf name {
+        tailf:alt-name state;
+        type plan-state-name-t;
+      }
+      leaf status {
+        description
+          "A plan state is always in one of three states 'not-reached' when
+           the state has not been executed, 'reached' when the state has been
+           executed and 'failed' it the state execution failed.";
+
+        type plan-state-status-t;
+      }
+      leaf when {
+        type yang:date-and-time;
+        tailf:cli-value-display-template "$(.|datetime)";
+        when '../status != "not-reached"';
+        description
+          "The time this state was successfully reached or failed.";
+      }
+      leaf service-reference {
+        description
+          "If this component reflects the state of some other data, e.g
+           an instantiated RFS, an instantiated CFS or something else, this
+           optional field can be set to point to that instance";
+        type instance-identifier {
+          require-instance false;
+        }
+        tailf:display-column-name "ref";
+      }
+    }
+  }
+
+  /*
+   * Nano-service related definitions
+   */
+
+  grouping nano-plan-data {
+    description
+      "This grouping is required for nano services. It replaces the
+       plan-data grouping. This grouping contains an executable plan
+       that has additional state data which is internally used to
+       control service execution.";
+    uses nano-plan;
+  }
+
+  grouping nano-plan {
+    container plan {
+      config false;
+      tailf:cdb-oper {
+        tailf:persistent true;
+      }
+      uses nano-plan-components {
+        augment "component" {
+          tailf:action force-back-track {
+            tailf:info "Force a component to back-track";
+            description
+              "Forces an existing component to start back-tracking";
+            tailf:actionpoint ncsinternal {
+              tailf:internal;
+            }
+            input {
+              leaf no-networking {
+                type empty;
+                description
+                  "Do not send any data to the devices. Even if the transaction
+                   manipulates data below /devices/device/config, nothing will
+                   be sent to the managed devices. This is a way to manipulate
+                   CDB in NCS without generating any southbound traffic.";
+              }
+              leaf back-tracking-goal {
+                type leafref {
+                  path "../../state/name";
+                }
+                description
+                  "Target state for back-track.";
+              }
+
+            }
+            output {
+              leaf result {
+                type boolean;
+              }
+              leaf info {
+                type string;
+              }
+            }
+          }
+        }
+      }
+      container commit-queue {
+        presence "The service is being committed through the commit queue.";
+        list queue-item {
+          key id;
+          leaf id {
+            type uint64;
+            description
+              "If the queue item in the commit queue refers to this service
+               this is the queue number.";
+          }
+        }
+      }
+      leaf failed {
+        type empty;
+      }
+      container error-info {
+        presence "Additional info if plan has failed";
+        leaf message {
+          type string;
+          description
+            "An explanatory message for the failing plan.";
+        }
+        leaf log-entry {
+          type instance-identifier {
+            require-instance false;
+          }
+          description
+            "Reference to a service log entry with additional information.";
+        }
+      }
+      leaf deleting {
+        tailf:hidden fastmap-private;
+        type empty;
+      }
+      leaf service-location {
+        tailf:hidden fastmap-private;
+        type instance-identifier {
+          require-instance false;
+        }
+      }
+    }
+  }
+
+  grouping nano-plan-components {
+    description
+      "This grouping contains a list of components that reflects the
+       different steps or stages that a nano service comprises.";
+    list component {
+      ordered-by user;
+      key "type name";
+      description
+        "A component has a type and a list of states.  It is required
+         that the first plan component is of type ncs:self.  It is
+         also required that the first state of a component is ncs:init
+         and the last state is ncs:ready.  A service can in addition
+         to the 'self' component have any number of components. These
+         additional components will have types that are defined by
+         user specified YANG identities.";
+
+      uses plan-component-body {
+        augment "state" {
+          leaf create-cb {
+            tailf:hidden full;
+            description
+              "indicate if and which type of create callback that should be
+               registered for this state";
+            type string;
+          }
+
+          leaf delete-cb {
+            tailf:hidden full;
+            description
+              "indicate if and which type of delete callback that should be
+               registered for this state";
+            type string;
+          }
+
+          container pre-conditions {
+            tailf:display-groups "summary";
+            description
+              "Pre-conditions for a state controls whether or not a
+               state should be executed. There are separate conditions
+               for the 'create' and 'delete' case. At create the
+               create conditions checked and if possible executed with
+               the ultimate goal for the state of having status
+               'reached'. At the 'delete' case the delete conditions
+               control whether the state changes should be deleted
+               with the ultimate goal of the state having status
+               'not-reached'";
+
+            presence "Preconditions for executing the plan state";
+            leaf create-monitor {
+              type yang:xpath1.0;
+            }
+            leaf create-trigger-expr {
+              type yang:xpath1.0;
+            }
+            leaf delete-monitor {
+              type yang:xpath1.0;
+            }
+            leaf delete-trigger-expr {
+              type yang:xpath1.0;
+            }
+          }
+
+          container post-actions {
+            tailf:display-groups "summary";
+
+            description
+              "Post-actions are called after successful execution of a
+               state.  These are optional and there are separate
+               action that can be set for the 'create' and 'delete'
+               case respectively.
+
+               These actions are put as requests in the
+               side-effect-queue and are executed asynchronously with
+               respect to the original service transaction.";
+
+            presence "Asynchronous side-effects after successful execution";
+            leaf create-action-node {
+              description
+                "This leaf identifies the node on which a specified
+                 action resides. This action is called after this state
+                 as got a 'reached' status.";
+              type yang:xpath1.0;
+            }
+            leaf create-action-name {
+              description
+                "The name of the action.";
+              type string;
+            }
+            leaf create-action-result-expr {
+              description
+                "An action responds with a structured result. A certain
+                 value could indicate an error or a successful result, e.g.
+                 'result true'.
+
+                 This statement describes an XPath expression to
+                 evaluate the result of the action so that the
+                 side-effect-queue can indicate action errors.
+
+                 The result of the expression is converted to a boolean using
+                 the standard XPath rules.  If the result is 'true' the action
+                 is reported as successful, otherwise as failed.
+
+                 The context for evaluating this expression is the
+                 resulting xml tree of the action.
+
+                 The set of namespace declarations are all available namespaces,
+                 with the prefixes defined in the modules.";
+              type yang:xpath1.0;
+            }
+            leaf delete-action-node {
+              description
+                "This leaf identifies the node on which a specified
+                 action resides. This action is called after this state
+                 as got a 'not-reached' status.";
+              type yang:xpath1.0;
+            }
+            leaf delete-action-name {
+              description
+                "The name of the action.";
+              type string;
+            }
+            leaf delete-action-result-expr {
+              description
+                "An action responds with a structured result. A certain
+                 value could indicate an error or a successful result, e.g.
+                 'result true'.
+
+                 This statement describes an XPath expression to evaluate the
+                 result of the action so that the side-effect-queue can
+                 indicate action errors.
+
+                 The result of the expression is converted to a boolean using
+                 the standard XPath rules.  If the result is 'true' the action
+                 is reported as successful, otherwise as failed.
+
+                 The context for evaluating this expression is the
+                 resulting xml tree of the action.
+
+                 The set of namespace declarations are all available namespaces,
+                 with the prefixes defined in the modules.";
+              type yang:xpath1.0;
+            }
+          }
+
+          leaf post-action-status {
+            when '../post-actions';
+            type plan-state-action-status-t;
+            description
+              "This leaf is initially set to 'not-reached'.
+
+               If a post-action was specified, and returned
+               successfully, this leaf will be set to 'create-reached'
+               if the component is not back-tracking, and
+               'delete-reached' if it is back-tracking.
+
+               If the post-action did not return successfully, this
+               leaf is set to 'failed'.";
+          }
+
+          uses service-get-modifications;
+
+          container private {
+            description
+              "NCS service related internal data stored here.";
+            tailf:hidden fastmap-private;
+            leaf diff-set {
+              description
+                "Internal node use by NCS service manager to remember
+                 the reverse diff for a service instance. This is the
+                 data that is used by FASTMAP";
+              tailf:hidden full;
+              type binary;
+            }
+            leaf forward-diff-set {
+              description
+                "Internal node use by NCS service manager to remember
+                 the forwards diff for a service instance. This data is
+                 is used to produce the proper 'get-modifications' output";
+              tailf:hidden full;
+              type binary;
+            }
+            leaf-list device-list {
+              description
+                "A list of managed devices this state has manipulated.";
+              tailf:hidden full;
+              type string;
+            }
+            leaf-list ned-id-list {
+              description
+                "A list of NED identities this service instance has
+                 manipulated.";
+              tailf:hidden full;
+              type string;
+            }
+            leaf-list service-list {
+              description
+                "A list of services this state has manipulated.";
+              tailf:hidden full;
+              type instance-identifier {
+                require-instance false;
+              }
+            }
+            leaf-list lsa-service-list {
+              description
+                "A list of LSA services this service instance has manipulated.";
+              tailf:hidden full;
+              type instance-identifier {
+                require-instance false;
+              }
+            }
+          }
+        }
+      }
+      container private {
+        description
+          "NCS service related internal data stored here.";
+        tailf:hidden fastmap-private;
+
+        container property-list {
+          description
+            "FASTMAP service component instance data used by the
+             service implementation.";
+          list property {
+            key name;
+            leaf name {
+              type string;
+            }
+            leaf value {
+              type string;
+            }
+          }
+        }
+      }
+      leaf back-track {
+        type boolean;
+        default false;
+      }
+      leaf back-track-goal {
+        tailf:alt-name goal;
+        type plan-state-name-t;
+      }
+    }
+  }
+
+
+  grouping nano-plan-history {
+    container plan-history {
+      config false;
+      tailf:cdb-oper {
+        tailf:persistent true;
+      }
+      list plan {
+        key time;
+        description
+          "Every time the plan changes its structure, i.e., a
+           plan component is added or deleted, or a state is added or
+           deleted in a plan component, a copy of the old plan is stored
+           in the plan history list.";
+
+        leaf time {
+          type yang:date-and-time;
+          tailf:cli-value-display-template "$(.|datetime)";
+        }
+        uses nano-plan-components;
+      }
+    }
+  }
+
+  /*
+   * Internal structures
+   */
+
+  container side-effect-queue {
+    tailf:hidden debug;
+    config false;
+    tailf:cdb-oper {
+      tailf:persistent true;
+    }
+
+    list side-effect {
+      key id;
+      leaf id {
+        description
+          "Unique identification of the side-effect action";
+        type string;
+      }
+      leaf service {
+        description
+          "The service that added the side effect.";
+        type string;
+      }
+      leaf requestor {
+        description
+          "Path to the requester of side-effect.
+           Typically a plan state for a service.";
+        type string;
+      }
+      leaf requestor-op {
+        description
+          "The base operation for the request-or when issuing the side-effect.";
+        type enumeration {
+          enum create {
+            tailf:code-name op_create;
+          }
+          enum delete {
+            tailf:code-name op_delete;
+          }
+        }
+      }
+      leaf action-node {
+        description
+          "This leaf identifies the node on which a specified
+           action resides.";
+        type yang:xpath1.0;
+      }
+      leaf action-name {
+        description
+          "The name of the action.";
+        type yang:yang-identifier;
+      }
+      list variable {
+        key name;
+        description
+          "A list of variable bindings that will be part of the
+           context when the action-node path expression is evaluated.";
+        leaf name {
+          type string;
+          description
+            "The name of the variable";
+        }
+        leaf value {
+          type yang:xpath1.0;
+          mandatory true;
+          description
+            "An XPath expression that will be the value of the variable
+             'name'. Note that both expressions and path expressions are
+             allowed, which implies that literals must be quoted.";
+        }
+      }
+      leaf result-expr {
+        description
+          "An action responds with a structured result. A certain
+           value could indicate an error or a successful result, e.g.
+           'result true'.
+
+           This statement describes an XPath expression to evaluate the
+           result of the action so that the side-effect-queue can
+           indicate action errors.
+
+           The result of the expression is converted to a boolean using
+           the standard XPath rules.  If the result is 'true' the action
+           is reported as successful, otherwise as failed.
+
+           The context for evaluating this expression is the
+           resulting xml tree of the action.
+
+           There are no variable bindings in this evaluation.
+           The set of namespace declarations are all available namespaces,
+           with the prefixes defined in the modules.";
+        type yang:xpath1.0;
+      }
+      leaf status {
+        description
+          "Resulting status to be set as the request's post-action-status.";
+        type plan-state-status-t;
+      }
+      leaf error-message {
+        description
+          "An additional error message for the action if this is applicable.
+           I.e. an error is thrown.";
+        type string;
+      }
+      leaf u-info {
+        tailf:hidden full;
+        type binary;
+      }
+    }
+
+    tailf:action invoke {
+      tailf:info "Invoke queued side-effects asynchronously";
+      description
+        "Invokes all not already executing/executed side-effects in the
+         side effect queue.";
+      tailf:actionpoint ncsinternal {
+        tailf:internal;
+      }
+      input {
+      }
+      output {
+        leaf num-invoked {
+          type uint32;
+        }
+      }
+    }
+
+  }
+
+  container zombies {
+    config false;
+    tailf:cdb-oper {
+      tailf:persistent true;
+    }
+    description
+      "Container for deleted Nano Services that still perform staged deletes.";
+
+    list service {
+      key service-path;
+      leaf service-path {
+        description
+          "The path to where the service resided that has been deleted
+           and become a zombie.";
+        type string;
+      }
+      leaf delete-path {
+        description
+          "The path to the node nearest to the top that was deleted and resulted
+           in this service becoming a zombie.";
+        type string;
+      }
+      leaf diffset {
+        tailf:hidden full;
+        type binary;
+      }
+      leaf latest-u-info {
+        tailf:hidden full;
+        type binary;
+        description
+          "Latest transactions user info is stored there, these are
+           used in reactive-re-deploy actions that must be performed by
+           a user with the same user info.";
+      }
+
+      container plan {
+        uses nano-plan-components {
+          augment "component" {
+            tailf:action force-back-track {
+              tailf:info "Force a component to back-track";
+              description
+                "Forces an existing component to start back-tracking";
+              tailf:actionpoint ncsinternal {
+                tailf:internal;
+              }
+              input {
+                leaf no-networking {
+                  type empty;
+                  description
+                    "Do not send any data to the devices.
+                     Even if the transaction manipulates data below
+                     /devices/device/config, nothing will
+                     be sent to the managed devices. This is a way to manipulate
+                     CDB in NCS without generating any southbound traffic.";
+                }
+                leaf back-tracking-goal {
+                  type leafref {
+                    path "../../state/name";
+                  }
+                  description
+                    "Target state for back-track.";
+                }
+              }
+              output {
+                leaf result {
+                  type boolean;
+                }
+                leaf info {
+                  type string;
+                }
+              }
+            }
+          }
+        }
+        leaf failed {
+          tailf:code-name "failedx";
+          type empty;
+        }
+        container error-info {
+          presence "Additional info if plan has failed";
+          leaf message {
+            type string;
+            description
+              "An explanatory message for the failing plan.";
+          }
+          leaf log-entry {
+            type instance-identifier {
+              require-instance false;
+            }
+            description
+              "Reference to a service log entry with additional information.";
+          }
+        }
+        leaf deleting {
+          tailf:hidden fastmap-private;
+          type empty;
+        }
+      }
+
+      tailf:action re-deploy {
+        tailf:info "revive the zombie and re-deploy it.";
+        description
+          "The nano service became a zombie since it was deleted but not
+           all delete pre-conditions was fulfilled. This action revives the
+           zombie service and re-deploys and stores it back as a zombie if
+           necessary.";
+        tailf:actionpoint ncsinternal {
+          tailf:internal;
+        }
+        input {
+        }
+        output {
+          uses ncs-commit-result;
+        }
+      }
+      tailf:action resurrect {
+        tailf:info "Load the zombie back as service in current state.";
+        description
+          "The zombie resurrection is used to stop the progress of a staged
+           nano service delete and restore current state as is.";
+        tailf:actionpoint ncsinternal {
+          tailf:internal;
+        }
+        input {
+        }
+        output {
+          leaf result {
+            type string;
+          }
+        }
+      }
+      uses log-data;
+    }
+  }
+
+  /*
+   * Plan Extension Statements
+   */
+
+  extension plan-outline {
+    argument id {
+      tailf:arg-type {
+        type tailf:identifier;
+      }
+    }
+    tailf:occurence "*";
+    tailf:use-in "module";
+    tailf:use-in "submodule";
+    tailf:substatement "description";
+    tailf:substatement "ncs:component-type" {
+      tailf:occurence "+";
+    }
+    description
+      "This statement is optionally used in a node that defines a
+       service to document its plan.  It is required for a nano
+       service.
+
+       A plan is outlined by listing all component-types that the
+       service can instantiate, and their related states.  Note that
+       a specific service instance may instantiate zero, one, or more
+       components of a certain type.
+
+       It is required that a plan has one component of type ncs:self.";
+  }
+
+  extension component-type {
+    argument name {
+      tailf:arg-type {
+        type tailf:identifier-ref;
+      }
+    }
+    tailf:substatement "description";
+    tailf:substatement "ncs:state" {
+      tailf:occurence "*";
+    }
+    description
+      "This statement identifies the component type, which is a
+       reference to a YANG identity.
+
+       A component-type contains an ordered list of states which in
+       also are references to YANG identities.  It is required that the
+       first state in a component-type is ncs:init and the last state
+       is ncs:ready.
+
+       Each state represents a unit of work performed by the
+       service when a certain pre condition is satisfied.";
+  }
+
+  extension state {
+    argument name {
+      tailf:arg-type {
+        type tailf:identifier-ref;
+      }
+    }
+    tailf:substatement "description";
+    tailf:substatement "ncs:create" {
+      tailf:occurence "?";
+    }
+    tailf:substatement "ncs:delete" {
+      tailf:occurence "?";
+    }
+
+    description
+      "This statement identifies the state, which is a reference to a
+       YANG identity.
+
+       It represents a unit of work performed by the service when a
+       certain pre condition is satisfied.";
+  }
+
+  extension create {
+    tailf:substatement "description";
+    tailf:substatement "ncs:nano-callback" {
+      tailf:occurence "?";
+    }
+    tailf:substatement "ncs:pre-condition" {
+      tailf:occurence "?";
+    }
+    tailf:substatement "ncs:post-action-node" {
+      tailf:occurence "?";
+    }
+
+    description
+      "This statement defines nano service state characteristics for
+       entering this state.
+
+       The component will advance to this state when it is not back
+       tracking, it has reached its previous state, and the
+       'pre-condition' is met.
+
+       If the 'nano-callback' statement is defined, it means that
+       there is a callback function (or template) that will be invoked
+       before this state is entered.
+
+       The 'post-action-node' optionally defines an action to be
+       invoked when this state has been entered.";
+  }
+
+  extension delete {
+    tailf:substatement "description";
+    tailf:substatement "ncs:nano-callback" {
+      tailf:occurence "?";
+    }
+    tailf:substatement "ncs:pre-condition" {
+      tailf:occurence "?";
+    }
+    tailf:substatement "ncs:post-action-node" {
+      tailf:occurence "?";
+    }
+    tailf:substatement "description";
+
+    description
+      "This statement defines nano service state characteristics for
+       leaving this state.
+
+       The component will advance to this state when it is back
+       tracking, it has reached its following state, and the
+       'pre-condition' is met.
+
+       If the 'nano-callback' statement is defined, it means that
+       there is a callback function (or template) that will be invoked
+       before this state is left.
+
+       The 'post-action-node' optionally defines an action to be
+       invoked when this state has been left.";
+  }
+
+  extension nano-callback {
+    description
+      "This statement indicates that a callback function (or a
+       template) is defined for this state and operation.";
+  }
+
+  extension post-action-node {
+    argument xpath {
+      tailf:arg-type {
+        type plan-xpath;
+      }
+    }
+    tailf:substatement "description";
+    tailf:substatement "ncs:action-name" {
+      tailf:occurence "1";
+    }
+    tailf:substatement "ncs:result-expr" {
+      tailf:occurence "?";
+    }
+
+    description
+      "This statement defined a action side-effect to be executed
+       after the state has been successfully been executed.
+
+       This statement argument is the node where the action resides.
+
+       This action is executed asynchronously with respect to initial
+       service transaction. The result is manifested as a value in
+       the requesting plan states post-action-status leaf.
+
+       The XPath expression is evaluated in the context described for
+       'plan-xpath'.";
+  }
+
+  extension action-name {
+    argument name {
+      tailf:arg-type {
+        type string;
+      }
+    }
+    tailf:substatement "description";
+    description
+      "The name of the action.";
+  }
+
+  extension result-expr {
+    argument xpath {
+      tailf:arg-type {
+        type yang:xpath1.0;
+      }
+    }
+    tailf:substatement "description";
+    description
+      "An action responds with a structured result.  A certain value
+       can indicate an error or a successful result, e.g.,
+       'result true'.
+
+       The result of the expression is converted to a boolean using
+       the standard XPath rules.  If the result is 'true' the action
+       is reported as successful, otherwise as failed.
+
+       The context for evaluating this expression is the
+       resulting xml tree of the action.
+
+       There are no variable bindings in this evaluation.
+       The set of namespace declarations are all available namespaces,
+       with the prefixes defined in the modules.";
+  }
+
+  /*
+   * Behavior tree extensions for nano services
+   */
+
+  extension service-behavior-tree {
+    argument servicepoint {
+      tailf:arg-type {
+        type tailf:identifier;
+      }
+    }
+    tailf:occurence "*";
+    tailf:use-in "module";
+    tailf:use-in "submodule";
+    tailf:substatement "description";
+    tailf:substatement "ncs:plan-outline-ref" {
+      tailf:occurence "1";
+    }
+    tailf:substatement "ncs:plan-location" {
+      tailf:occurence "?";
+    }
+    tailf:substatement "ncs:selector" {
+      tailf:occurence "*";
+    }
+    tailf:substatement "ncs:multiplier" {
+      tailf:occurence "*";
+    }
+    description
+      "This statement is used to define the behavior tree for a nano
+       service.
+
+       The argument to this statement is the name of the service point
+       for the nano service.
+
+       The behavior tree consists of control flow nodes and execution
+       nodes.
+
+       There are two types of control flow nodes, defined with the
+       'ncs:selector' and 'ncs:multiplier' statements.
+
+       There is one type of execution nodes, defined with the
+       'ncs:create-component' statement.
+
+       A behavior tree is evaluated by evaluating all top control flow
+       nodes, in order.  When a control flow node is evaluated, it
+       checks if it should evaluate its children.  How this is done
+       depend on the type of control flow node.  When an execution
+       node is reached, the resulting component-type is added as a
+       component to the plan and given a component-name.
+
+       This process of dynamically instantiating a plan with its
+       components by evaluation of the behavior tree is called
+       synthesizing the plan.";
+  }
+
+  extension plan-outline-ref {
+    argument id {
+      tailf:arg-type {
+        type tailf:identifier-ref;
+      }
+    }
+    description
+      "The name of the plan outline that the behavior tree will use
+       to synthesize a service instance's plan.";
+  }
+
+  extension plan-location {
+    argument path {
+      tailf:arg-type {
+        type string;
+      }
+    }
+    description
+      "Experimental feature, may be changed in the future.
+
+       Path to a list or container where the plan is
+       stored.  Use this only if the plan is stored outside the
+       service.";
+  }
+
+  /* Control flow nodes */
+
+  extension selector {
+    tailf:substatement "description";
+    tailf:substatement "ncs:pre-condition" {
+      tailf:occurence "?";
+    }
+    tailf:substatement "ncs:observe" {
+      tailf:occurence "?";
+    }
+    tailf:substatement "ncs:variable" {
+      tailf:occurence "*";
+    }
+    tailf:substatement "ncs:selector" {
+      tailf:occurence "*";
+    }
+    tailf:substatement "ncs:multiplier" {
+      tailf:occurence "*";
+    }
+    tailf:substatement "ncs:create-component" {
+      tailf:occurence "*";
+    }
+    description
+      "This control flow node synthesizes its children
+       that have their pre-conditions met.
+
+       All 'ncs:variable' statements in this statement will have their
+       XPath context node set to each node in the resulting node set.";
+  }
+
+  extension multiplier {
+    tailf:substatement "description";
+    tailf:substatement "ncs:pre-condition" {
+      tailf:occurence "?";
+    }
+    tailf:substatement "ncs:observe" {
+      tailf:occurence "?";
+    }
+    tailf:substatement "ncs:foreach" {
+      tailf:occurence "1";
+    }
+    description
+      "This control flow node synthesizes zero or more copies of
+       its children.
+
+       When this node is evaluated, it evaluates the 'foreach'
+       expression.  For each node in the resulting node set, it
+       synthesizes all children that have their pre-conditions
+       met.";
+  }
+
+  extension foreach {
+    argument xpath {
+      tailf:arg-type {
+        type plan-xpath;
+      }
+    }
+    tailf:substatement "description";
+    tailf:substatement "ncs:when" {
+      tailf:occurence "?";
+    }
+    tailf:substatement "ncs:variable" {
+      tailf:occurence "*";
+    }
+    tailf:substatement "ncs:selector" {
+      tailf:occurence "*";
+    }
+    tailf:substatement "ncs:multiplier" {
+      tailf:occurence "*";
+    }
+    tailf:substatement "ncs:create-component" {
+      tailf:occurence "*";
+    }
+
+    description
+      "This statement's argument is an XPath expression for the node set
+       that is the basis for a multiplier selection.  For each node in
+       the resulting node set the children will be evaluated.
+
+       The XPath expression is evaluated in the context described for
+       'plan-xpath'.";
+  }
+
+  extension when {
+    argument xpath {
+      tailf:arg-type {
+        type plan-xpath;
+      }
+    }
+    tailf:substatement "description";
+
+    description
+      "This optional statement describes an XPath expression that is
+       used to further filter the selection of nodes from the
+       node set.
+
+       The result of the expression is converted to a boolean using
+       the standard XPath rules.  If the result is 'true' the node is
+       added to the node set.
+
+       The XPath expression is evaluated in the context described for
+       'plan-xpath'.";
+  }
+
+  /* Execution nodes */
+
+  extension create-component {
+    argument name {
+      tailf:arg-type {
+        type plan-xpath;
+      }
+    }
+    tailf:substatement "description";
+    tailf:substatement "ncs:component-type-ref" {
+      tailf:occurence "1";
+    }
+    tailf:substatement "ncs:pre-condition" {
+      tailf:occurence "?";
+    }
+    tailf:substatement "ncs:observe" {
+      tailf:occurence "?";
+    }
+
+    description
+      "When this execution node is evaluated, it instantiates a component
+       in the service's plan.
+
+       The name of the component is the result of evaluating the XPath
+       expression and convert the result to a string.
+
+       The XPath expression is evaluated in the context described for
+       'plan-xpath'.";
+  }
+
+  extension component-type-ref {
+    argument name {
+      tailf:arg-type {
+        type tailf:identifier-ref;
+      }
+    }
+    description
+      "This statement identifies the component type for the component.
+       It must refer to a component-type defined in the plan-outline
+       for the service.";
+  }
+
+  /* Common substatements */
+
+  extension pre-condition {
+    tailf:substatement "description";
+    tailf:substatement "ncs:monitor" {
+      tailf:occurence "1";
+    }
+    description
+      "This statement defines a pre-condition that must hold for
+       further evaluation/execution to proceed.
+
+       If the pre-condition is not satisfied a kicker will be created
+       with the same monitor to observe the changes and then
+       re-deploy the service.";
+  }
+
+  extension observe {
+    tailf:substatement "description";
+    tailf:substatement "ncs:monitor" {
+      tailf:occurence "1";
+    }
+    description
+      "If a control flow node has been successfully evaluated, this
+       statement's 'monitor' will be installed as a kicker, which will
+       re-deploy the service if the monitor's trigger conditions are met.";
+  }
+
+  extension monitor {
+    argument node {
+      tailf:arg-type {
+        type plan-xpath;
+      }
+    }
+    tailf:substatement "description";
+    tailf:substatement "ncs:trigger-expr" {
+      tailf:occurence "?";
+    }
+    description
+      "If a node that matches the value of this statement and the
+       'trigger' expression evaluates to true, this condition is
+       satisfied.
+
+       The argument to this statement is like an instance-identifier,
+       but a list may be specified without any keys.  This is treated
+       like a wildcard that matches all entries in the list.
+
+       The XPath expression is evaluated in the context described for
+       'plan-xpath'.";
+  }
+
+  extension trigger-expr {
+    argument xpath {
+      tailf:arg-type {
+        type plan-xpath;
+      }
+    }
+    tailf:substatement "description";
+
+    description
+      "This optional statement is used to further filter nodes
+       in a given nodeset.
+
+       The result of the expression is converted to a boolean using
+       the standard XPath rules.  If the result is 'true' the condition
+       is satisfied, otherwise it is not satisfied.
+
+       The XPath expression is evaluated in the context described for
+       'plan-xpath'.";
+  }
+
+
+  extension variable {
+    argument name {
+      tailf:arg-type {
+        type string;
+      }
+    }
+
+    tailf:substatement "description";
+    tailf:substatement "ncs:value-expr" {
+      tailf:occurence "?";
+    }
+
+    description
+      "This statement defines an XPath variable with a name and a
+       value.  The value is evaluated as an XPath expression.
+
+       A variable called FOO can thus be retrieved as '{$FOO}'.
+
+       These variables can for example be used in a 'multiplier'
+       control flow node to create unique names of duplicated
+       components.  The child components can be given names like
+       'comp_{$FOO}', and when that expression is evaluated,
+       the resulting component will have a name with {$FOO}
+       substituted with the value of the variable 'FOO'.";
+  }
+
+  extension value-expr {
+    argument xpath {
+      tailf:arg-type {
+        type plan-xpath;
+      }
+    }
+    tailf:substatement "description";
+
+    description
+      "This statement defines an XPath expression that when evaluated
+       constitutes a value for a variable.
+
+       The XPath expression is evaluated in the context described for
+       'plan-xpath'.";
+  }
+}

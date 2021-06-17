@@ -1,0 +1,207 @@
+module cisco-svo-xconnect-grp {
+    yang-version 1.1;
+    namespace "http://cisco.com/yang/svo/xconnect/grp";
+    prefix svo-xconn-grp;
+
+
+    import org-openroadm-common-optical-channel-types { prefix roadm-oct; revision-date 2018-05-30; }
+    import cisco-svo-common-types { prefix cct; }
+    import cisco-svo-common-base-opt-grp { prefix ccbog; }
+    import cisco-svo-common-base-opt-oper-grp { prefix ccboog; }
+    
+    organization
+        "Cisco Systems, Inc.";
+
+    contact
+        "Cisco Systems, Inc.
+       Customer Service
+       
+       Postal: 170 West Tasman Drive
+       San Jose, CA 95134
+       
+       Tel: +1 800 553-NETS
+       
+       E-mail: cs-yang@cisco.com";
+
+    description
+        "YANG definition for SVO optical cross connections";
+
+    revision 2020-12-04 { 
+       description "Model version for SVO Release 12.1.0 "; 
+       reference cisco-svo-xconnect-grp.yang; 
+    }
+ 
+
+    grouping optical-measurement {
+        description "Live optical measurements";
+        leaf optical-power {
+        	type cct:dbm-t;
+            config false;
+            description "Signal Optical power";
+        }
+
+        container current-optical-power-thresholds {
+           	uses ccboog:power-thresholds-grp;
+           	config false;
+           	description "Optical power thresholds as absolute value (i.e. scaled to the width of the oxc)";
+        }
+    }
+
+    grouping opticalPath {
+    	description "Optical Path of XConnection grouping";
+        
+    	container endpoints {
+        	description "End points of XConnection";
+        	
+            leaf src-if {
+                type string;
+                mandatory true;
+                description "This is the OTS interface at the beginning of the path. Typically, it is a degree input port or a add port. It cannot be changed after creation";
+            }
+
+            leaf dst-if {
+                type string;
+                mandatory true;
+                description "This is the OTS interface at the end of the path. Typically, it is a degree output port or a drop port. It cannot be changed after creation";
+            }
+        }
+    	
+        list internal-path {
+
+        	key "if-reference";
+        	config false;
+            ordered-by user;
+            description "Each path defines a sequence of OTS interfaces crosses by the path wavelength. This internal-path list represents this list.
+        		It is an operational data, and it contains:
+        		- The OTS interface name the weavelength is passing. Of course, firrt port will be src-if and last port will be dst-if.
+        		- a monitoring (optional) container, reporting the optical power readings (and actual LOS-P alarm threshold). Not all interfaces has wavelength power monitoring, so not all elements
+        		  in this list will have the monitoring container.
+        		- configuration of power and thresholds for these points is defined in the regulation-points lists.";
+
+            leaf if-reference {
+                type string;
+                mandatory true;
+                description "OTS Interface name";
+            }
+
+            container monitoring {
+                presence "Card has capability of single wavelength power monitoring";
+                uses optical-measurement;
+                description "Single wavelength power monitoring";
+            }
+            
+            leaf current-optical-psd-setpoint {
+                type cct:power-spectral-density-t;
+                config false;
+                description "Optical power setpoint as Power-Spectral-Density [dBm/GHz]; it is the sum of the if-interface Power-Spectral-Density setpoint and the optical power setpoint offset";
+            }
+                        
+            leaf current-optical-power-setpoint {
+                type cct:dbm-t;
+                config false;
+                description "Optical power setpoint as absolute value (i.e. scaled to the width of the oxc)";
+            }
+        }
+        
+        list regulation-points {
+            key "if-reference";
+            ordered-by user;
+            description "This is the list of all interfaces where it is possible to configure a regulation set-point or an input threshold";  
+  			            
+            leaf if-reference {
+                type string;
+                mandatory true;
+                description "OTS Interface name";
+            }
+
+            leaf optical-psd-setpoint-offset {
+                type cct:db-t;
+                description "Optical power setpoint as Power-Spectral-Density [dBm/GHz]; it is the sum of the if-interface Power-Spectral-Density setpoint and the optical power setpoint offset";
+            }
+
+            container optical-power-thresholds {
+                uses ccbog:power-failure-low-threshold-grp;
+                description "Optical fail low threshold as absolute value (i.e. scaled to the width of the oxc)";
+            }
+        }
+
+    }
+
+    typedef oxc-directions {
+        type enumeration {
+          enum monodirectional {
+            description "OXC UNI-directional ingress --> egress ports";
+          }
+          enum bidirectional {
+            description "OXC BI-directional  ingress <==> egress ports";
+          }
+        }
+        description "XConnection number of path: monodirectional or bidirectional";
+    }
+    	
+    grouping oxc-grp {
+
+        description "cross connection list grouping";
+
+        leaf connection-name {
+            type string {
+                pattern '[0-9a-zA-Z_]{1,29}';
+            }
+            mandatory true;
+            description "Name of Optical XConnection (only letters and _ allowed)";
+        }
+
+        leaf circuit-id {
+            type string {
+                length "0..130";
+            }
+            description "Name of the circuit the oxc belongs to. Shall be up to  130 characters, ISO 8859-1";
+            config true;
+        }
+
+        leaf oxc-type {
+            type oxc-directions;
+            mandatory true;
+            description "Type of XConnect (mono or bidirectional)";
+        }
+
+        leaf admin-state {
+            type cct:admin-state-t;
+            default In-Service;
+            description "Admin State";
+        }
+
+        uses ccboog:oper-state-grp;
+
+        // wavelength is the same for both paths (in case of bidirectional XC)
+        leaf central-frequency {
+            type roadm-oct:frequency-THz;
+            mandatory true;
+            description "Central frequency [THz]";
+        }
+        
+        leaf allocation-width {
+            type roadm-oct:frequency-GHz;
+            mandatory true;
+            description "XConnced allocated bandwidth (signal + guard bands) [GHz]";
+        }
+        
+        leaf signal-width {
+            type roadm-oct:frequency-GHz;
+            must "../signal-width <= ../allocation-width";
+            mandatory true;
+            description "XConnect signal bandwidth [GHz]";
+        }
+
+        container path1 {
+            description "monodorectional XConnect path or bidirecional first path";
+            uses opticalPath;
+        }
+
+        container path2 {
+            when "../oxc-type = 'bidirectional'";
+            description "Bidirectional XConnect second path";
+            uses opticalPath;
+        }
+    }
+}
