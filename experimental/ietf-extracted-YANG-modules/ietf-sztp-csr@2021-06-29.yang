@@ -1,0 +1,472 @@
+module ietf-sztp-csr {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-sztp-csr";
+  prefix sztp-csr;
+
+  import ietf-sztp-bootstrap-server {
+    prefix sztp-svr;
+    reference
+      "RFC 8572: Secure Zero Touch Provisioning (SZTP)";
+  }
+
+  import ietf-yang-structure-ext {
+    prefix sx;
+    reference
+      "RFC 8791: YANG Data Structure Extensions";
+  }
+
+  import ietf-crypto-types {
+    prefix ct;
+    reference
+      "RFC AAAA: YANG Data Types and Groupings for Cryptography";
+  }
+
+  organization
+    "IETF NETCONF (Network Configuration) Working Group";
+
+  contact
+    "WG Web:   http://tools.ietf.org/wg/netconf
+     WG List:  <mailto:netconf@ietf.org>
+     Authors:  Kent Watsen <mailto:kent+ietf@watsen.net>
+               Russ Housley <mailto:housley@vigilsec.com>
+               Sean Turner <mailto:sean@sn3rd.com>";
+
+  description
+    "This module augments the 'get-bootstrapping-data' RPC,
+     defined in the 'ietf-sztp-bootstrap-server' module from
+     SZTP (RFC 8572), enabling the SZTP-client to obtain a
+     signed identity certificate (e.g., an LDevID from IEEE
+     802.1AR) as part of the SZTP onboarding information
+     response.
+
+     Copyright (c) 2020 IETF Trust and the persons identified
+     as authors of the code. All rights reserved.
+
+     Redistribution and use in source and binary forms, with
+     or without modification, is permitted pursuant to, and
+     subject to the license terms contained in, the Simplified
+     BSD License set forth in Section 4.c of the IETF Trust's
+     Legal Provisions Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC
+     itself for full legal notices.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this
+     document are to be interpreted as described in BCP 14
+     (RFC 2119) (RFC 8174) when, and only when, they appear
+     in all capitals, as shown here.";
+
+  revision 2021-06-29 {
+    description
+      "Initial version";
+    reference
+      "RFC XXXX: Conveying a Certificate Signing Request (CSR)
+                 in a Secure Zero Touch Provisioning (SZTP)
+                 Bootstrapping Request";
+  }
+
+  identity certificate-request-format {
+    description
+      "A base identity for the request formats supported
+       by the SZTP-client.
+
+       Additional derived identities MAY be defined by
+       future efforts.";
+  }
+
+  identity p10 {
+    base certificate-request-format;
+    description
+      "Indicates that the SZTP-client supports generating
+       requests using the 'CertificationRequest' structure
+       defined in RFC 2986.";
+    reference
+      "RFC 2986: PKCS #10: Certification Request Syntax
+                 Specification Version 1.7";
+  }
+
+  identity cmc {
+    base certificate-request-format;
+    description
+      "Indicates that the SZTP-client supports generating
+       requests using a constrained version of the 'Full
+       PKI Request' structure defined in RFC 5272.";
+    reference
+      "RFC 5272: Certificate Management over CMS (CMC)";
+  }
+
+  identity cmp {
+    base certificate-request-format;
+    description
+      "Indicates that the SZTP-client supports generating
+       requests that contain a PKCS#10 Certificate Signing
+       Request (p10cr), as defined in RFC 2986, encapsulated
+       in a Nested Message Content (nested), as defined in
+       RFC 4210.";
+    reference
+      "RFC 2986: PKCS #10: Certification Request Syntax
+                 Specification Version 1.7
+       RFC 4210: Internet X.509 Public Key Infrastructure
+                 Certificate Management Protocol (CMP)";
+  }
+
+  // Protocol-accessible nodes
+
+  augment "/sztp-svr:get-bootstrapping-data/sztp-svr:input" {
+    description
+      "This augmentation adds the 'csr-support' and 'csr' nodes to
+       the SZTP (RFC 8572) 'get-bootstrapping-data' request message,
+       enabling the SZTP-client to obtain an identity certificate
+       (e.g., an LDevID from IEEE 802.1AR) as part of the onboarding
+       information response provided by the SZTP-server.
+
+       The 'csr-support' node enables the SZTP-client to indicate
+       that it supports generating certificate signing requests
+       (CSRs), and to provide details around the CSRs it is able
+       to generate.
+
+       The 'csr' node enables the SZTP-client to relay a CSR to
+       the SZTP-server.";
+    reference
+      "IEEE 802.1AR: IEEE Standard for Local and metropolitan
+                     area networks - Secure Device Identity
+       RFC 8572: Secure Zero Touch Provisioning (SZTP)";
+    choice msg-type {
+      description
+        "Only a 'csr-support' or a 'csr' message may be sent.";
+      container csr-support {
+        presence
+          "Indicates that the SZTP-client is capable of sending
+           CSRs.";
+        description
+          "The 'csr-support' node enables the SZTP-client to
+           indicate that it supports generating certificate
+           signing requests (CSRs), and provide details around
+           the CSRs it is able to generate.
+
+           When present, the SZTP-server MAY respond with the HTTP
+           code 300 Multiple Choices with an 'ietf-restconf:errors'
+           document having the 'error-tag' value 'missing-attribute'
+           and the 'error-info' node containing the 'request-info'
+           structure described in this module.";
+        container key-generation {
+          presence
+            "Indicates that the SZTP-client is capable of
+             generating a new asymmetric key pair.
+
+             If this node is not present, the SZTP-server MAY
+             request a CSR using the asymmetric key associated
+             with the device's existing identity certificate
+             (e.g., an IDevID from IEEE 802.1AR).";
+          description
+            "Specifies details for the SZTP-client's ability to
+             generate a new asymmetric key pair.";
+          container supported-algorithms {
+            description
+              "A list of public key algorithms supported by the
+               SZTP-client for generating a new key.";
+            leaf-list algorithm-identifier {
+              type binary;
+              min-elements 1;
+              description
+                "An AlgorithmIdentifier, as defined in RFC 2986,
+                 encoded using ASN.1 distinguished encoding rules
+                 (DER), as specified in ITU-T X.690.";
+              reference
+                "RFC 2986: PKCS #10: Certification Request Syntax
+                           Specification Version 1.7
+                 ITU-T X.690:
+                   Information technology - ASN.1 encoding rules:
+                   Specification of Basic Encoding Rules (BER),
+                   Canonical Encoding Rules (CER) and Distinguished
+                   Encoding Rules (DER).";
+            }
+          }
+        }
+        container csr-generation {
+          description
+            "Specifies details for the SZTP-client's ability to
+             generate a certificate signing requests.";
+          container supported-formats {
+            description
+              "A list of certificate request formats supported
+               by the SZTP-client for generating a new key.";
+            leaf-list format-identifier {
+              type identityref {
+                base certificate-request-format;
+              }
+              min-elements 1;
+              description
+                "A certificate request format supported by the
+                 SZTP-client.";
+            }
+          }
+        }
+      }
+      container csr {
+        presence "Indicates that the SZTP-client has sent a CSR.";
+        description
+          "The 'csr' node enables the SZTP-client to convey
+           a certificate signing request, using the encoding
+           format selected by the SZTP-server's 'request-info'
+           response to the SZTP-client's previously sent
+           'get-bootstrapping-data' request containing the
+           'csr-support' node.
+
+           When present, the SZTP-server SHOULD respond with
+           an SZTP onboarding information message containing
+           a signed certificate for the conveyed CSR.  The
+           SZTP-server MAY alternatively respond with another
+           HTTP error containing another 'request-info', in
+           which case the SZTP-client MUST invalidate the CSR
+           sent in this node.";
+        choice request-type {
+          mandatory true;
+          description
+            "A choice amongst certificate signing request formats.
+
+             Additional formats MAY be augmented into this 'choice'
+             statement by future efforts.";
+          case p10 {
+            leaf p10 {
+              type ct:csr;
+              description
+                "A CertificationRequest structure, per RFC 2986.
+                 Please see 'csr' in RFC AAAA for encoding details.";
+              reference
+                "RFC 2986: PKCS #10: Certification
+                           Request Syntax Specification
+                 RFC AAAA: YANG Data Types and Groupings
+                           for Cryptography";
+            }
+          }
+          case cmc {
+            leaf cmc {
+              type binary;
+              description
+                "A constrained version of the 'Full PKI Request'
+                 message defined in RFC 5272, encoded using ASN.1
+                 distinguished encoding rules (DER), as specified
+                 in ITU-T X.690.
+
+                 For asymmetric key-based origin authentication
+                 of a CSR based on the IDevID's private key for the
+                 associated IDevID's public key, the PKIData contains
+                 one reqSequence element and no controlSequence,
+                 cmsSequence, or otherMsgSequence elements. The
+                 reqSequence is the TaggedRequest and it is the tcr
+                 CHOICE. The tcr is the TaggedCertificationRequest
+                 and it a bodyPartId and the certificateRequest
+                 elements. The certificateRequest is signed with
+                 the IDevID's private key.
+
+                 For asymmetric key-based origin authentication
+                 based on the IDevID's private key that encapsulates
+                 a CSR signed by the LDevID's private key, the
+                 PKIData contains one cmsSequence element and no
+                 controlSequence, reqSequence, or otherMsgSequence
+                 elements. The cmsSequence is the TaggedContentInfo
+                 and it includes a bodyPartID element and a
+                 contentInfo. The contentInfo is a SignedData
+                 encapsulating a PKIData with one reqSequence
+                 element and no controlSequence, cmsSequence, or
+                 otherMsgSequence elements. The reqSequence is
+                 the TaggedRequest and it is the tcr CHOICE. The
+                 tcr is the TaggedCertificationRequest and it a
+                 bodyPartId and the certificateRequest elements.
+                 The certificateRequest is signed with the LDevID's
+                 private key.
+
+                 For shared secret-based origin authentication of
+                 a CSR signed by the LDevID's private key, the
+                 PKIData contains one cmsSequence element and no
+                 controlSequence, reqSequence, or otherMsgSequence
+                 elements. The cmsSequence is the TaggedContentInfo
+                 and it includes a bodyPartID element and a
+                 contentInfo. The contentInfo is an AuthenticatedData
+                 encapsulating a PKIData with one reqSequence
+                 element and no controlSequence, cmsSequence, or
+                 otherMsgSequence elements. The reqSequence is the
+                 TaggedRequest and it is the tcr CHOICE. The tcr
+                 is the TaggedCertificationRequest and it a
+                 bodyPartId and the certificateRequest elements.
+                 The certificateRequest is signed with the LDevID's
+                 private key.";
+              reference
+                "RFC 5272: Certificate Management over CMS (CMC)
+                 ITU-T X.690:
+                   Information technology - ASN.1 encoding rules:
+                   Specification of Basic Encoding Rules (BER),
+                   Canonical Encoding Rules (CER) and Distinguished
+                   Encoding Rules (DER).";
+            }
+          }
+          case cmp {
+            leaf cmp {
+              type binary;
+              description
+                "A PKIMessage structure, as defined in RFC 4210,
+                 encoded using ASN.1 distinguished encoding rules
+                 (DER), as specified in ITU-T X.690.
+
+                 The PKIMessage structure contains a PKCS#10
+                 Certificate Signing Request (p10cr), as defined in
+                 RFC 2986, encapsulated in a Nested Message Content
+                 (nested) structure, as defined in RFC 4210.
+
+                 For asymmetric key-based origin authentication of
+                 a CSR based on the IDevID's private key for the
+                 associated IDevID's public key, PKIMessages contains
+                 one PKIMessage with one body element, a header
+                 element that is an empty sequence, and no protection
+                 or extraCerts elements. The body element contains a
+                 p10cr CHOICE.
+                 For asymmetric key-based origin authentication based
+                 on the IDevID's private key that encapsulates a CSR
+                 signed by the LDevID's private key, PKIMessages
+                 contains one PKIMessage with one header element,
+                 one body element, one protection element, and one
+                 extraCerts element.  The header element contains
+                 pvno, sender, recipient, and protectionAlg elements
+                 and no other elements. The body element contains the
+                 nested CHOICE. The nested element's PKIMessages
+                 contains one PKIMessage with one body element, one
+                 header element that is an empty sequence, and no
+                 protection or extraCerts elements. The nested
+                 element's body element contains a p10cr CHOICE. The
+                 protection element contains the digital signature
+                 generated with the IDevID's private key. The
+                 extraCerts element contains the IDevID certificate.
+
+                 For shared secret-based origin authentication of a
+                 CSR signed by the LDevID's private key, PKIMessages
+                 contains one PKIMessage with one header element,
+                 one body element, one protection element, and no
+                 extraCerts element. The header element contains
+                 pvno, sender, recipient, and protectionAlg elements
+                 and no other elements. The body element contains
+                 the nested CHOICE. The nested element's PKIMessages
+                 contains one PKIMessage with one body element, one
+                 header element that is an empty sequence, and no
+                 protection or extraCerts elements. The body element
+                 contains a p10cr CHOICE. The protection element
+                 contains the MAC value generated with the shared
+                 secret.";
+              reference
+                "RFC 2986:
+                   PKCS #10: Certification Request Syntax
+                   Specification Version 1.7
+                 RFC 4210:
+                   Internet X.509 Public Key Infrastructure
+                   Certificate Management Protocol (CMP)
+                 ITU-T X.690:
+                   Information technology - ASN.1 encoding rules:
+                   Specification of Basic Encoding Rules (BER),
+                   Canonical Encoding Rules (CER) and Distinguished
+                   Encoding Rules (DER).";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  sx:structure request-info {
+    container key-generation {
+      presence
+        "Indicates that the SZTP-client is to generate a new
+         asymmetric key.  If missing, then the SZTP-client
+         MUST reuse the key associated with its existing
+         identity certificate (e.g., IDevID).
+
+         This leaf MUST only appear if the SZTP-clients
+         'csr-support' included the 'key-generation' node.";
+      description
+        "A YANG data structure, per RFC 8791, that specifies
+         details for the key that the SZTP-client is to
+         generate.";
+      reference
+        "RFC 8791: YANG Data Structure Extensions";
+      container selected-algorithm {
+        description
+          "The key algorithm selected by the SZTP-server. The
+           algorithm MUST be one of the algorithms specified
+           by the 'supported-algorithms' node in the
+           SZTP-client's request message.";
+        leaf algorithm-identifier {
+          type binary;
+          mandatory true;
+          description
+            "An AlgorithmIdentifier, as defined in RFC 2986,
+             encoded using ASN.1 distinguished encoding rules
+             (DER), as specified in ITU-T X.690.";
+          reference
+            "RFC 2986: PKCS #10: Certification Request Syntax
+                       Specification Version 1.7
+             ITU-T X.690:
+               Information technology - ASN.1 encoding rules:
+               Specification of Basic Encoding Rules (BER),
+               Canonical Encoding Rules (CER) and Distinguished
+               Encoding Rules (DER).";
+        }
+      }
+    }
+    container csr-generation {
+      description
+        "Specifies details for the CSR that the SZTP-client
+         is to generate.";
+      container selected-format {
+        description
+          "The CSR format selected by the SZTP-server. The
+           format MUST be one of the formats specified by
+           the 'supported-formats' node in the SZTP-client's
+           request message.";
+        leaf format-identifier {
+          type identityref {
+            base certificate-request-format;
+          }
+          mandatory true;
+          description
+            "A certificate request format to be used by the
+             SZTP-client.";
+        }
+      }
+    }
+    leaf cert-req-info {
+      type ct:csr-info;
+      description
+        "A CertificationRequestInfo structure, as defined in
+         RFC 2986, and modeled via a 'typedef' statement by
+         RFC AAAA.
+
+         Enables the SZTP-server to provide a fully-populated
+         CertificationRequestInfo structure that the SZTP-client
+         only needs to sign in order to generate the complete
+         'CertificationRequest' structure to send to SZTP-server
+         in its next 'get-bootstrapping-data' request message.
+
+         When provided, the SZTP-client SHOULD use this
+         structure to generate its CSR; failure to do so MAY
+         result in a 300 Multiple Choices response containing
+         another 'request-info' structure.
+
+         When not provided, the SZTP-client SHOULD generate a
+         CSR using the same structure defined in its existing
+         identity certificate (e.g., IDevID).
+
+         It is an error if the 'AlgorithmIdentifier' field
+         contained inside the 'SubjectPublicKeyInfo' field
+         does not match the algorithm identified by the
+         'selected-algorithm' node.";
+      reference
+        "RFC 2986:
+           PKCS #10: Certification Request Syntax Specification
+         RFC AAAA:
+           YANG Data Types and Groupings for Cryptography";
+    }
+  }
+}
