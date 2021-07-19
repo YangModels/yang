@@ -1,0 +1,981 @@
+module ietf-i2nsf-ike {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-i2nsf-ike";
+  prefix nsfike;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types.";
+  }
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types.";
+  }
+  import ietf-i2nsf-ikec {
+    prefix nsfikec;
+    reference
+      "RFC 9061: A YANG Data Model for IPsec Flow Protection
+                 Based on Software-Defined Networking (SDN).";
+  }
+  import ietf-netconf-acm {
+    prefix nacm;
+    reference
+      "RFC 8341: Network Configuration Access Control
+                 Model.";
+  }
+
+  organization
+    "IETF I2NSF Working Group";
+  contact
+    "WG Web:  <https://datatracker.ietf.org/wg/i2nsf/>
+     WG List: <mailto:i2nsf@ietf.org>
+
+     Author: Rafael Marin-Lopez
+               <mailto:rafa@um.es>
+
+     Author: Gabriel Lopez-Millan
+               <mailto:gabilm@um.es>
+
+     Author: Fernando Pereniguez-Garcia
+               <mailto:fernando.pereniguez@cud.upct.es>
+    ";
+  description
+    "This module contains the IPsec IKE case model for the SDN-based
+     IPsec flow protection service.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this
+     document are to be interpreted as described in BCP 14
+     (RFC 2119) (RFC 8174) when, and only when, they appear
+     in all capitals, as shown here.
+
+     Copyright (c) 2021 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Simplified BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (http://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 9061; see
+     the RFC itself for full legal notices.";
+
+  revision 2021-07-14 {
+    description
+      "Initial version.";
+    reference
+      "RFC 9061: A YANG Data Model for IPsec Flow Protection
+                 Based on Software-Defined Networking (SDN).";
+  }
+
+  typedef ike-spi {
+    type uint64 {
+      range "0..max";
+    }
+    description
+      "Security Parameter Index (SPI)'s IKE SA.";
+    reference
+      "RFC 7296: Internet Key Exchange Protocol Version 2
+                 (IKEv2), Section 2.6.";
+  }
+
+  typedef autostartup-type {
+    type enumeration {
+      enum add {
+        description
+          "IKE/IPsec configuration is only loaded into
+           IKE implementation, but IKE/IPsec SA is not
+           started.";
+      }
+      enum on-demand {
+        description
+          "IKE/IPsec configuration is loaded
+           into IKE implementation.  The IPsec policies
+           are transferred to the NSF, but the
+           IPsec SAs are not established immediately.
+           The IKE implementation will negotiate the
+           IPsec SAs when they are required
+           (i.e., through an ACQUIRE notification).";
+      }
+      enum start {
+        description
+          "IKE/IPsec configuration is loaded
+           and transferred to the NSF's kernel, and the
+           IKEv2-based IPsec SAs are established
+           immediately without waiting for any packet.";
+      }
+    }
+    description
+      "Different policies to set IPsec SA configuration
+       into NSF's kernel when IKEv2 implementation has
+       started.";
+  }
+
+  typedef fs-group {
+    type uint16;
+    description
+      "DH groups for IKE and IPsec SA rekey.";
+    reference
+      "IANA: Internet Key Exchange Version 2 (IKEv2) Parameters,
+             IKEv2 Transform Attribute Types, Transform Type 4 -
+             Diffie-Hellman Group Transform IDs
+       RFC 7296: Internet Key Exchange Protocol Version 2
+                 (IKEv2), Section 3.3.2.";
+  }
+
+  typedef auth-protocol-type {
+    type enumeration {
+      enum ikev2 {
+        value 2;
+        description
+          "IKEv2 authentication protocol.  It is the
+           only one defined right now.  An enum is
+           used for further extensibility.";
+      }
+    }
+    description
+      "IKE authentication protocol version specified in the
+       Peer Authorization Database (PAD).  It is defined as
+       enumerated to allow new IKE versions in the
+       future.";
+    reference
+      "RFC 7296: Internet Key Exchange Protocol Version 2
+                 (IKEv2).";
+  }
+
+  typedef auth-method-type {
+    type enumeration {
+      enum pre-shared {
+        description
+          "Select pre-shared key as the
+           authentication method.";
+        reference
+          "RFC 7296: Internet Key Exchange Protocol Version 2
+                     (IKEv2).";
+      }
+      enum eap {
+        description
+          "Select the Extensible Authentication Protocol (EAP) as
+           the authentication method.";
+        reference
+          "RFC 7296: Internet Key Exchange Protocol Version 2
+                     (IKEv2).";
+      }
+      enum digital-signature {
+        description
+          "Select digital signature as the authentication method.";
+        reference
+          "RFC 7296: Internet Key Exchange Protocol Version 2
+                     (IKEv2)
+           RFC 7427: Signature Authentication in the Internet Key
+                     Exchange Version 2 (IKEv2).";
+      }
+      enum null {
+        description
+          "Null authentication.";
+        reference
+          "RFC 7619: The NULL Authentication Method in the Internet
+                     Key Exchange Protocol Version 2 (IKEv2).";
+      }
+    }
+    description
+      "Peer authentication method specified in the Peer
+       Authorization Database (PAD).";
+  }
+
+  container ipsec-ike {
+    description
+      "IKE configuration for an NSF.  It includes PAD
+       parameters, IKE connection information, and state
+       data.";
+    container pad {
+      description
+        "Configuration of the Peer Authorization Database
+         (PAD).  Each entry of PAD contains authentication
+         information of either the local peer or the remote peer.
+         Therefore, the I2NSF Controller stores authentication
+         information (and credentials) not only for the remote NSF
+         but also for the local NSF.  The local NSF MAY use the
+         same identity for different types of authentication
+         and credentials.  Pointing to the entry for a local NSF
+         (e.g., A) and the entry for remote NSF (e.g., B)
+         is possible to specify all the required information to
+         carry out the authentication between A and B (see
+         ../conn-entry/local and ../conn-entry/remote).";
+      list pad-entry {
+        key "name";
+        ordered-by user;
+        description
+          "Peer Authorization Database (PAD) entry.  It
+           is a list of PAD entries ordered by the
+           I2NSF Controller, and each entry is
+           unequivocally identified by a name.";
+        leaf name {
+          type string;
+          description
+            "PAD-unique name to identify this
+             entry.";
+        }
+        choice identity {
+          mandatory true;
+          description
+            "A particular IKE peer will be
+             identified by one of these identities.
+             This peer can be a remote peer or local
+             peer (this NSF).";
+          reference
+            "RFC 4301: Security Architecture for the Internet
+                       Protocol, Section 4.4.3.1.";
+          case ipv4-address {
+            leaf ipv4-address {
+              type inet:ipv4-address;
+              description
+                "Specifies the identity as
+                 a single 4-octet IPv4 address.";
+            }
+          }
+          case ipv6-address {
+            leaf ipv6-address {
+              type inet:ipv6-address;
+              description
+                "Specifies the identity as a
+                 single 16-octet IPv6
+                 address.  An example is
+                 2001:db8::8:800:200c:417a.";
+            }
+          }
+          case fqdn-string {
+            leaf fqdn-string {
+              type inet:domain-name;
+              description
+                "Specifies the identity as a
+                 Fully Qualified Domain Name
+                 (FQDN) string.  An example is
+                 example.com.  The string MUST
+                 NOT contain any terminators
+                 (e.g., NULL, Carriage Return
+                 (CR), etc.).";
+            }
+          }
+          case rfc822-address-string {
+            leaf rfc822-address-string {
+              type string;
+              description
+                "Specifies the identity as a
+                 fully qualified  email address
+                 string (RFC 5322).  An example is
+                 jsmith@example.com.  The string
+                 MUST NOT contain any
+                 terminators (e.g., NULL, CR,
+                 etc.).";
+              reference
+                "RFC 5322: Internet Message Format.";
+            }
+          }
+          case dnx509 {
+            leaf dnx509 {
+              type binary;
+              description
+                "The binary
+                 Distinguished Encoding Rules (DER)
+                 encoding of an ASN.1 X.500
+                 Distinguished Name, as specified in IKEv2.";
+              reference
+                "RFC 5280: Internet X.509 Public Key Infrastructure
+                           Certificate and Certificate Revocation
+                           List (CRL) Profile
+                 RFC 7296: Internet Key Exchange Protocol Version 2
+                           (IKEv2), Section 3.5.";
+            }
+          }
+          case gnx509 {
+            leaf gnx509 {
+              type binary;
+              description
+                "ASN.1 X.509 GeneralName structure,
+                 as specified in RFC 5280, encoded
+                 using ASN.1 Distinguished Encoding Rules
+                 (DER), as specified in ITU-T X.690.";
+              reference
+                "RFC 5280: Internet X.509 Public Key Infrastructure
+                           Certificate and Certificate Revocation
+                           List (CRL) Profile.";
+            }
+          }
+          case id-key {
+            leaf id-key {
+              type binary;
+              description
+                "Opaque octet stream that may be
+                 used to pass vendor-specific
+                 information for proprietary
+                 types of identification.";
+              reference
+                "RFC 7296: Internet Key Exchange Protocol Version 2
+                           (IKEv2), Section 3.5.";
+            }
+          }
+          case id-null {
+            leaf id-null {
+              type empty;
+              description
+                "The ID_NULL identification is used
+                 when the IKE identification payload
+                 is not used.";
+              reference
+                "RFC 7619: The NULL Authentication Method in the
+                           Internet Key Exchange Protocol Version 2
+                           (IKEv2).";
+            }
+          }
+        }
+        leaf auth-protocol {
+          type auth-protocol-type;
+          default "ikev2";
+          description
+            "Only IKEv2 is supported right now, but
+             other authentication protocols may be
+             supported in the future.";
+        }
+        container peer-authentication {
+          description
+            "This container allows the security
+             controller to configure the
+             authentication method (pre-shared key,
+             eap, digital-signature, null) that
+             will be used with a particular peer and
+             the credentials to use, which will
+             depend on the selected authentication
+             method.";
+          leaf auth-method {
+            type auth-method-type;
+            default "pre-shared";
+            description
+              "Type of authentication method
+               (pre-shared key, eap, digital signature,
+               null).";
+            reference
+              "RFC 7296: Internet Key Exchange Protocol Version 2
+                         (IKEv2), Section 2.15.";
+          }
+          container eap-method {
+            when "../auth-method = 'eap'";
+            leaf eap-type {
+              type uint32 {
+                range "1 .. 4294967295";
+              }
+              mandatory true;
+              description
+                "EAP method type specified with
+                 a value extracted from the
+                 IANA registry.  This
+                 information provides the
+                 particular EAP method to be
+                 used.  Depending on the EAP
+                 method, pre-shared keys or
+                 certificates may be used.";
+            }
+            description
+              "EAP method description used when
+               authentication method is 'eap'.";
+            reference
+              "IANA: Extensible Authentication Protocol (EAP)
+                     Registry, Method Types
+               RFC 7296: Internet Key Exchange Protocol Version 2
+                         (IKEv2), Section 2.16.";
+          }
+          container pre-shared {
+            when "../auth-method[.='pre-shared' or
+                  .='eap']";
+            leaf secret {
+              nacm:default-deny-all;
+              type yang:hex-string;
+              description
+                "Pre-shared secret value.  The
+                 NSF has to prevent read access
+                 to this value for security
+                 reasons.  This value MUST be
+                 set if the EAP method uses a
+                 pre-shared key or pre-shared
+                 authentication has been chosen.";
+            }
+            description
+              "Shared secret value for PSK or
+               EAP method authentication based on
+               PSK.";
+          }
+          container digital-signature {
+            when "../auth-method[.='digital-signature'
+                  or .='eap']";
+            leaf ds-algorithm {
+              type uint8;
+              default "14";
+              description
+                "The digital signature
+                 algorithm is specified with a
+                 value extracted from the IANA
+                 registry.  Default is the generic
+                 digital signature method.  Depending
+                 on the algorithm, the following leafs
+                 MUST contain information.  For
+                 example, if digital signature or the
+                 EAP method involves a certificate,
+                 then leaves 'cert-data' and 'private-key'
+                 will contain this information.";
+              reference
+                "IANA: Internet Key Exchange Version 2 (IKEv2)
+                       Parameters, IKEv2 Authentication Method.";
+            }
+            choice public-key {
+              leaf raw-public-key {
+                type binary;
+                description
+                  "A binary that contains the
+                   value of the public key.  The
+                   interpretation of the content
+                   is defined by the digital
+                   signature algorithm.  For
+                   example, an RSA key is
+                   represented as RSAPublicKey, as
+                   defined in RFC 8017, and an
+                   Elliptic Curve Cryptography
+                   (ECC) key is represented
+                   using the 'publicKey'
+                   described in RFC 5915.";
+                reference
+                  "RFC 5915: Elliptic Curve Private Key
+                             Structure
+                   RFC 8017: PKCS #1: RSA Cryptography
+                             Specifications Version 2.2.";
+              }
+              leaf cert-data {
+                type binary;
+                description
+                  "X.509 certificate data in DER
+                   format.  If raw-public-key is
+                   defined, this leaf is empty.";
+                reference
+                  "RFC 5280: Internet X.509 Public Key
+                             Infrastructure Certificate
+                             and Certificate Revocation
+                             List (CRL) Profile.";
+              }
+              description
+                "If the I2NSF Controller
+                 knows that the NSF
+                 already owns a private key
+                 associated to this public key
+                 (e.g., the NSF generated the pair
+                 public key/private key out of
+                 band), it will only configure
+                 one of the leaves of this
+                 choice but not the leaf
+                 private-key.  The NSF, based on
+                 the public key value, can know
+                 the private key to be used.";
+            }
+            leaf private-key {
+              nacm:default-deny-all;
+              type binary;
+              description
+                "A binary that contains the
+                 value of the private key.  The
+                 interpretation of the content
+                 is defined by the digital
+                 signature algorithm.  For
+                 example, an RSA key is
+                 represented as RSAPrivateKey, as
+                 defined in RFC 8017, and an
+                 Elliptic Curve Cryptography
+                 (ECC) key is represented as
+                 ECPrivateKey, as defined in RFC
+                 5915.  This value is set
+                 if public key is defined and the
+                 I2NSF Controller is in charge
+                 of configuring the
+                 private key.  Otherwise, it is
+                 not set and the value is
+                 kept in secret.";
+              reference
+                "RFC 5915: Elliptic Curve Private Key
+                           Structure
+                 RFC 8017: PKCS #1: RSA Cryptography
+                           Specifications Version 2.2.";
+            }
+            leaf-list ca-data {
+              type binary;
+              description
+                "List of trusted Certification
+                 Authorities (CAs) certificates
+                 encoded using ASN.1
+                 Distinguished Encoding Rules
+                 (DER).  If it is not defined,
+                 the default value is empty.";
+            }
+            leaf crl-data {
+              type binary;
+              description
+                "A CertificateList structure, as
+                 specified in RFC 5280,
+                 encoded using ASN.1
+                 Distinguished Encoding Rules
+                 (DER), as specified in ITU-T
+                 X.690.  If it is not defined,
+                 the default value is empty.";
+              reference
+                "RFC 5280: Internet X.509 Public Key Infrastructure
+                           Certificate and Certificate Revocation
+                           List (CRL) Profile.";
+            }
+            leaf crl-uri {
+              type inet:uri;
+              description
+                "X.509 Certificate Revocation List
+                 (CRL) certificate URI.
+                 If it is not defined,
+                 the default value is empty.";
+              reference
+                "RFC 5280: Internet X.509 Public Key Infrastructure
+                           Certificate and Certificate Revocation
+                           List (CRL) Profile.";
+            }
+            leaf oscp-uri {
+              type inet:uri;
+              description
+                "Online Certificate Status Protocol
+                 (OCSP) URI.  If it is not defined,
+                 the default value is empty.";
+              reference
+                "RFC 6960: X.509 Internet Public Key Infrastructure
+                           Online Certificate Status Protocol - OCSP
+                 RFC 5280: Internet X.509 Public Key Infrastructure
+                           Certificate and Certificate Revocation
+                           List (CRL) Profile.";
+            }
+            description
+              "digital-signature container.";
+          } /*container digital-signature*/
+        } /*container peer-authentication*/
+      }
+    }
+    list conn-entry {
+      key "name";
+      description
+        "IKE peer connection information.  This list
+         contains the IKE connection for this peer
+         with other peers.  This will create, in
+         real time, IKE Security Associations
+         established with these nodes.";
+      leaf name {
+        type string;
+        description
+          "Identifier for this connection
+           entry.";
+      }
+      leaf autostartup {
+        type autostartup-type;
+        default "add";
+        description
+          "By default, only add configuration
+           without starting the security
+           association.";
+      }
+      leaf initial-contact {
+        type boolean;
+        default "false";
+        description
+          "The goal of this value is to deactivate the
+           usage of INITIAL_CONTACT notification
+           (true).  If this flag remains set to false, it
+           means the usage of the INITIAL_CONTACT
+           notification will depend on the IKEv2
+           implementation.";
+      }
+      leaf version {
+        type auth-protocol-type;
+        default "ikev2";
+        description
+          "IKE version.  Only version 2 is supported.";
+      }
+      container fragmentation {
+        leaf enabled {
+          type boolean;
+          default "false";
+          description
+            "Whether or not to enable IKEv2
+             fragmentation (true or false).";
+          reference
+            "RFC 7383: Internet Key Exchange Protocol Version 2
+                       (IKEv2) Message Fragmentation.";
+        }
+        leaf mtu {
+          when "../enabled='true'";
+          type uint16 {
+            range "68..65535";
+          }
+          description
+            "MTU that IKEv2 can use
+             for IKEv2 fragmentation.";
+          reference
+            "RFC 7383: Internet Key Exchange Protocol Version 2
+                       (IKEv2) Message Fragmentation.";
+        }
+        description
+          "IKEv2 fragmentation, as per RFC 7383.  If the
+           IKEv2 fragmentation is enabled, it is possible
+           to specify the MTU.";
+      }
+      container ike-sa-lifetime-soft {
+        description
+          "IKE SA lifetime soft.  Two lifetime values
+           can be configured: either rekey time of the
+           IKE SA or reauth time of the IKE SA.  When
+           the rekey lifetime expires, a rekey of the
+           IKE SA starts.  When reauth lifetime
+           expires, an IKE SA reauthentication starts.";
+        leaf rekey-time {
+          type uint32;
+          units "seconds";
+          default "0";
+          description
+            "Time in seconds between each IKE SA
+             rekey.  The value 0 means infinite.";
+        }
+        leaf reauth-time {
+          type uint32;
+          units "seconds";
+          default "0";
+          description
+            "Time in seconds between each IKE SA
+             reauthentication.  The value 0 means
+             infinite.";
+        }
+        reference
+          "RFC 7296: Internet Key Exchange Protocol Version 2
+                     (IKEv2), Section 2.8.";
+      }
+      container ike-sa-lifetime-hard {
+        description
+          "Hard IKE SA lifetime.  When this
+           time is reached, the IKE SA is removed.";
+        leaf over-time {
+          type uint32;
+          units "seconds";
+          default "0";
+          description
+            "Time in seconds before the IKE SA is
+             removed.  The value 0 means infinite.";
+        }
+        reference
+          "RFC 7296: Internet Key Exchange Protocol Version 2
+                     (IKEv2).";
+      }
+      leaf-list ike-sa-intr-alg {
+        type nsfikec:intr-alg-t;
+        default "12";
+        ordered-by user;
+        description
+          "Integrity algorithm for establishing
+           the IKE SA.  This list is ordered following
+           from the higher priority to lower priority.
+           The first node of the list will be the
+           algorithm with higher priority.
+           Default value 12 (AUTH_HMAC_SHA2_256_128).";
+      }
+      list ike-sa-encr-alg {
+        key "id";
+        min-elements 1;
+        ordered-by user;
+        leaf id {
+          type uint16;
+          description
+            "An identifier that unequivocally
+             identifies each entry of the list,
+             i.e., an encryption algorithm and
+             its key length (if required).";
+        }
+        leaf algorithm-type {
+          type nsfikec:encr-alg-t;
+          default "12";
+          description
+            "Default value 12 (ENCR_AES_CBC).";
+        }
+        leaf key-length {
+          type uint16;
+          default "128";
+          description
+            "By default, key length is 128 bits.";
+        }
+        description
+          "Encryption or AEAD algorithm for the IKE
+           SAs.  This list is ordered following
+           from the higher priority to lower priority.
+           The first node of the list will be the
+           algorithm with higher priority.";
+      }
+      leaf dh-group {
+        type fs-group;
+        default "14";
+        description
+          "Group number for Diffie-Hellman
+           Exponentiation used during IKE_SA_INIT
+           for the IKE SA key exchange.";
+      }
+      leaf half-open-ike-sa-timer {
+        type uint32;
+        units "seconds";
+        default "0";
+        description
+          "Set the half-open IKE SA timeout
+           duration.  The value 0 implies infinite.";
+        reference
+          "RFC 7296: Internet Key Exchange Protocol Version 2
+                     (IKEv2), Section 2.";
+      }
+      leaf half-open-ike-sa-cookie-threshold {
+        type uint32;
+        default "0";
+        description
+          "Number of half-open IKE SAs that activate
+           the cookie mechanism.  The value 0 implies
+           infinite.";
+        reference
+          "RFC 7296: Internet Key Exchange Protocol Version 2
+                     (IKEv2), Section 2.6.";
+      }
+      container local {
+        leaf local-pad-entry-name {
+          type string;
+          mandatory true;
+          description
+            "Local peer authentication information.
+             This node points to a specific entry in
+             the PAD where the authorization
+             information about this particular local
+             peer is stored.  It MUST match a
+             pad-entry-name.";
+        }
+        description
+          "Local peer authentication information.";
+      }
+      container remote {
+        leaf remote-pad-entry-name {
+          type string;
+          mandatory true;
+          description
+            "Remote peer authentication information.
+             This node points to a specific entry in
+             the PAD where the authorization
+             information about this particular
+             remote peer is stored.  It MUST match a
+             pad-entry-name.";
+        }
+        description
+          "Remote peer authentication information.";
+      }
+      container encapsulation-type {
+        uses nsfikec:encap;
+        description
+          "This container carries configuration
+           information about the source and destination
+           ports of encapsulation that IKE should use
+           and the type of encapsulation that
+           should be used when NAT traversal is required.
+           However, this is just a best effort since
+           the IKE implementation may need to use a
+           different encapsulation, as described in
+           RFC 8229.";
+        reference
+          "RFC 8229: TCP Encapsulation of IKE and IPsec
+                     Packets.";
+      }
+      container spd {
+        description
+          "Configuration of the Security Policy
+           Database (SPD).  This main information is
+           placed in the grouping
+           ipsec-policy-grouping.";
+        list spd-entry {
+          key "name";
+          ordered-by user;
+          leaf name {
+            type string;
+            description
+              "SPD-entry-unique name to identify
+               the IPsec policy.";
+          }
+          container ipsec-policy-config {
+            description
+              "This container carries the
+               configuration of an IPsec policy.";
+            uses nsfikec:ipsec-policy-grouping;
+          }
+          description
+            "List of entries that will constitute
+             the representation of the SPD.  In this
+             case, since the NSF implements IKE, it
+             is only required to send an IPsec policy
+             from this NSF where 'local' is this NSF
+             and 'remote' the other NSF.  The IKE
+             implementation will install IPsec
+             policies in the NSF's kernel in both
+             directions (inbound and outbound) and
+             their corresponding IPsec SAs based on
+             the information in this SPD entry.";
+        }
+        reference
+          "RFC 7296: Internet Key Exchange Protocol Version 2
+                     (IKEv2), Section 2.9.";
+      }
+      container child-sa-info {
+        leaf-list fs-groups {
+          type fs-group;
+          default "0";
+          ordered-by user;
+          description
+            "If non-zero, forward secrecy is
+             required when a new IPsec SA is being
+             created, the (non-zero) value indicates
+             the group number to use for the key
+             exchange process used to achieve forward
+             secrecy.
+             This list is ordered following from the
+             higher priority to lower priority.  The
+             first node of the list will be the
+             algorithm with higher priority.";
+        }
+        container child-sa-lifetime-soft {
+          description
+            "Soft IPsec SA lifetime.
+             After the lifetime, the action is
+             defined in this container
+             in the leaf action.";
+          uses nsfikec:lifetime;
+          leaf action {
+            type nsfikec:lifetime-action;
+            default "replace";
+            description
+              "When the lifetime of an IPsec SA
+               expires, an action needs to be
+               performed over the IPsec SA that
+               reached the lifetime.  There are
+               three possible options:
+               terminate-clear, terminate-hold, and
+               replace.";
+            reference
+              "RFC 4301: Security Architecture for the Internet
+                         Protocol, Section 4.5
+               RFC 7296: Internet Key Exchange Protocol Version 2
+                         (IKEv2), Section 2.8.";
+          }
+        }
+        container child-sa-lifetime-hard {
+          description
+            "IPsec SA lifetime hard.  The action will
+             be to terminate the IPsec SA.";
+          uses nsfikec:lifetime;
+          reference
+            "RFC 7296: Internet Key Exchange Protocol Version 2
+                       (IKEv2), Section 2.8.";
+        }
+        description
+          "Specific information for IPsec SAs.
+           It includes the Perfect Forward Secrecy (PFS)
+           group and IPsec SAs rekey lifetimes.";
+      }
+      container state {
+        config false;
+        leaf initiator {
+          type boolean;
+          description
+            "It is acting as an initiator for this
+             connection.";
+        }
+        leaf initiator-ikesa-spi {
+          type ike-spi;
+          description
+            "Initiator's IKE SA SPI.";
+        }
+        leaf responder-ikesa-spi {
+          type ike-spi;
+          description
+            "Responder's IKE SA SPI.";
+        }
+        leaf nat-local {
+          type boolean;
+          description
+            "True if local endpoint is behind a
+             NAT.";
+        }
+        leaf nat-remote {
+          type boolean;
+          description
+            "True if remote endpoint is behind
+             a NAT.";
+        }
+        container encapsulation-type {
+          uses nsfikec:encap;
+          description
+            "This container provides information
+             about the source and destination
+             ports of encapsulation that IKE is
+             using and the type of encapsulation
+             when NAT traversal is required.";
+          reference
+            "RFC 8229: TCP Encapsulation of IKE and IPsec Packets.";
+        }
+        leaf established {
+          type uint64;
+          units "seconds";
+          description
+            "Seconds since this IKE SA has been
+             established.";
+        }
+        leaf current-rekey-time {
+          type uint64;
+          units "seconds";
+          description
+            "Seconds before IKE SA is rekeyed.";
+        }
+        leaf current-reauth-time {
+          type uint64;
+          units "seconds";
+          description
+            "Seconds before IKE SA is
+             reauthenticated.";
+        }
+        description
+          "IKE state data for a particular
+           connection.";
+      } /* ike-sa-state */
+    } /* ike-conn-entries */
+    container number-ike-sas {
+      config false;
+      leaf total {
+        type yang:gauge64;
+        description
+          "Total number of active IKE SAs.";
+      }
+      leaf half-open {
+        type yang:gauge64;
+        description
+          "Number of half-open active IKE SAs.";
+      }
+      leaf half-open-cookies {
+        type yang:gauge64;
+        description
+          "Number of half-open active IKE SAs with
+           cookie activated.";
+      }
+      description
+        "General information about the IKE SAs.  In
+         particular, it provides the current number of
+         IKE SAs.";
+    }
+  } /* container ipsec-ike */
+}
