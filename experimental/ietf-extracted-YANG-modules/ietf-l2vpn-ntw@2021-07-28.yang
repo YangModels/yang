@@ -59,7 +59,7 @@ module ietf-l2vpn-ntw {
      This version of this YANG module is part of RFC XXXX; see
      the RFC itself for full legal notices.";
 
-  revision 2021-07-08 {
+  revision 2021-07-28 {
     description
       "Initial version.";
     reference
@@ -194,7 +194,7 @@ module ietf-l2vpn-ntw {
       "Base identity for EVPN service type.";
   }
   identity vlan-based-service-interface {
-    base evpn-redundancy-mode;
+    base evpn-service-type;
     description
       "VLAN-Based Service Interface.";
     reference
@@ -202,7 +202,7 @@ module ietf-l2vpn-ntw {
   }
 
   identity vlan-bundle-service-interface {
-    base evpn-redundancy-mode;
+    base evpn-service-type;
     description
       "VLAN Bundle Service Interface.";
     reference
@@ -210,7 +210,7 @@ module ietf-l2vpn-ntw {
   }
 
   identity vlan-aware-bundle-service-interface {
-    base evpn-redundancy-mode;
+    base evpn-service-type;
     description
       "VLAN-Aware Bundle Service Interface.";
     reference
@@ -712,6 +712,192 @@ module ietf-l2vpn-ntw {
         "Container for VPN profiles.";
       uses vpn-common:vpn-profile-cfg;
     }
+    container ethernet-segments {
+      description
+        "Top container for the Ethernet Segment Identifier (ESI).";
+      list ethernet-segment {
+        key "name";
+        description
+          "Top list for ESIs.";
+        leaf name {
+          type string;
+          description
+            "Includes the name of the Ethernet Segment (ES).";
+        }
+        leaf esi-type {
+          type identityref {
+            base esi-type;
+          }
+          default "esi-type-0";
+          description
+            "T-(ESI Type) is a 1-octet field (most significant
+             octet) that specifies the format of the remaining
+             9 octets (ESI Value).";
+          reference
+            "RFC 7432: BGP MPLS-Based Ethernet VPN, Section 5";
+        }
+        choice esi-choice {
+          description
+            "Ethernet segment choice between several types.
+             For ESI Type 0: The esi is directly configured by the
+                             operator.
+             For ESI Type 1: The auto-mode must be used.
+             For ESI Type 2: The auto-mode must be used.
+             For ESI Type 3: The directly-assigned or auto-mode must
+                             be used.
+             For ESI Type 4: The directly-assigned or auto-mode must
+                             be used.
+             For ESI Type 5: The directly-assigned or auto-mode must
+                             be used.";
+          case directly-assigned {
+            description
+              "Explicitly assign an ESI value.";
+            leaf ethernet-segment-identifier {
+              type yang:hex-string {
+                length "29";
+              }
+              description
+                "10-octet ESI.";
+            }
+          }
+          case auto-assigned {
+            description
+              "The ESI is auto-assigned.";
+            container esi-auto {
+              description
+                "The ESI is auto-assigned.";
+              choice auto-mode {
+                description
+                  "Indicates the auto-assignment mode. ESI can be
+                   automatically assigned either with or without
+                   indicating a pool from which the ESI should be
+                   taken.
+
+                   For both cases, the server will auto-assign an
+                   ESI value 'auto-assigned-ESI' and use that value
+                   operationally.";
+                case from-pool {
+                  leaf esi-pool-name {
+                    type string;
+                    description
+                      "The auto-assignment will be made from the
+                       pool identified by the ESI-pool-name.";
+                  }
+                }
+                case full-auto {
+                  leaf auto {
+                    type empty;
+                    description
+                      "Indicates an ESI is fully auto-assigned.";
+                  }
+                }
+              }
+              leaf auto-ethernet-segment-identifier {
+                type yang:hex-string {
+                  length "29";
+                }
+                config false;
+                description
+                  "The value of the auto-assigned ESI.";
+              }
+            }
+          }
+        }
+        leaf esi-redundancy-mode {
+          type identityref {
+            base evpn-redundancy-mode;
+          }
+          description
+            "Indicates the EVPN redundancy mode for a multihomed
+             CE.";
+          reference
+            "RFC 7432: BGP MPLS-Based Ethernet VPN, Section 14.1";
+        }
+        container df-election {
+          description
+            "Top container for the DF election method properties.";
+          leaf df-election-method {
+            type identityref {
+              base df-election-methods;
+            }
+            default "default-7432";
+            description
+              "Specifies the DF election method.";
+            reference
+              "RFC 8584: Framework for Ethernet VPN Designated
+                         Forwarder Election Extensibility";
+          }
+          leaf preference {
+            when "derived-from-or-self(../df-election-method, "
+               + "'preference')" {
+              description
+                "The preference value is only applicable
+                 to the preference based method.";
+            }
+            type uint16;
+            description
+              "Defines a 2-octet value that indicates the PE
+               preference to become the DF in the ES.";
+            reference
+              "RFC 8584: Framework for Ethernet VPN Designated
+                         Forwarder Election Extensibility";
+          }
+          leaf revertive {
+            when "derived-from-or-self(../df-election-method, "
+               + "'preference')" {
+              description
+                "The revertive value is only applicable
+                 to the preference method.";
+            }
+            type boolean;
+            default "true";
+            description
+              "The 'preempt' or 'revertive' behavior. This
+               option allows a non-revertive behavior in the
+               DF election.";
+            reference
+              "RFC 8584: Framework for Ethernet VPN Designated
+                         Forwarder Election Extensibility";
+          }
+          leaf election-wait-time {
+            type uint32;
+            description
+              "Election wait timer.";
+            reference
+              "RFC 8584: Framework for Ethernet VPN Designated
+                         Forwarder Election Extensibility";
+          }
+        }
+        leaf split-horizon-filtering {
+          type boolean;
+          description
+            "Controls split-horizon filtering.
+
+             In order to achieve split-horizon filtering, every
+             Broadcast, unknown unicast, or multicast (BUM)
+             packet originating from a non-DF PE is encapsulated
+             with an MPLS label that identifies the origin ES.";
+          reference
+            "RFC 7432: BGP MPLS-Based Ethernet VPN, Section 5";
+        }
+        container pbb {
+          description
+            "Provider Backbone Bridging parameters .";
+          reference
+            "IEEE 802.1ah: Provider Backbone Bridge";
+          leaf backbone-src-mac {
+            type yang:mac-address;
+            description
+              "The PEs connected to the same CE must share the
+               same Provider Backbone (B-MAC) address in
+               All-Active mode.";
+            reference
+              "RFC 7623: Provider Backbone Bridging Combined with
+                         Ethernet VPN (PBB-EVPN), Section 6.2.1.1";
+          }
+        }
+      }
+    }
     container vpn-services {
       description
         "Container for L2VPN services.";
@@ -773,192 +959,6 @@ module ietf-l2vpn-ntw {
             uses vpn-common:route-distinguisher;
             uses vpn-common:vpn-route-targets;
             uses global-parameters-profile;
-          }
-        }
-        container ethernet-segments {
-          description
-            "Top container for the Ethernet Segment Identifier (ESI).";
-          list ethernet-segment {
-            key "name";
-            description
-              "Top list for ESIs.";
-            leaf name {
-              type string;
-              description
-                "Includes the name of the Ethernet Segment (ES).";
-            }
-            leaf esi-type {
-              type identityref {
-                base esi-type;
-              }
-              default "esi-type-0";
-              description
-                "T-(ESI Type) is a 1-octet field (most significant
-                 octet) that specifies the format of the remaining
-                 9 octets (ESI Value).";
-              reference
-                "RFC 7432: BGP MPLS-Based Ethernet VPN, Section 5";
-            }
-            choice esi-choice {
-              description
-                "Ethernet segment choice between several types.
-                 For ESI Type 0: The esi is directly configured by the
-                                 operator.
-                 For ESI Type 1: The auto-mode must be used.
-                 For ESI Type 2: The auto-mode must be used.
-                 For ESI Type 3: The directly-assigned or auto-mode must
-                                 be used.
-                 For ESI Type 4: The directly-assigned or auto-mode must
-                                 be used.
-                 For ESI Type 5: The directly-assigned or auto-mode must
-                                 be used.";
-              case directly-assigned {
-                description
-                  "Explicitly assign an ESI value.";
-                leaf ethernet-segment-identifier {
-                  type yang:hex-string {
-                    length "29";
-                  }
-                  description
-                    "10-octet ESI.";
-                }
-              }
-              case auto-assigned {
-                description
-                  "The ESI is auto-assigned.";
-                container esi-auto {
-                  description
-                    "The ESI is auto-assigned.";
-                  choice auto-mode {
-                    description
-                      "Indicates the auto-assignment mode. ESI can be
-                       automatically assigned either with or without
-                       indicating a pool from which the ESI should be
-                       taken.
-
-                       For both cases, the server will auto-assign an
-                       ESI value 'auto-assigned-ESI' and use that value
-                       operationally.";
-                    case from-pool {
-                      leaf esi-pool-name {
-                        type string;
-                        description
-                          "The auto-assignment will be made from the
-                           pool identified by the ESI-pool-name.";
-                      }
-                    }
-                    case full-auto {
-                      leaf auto {
-                        type empty;
-                        description
-                          "Indicates an ESI is fully auto-assigned.";
-                      }
-                    }
-                  }
-                  leaf auto-ethernet-segment-identifier {
-                    type yang:hex-string {
-                      length "29";
-                    }
-                    config false;
-                    description
-                      "The value of the auto-assigned ESI.";
-                  }
-                }
-              }
-            }
-            leaf esi-redundancy-mode {
-              type identityref {
-                base evpn-redundancy-mode;
-              }
-              description
-                "Indicates the EVPN redundancy mode for a multihomed
-                 CE.";
-              reference
-                "RFC 7432: BGP MPLS-Based Ethernet VPN, Section 14.1";
-            }
-            container df-election {
-              description
-                "Top container for the DF election method properties.";
-              leaf df-election-method {
-                type identityref {
-                  base df-election-methods;
-                }
-                default "default-7432";
-                description
-                  "Specifies the DF election method.";
-                reference
-                  "RFC 8584: Framework for Ethernet VPN Designated
-                             Forwarder Election Extensibility";
-              }
-              leaf preference {
-                when "derived-from-or-self(../df-election-method, "
-                   + "'preference')" {
-                  description
-                    "The preference value is only applicable
-                     to the preference based method.";
-                }
-                type uint16;
-                description
-                  "Defines a 2-octet value that indicates the PE
-                   preference to become the DF in the ES.";
-                reference
-                  "RFC 8584: Framework for Ethernet VPN Designated
-                             Forwarder Election Extensibility";
-              }
-              leaf revertive {
-                when "derived-from-or-self(../df-election-method, "
-                   + "'preference')" {
-                  description
-                    "The revertive value is only applicable
-                     to the preference method.";
-                }
-                type boolean;
-                default "true";
-                description
-                  "The 'preempt' or 'revertive' behavior. This
-                   option allows a non-revertive behavior in the
-                   DF election.";
-                reference
-                  "RFC 8584: Framework for Ethernet VPN Designated
-                             Forwarder Election Extensibility";
-              }
-              leaf election-wait-time {
-                type uint32;
-                description
-                  "Election wait timer.";
-                reference
-                  "RFC 8584: Framework for Ethernet VPN Designated
-                             Forwarder Election Extensibility";
-              }
-            }
-            leaf split-horizon-filtering {
-              type boolean;
-              description
-                "Controls split-horizon filtering.
-
-                 In order to achieve split-horizon filtering, every
-                 Broadcast, unknown unicast, or multicast (BUM)
-                 packet originating from a non-DF PE is encapsulated
-                 with an MPLS label that identifies the origin ES.";
-              reference
-                "RFC 7432: BGP MPLS-Based Ethernet VPN, Section 5";
-            }
-            container pbb {
-              description
-                "Provider Backbone Bridging parameters .";
-              reference
-                "IEEE 802.1ah: Provider Backbone Bridge";
-              leaf backbone-src-mac {
-                type yang:mac-address;
-                description
-                  "The PEs connected to the same CE must share the
-                   same Provider Backbone (B-MAC) address in
-                   All-Active mode.";
-                reference
-                  "RFC 7623: Provider Backbone Bridging Combined with
-                             Ethernet VPN (PBB-EVPN), Section 6.2.1.1";
-              }
-            }
           }
         }
         container underlay-transport {
@@ -1521,7 +1521,7 @@ module ietf-l2vpn-ntw {
                             "Indicates the peer's IP address.";
                         }
                         leaf vc-id {
-                          type vpn-common:vpn-id;
+                          type string;
                           description
                             "VC label used to identify a PW.";
                         }
@@ -1605,10 +1605,10 @@ module ietf-l2vpn-ntw {
                   description
                     "String to describe the element.";
                 }
-                leaf port-id {
-                  type vpn-common:vpn-id;
+                leaf interface-id {
+                  type string;
                   description
-                    "NE Port-id";
+                    "Refers to a physical or logical interface.";
                 }
                 leaf global-parameters-profile {
                   type leafref {
@@ -1624,14 +1624,14 @@ module ietf-l2vpn-ntw {
                   description
                     "Container for bearer and AC.";
                   leaf l2-termination-point {
-                    type vpn-common:vpn-id;
+                    type string;
                     description
                       "Specifies a reference to a local layer 2
                        termination point such as a layer 2
                        sub-interface.";
                   }
                   leaf local-bridge-reference {
-                    type vpn-common:vpn-id;
+                    type string;
                     description
                       "Specifies a local bridge reference to
                        accommodate, for example, implementations
@@ -1808,22 +1808,22 @@ module ietf-l2vpn-ntw {
                         type identityref {
                           base vpn-common:tag-type;
                         }
-                        default "vpn-common:c-s-vlan";
+                        default "vpn-common:s-c-vlan";
                         description
                           "Tag type. By default, the tag type is
-                           'c-s-vlan'.";
+                           's-c-vlan'.";
                       }
                       leaf svlan-id {
                         type uint16;
                         mandatory true;
                         description
-                          "SVLAN identifier.";
+                          "S-VLAN identifier.";
                       }
                       leaf cvlan-id {
                         type uint16;
                         mandatory true;
                         description
-                          "CVLAN identifier.";
+                          "C-VLAN identifier.";
                       }
                     }
                   }
@@ -2110,8 +2110,8 @@ module ietf-l2vpn-ntw {
                   }
                   leaf ethernet-segment-identifier {
                     type leafref {
-                      path "/l2vpn-ntw/vpn-services/vpn-service"
-                         + "/ethernet-segments/ethernet-segment/name";
+                      path "/l2vpn-ntw/ethernet-segments"
+                         + "/ethernet-segment/name";
                     }
                     description
                       "Reference to the ESI associated to the VPN
@@ -2162,12 +2162,12 @@ module ietf-l2vpn-ntw {
                        network protocol to accommodate the MTU of the
                        network";
                   }
-                  container svc-input-bandwidth {
-                    if-feature "vpn-common:input-bw";
+                  container svc-inbound-bandwidth {
+                    if-feature "vpn-common:inbound-bw";
                     description
-                      "From the PE perspective, the service input
+                      "From the PE perspective, the service inbound
                        bandwidth of the connection.";
-                    list input-bandwidth {
+                    list inbound-bandwidth {
                       key "type";
                       description
                         "List for input bandwidth data nodes.";
@@ -2232,15 +2232,15 @@ module ietf-l2vpn-ntw {
                       }
                     }
                   }
-                  container svc-output-bandwidth {
-                    if-feature "vpn-common:output-bw";
+                  container svc-outbound-bandwidth {
+                    if-feature "vpn-common:outbound-bw";
                     description
-                      "From the PE perspective, the service output
+                      "From the PE perspective, the service outbound
                        bandwidth of the connection.";
-                    list output-bandwidth {
+                    list outbound-bandwidth {
                       key "type";
                       description
-                        "List for output bandwidth";
+                        "List for outbound bandwidth";
                       leaf type {
                         type identityref {
                           base vpn-common:bw-type;

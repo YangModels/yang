@@ -45,7 +45,7 @@ module ietf-network-slice {
      This version of this YANG module is part of RFC XXXX; see the
      RFC itself for full legal notices.";
 
-  revision 2021-07-06 {
+  revision 2021-07-20 {
     description
       "initial version.";
     reference
@@ -72,9 +72,10 @@ module ietf-network-slice {
   identity ns-isolation-dedicated {
     base ns-isolation-type;
     description
-      "Dedicated resources (e.g. queues) are associated with the Network
-       Slice traffic. Hence, the IETF network slice traffic is isolated
-       from other servceis traffic sharing the same resources.";
+      "Dedicated resources (e.g. queues) are associated with the
+       Network Slice traffic. Hence, the IETF network slice traffic
+       is isolated from other servceis traffic sharing the same
+       resources.";
   }
 
   identity ns-security-type {
@@ -145,12 +146,6 @@ module ietf-network-slice {
     base endpoint-role;
     description
       "A NSE is acting as a Hub.";
-  }
-
-  identity custom-role {
-    base endpoint-role;
-    description
-      "A NSE is custom role in the NS.";
   }
 
   identity ns-slo-metric-type {
@@ -252,10 +247,26 @@ module ietf-network-slice {
        Slice traffic.";
   }
 
+  identity peering-protocol-type {
+    description
+      "Base identity for NSE peering protocol type.";
+  }
+
+  identity peering-protocol-bgp {
+    base peering-protocol-type;
+    description
+      "Use BGP as protocol for NSE peering with customer device.";
+  }
+
+  identity peering-static-routing {
+    base peering-protocol-type;
+    description
+      "Use static routing for NSE peering with customer device.";
+  }
+
   /*
    * Identity for availability-type
    */
-
   identity availability-type {
     description
       "Base identity from which specific availability types are
@@ -410,32 +421,52 @@ module ietf-network-slice {
     description
       "Indirectly Measurable Objectives of a IETF Network
        Slice.";
-    container sle-policies {
+    leaf-list security {
+      type identityref {
+        base ns-security-type;
+      }
       description
-        "Container for the policy of SLEs applicable to
-         IETF Network Slice.";
-      leaf-list security-sle {
-        type identityref {
-          base ns-security-type;
-        }
-        description
-          "The IETF Network Slice security SLE(s)";
+        "The IETF Network Slice security SLE(s)";
+    }
+    leaf isolation {
+      type identityref {
+        base ns-isolation-type;
       }
-      leaf isolation {
-        type identityref {
-          base ns-isolation-type;
-        }
-        default "ns-isolation-shared";
-        description
-          "The IETF Network Slice isolation SLE requirement.";
+      default "ns-isolation-shared";
+      description
+        "The IETF Network Slice isolation SLE requirement.";
+    }
+    leaf max-occupancy-level {
+      type uint8 {
+        range "1..100";
       }
-      leaf max-occupancy-level {
-        type uint8 {
-          range "1..100";
-        }
+      description
+        "The maximal occupancy level specifies the number of flows to
+         be admitted.";
+    }
+    leaf mtu {
+      type uint16;
+      units "bytes";
+      mandatory true;
+      description
+        "The MTU specifies the maximum length in octets of data
+         packets that can be transmitted by the NS. The value needs
+         to be less than or equal to the minimum MTU value of
+         all 'ep-network-access-points' in the NSEs of the NS. ";
+    }
+    container steering-constraints {
+      description
+        "Container for the policy of steering constraints
+         applicable to IETF Network Slice.";
+      container path-constraints {
         description
-          "The maximal occupancy level specifies the number of flows to
-           be admitted.";
+          "Container for the policy of path constraints
+           applicable to IETF Network Slice.";
+      }
+      container service-function {
+        description
+          "Container for the policy of service function
+           applicable to IETF Network Slice.";
       }
     }
   }
@@ -482,6 +513,48 @@ module ietf-network-slice {
     }
   }
 
+  grouping ep-peering {
+    description
+      "A grouping for the IETF Network Slice Endpoint peering.";
+    container ep-peering {
+      description
+        "Describes NSE peering attributes.";
+      list protocol {
+        key "protocol-type";
+        description
+          "List of the NSE peering protocol.";
+        leaf protocol-type {
+          type identityref {
+            base peering-protocol-type;
+          }
+          description
+            "Identifies an entry in the list of NSE peering
+             protocol type.";
+        }
+        list attribute {
+          key "index";
+          description
+            "List of protocol attribute.";
+          leaf index {
+            type uint8;
+            description
+              "Index of an entry in the list.";
+          }
+          leaf attribute-description {
+            type string;
+            description
+              "The description of the attribute. ";
+          }
+          leaf value {
+            type string;
+            description
+              "Describes the value of protocol attribute, e.g.
+               nexthop address, peer address, etc.";
+          }
+        }
+      }
+    }
+  }
   grouping ep-network-access-points {
     description
       "Grouping for the endpoint network access definition.";
@@ -520,6 +593,14 @@ module ietf-network-slice {
           description
             "The IP address of the EP network access point.";
         }
+        leaf mtu {
+          type uint16;
+          units "bytes";
+          mandatory true;
+          description
+            "Maximum size in octets of a data packet that
+             can traverse a NSE network access point. ";
+        }
         /* Per ep-network-access-point rate limits */
         uses ns-rate-limit;
       }
@@ -552,7 +633,7 @@ module ietf-network-slice {
       leaf outgoing-utilized-bandwidth {
         type te-types:te-bandwidth;
         description
-          "Outgoing bandwidth utilization at an endpoint.";
+          "Outoing bandwidth utilization at an endpoint.";
       }
       leaf outgoing-bw-utilization {
         type decimal64 {
@@ -687,13 +768,10 @@ module ietf-network-slice {
         "The address of the endpoint IP address.";
     }
     uses ns-match-criteria;
+    uses ep-peering;
     uses ep-network-access-points;
     uses ns-rate-limit;
     /* Per NSE rate limits */
-    container ep-protocol {
-      description
-        "Describes protocol for the Network Slice Endpoint.";
-    }
     uses status-params;
     uses endpoint-monitoring-parameters;
   }
@@ -775,7 +853,7 @@ module ietf-network-slice {
         leaf template-description {
           type string;
           description
-            "Description of the SLO & SLE policy template.";
+            "Description of the SLO &amp; SLE policy template.";
         }
         description
           "List for SLO and SLE template identifiers.";
@@ -807,7 +885,7 @@ module ietf-network-slice {
       case custom {
         description
           "Customized SLO template.";
-        container slo-policy {
+        container slo-sle-policy {
           description
             "Contains the SLO policy.";
           leaf policy-description {
@@ -816,8 +894,8 @@ module ietf-network-slice {
               "Description of the SLO policy.";
           }
           uses ns-metric-bounds;
+          uses ns-sles;
         }
-        uses ns-sles;
       }
     }
   }
@@ -840,10 +918,13 @@ module ietf-network-slice {
         description
           "Give more description of the network slice";
       }
-      leaf-list ns-tag {
+      leaf-list customer-name {
         type string;
         description
-          "Network Slice tag for operational management";
+          "List of the customer that actually uses the slice.
+           In the case that multiple customers sharing
+           same slice service, e.g., 5G, customer name may
+           help with operational management";
       }
       leaf ns-connectivity-type {
         type identityref {
@@ -862,7 +943,7 @@ module ietf-network-slice {
           key "ep-id";
           uses endpoint;
           description
-            "list of endpoints in this slice";
+            "List of endpoints in this slice";
         }
       }
       container ns-connections {
