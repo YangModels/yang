@@ -1,3 +1,5 @@
+## Cisco NSO Cisco IOS XR NETCONF NED
+Release 7.4.1 NSO NETCONF NED for IOS-XR can be downloaded from the [XR NETCONF NED](https://software.cisco.com/download/redirect?config=d92586785e0ce5e7910f96ea1339da1c) site.  
 # Cisco IOS XR Release 7.4.1 Models
 [README.md](README.md)  
 ## Platform Capabilities
