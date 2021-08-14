@@ -1,7 +1,7 @@
+## Cisco NSO Cisco IOS XR NETCONF NED
+Release 7.3.1 NSO NETCONF NED for IOS-XR can be downloaded from the [XR NETCONF NED](https://software.cisco.com/download/redirect?config=d92586785e0ce5e7910f96ea1339da1c) site.  
 # Cisco IOS XR Release 7.3.1 Models
 [README.md](README.md)  
-## Cisco NSO Cisco IOS XR NETCONF NED
-Release 7.3.1 NSO NETCONF NED for IOS-XR can be downloaded from the [XR NETCONF NED](https://software.cisco.com/download/redirect?config=d92586785e0ce5e7910f96ea1339da1c) site.
 ## Platform Capabilities
 [platform-metadata.json](platform-metadata.json)  
 [capabilities-8000.xml](capabilities-8000.xml)  
@@ -1391,31 +1391,19 @@ Release 7.3.1 NSO NETCONF NED for IOS-XR can be downloaded from the [XR NETCONF 
 [notifications.yang](notifications.yang)  
 [ntp.yang](ntp.yang)  
 [opertest1.yang](opertest1.yang)  
-[sysdef_datapath.yang](sysdef_datapath.yang)  
-[sysdef_platform_info.yang](sysdef_platform_info.yang)  
-[sysdef_qos.yang](sysdef_qos.yang)  
-[sysdef_syspro_config.yang](sysdef_syspro_config.yang)  
-[sysdef_syspro_features.yang](sysdef_syspro_features.yang)  
-[sysdef_syspro_grid.yang](sysdef_syspro_grid.yang)  
-[sysdef_syspro_intf.yang](sysdef_syspro_intf.yang)  
-[sysdef_syspro_oam.yang](sysdef_syspro_oam.yang)  
-[sysdef_syspro_pfilterea.yang](sysdef_syspro_pfilterea.yang)  
-[sysdef_syspro_qosea.yang](sysdef_syspro_qosea.yang)  
-[sysdef_syspro_stats.yang](sysdef_syspro_stats.yang)  
-[sysdef_syspro_trap.yang](sysdef_syspro_trap.yang)  
 [valtest.yang](valtest.yang)  
 [vplatform.yang](vplatform.yang)  
 ## Backward incompatible changes
 [BIC](BIC)  
 ## Inconsistent Models
-[ncs1001](ncs1001)  
-[ncs5700](ncs5700)  
-[ncs560](ncs560)  
-[iosxrwbd](iosxrwbd)  
-[ncs540l](ncs540l)  
-[asr9k-x64](asr9k-x64)  
 [xrv9k](xrv9k)  
-[ncs1k](ncs1k)  
 [ncs5k](ncs5k)  
 [8000](8000)  
 [ncs1004](ncs1004)  
+[ncs1001](ncs1001)  
+[ncs540l](ncs540l)  
+[ncs1k](ncs1k)  
+[asr9k-x64](asr9k-x64)  
+[ncs5700](ncs5700)  
+[iosxrwbd](iosxrwbd)  
+[ncs560](ncs560)  
