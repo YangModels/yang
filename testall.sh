@@ -8,6 +8,7 @@
 ./vendor/cisco/nx/check.sh
 ./vendor/cisco/xr/check.sh
 ./vendor/cisco/xe/check.sh
+./vendor/cisco/svo/check.sh
 ./standard/ietf/check.sh
 ./standard/bbf/check.sh
 ./experimental/ieee/check.sh

@@ -1,0 +1,570 @@
+module ietf-i2nsf-ikeless {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-i2nsf-ikeless";
+  prefix nsfikels;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types.";
+  }
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types.";
+  }
+  import ietf-i2nsf-ikec {
+    prefix nsfikec;
+    reference
+      "RFC 9061: A YANG Data Model for IPsec Flow Protection
+                 Based on Software-Defined Networking (SDN).";
+  }
+  import ietf-netconf-acm {
+    prefix nacm;
+    reference
+      "RFC 8341: Network Configuration Access Control
+                 Model.";
+  }
+
+  organization
+    "IETF I2NSF Working Group";
+  contact
+    "WG Web:  <https://datatracker.ietf.org/wg/i2nsf/>
+     WG List: <mailto:i2nsf@ietf.org>
+
+     Author: Rafael Marin-Lopez
+              <mailto:rafa@um.es>
+
+     Author: Gabriel Lopez-Millan
+              <mailto:gabilm@um.es>
+
+     Author: Fernando Pereniguez-Garcia
+              <mailto:fernando.pereniguez@cud.upct.es>
+    ";
+  description
+    "Data model for IKE-less case in the SDN-based IPsec flow
+     protection service.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this
+     document are to be interpreted as described in BCP 14
+     (RFC 2119) (RFC 8174) when, and only when, they appear
+     in all capitals, as shown here.
+
+     Copyright (c) 2021 IETF Trust and the persons
+     identified as authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Simplified BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 9061; see
+     the RFC itself for full legal notices.";
+
+  revision 2021-07-14 {
+    description
+      "Initial version.";
+    reference
+      "RFC 9061: A YANG Data Model for IPsec Flow Protection
+                 Based on Software-Defined Networking (SDN).";
+  }
+
+  feature ikeless-notification {
+    description
+      "This feature indicates that the server supports
+       generating notifications in the ikeless module.
+
+       To ensure broader applicability of this module,
+       the notifications are marked as a feature.
+       For the implementation of the IKE-less case,
+       the NSF is expected to implement this
+       feature.";
+  }
+
+  container ipsec-ikeless {
+    description
+      "Container for configuration of the IKE-less
+       case. The container contains two additional
+       containers: 'spd' and 'sad'.  The first allows the
+       I2NSF Controller to configure IPsec policies in
+       the Security Policy Database (SPD), and the second
+       allows the I2NSF Controller to configure IPsec
+       Security Associations (IPsec SAs) in the Security
+       Association Database (SAD).";
+    reference
+      "RFC 4301: Security Architecture for the Internet Protocol.";
+    container spd {
+      description
+        "Configuration of the Security Policy Database
+         (SPD).";
+      reference
+        "RFC 4301: Security Architecture for the Internet Protocol,
+                   Section 4.4.1.2.";
+      list spd-entry {
+        key "name";
+        ordered-by user;
+        leaf name {
+          type string;
+          description
+            "SPD-entry-unique name to identify this
+             entry.";
+        }
+        leaf direction {
+          type nsfikec:ipsec-traffic-direction;
+          mandatory true;
+          description
+            "Inbound traffic or outbound
+             traffic.  In the IKE-less case, the
+             I2NSF Controller needs to
+             specify the policy direction to be
+             applied in the NSF.  In the IKE case,
+             this direction does not need to be
+             specified, since IKE
+             will determine the direction that the
+             IPsec policy will require.";
+        }
+        leaf reqid {
+          type uint64;
+          default "0";
+          description
+            "This value allows linking this
+             IPsec policy with IPsec SAs with the
+             same reqid.  It is only required in
+             the IKE-less model since, in the IKE
+             case, this link is handled internally
+             by IKE.";
+        }
+        container ipsec-policy-config {
+          description
+            "This container carries the
+             configuration of an IPsec policy.";
+          uses nsfikec:ipsec-policy-grouping;
+        }
+        description
+          "The SPD is represented as a list of SPD
+           entries, where each SPD entry represents an
+           IPsec policy.";
+      } /*list spd-entry*/
+    } /*container spd*/
+    container sad {
+      description
+        "Configuration of the IPsec Security Association
+         Database (SAD).";
+      reference
+        "RFC 4301: Security Architecture for the Internet Protocol,
+                   Section 4.4.2.1.";
+      list sad-entry {
+        key "name";
+        ordered-by user;
+        leaf name {
+          type string;
+          description
+            "SAD-entry-unique name to identify this
+             entry.";
+        }
+        leaf reqid {
+          type uint64;
+          default "0";
+          description
+            "This value allows linking this
+             IPsec SA with an IPsec policy with
+             the same reqid.";
+        }
+        container ipsec-sa-config {
+          description
+            "This container allows configuring
+             details of an IPsec SA.";
+          leaf spi {
+            type uint32 {
+              range "0..max";
+            }
+            mandatory true;
+            description
+              "IPsec SA of Security Parameter Index (SPI).";
+          }
+          leaf ext-seq-num {
+            type boolean;
+            default "true";
+            description
+              "True if this IPsec SA is using extended
+               sequence numbers.  If true, the 64-bit
+               extended sequence number counter is used;
+               if false, the normal 32-bit sequence
+               number counter is used.";
+          }
+          leaf seq-overflow {
+            type boolean;
+            default "false";
+            description
+              "The flag indicating whether
+               overflow of the sequence number
+               counter should prevent transmission
+               of additional packets on the IPsec
+               SA (false) and, therefore, needs to
+               be rekeyed or whether rollover is
+               permitted (true).  If Authenticated
+               Encryption with Associated Data
+               (AEAD) is used (leaf
+               esp-algorithms/encryption/algorithm-type),
+               this flag MUST BE false. Setting this
+               flag to true is strongly discouraged.";
+          }
+          leaf anti-replay-window-size {
+            type uint32;
+            default "64";
+            description
+              "To set the anti-replay window size.
+               The default value is set to 64,
+               following the recommendation in RFC 4303.";
+            reference
+              "RFC 4303: IP Encapsulating Security Payload (ESP),
+                         Section 3.4.3.";
+          }
+          container traffic-selector {
+            uses nsfikec:selector-grouping;
+            description
+              "The IPsec SA Traffic Selector.";
+          }
+          leaf protocol-parameters {
+            type nsfikec:ipsec-protocol-params;
+            default "esp";
+            description
+              "Security protocol of IPsec SA, only
+               ESP so far.";
+          }
+          leaf mode {
+            type nsfikec:ipsec-mode;
+            default "transport";
+            description
+              "Tunnel or transport mode.";
+          }
+          container esp-sa {
+            when "../protocol-parameters = 'esp'";
+            description
+              "In case the IPsec SA is an
+               Encapsulation Security Payload
+               (ESP), it is required to specify
+               encryption and integrity
+               algorithms and key materials.";
+            container encryption {
+              description
+                "Configuration of encryption or
+                 AEAD algorithm for IPsec
+                 Encapsulation Security Payload
+                 (ESP).";
+              leaf encryption-algorithm {
+                type nsfikec:encr-alg-t;
+                default "12";
+                description
+                  "Configuration of ESP
+                   encryption.  With AEAD
+                   algorithms, the integrity-algorithm
+                   leaf is not used.";
+              }
+              leaf key {
+                nacm:default-deny-all;
+                type yang:hex-string;
+                description
+                  "ESP encryption key value.
+                   If this leaf is not defined,
+                   the key is not defined
+                   (e.g., encryption is NULL).
+                   The key length is
+                   determined by the
+                   length of the key set in
+                   this leaf.  By default, it is
+                   128 bits.";
+              }
+              leaf iv {
+                nacm:default-deny-all;
+                type yang:hex-string;
+                description
+                  "ESP encryption IV value.  If
+                   this leaf is not defined, the
+                   IV is not defined (e.g.,
+                   encryption is NULL).";
+              }
+            }
+            container integrity {
+              description
+                "Configuration of integrity for
+                 IPsec Encapsulation Security
+                 Payload (ESP).  This container
+                 allows configuration of integrity
+                 algorithms when no AEAD
+                 algorithms are used and
+                 integrity is required.";
+              leaf integrity-algorithm {
+                type nsfikec:intr-alg-t;
+                default "12";
+                description
+                  "Message Authentication Code
+                   (MAC) algorithm to provide
+                   integrity in ESP (default
+                   AUTH_HMAC_SHA2_256_128).
+                   With AEAD algorithms,
+                   the integrity leaf is not
+                   used.";
+              }
+              leaf key {
+                nacm:default-deny-all;
+                type yang:hex-string;
+                description
+                  "ESP integrity key value.
+                   If this leaf is not defined,
+                   the key is not defined (e.g.,
+                   AEAD algorithm is chosen and
+                   integrity algorithm is not
+                   required).  The key length is
+                   determined by the length of
+                   the key configured.";
+              }
+            }
+          } /*container esp-sa*/
+          container sa-lifetime-hard {
+            description
+              "IPsec SA hard lifetime.  The action
+               associated is terminate and hold.";
+            uses nsfikec:lifetime;
+          }
+          container sa-lifetime-soft {
+            description
+              "IPsec SA soft lifetime.";
+            uses nsfikec:lifetime;
+            leaf action {
+              type nsfikec:lifetime-action;
+              description
+                "Action lifetime: terminate-clear,
+                 terminate-hold, or replace.";
+            }
+          }
+          container tunnel {
+            when "../mode = 'tunnel'";
+            uses nsfikec:tunnel-grouping;
+            leaf-list dscp-values {
+              type inet:dscp;
+              description
+                "DSCP values allowed for ingress packets carried
+                 over this IPsec SA.  If no values are specified, no
+                 DSCP-specific filtering is applied.  When
+                 ../bypass-dscp is false and a dscp-mapping is
+                 defined, each value here would be the same as the
+                 'inner' DSCP value for the DSCP mapping (list
+                 dscp-mapping).";
+              reference
+                "RFC 4301: Security Architecture for the Internet
+                           Protocol, Section 4.4.2.1.";
+            }
+            description
+              "Endpoints of the IPsec tunnel.";
+          }
+          container encapsulation-type {
+            uses nsfikec:encap;
+            description
+              "This container carries
+               configuration information about
+               the source and destination ports
+               that will be used for ESP
+               encapsulation of ESP packets and
+               the type of encapsulation when NAT
+               traversal is in place.";
+          }
+        } /*ipsec-sa-config*/
+        container ipsec-sa-state {
+          config false;
+          description
+            "Container describing IPsec SA state
+             data.";
+          container sa-lifetime-current {
+            uses nsfikec:lifetime;
+            description
+              "SAD lifetime current.";
+          }
+          container replay-stats {
+            description
+              "State data about the anti-replay
+               window.";
+            container replay-window {
+              leaf w {
+                type uint32;
+                description
+                  "Size of the replay window.";
+              }
+              leaf t {
+                type uint64;
+                description
+                  "Highest sequence number
+                   authenticated so far,
+                   upper bound of window.";
+              }
+              leaf b {
+                type uint64;
+                description
+                  "Lower bound of window.";
+              }
+              description
+                "This container contains three
+                 parameters that define the state
+                 of the replay window: window size (w),
+                 highest sequence number authenticated (t),
+                 and lower bound of the window (b), according
+                 to Appendix A2.1 in RFC 4303 (w = t - b + 1).";
+              reference
+                "RFC 4303: IP Encapsulating Security Payload (ESP),
+                           Appendix A.";
+            }
+            leaf packet-dropped {
+              type yang:counter64;
+              description
+                "Packets dropped
+                 because they are
+                 replay packets.";
+            }
+            leaf failed {
+              type yang:counter64;
+              description
+                "Number of packets detected out
+                 of the replay window.";
+            }
+            leaf seq-number-counter {
+              type uint64;
+              description
+                "A 64-bit counter when this
+                 IPsec SA is using Extended
+                 Sequence Number or 32-bit
+                 counter when it is not.
+                 Current value of sequence
+                 number.";
+            }
+          } /* container replay-stats*/
+        } /*ipsec-sa-state*/
+        description
+          "List of SAD entries that form the SAD.";
+      } /*list sad-entry*/
+    } /*container sad*/
+  } /*container ipsec-ikeless*/
+
+  /* Notifications */
+
+  notification sadb-acquire {
+    if-feature "ikeless-notification";
+    description
+      "The NSF detects and notifies that
+       an IPsec SA is required for an
+       outbound IP packet that has matched an SPD entry.
+       The traffic-selector container in this
+       notification contains information about
+       the IP packet that triggered this
+       notification.";
+    leaf ipsec-policy-name {
+      type string;
+      mandatory true;
+      description
+        "It contains the SPD entry name (unique) of
+         the IPsec policy that hits the IP-packet-required
+         IPsec SA.  It is assumed the
+         I2NSF Controller will have a copy of the
+         information of this policy so it can
+         extract all the information with this
+         unique identifier.  The type of IPsec SA is
+         defined in the policy so the security
+         controller can also know the type of IPsec
+         SA that MUST be generated.";
+    }
+    container traffic-selector {
+      description
+        "The IP packet that triggered the acquire
+         and requires an IPsec SA.  Specifically, it
+         will contain the IP source/mask and IP
+         destination/mask, protocol (udp, tcp,
+         etc.), and source and destination
+         ports.";
+      uses nsfikec:selector-grouping;
+    }
+  }
+
+  notification sadb-expire {
+    if-feature "ikeless-notification";
+    description
+      "An IPsec SA expiration (soft or hard).";
+    leaf ipsec-sa-name {
+      type string;
+      mandatory true;
+      description
+        "It contains the SAD entry name (unique) of
+         the IPsec SA that is about to expire.  It is assumed
+         the I2NSF Controller will have a copy of the
+         IPsec SA information (except the cryptographic
+         material and state data) indexed by this name
+         (unique identifier) so it can know all the
+         information (crypto algorithms, etc.) about
+         the IPsec SA that has expired in order to
+         perform a rekey (soft lifetime) or delete it
+         (hard lifetime) with this unique identifier.";
+    }
+    leaf soft-lifetime-expire {
+      type boolean;
+      default "true";
+      description
+        "If this value is true, the lifetime expired is
+         soft.  If it is false, the lifetime is hard.";
+    }
+    container lifetime-current {
+      description
+        "IPsec SA current lifetime.  If
+         soft-lifetime-expired is true,
+         this container is set with the
+         lifetime information about current
+         soft lifetime.
+         It can help the NSF Controller
+         to know which of the (soft) lifetime
+         limits raised the event: time, bytes,
+         packets, or idle.";
+      uses nsfikec:lifetime;
+    }
+  }
+
+  notification sadb-seq-overflow {
+    if-feature "ikeless-notification";
+    description
+      "Sequence overflow notification.";
+    leaf ipsec-sa-name {
+      type string;
+      mandatory true;
+      description
+        "It contains the SAD entry name (unique) of
+         the IPsec SA that is about to have a sequence
+         number overflow, and rollover is not permitted.
+         When the NSF issues this event before reaching
+         a sequence number, overflow is implementation
+         specific and out of scope of this specification.
+         It is assumed the I2NSF Controller will have a
+         copy of the IPsec SA information (except the
+         cryptographic material and state data) indexed
+         by this name (unique identifier) so it can
+         know all the information (crypto algorithms,
+         etc.) about the IPsec SA in
+         order to perform a rekey of the IPsec SA.";
+    }
+  }
+
+  notification sadb-bad-spi {
+    if-feature "ikeless-notification";
+    description
+      "Notify when the NSF receives a packet with an
+       incorrect SPI (i.e., not present in the SAD).";
+    leaf spi {
+      type uint32 {
+        range "0..max";
+      }
+      mandatory true;
+      description
+        "SPI number contained in the erroneous IPsec
+         packet.";
+    }
+  }
+}

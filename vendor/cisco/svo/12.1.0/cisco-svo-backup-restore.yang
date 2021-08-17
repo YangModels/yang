@@ -1,0 +1,336 @@
+module cisco-svo-backup-restore {
+    yang-version 1.1;
+    namespace "http://cisco.com/yang/svo/br";
+    prefix svo-backup-restore;
+
+    import tailf-common {
+        prefix tailfs;
+    }
+    import ietf-yang-types {
+        prefix ietf;
+    }
+
+    import cisco-svo-common-base-opt-grp {
+        prefix ccbog;
+    }
+    import cisco-svo-common-node-functionalities-grp {
+        prefix ccnfg;
+    }
+
+    organization
+      "Cisco Systems, Inc.";
+
+    contact
+      "Cisco Systems, Inc. Customer Service Postal: 170 West Tasman
+       Drive San Jose, CA 95134 Tel: +1 800 553-NETS E-mail: cs-yang@cisco.com";
+
+    description
+      "Yang definition of types and action for backup and restore in
+       SVO system";
+
+    revision 2020-12-04 { 
+       description "Model version for SVO Release 12.1.0 "; 
+       reference cisco-svo-backup-restore.yang; 
+    }
+
+
+    typedef svo-backup-restore-status-t {
+        type enumeration {
+
+            enum "backup-restore-idle" {
+                description
+                  "System ready for new backup or restore.";
+            }
+            enum "backup-restore-running" {
+                description
+                  "System running on a backup or restore.";
+            }
+            enum "backup-restore-error" {
+                description
+                  "System fails last backup or restore.";
+            }
+
+            enum "backup-restore-svo-running" {
+                description
+                  "backup or restore of svo db in progress.";
+            }
+            enum "backup-restore-svo-error" {
+                description
+                  "backup or restore of svo db errored.";
+            }
+            enum "backup-restore-svo-completed" {
+                description
+                  "backup or restore of svo db completed.";
+            }
+
+            enum "backup-restore-device-running" {
+                description
+                  "backup or restore of devices db in progress.";
+            }
+            enum "backup-restore-device-error" {
+                description
+                  "backup or restore of devices db errored.";
+            }
+            enum "backup-restore-device-completed" {
+                description
+                  "backup or restore of devices db completed.";
+            }
+            enum "backup-restore-all-device-completed" {
+                description
+                  "backup or restore of all devices db completed.";
+            }
+            enum "backup-restore-all-device-completed-with-error" {
+                description
+                  "backup or restore of all devices db completed with some error.";
+            }
+        }
+        description
+          "All possible Backup and Restore log status";
+    }
+
+
+
+   
+
+    grouping backup-restore-grp {
+        list components-status {
+            key component-name;
+            leaf component-name {
+                type string;
+                description
+                  "name of the latest backup/restore component";
+                tailfs:info "name of the latest backup/restore component";
+                config false;
+            }
+
+            leaf log-message {
+                type string;
+                description
+                  "Message of the backup/restore status.";
+            }
+
+            leaf time-stamp {
+                type ietf:date-and-time;
+                description
+                  "time stamp of the latest backup/restore component";
+                tailfs:info "time stamp of the latest backup/restore component";
+                config false;
+            }
+        }
+    }
+
+    grouping backup-restore-status-leafs {
+        leaf status {
+            type svo-backup-restore-status-t;
+            description
+              "report the status of the FSM of backup restore log.";
+        }
+        uses ccnfg:log-status-msg;
+        uses backup-restore-grp;
+    }
+
+    container svo-backup {
+
+        container log {
+            config false;
+            tailfs:cdb-oper {
+                tailfs:persistent true;
+            }
+            uses backup-restore-status-leafs;
+        }
+
+        uses ccnfg:remote-file-path;
+
+        leaf latest-backup-file-name {
+            tailfs:info "The name of the latest backup file.";
+            description
+              "The name of the latest backup file.";
+            config false;
+            tailfs:cdb-oper {
+                tailfs:persistent true;
+            }
+            type string;
+        }
+
+        leaf latest-backup-time {
+            tailfs:info "Time stamp of the latest backup file.";
+            description
+              "Time stamp of the latest backup file.";
+            config false;
+            tailfs:cdb-oper {
+                tailfs:persistent true;
+            }
+            type ietf:date-and-time;
+        }
+
+        leaf db-from-backup {
+            tailfs:info "Inform the system that this Db comes from a restore.";
+            description
+              "Inform the system that this Db comes from a restore. NCS2k Devices
+               will not start the automatic sync-from before the system did not
+               complete the restore feature. Restore is considered completed
+               only when any instance of the following restore is successfully
+               completed. 1) SVO db restore 2) conf-D restore 3) all NCS2k devices
+               restore.";
+            config false;
+            tailfs:cdb-oper {
+                tailfs:persistent true;
+            }
+            type boolean;
+        }
+
+        uses ccnfg:transfer-grouping;
+
+        container commands {
+
+            tailfs:action upload-latest-backup {
+                tailfs:info "upload the latest svo backup";
+                description
+                  "upload the latest svo backup";
+                tailfs:actionpoint upload-latest-backup;
+                input {
+                    uses ccnfg:upload-input-param;
+                }
+
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+
+            tailfs:action download-restore-file {
+                tailfs:info "download a bundle file for db restore";
+                description
+                  "download a bundle file for db restore";
+                tailfs:actionpoint download-restore-file;
+                input {
+                    leaf download-file-name {
+                        description
+                          "The backup filename to download on the system";
+                        type string;
+                    }
+
+                    uses ccnfg:upload-input-param;
+                }
+
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+
+            tailfs:action backup {
+                tailfs:info "Backup the complete SVO data base";
+                description
+                  "Backup the complete SVO data base The backup file is a complex
+                      unique zip file which contains: 1) The SVO ncs-cdb 2) All the
+                      NCS2k configured devices DB 3) The ConfD ncs-cdb 4) user defined
+                      capabilities files The backup lock the DB during the entire phase
+                      of the backup, and unlock the same at the end.";
+
+                tailfs:actionpoint backup;
+                input {
+                }
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+
+            tailfs:action restore {
+                tailfs:info "Restore the complete SVO data base.";
+                description
+                  "Restore the complete SVO data base.";
+
+                tailfs:actionpoint restore;
+                input {
+                    leaf restore-file-name {
+                        description
+                          "The filename with the data that will be restored on the system";
+                        type string;
+                    }
+                }
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+
+            tailfs:action restore-devices {
+                tailfs:info "Restore the 2kDevices";
+                description
+                  "Restore the 2kDevices This action shall be called by orchestrator
+                      after slave SVO stopped. All the NCS2K devices will remain in
+                      lock south-bound till the latest device restoration is complete.
+                      At the end the devices will do the automatic synch from. Start
+                      restore the ncs2k devices";
+
+                tailfs:actionpoint restore-devices;
+                input {
+                    leaf restore-session-id {
+                        description
+                          "String representing the restore session uuid provided by SVO
+                                      to orchestrator during the execution of restore";
+                        type string;
+                    }
+                }
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+
+            tailfs:action backup-and-upload {
+                tailfs:info "Backup the complete SVO data base and upload file to SFTP server";
+                description
+                  "Backup the complete SVO data base and upload file to SFTP server
+                      The backup file is a complex unique zip file which contains: 1)
+                      The SVO ncs-cdb 2) All the NCS2k configured devices DB 3) The
+                      ConfD ncs-cdb 4) user defined capabilities files The backup lock
+                      the DB during the entire phase of the backup, and unlock the same
+                      at the end.";
+
+                tailfs:actionpoint backup-and-upload;
+                input {
+                    uses ccnfg:remote-file-path;
+                    uses ccnfg:upload-input-param;
+                }
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+
+            tailfs:action download-and-restore {
+                tailfs:info "Download a bundle file and use it to restore the complete SVO
+                                data base and 2kDevices.";
+                description
+                  "Download a bundle file and use it to restore the complete SVO
+                      data base and 2kDevices.";
+
+                tailfs:actionpoint download-and-restore;
+                input {
+                    leaf download-file-name {
+                        description
+                          "The backup filename to download on the system";
+                        type string;
+                    }
+
+                    uses ccnfg:remote-file-path;
+                    uses ccnfg:upload-input-param;
+                }
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+        }
+    }
+
+    notification backup-restore-notification {
+        leaf status {
+            type svo-backup-restore-status-t;
+            description
+              "report the status of the FSM of diagnostic log.";
+        }
+
+        leaf log-message {
+            type string;
+            description
+              "Message of the diagnostic status.";
+        }
+    }
+}

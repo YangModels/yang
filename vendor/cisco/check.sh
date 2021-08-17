@@ -10,6 +10,7 @@ declare -a scripts=(
     "./vendor/cisco/nx/check.sh"
     "./vendor/cisco/xe/check.sh"
     "./vendor/cisco/xr/check.sh"
+    "./vendor/cisco/svo/check.sh"
 )
 
 declare -a pids

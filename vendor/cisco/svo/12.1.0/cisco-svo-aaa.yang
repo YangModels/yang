@@ -1,0 +1,676 @@
+module cisco-svo-aaa {
+    yang-version 1.1;
+    namespace "http://cisco.com/yang/svo/aaa";
+    prefix svo-aaa;
+
+    import tailf-common { prefix tailf; }
+    import ietf-netconf-acm { prefix nacm; }
+    import ietf-inet-types { prefix inet; }
+    import ietf-yang-types { prefix ietf; revision-date 2013-07-15; }
+    import iana-crypt-hash { prefix ianach; }
+    import cisco-svo-common-base-opt-grp { prefix ccbog; }
+    
+    organization
+        "Cisco Systems, Inc.";
+
+    contact
+        "Cisco Systems, Inc. Customer Service Postal: 170 West Tasman
+        Drive San Jose, CA 95134 Tel: +1 800 553-NETS E-mail: cs-yang@cisco.com";
+
+    description
+        "YANG definition for SVO users account";
+
+    revision 2020-12-04 { 
+       description "Model version for SVO Release 12.1.0 "; 
+       reference cisco-svo-aaa.yang; 
+    }
+
+    typedef svo-management-interface-t {
+        type enumeration {
+            enum "unknown" {
+                description "Unknown";
+                value -1;
+            }
+            enum "cli" {
+                description "NSO CLI";
+                value 0;
+            }
+            enum "netconf" {
+                description "Netconf channel";
+                value 1;
+            }
+            enum "webui" {
+                description "Web UI";
+                value 2;
+            }
+        }
+        description "The possible interfaces used by users to connect to SVO.";
+    }
+    
+    grouping last-succesful-login {
+
+        container last-succesful-login {
+            leaf last-login-date {
+                config false;
+                type ietf:date-and-time;
+                description "Date of the last succesful login";
+            }
+
+            leaf last-logout-date {
+                config false;
+                type ietf:date-and-time;
+                description "Date of the last logout";
+            }
+
+            leaf last-login-interface {
+                config false;
+                type svo-management-interface-t;
+                description "communication channel used on the last login";
+            }
+        }
+    }
+
+
+    grouping last-failed-login {
+
+        container last-failed-login {
+
+            leaf login-failed-attempts {
+                config false;
+                type uint8;
+                description "number of last failed login";
+            }
+
+            leaf last-failed-login-message {
+                config false;
+                type string;
+                description "message that cause the failed login";
+            }
+        }
+    }
+
+    grouping action-group {
+        container commands {
+            tailf:action change-password {
+                tailf:info "Change user password
+                        The new Password could contain characters
+                        from each of the following groups: a) Lower case alphabetic (a-z)
+                        b) Upper case alphabetic (A-Z) c) Numeric 0-9 \n d) Special characters
+                        Allowed !$%^()[]_-~{}.+ e. Start with lower or upper case alphabet";
+                description "Change user password";
+                tailf:actionpoint change_pwd;
+                input {
+                    leaf old-password {
+                        type string;
+                        mandatory true;
+                        tailf:info "Old password";
+                        tailf:suppress-echo true;
+                    }
+                    leaf new-password {
+                    	type string {
+                            length "8..127"{
+                              error-message "Allow passphrases up to 127 characters";
+                            }
+                            pattern "[a-zA-Z_]{1}.*"{
+                            	error-message "Password first character must be lower or upper case letter";
+                            }
+                            pattern ".*[0-9]+.*"{ // at least one digit
+                            	error-message "Password must have at least one digit";
+                            }
+                            pattern ".*[a-z]+.*"{ // at least one lower case alpha
+                            	error-message "Password must have at least one lower case letter";
+                            }
+                            pattern ".*[A-Z]+.*"{ // at least one upper case alpha
+                            	error-message "Password must have at least one upper case letter";
+                            }
+                            pattern ".*[!$%\\^()\\[\\]_\\-~{}.+]+.*"{ // at least one symbol
+                            	error-message "Password must have at least one symbol !$%^()[]_-~{}.+";
+                            }
+                            pattern '.*[\\"\\#\\&\\*\\,\\/\\:\\;\\<\\=\\>\\?\\@\\|]+.*' {
+                                modifier invert-match;
+                            	error-message "Invalid symbol supported symbols are !$%^()[]_-~{}.+";
+                            }
+                            pattern ".*['].*" {
+                                modifier invert-match;
+                            	error-message "Invalid symbol supported symbols are !$%^()[]_-~{}.+";
+                            }
+                        }
+                        mandatory true;
+                        tailf:info "New password";
+                        tailf:suppress-echo true;
+                    }
+                    leaf confirm-password {
+                        type string;
+                        mandatory true;
+                        tailf:info "Confirm New password";
+                        tailf:suppress-echo true;
+                    }
+                }
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+
+            tailf:action reset-user-password {
+                tailf:info "Reset user password.
+            The new Password could contain characters
+            from each of the following groups: a) Lower case alphabetic (a-z)
+            b) Upper case alphabetic (A-Z) c) Numeric 0-9 \n d) Special characters
+            Allowed !$%^()[]_-~{}.+ e. Start with lower or upper case alphabet";
+                description "Reset user password";
+                tailf:actionpoint reset_pwd;
+                input {
+                    leaf new-password {
+                        type string {
+                          length "8..127"{
+                            error-message "Allow passphrases up to 127 characters";
+                          }
+                          pattern "[a-zA-Z_]{1}.*";
+                                pattern ".*[0-9]+.*"; // at least one digit
+                                pattern ".*[a-z]+.*"; // at least one lower case alpha
+                                pattern ".*[A-Z]+.*"; // at least one upper case alpha
+              pattern ".*[!$%\\^()\\[\\]_\\-~{}.+]+.*"; // at least one symbol
+              pattern '.*[\\"\\#\\&\\*\\,\\/\\:\\;\\<\\=\\>\\?\\@\\|]+.*' {
+                                     modifier invert-match;
+                                }
+                                pattern ".*['].*" {
+                                     modifier invert-match;
+                                }
+                        }
+                        mandatory true;
+                        tailf:info "New password";
+                        tailf:suppress-echo true;
+                    }
+                }
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+        }
+    }
+
+    grouping user-common-oper-grp {
+        leaf elapsed-time {
+            config false;
+            type int16;
+            default 0;
+            description "remaining days before the password will expire. it will be used
+                        internally by SVO";
+        }
+
+        leaf login-failed {
+            config false;
+            type uint8;
+            description "failed login attempts, reset at first success";
+        }
+        
+        uses last-succesful-login;
+        uses last-failed-login;
+
+        leaf original-group {
+            config false;
+            type string;
+            description "The group the user belong to, before it has been moved for pwd
+                        timeout";
+        }
+    }
+
+    grouping user-common-compl-grp {
+        leaf user-name {
+            type string;
+        }
+
+        leaf full-name {
+            type string;
+        }
+
+        leaf expire-time {
+            tailf:info "days of validity before password expire and user will be deactivated with a range of 2..32767";
+            description "days of validity before password expire and user will be deactivated with a range of 2..32767";
+            default 180;
+            type int16{
+              range "2..32767";
+            }
+            must " (current() > 1)" {
+                error-message "The expire-time shall be bigger than 1 day";
+            }
+        }
+
+        leaf warning-before-expire {
+            tailf:info "Number of days of warning before password expires with a range of 1..32766";
+            description "Number of days of warning before password expires with a range of 1..32766";
+            type int16{
+              range "1..32766";
+            }
+            default 14;
+            must "(current() < ../expire-time) and (current() > 0)" {
+                error-message "The number of days for warning before expiry field cannot be greater than Expiry Time,
+                                or a value of 0";
+            }
+        }
+
+        leaf max-retry-number {
+            tailf:info "The max number of retry for a wrong passowrd befor user is deactivated
+                        ";
+            description "The max number of retry for a wrong passowrd befor user is deactivated
+                        ";
+            type uint8;
+            default 3;
+            must "(current() >= 3)" {
+                error-message "The number of retry could not be lower than 3 retry";
+            }
+        }
+    }
+
+    grouping user-complementary-grp {
+        uses user-common-compl-grp;
+        uses user-common-oper-grp;
+    }
+
+    grouping user-complementary-grp-oper {
+        uses user-common-oper-grp;
+    }
+
+    grouping user-common-grp {
+
+        leaf group {
+            type leafref {
+                path "/nacm:nacm/nacm:groups/nacm:group/nacm:name";
+            }
+
+            mandatory true;
+        }
+
+        leaf password {
+            description "The password for this entry. ";
+
+            tailf:info "The password for this entry.";
+            type ianach:crypt-hash;
+            mandatory true;
+            tailf:suppress-echo true;
+        }
+
+        uses user-complementary-grp;
+
+        uses action-group;
+    }
+
+    grouping local-users {
+        container users {
+            list user {
+                key user-name;
+                max-elements 500;
+                uses user-common-grp {
+                    refine user-name {
+                     must "count(../../../external-authentication/sso-config/user[user-name = current()]) = 0" {
+                       error-message "local and sso user lists must have complementary keys";
+                     }
+
+                        must "count(../../../external-authentication/external-auth-user[user-name = current()]) = 0" {
+                            error-message "local and external user lists must have complementary keys";
+                            }
+
+
+                     
+                    }                   
+                }
+            }
+        }
+    }
+
+    grouping users {
+        uses local-users;
+    }
+
+    grouping users-compl {
+        container users {
+            list user {
+                key user-name;
+                max-elements 500;
+                uses user-common-compl-grp;
+                container user-recovery {
+                    tailf:action user-activate {
+                        description "Action to recover user after password expiry ";
+                        tailf:actionpoint user-activate;
+
+                        input {
+                            leaf old-password {
+                                type string;
+                                mandatory true;
+                                tailf:info "Old password";
+                                tailf:suppress-echo true;
+                            }
+                            leaf new-password {
+                                type string;
+                                mandatory true;
+                                tailf:info "New password";
+                                tailf:suppress-echo true;
+                            }
+                            leaf confirm-password {
+                                type string;
+                                mandatory true;
+                                tailf:info "Confirm New password";
+                                tailf:suppress-echo true;
+                            }
+                        }
+                        output {
+                            uses ccbog:rpc-status;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    container auth {
+        uses users;
+
+        container external-authentication {
+
+            container sso-config-cdb {
+                list user {
+                   key user-name;
+                   leaf user-name {
+                     type string;
+                   }
+                }
+                tailf:hidden full;
+            }
+
+            container ext-user-config-cdb {
+                list user {
+                   key user-name;
+                   leaf user-name {
+                     type string;
+                   }
+                }
+                tailf:hidden full;
+            }
+
+            list external-auth-user {
+                key user-name;
+                description "List of external users. User must be present in RADIUS DB and group must be one of SVO group";
+                
+                max-elements 500;
+
+                leaf user-name {
+                    type string;
+                    must "count(../../../users/user[user-name = current()]) = 0" {
+                    error-message "local and external user lists must have complementary keys";
+                    }                     
+                }
+                
+                leaf group {
+                    type leafref {
+                    path "/nacm:nacm/nacm:groups/nacm:group/nacm:name";                        
+                    }
+                         
+                    mandatory true;
+                }
+            }
+
+            container sso-config {
+                leaf enable-sso {
+                    type boolean;
+                    default false;
+                    description "enable SSO authentication";
+
+                    must "((current() = 'false') or ((current() = 'true' and ../ip-address
+                                        and ../ip-address != '0.0.0.0')))" {
+                        error-message " server is not set";
+                    }
+                    must "((current() = 'false') or (current() = 'true' and ../port))" {
+                        error-message " port is not set";
+                    }
+                    must "((current() = 'false') or (count(../../sso-config-cdb/user) >= 1))" {
+                        error-message " no user configured";
+                    }
+                }
+
+                leaf ip-address {
+                    type inet:host;
+                    description "SSO server ip address";
+                }
+                
+                leaf port {
+                  type uint16;
+                  default 443;
+                  description "SSO server port";
+                }
+
+                list user {
+                   key user-name;
+                   description "List of SSO/EPNM users. User must be present in EPNM DB and group must be one of SVO group";
+                   
+                   max-elements 10;
+
+                   leaf user-name {
+                     type string;
+                     must "count(../../../../users/user[user-name = current()]) = 0" {
+                       error-message "local and sso user lists must have complementary keys";
+                     }                     
+                   }
+                   
+                   leaf group {
+                     type leafref {
+                        path "/nacm:nacm/nacm:groups/nacm:group/nacm:name";                        
+                     }
+                     must ". = 'editor' or . = 'viewer'" {
+                       error-message "sso user must belong to [editor, viewer] only";
+                     }      
+                     mandatory true;
+                   }
+                }
+            }
+
+            container tacacs-config {
+                leaf enable-tacacs {
+                    type boolean;
+                    default false;
+                    description "Enable Tacacs Authentication";
+
+                    must "((current() = 'false') or ((current() = 'true' and count(../server) > 0)))" {
+                        error-message "There must be at least one server configured when Tacacs authentication is enabled";
+                    }
+
+                    must "((current() = 'false') or ((current() = 'true' and ../../radius-config/enable-radius = 'false')))" {
+                        error-message "RADIUS and TACACS authentication methods are mutually exclusive";
+                    }
+                }
+
+                leaf enable-local-auth {
+                    type boolean;
+                    default false;
+                    description "enable local authentication";
+                }
+
+                list server {
+                   key name;
+                   ordered-by user;
+                   unique address;
+                   description
+                    "List of TACACS servers used by the device.";
+
+                    max-elements 10;
+
+                    leaf name {
+                      type string {
+                            length "1..256"{
+                              error-message "Server name length must be between 1 and 256 characters";
+                            }
+                      }
+                      description
+                        "An arbitrary name for the TACACS server.";
+                    }
+
+                    leaf address {
+                      type inet:host;
+                      mandatory true;
+                      description
+                        "The address of the TACACS server.";
+                    }
+
+                    leaf authentication-port {
+                      type inet:port-number;
+                      default "49";
+                      description
+                        "The port number of the TACACS server.";
+                    }
+                    leaf shared-secret {
+                      type string {
+                            length "1..256"{
+                              error-message "Shared secret length must be between 1 and 256 characters";
+                            }
+                      }
+                      mandatory true;
+                      description
+                        "The shared secret, which is known to both the
+                         TACACS client and server.";
+                      reference
+                        "RFC 1492: An Access Control Protocol, Sometimes Called TACACS";
+                    }
+                }
+
+                container options {
+                  description
+                    "TACACS client options.";
+
+                    leaf timeout {
+                        type uint8 {
+                          range "1..max";
+                        }
+                        units "seconds";
+                        default "5";
+                        description
+                          "The number of seconds the device will wait for a
+                           response from each TACACS server before trying with a
+                           different server.";
+                    }
+
+                    leaf attempts {
+                        type uint8 {
+                          range "1..max";
+                        }
+                        default "2";
+                        description
+                          "The number of times the device will send a query to
+                           all of its TACACS servers before giving up.";
+                    }
+                }
+            }
+
+            container radius-config {
+                leaf enable-radius {
+                    type boolean;
+                    default false;
+                    description "Enable Radius Authentication";
+
+                    must "((current() = 'false') or ((current() = 'true' and count(../server) > 0)))" {
+                        error-message "There must be at least one server configured when Radius authentication is enabled";
+                    }
+
+                    must "((current() = 'false') or ((current() = 'true' and ../../tacacs-config/enable-tacacs = 'false')))" {
+                        error-message "RADIUS and TACACS authentication methods are mutually exclusive";
+                    }
+                }
+                
+                leaf enable-local-auth {
+                    type boolean;
+                    default false;
+                    description "enable local authentication";
+                }
+
+                list server {
+                   key name;
+                   ordered-by user;
+                   unique address;
+                   description
+                    "List of RADIUS servers used by the device.";
+
+                    max-elements 10;
+
+                    leaf name {
+                      type string {
+                            length "1..256"{
+                              error-message "Server name length must be between 1 and 256 characters";
+                            }
+                      }
+                      description
+                        "An arbitrary name for the RADIUS server.";
+                    }
+
+                    leaf address {
+                      type inet:host;
+                      mandatory true;
+                      description
+                        "The address of the RADIUS server.";
+                    }
+
+                    leaf authentication-port {
+                      type inet:port-number;
+                      default "1812";
+                      description
+                        "The port number of the RADIUS server.";
+                    }
+                    leaf shared-secret {
+                      type string {
+                            length "1..256"{
+                              error-message "Shared secret length must be between 1 and 256 characters";
+                            }
+                      }
+                      mandatory true;
+                      description
+                        "The shared secret, which is known to both the
+                         RADIUS client and server.";
+                      reference
+                        "RFC 2865: Remote Authentication Dial In User
+                                   Service (RADIUS)";
+                    }
+                }
+
+                container options {
+                  description
+                    "RADIUS client options.";
+
+                    leaf timeout {
+                        type uint8 {
+                          range "1..max";
+                        }
+                        units "seconds";
+                        default "5";
+                        description
+                          "The number of seconds the device will wait for a
+                           response from each RADIUS server before trying with a
+                           different server.";
+                    }
+
+                    leaf attempts {
+                        type uint8 {
+                          range "1..max";
+                        }
+                        default "2";
+                        description
+                          "The number of times the device will send a query to
+                           all of its RADIUS servers before giving up.";
+                    }
+                }
+            }
+        }
+    }
+
+    
+    notification user-notification {
+      leaf session-uid {
+          type int16;
+          description "the unique session user identification.
+                       Same user connected with more than one connection to the system at the same time,
+                           will have differents session-uid."; 
+      }
+      
+      leaf warning-message {
+          type string;
+          description "Warning Message for the user.";
+      }
+  }
+}
+

@@ -1,0 +1,555 @@
+submodule tailf-ncs-cluster {
+  yang-version 1.1;
+  belongs-to tailf-ncs {
+    prefix ncs;
+  }
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+
+  include tailf-ncs-common;
+  include tailf-ncs-ssh;
+
+  organization "Tail-f Systems";
+
+  description
+    "This submodule contains configuration items for NCS cluster settings.
+
+     Copyright 2019 Cisco Systems, Inc.
+     All rights reserved.
+     Permission is hereby granted to redistribute this file without
+     modification.";
+
+  revision 2018-03-01 {
+    description
+      "Released as part of NCS-4.6.
+
+       Added 'must' expressions for /cluster/commit-queue/enabled and
+       /cluster/device-notifications/enabled.";
+  }
+
+  revision 2017-09-28 {
+    description
+      "Released as part of NCS-4.5.
+
+       Changed /cluster/remote-node/notifications/stream/sequence-no from
+       int32 to uint64.";
+  }
+
+  revision 2017-03-16 {
+    description
+      "Released as part of NCS-4.4.
+
+       Added range to all config leafs specifying time.";
+  }
+
+  revision 2015-11-24 {
+    description
+      "Released as part of NCS-4.1.
+
+       Added /cluster/device-notifications/enabled.";
+  }
+
+  revision 2015-10-02 {
+    description
+      "Released as part of NCS-4.0.2.
+
+       Added /cluster/global-settings/timeouts/connect-timeout.
+
+       Added /cluster/global-settings/ssh-keep-alive/interval.
+
+       Added /cluster/global-settings/ssh-keep-alive/count.";
+  }
+
+  revision 2015-05-05 {
+    description
+      "Released as part of NCS-3.4.1.
+
+       Added /cluster/global-settings/caching.";
+  }
+
+  revision 2015-03-19 {
+    description
+      "Released as part of NCS-3.4.
+
+       Removed config false leaf /cluster/enabled.
+
+       Added /cluster/remote-node/notifications/stream, and moved
+         /cluster/remote-node/notifications/status into this list.";
+  }
+
+  revision 2014-11-19 {
+    description
+      "Released as part of NCS-3.3.
+
+       Added /cluster/remote-node/cq-subscription-authgroup. This item contains
+       the authgroup for NETCONF notifications needed by commit-queues in a
+       cluster environment.
+
+       Added /cluster/commit-queue.
+
+       Added /cluster/remote-node/username.
+
+       Added /cluster/remote-node/notifications";
+  }
+
+  revision 2014-06-30 {
+    description
+      "Released as part of NCS-3.2.
+
+       Added use of grouping ssh-host-keys from submodule tailf-ncs-ssh,
+       creating /cluster/remote-node/ssh.
+
+       Added use of grouping public-key-auth from submodule tailf-ncs-ssh
+       in remote-user-remote-auth grouping, creating
+       /cluster/authgroup/default-map/public-key and
+       /cluster/authgroup/umap/public-key.";
+  }
+
+  revision 2013-11-12 {
+    description
+      "Initial revision, released as part of NCS-3.0.";
+  }
+
+  typedef node-name {
+    type inet:domain-name;
+  }
+
+  container cluster {
+    tailf:info "Cluster configuration";
+
+    container global-settings {
+      tailf:info "Global settings for all remote nodes";
+
+      container timeouts {
+        description
+          "Timeouts used when communicating with a remote node in the cluster.";
+
+        leaf connect-timeout {
+          tailf:info "Timeout in seconds for new connections";
+          type uint32 {
+            range "1..4294967";
+          }
+          default 20;
+          units "seconds";
+          description
+            "The timeout in seconds for new connections to a remote node.";
+        }
+      }
+
+      container ssh-keep-alive {
+        description
+          "Controls SSH keep alive settings when communicating from this
+           node to remote devices.";
+        tailf:info "Controls SSH keep alive settings";
+        leaf interval {
+          type uint32 {
+            range "0..4294967";
+          }
+          default 20;
+          units "seconds";
+          description
+            "Seconds between SSH keep alive activity.";
+        }
+        leaf count {
+          type uint8;
+          default 2;
+          description
+            "Number of intervals to fail before failing the connection.";
+        }
+      }
+
+      container caching {
+        description
+          "Controls the cache behavior for the communication from
+           this node to its remote nodes.
+
+           By default, NCS caches a minimum amount of data.";
+        tailf:info "Cache behavior";
+
+        choice how {
+          container full-device-config {
+            presence "enable";
+            description
+              "This option instructs NCS to retrieve the full device config
+               and cache it for the duration of a transaction.";
+            leaf max-devices {
+              type uint32;
+              default 32;
+              description
+                "Limit the number of devices for which NCS keeps the full
+                 device config.";
+            }
+          }
+        }
+      }
+    }
+
+    list remote-node {
+      tailf:info "List of configured remote nodes";
+      key name;
+      leaf name {
+        tailf:info "Name of remote node";
+        tailf:cli-allow-range;
+        type node-name;
+      }
+      leaf address {
+        tailf:info "Address of remote node (defaults to name)";
+        type inet:host;
+        description
+          "Address of remote node. Unless set the node-name will be
+           interpreted as the hostname";
+      }
+      leaf port {
+        tailf:info "Port number of remote node";
+        type inet:port-number;
+        default 830;
+        description "NETCONF port of remote node.";
+      }
+      uses ssh-connection-config;
+
+      leaf authgroup {
+        tailf:info "Authentication credentials for the node";
+        type leafref {
+          path '/cluster/authgroup/name';
+        }
+        mandatory true;
+        description
+          "The authentication credentials used when connecting
+           to this cluster node.";
+      }
+
+      leaf trace {
+        tailf:info "Trace the communication with this node";
+        type trace-flag;
+        default false;
+      }
+
+      leaf username {
+        tailf:info "Local user name used to authenticate towards remote node";
+        type string;
+        tailf:non-strict-leafref {
+          path "/cluster/authgroup[name=current()/../authgroup]/" +
+            "umap/local-user";
+        }
+        must "not(deref(.)/../same-pass)" {
+          error-message
+            "The corresponding umap {deref(.)} for this user must not have
+             same-pass configured";
+          tailf:dependency "../../authgroup";
+          tailf:dependency "/cluster/authgroup";
+        }
+        must
+          "deref(.) or
+           not(/cluster/authgroup[name=current()/../../authgroup]/
+                default-map/same-pass)"
+        {
+          error-message
+            "This user maps to the default-map, which must not have
+             same-pass configured.";
+          tailf:dependency "../../authgroup";
+          tailf:dependency "/cluster/authgroup";
+        }
+        description
+          "Local user name used by notification subscriber to
+           authenticate towards remote node. The local user name
+           will be used to look up the remote user name in the
+           authgroup defined for this node. The resulting umap must
+           not have same-pass configured.";
+      }
+
+      must "(/cluster/commit-queue/enabled = 'false') or username" {
+        error-message
+          "When commit-queue is enabled a username must be configured.";
+        tailf:dependency "/cluster/commit-queue/enabled";
+        tailf:dependency "username";
+      }
+
+      must "(/cluster/device-notifications/enabled = 'false') or username" {
+        error-message
+          "When device-notifications is enabled a username must be configured.";
+        tailf:dependency "/cluster/device-notifications/enabled";
+        tailf:dependency "username";
+      }
+
+      container notifications {
+        description
+          "NETCONF notification streams used by NCS nodes
+           in a clustered environment.
+
+           A top NCS node will automatically subscribe to these
+           streams for all remote NCS nodes.
+
+           The 'ncs-events' stream is used by the commit queue.  The
+           'device-notifications' stream is used to forward NETCONF
+           notifications originating from devices managed by remote
+           NCS nodes.";
+
+        list stream {
+          key name;
+          config false;
+          tailf:cdb-oper {
+            tailf:persistent true;
+          }
+          leaf name {
+            type string;
+          }
+          leaf status {
+            type enumeration {
+              enum connecting {
+                tailf:code-name "cluster_remotenode_notifications_connecting";
+                description
+                  "The notification subscription is not yet established and
+                   is periodically retried.";
+              }
+              enum up {
+                tailf:code-name "cluster_remotenode_notifications_up";
+                description
+                  "The subscription is established.";
+              }
+            }
+            tailf:callpoint ncs {
+              tailf:internal;
+            }
+          }
+
+          leaf last-event {
+            type yang:date-and-time;
+            description
+              "Time of last received event.";
+          }
+          leaf received-notifications {
+            type yang:zero-based-counter64;
+            tailf:callpoint ncs {
+              tailf:internal;
+            }
+            description
+              "Number of received notifications since last reboot.";
+          }
+          leaf sequence-no {
+            type uint64;
+            tailf:hidden full;
+            description
+              "Sequence number for received notifications.";
+          }
+        }
+      }
+
+      list device {
+        key name;
+        config false;
+        description "The devices that are configured to reside on this node";
+        leaf name {
+          // Actually leafref { path '/ncs:devices/ncs:device/ncs:name'; }
+          type string;
+        }
+      }
+    }
+    list authgroup {
+      tailf:info "Authentication settings for a group of nodes";
+      key name;
+
+      description
+        "When NCS connects to a remote cluster node, it locates the
+         authgroup configured for that node.  Then NCS looks up
+         the local NCS user name in the 'umap' list.  If an entry is
+         found, the credentials configured is used when
+         authenticating to the NCS node.
+
+         If no entry is found in the 'umap' list, the credentials
+         configured in 'default-map' are used.
+
+         If no 'default-map' has been configured, and the local NCS
+         user name is not found in the 'umap' list, the connection
+         to the node fails.";
+
+      grouping remote-user-remote-auth {
+        description
+          "Remote authentication credentials.";
+
+        choice remote-user {
+          mandatory true;
+          leaf same-user {
+            tailf:info "Use the local NCS user name as the remote user name";
+            type empty;
+            description
+              "Use the local NCS user name as the remote user name.";
+          }
+          leaf remote-name {
+            tailf:info "Specify node user name";
+            type string;
+            description
+              "Remote user name.";
+          }
+        }
+
+        choice remote-auth {
+          mandatory true;
+          leaf same-pass {
+            tailf:info "Use the local NCS password as the remote password";
+            type empty;
+            description
+              "Use the local NCS password as the remote password.";
+          }
+          leaf remote-password {
+            tailf:info "Specify the remote password";
+            tailf:suppress-echo "true";
+            type tailf:aes-cfb-128-encrypted-string;
+            description
+              "Remote password.";
+          }
+          case public-key {
+            uses public-key-auth;
+          }
+        }
+      }
+
+      leaf name {
+        tailf:info "The name of the authgroup";
+        type string;
+        description
+          "The name of the authgroup.";
+      }
+
+      container default-map {
+        presence "Map unknown users";
+        description
+          "If an authgroup has a default-map, it is used if a local
+             NCS user is not found in the umap list.";
+        tailf:info "Remote authentication parameters for users not in umap";
+        uses remote-user-remote-auth;
+      }
+
+      list umap {
+        key local-user;
+        description
+          "The umap is a list with the local NCS user name as key.
+             It maps the local NCS user name to remote authentication
+             credentials.";
+        tailf:info "Map NCS users to remote authentication parameters";
+        leaf local-user {
+          type string;
+          description
+            "The local NCS user name.";
+        }
+        uses remote-user-remote-auth;
+      }
+    }
+
+    container commit-queue {
+      leaf enabled {
+        type boolean;
+        must
+          " . = 'false' or
+           not (/cluster/remote-node
+                  [not (username)]
+                  [deref(authgroup)/../default-map[same-user or same-pass]])" {
+          error-message
+            "At least one remote-node has neither username nor
+             a default-map not configured with either same-user or same-pass.";
+          tailf:dependency "../../authgroup";
+          tailf:dependency "/cluster/remote-node/authgroup";
+          tailf:dependency "/cluster/remote-node/username";
+        }
+        must
+          " . = 'false' or ../../remote-node" {
+          error-message
+            "At least one cluster remote-node has to be configured. All LSA
+             devices must be configured as cluster devices.";
+          tailf:dependency "../../remote-node";
+        }
+        default false;
+        description
+          "Enable commit queues in cluster mode.";
+      }
+    }
+
+    container device-notifications {
+      leaf enabled {
+        type boolean;
+        must
+          " . = 'false' or
+           not (/cluster/remote-node
+                  [not (username)]
+                  [deref(authgroup)/../default-map[same-user or same-pass]])" {
+          error-message
+            "At least one remote-node has neither username nor
+             a default-map not configured with either same-user or same-pass.";
+          tailf:dependency "../../authgroup";
+          tailf:dependency "/cluster/remote-node/authgroup";
+          tailf:dependency "/cluster/remote-node/username";
+        }
+        must
+          " . = 'false' or ../../remote-node" {
+          error-message
+            "At least one cluster remote-node has to be configured. All LSA
+             devices must be configured as cluster devices.";
+          tailf:dependency "../../remote-node";
+        }
+        default false;
+        description
+          "Enable device notifications in cluster mode.";
+      }
+    }
+
+    list connection {
+      config false;
+      tailf:callpoint ncs {
+        tailf:internal;
+      }
+      description "The connections set up by this node to other cluster nodes";
+
+      leaf remote-node {
+        type leafref {
+          path "/cluster/remote-node/name";
+        }
+        description "Name of the remote-node";
+      }
+      leaf address {
+        type inet:ip-address;
+        description "The IP address used to connect to the remote-node";
+      }
+      leaf port {
+        type inet:port-number;
+        description "The port used to connect to the remote-node";
+      }
+      leaf channels {
+        type uint32;
+        description "Number of open SSH channels used";
+      }
+      leaf local-user {
+        type string;
+        description "The name of the local user";
+      }
+      leaf remote-user {
+        type string;
+        description "The name used to authenticate towards the remote-node";
+      }
+      leaf status {
+        type enumeration {
+          enum up {
+            tailf:code-name "cluster_connection_status_up";
+          }
+          enum down;
+        }
+        description "Whether this connection is actually established";
+      }
+      leaf trace {
+        type enumeration {
+          enum enabled {
+            tailf:code-name "cluster_connection_trace_enabled";
+          }
+          enum disabled;
+        }
+        description "Whether this connection is currently being traced";
+      }
+    }
+  }
+}
