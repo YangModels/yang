@@ -13,7 +13,7 @@
 platform_dir="vendor/cisco/nx"
 
 # NOTE: please just have the directories you are checking here
-to_check="9.3-8"
+to_check="7.0-3-I7-10"
 
 inc_path="."
 pyang_flags="--lax-quote-checks"
