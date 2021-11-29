@@ -6,5 +6,4 @@ A README file may exist in the version subdirectories with any specific notes re
 
 Further documentation on Cisco's IOS-XR YANG-based interfaces may be found at:
 
-* [Cisco IOS XR Data Models Configuration Guide for the NCS 5500 Series Router](http://www.cisco.com/c/en/us/td/docs/iosxr/ncs5500/DataModels/b-Datamodels-cg-ncs5500.html)
-* [Cisco Network Convergence System 5500 Series Configuration Guides](http://www.cisco.com/c/en/us/support/routers/network-convergence-system-5500-series/products-installation-and-configuration-guides-list.html)
+* [Cisco Network Convergence System 5500 Series Documentation](https://www.cisco.com/c/en/us/td/docs/iosxr/ios-xr.html)
