@@ -204,7 +204,7 @@ Revision statements embedded in the YANG files **should** accurately reflect whe
 
 YANG version 1.1 is described by the RFC 7950, The YANG 1.1 Data Modeling Language. YANG version 1.1 is a maintenance release of the YANG language that addresses ambiguities and defects inthe YANG version 1.0 specification. The YANG module in YANG version 1.1 is advertised through the ietf-yang-library instead of the NETCONF hello messages.
 
-The YANG version 1.1 models will be published from 17.10.1 release onwards. However to prepare for the YANG 1.1 release, the 1.1 version YANG models are added under YANG_1.1 directory along with the script "migrate_yang_version.py" that converts NED models from version 1.0 to version 1.1 for reference.
+The YANG version 1.1 models will be published from 17.10.1 release onwards. However to prepare for the YANG 1.1 release, the 1.1 version YANG models are added under [YANG_1.1](YANG_1.1) directory along with the script "migrate_yang_version.py" that converts NED models from version 1.0 to version 1.1 for reference.
 
 The following example shows how to migrate from YANG version 1.0 to YANG version 1.1 using the script:
 
