@@ -2,9 +2,10 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents** 
 
-- [YANG Models and Platform Capabilities for Cisco IOS XE 17.7.1](#yang-models-and-platform-capabilities-for-cisco-ios-xe-1761)
-  - [Major Model Changes In 17.7.1](#major-model-changes-in-1761)
+- [YANG Models and Platform Capabilities for Cisco IOS XE 17.7.1](#yang-models-and-platform-capabilities-for-cisco-ios-xe-1771)
+  - [Major Model Changes In 17.7.1](#major-model-changes-in-1771)
     - [Native Models Added](#native-models-added)
+    - [Openconfig Models Added](#openconfig-models-added)
     - [Deviation Models Added](#deviation-models-added)
     - [Native Models Modified](#native-models-modified)
     - [Other Models Modified](#other-models-modified)
@@ -12,6 +13,7 @@
   - [Backward Incompatible Changes](#backward-incompatible-changes)
   - [Compliance With "pyang --lint"](#compliance-with-pyang---lint)
   - [Revision Statements](#revision-statements)
+  - [YANG Model Version 1.1](#yang-model-version-11)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
