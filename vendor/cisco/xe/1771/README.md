@@ -226,3 +226,5 @@ optional arguments:
 --out OUT Path to the output YANG file
 
 After the YANG model version 1.1 is created, either by downloading it from GitHub or by using the migrate_yang_version.py script and compiled on the client application, end-to-end YANG model tests can be executed and validated against Cisco IOS XE devices.
+
+Support: Please send inquiry related to the ‘migrate_yang_version.py’ script or XE YANG version 1.1 migration process to ‘xe-yang-migration@cisco.com’ mailing list.
