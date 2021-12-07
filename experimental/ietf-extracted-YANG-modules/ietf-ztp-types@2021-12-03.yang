@@ -25,13 +25,6 @@ module ietf-ztp-types {
      support generating CSRs, 2) obtain a request to
      generate a CSR, and 3) communicate the requested CSR.
 
-     The terms 'IDevID' and 'LDevID' are used herein to
-     mean 'initial device identifier' and 'local device
-     identifer'.  These terms are defined consistent with
-     the IEEE 802.1AR specification, though there is no
-     requirement that a ZTP-client's identity certificate
-     conform to IEEE 802.1AR.
-
      Copyright (c) 2021 IETF Trust and the persons identified
      as authors of the code. All rights reserved.
 
@@ -53,7 +46,7 @@ module ietf-ztp-types {
      (RFC 2119) (RFC 8174) when, and only when, they appear
      in all capitals, as shown here.";
 
-  revision 2021-11-08 {
+  revision 2021-12-03 {
     description
       "Initial version";
     reference
@@ -92,7 +85,6 @@ module ietf-ztp-types {
       "RFC 4210: Internet X.509 Public Key Infrastructure
                  Certificate Management Protocol (CMP)";
   }
-
   identity cmc-csr {
     base certificate-request-format;
     description
@@ -243,19 +235,21 @@ module ietf-ztp-types {
          'CertificationRequest' structure to send to ZTP-server
          in its next 'get-bootstrapping-data' request message.
 
-         When provided, the ZTP-client SHOULD use this
-         structure to generate its CSR; failure to do so MAY
-         result in a 400 Bad Request response containing
-         another 'csr-request' structure.
+         When provided, the ZTP-client SHOULD use this structure
+         to generate its CSR; failure to do so MAY result in a
+         400 Bad Request response containing another 'csr-request'
+         structure.
 
-         When not provided, the ZTP-client SHOULD generate a
-         CSR using the same structure defined in its existing
-         identity certificate (e.g., IDevID).
+         When not provided, the ZTP-client SHOULD generate a CSR
+         using the same structure defined in its existing identity
+         certificate (e.g., an IDevID from IEEE 802.1AR).
 
-         It is an error if the 'AlgorithmIdentifier' field
-         contained inside the 'SubjectPublicKeyInfo' field
-         does not match the algorithm identified by the
-         'selected-algorithm' node.";
+         If the 'AlgorithmIdentifier' field contained inside the
+         certificate 'SubjectPublicKeyInfo' field does not match
+         the algorithm identified by the 'selected-algorithm' node,
+         then the client MUST reject the certificate and raise an
+         error.";
+
       reference
         "RFC 2986:
            PKCS #10: Certification Request Syntax Specification
@@ -282,10 +276,19 @@ module ietf-ztp-types {
         leaf p10-csr {
           type ct:csr;
           description
-            "A CertificationRequest structure, per RFC 2986.";
+            "A CertificationRequest structure, per RFC 2986.
+             Encoding details are defined in the 'ct:csr'
+             typedef defined in RFC AAAA.
+
+             A raw P10 does not support origin authentication in
+             the CSR structure.  External origin authentication
+             may be provided via the ZTP-client's authentication
+             to the ZTP-server at the transport layer (e.g., TLS).";
           reference
-            "RFC 2986: PKCS #10: Certification
-                       Request Syntax Specification";
+            "RFC 2986: PKCS #10: Certification Request Syntax
+                       Specification
+             RFC AAAA: YANG Data Types and Groupings for
+                       Cryptography";
         }
       }
       case cmc-csr {
@@ -297,53 +300,57 @@ module ietf-ztp-types {
              distinguished encoding rules (DER), as specified
              in ITU-T X.690.
 
-             For asymmetric key-based origin authentication of
-             a CSR based on the IDevID's private key for the
-             associated IDevID's public key, the PKIData
-             contains one reqSequence element and no cmsSequence
-             or otherMsgSequence elements. The reqSequence is
-             the TaggedRequest and it is the tcr CHOICE. The
-             tcr is the TaggedCertificationRequest and it a
-             bodyPartId and the certificateRequest elements.
-             The certificateRequest is signed with the IDevID's
-             private key. The IDevID certificate and optionally
-             its certificate chain is included in the SignedData
-             certificates that encapsulates the PKIData.
+             For asymmetric key-based origin authentication of a
+             CSR based on the initial device identity certificate's
+             private key for the associated identity certificate's
+             public key, the PKIData contains one reqSequence
+             element and no cmsSequence or otherMsgSequence
+             elements. The reqSequence is the TaggedRequest and it
+             is the tcr CHOICE. The tcr is the
+             TaggedCertificationRequest and it a bodyPartId and the
+             certificateRequest elements.  The certificateRequest
+             is signed with the initial device identity
+             certificate's private key. The initial device identity
+             certificate and optionally its certificate chain is
+             included in the SignedData certificates that
+             encapsulates the PKIData.
 
-             For asymmetric key-based origin authentication
-             based on the IDevID's private key that signs the
-             encapsulated CSR signed by the LDevID's private key,
-             the PKIData contains one cmsSequence element and no
+             For asymmetric key-based origin authentication based on
+             the initial device identity certificate's private key
+             that signs the encapsulated CSR signed by the local
+             device identity certificate's private key, the PKIData
+             contains one cmsSequence element and no
              otherMsgSequence element.  The cmsSequence is the
-             TaggedContentInfo and it includes a bodyPartID
-             element and a contentInfo.  The contentInfo is
-             a SignedData encapsulating a PKIData with one
-             reqSequence element and no cmsSequence or
-             otherMsgSequence elements. The reqSequence is
-             the TaggedRequest and it is the tcr CHOICE. The
-             tcr is the TaggedCertificationRequest and it a
-             bodyPartId and the certificateRequest elements.
-             The certificateRequest is signed with the LDevID's
-             private key. The IDevID certificate and optionally
-             its certificate chain is included in the SignedData
-             certificates that encapsulates the PKIData.
+             TaggedContentInfo and it includes a bodyPartID element
+             and a contentInfo.  The contentInfo is a SignedData
+             encapsulating a PKIData with one reqSequence element
+             and no cmsSequence or otherMsgSequence elements. The
+             reqSequence is the TaggedRequest and it is the tcr
+             CHOICE. The tcr is the TaggedCertificationRequest and
+             it a bodyPartId and the certificateRequest elements.
+             The certificateRequest is signed with the local device
+             identity certificate's private key.  The initial device
+             identity certificate and optionally its certificate
+             chain is included in the SignedData certificates that
+             encapsulates the PKIData.
 
              For shared secret-based origin authentication of a
-             CSR signed by the LDevID's private key, the PKIData
-             contains one cmsSequence element and no reqSequence
-             or otherMsgSequence elements. The cmsSequence is
-             the TaggedContentInfo and it includes a bodyPartID
-             element and a contentInfo.  The contentInfo is an
-             AuthenticatedData encapsulating a PKIData with one
-             reqSequence element and no cmsSequences or
-             otherMsgSequence elements. The reqSequence is the
-             TaggedRequest and it is the tcr CHOICE. The tcr is
-             the TaggedCertificationRequest and it a bodyPartId
-             and the certificateRequest elements.  The
-             certificateRequest is signed with the LDevID's
-             private key. The IDevID certificate and optionally
-             its certificate chain is included in the SignedData
-             certificates that encapsulates the PKIData.";
+             CSR signed by the local device identity certificate's
+             private key, the PKIData contains one cmsSequence
+             element and no reqSequence or otherMsgSequence
+             elements. The cmsSequence is the TaggedContentInfo
+             and it includes a bodyPartID element and a contentInfo.
+             The contentInfo is an AuthenticatedData encapsulating
+             a PKIData with one reqSequence element and no
+             cmsSequences or otherMsgSequence elements. The
+             reqSequence is the TaggedRequest and it is the tcr
+             CHOICE. The tcr is the TaggedCertificationRequest and
+             it a bodyPartId and the certificateRequest elements.
+             The certificateRequest is signed with the local device
+             identity certificate's private key. The initial device
+             identity certificate and optionally its certificate
+             chain is included in the SignedData certificates that
+             encapsulates the PKIData.";
           reference
             "RFC 5272: Certificate Management over CMS (CMC)
              ITU-T X.690:
@@ -361,56 +368,60 @@ module ietf-ztp-types {
              encoded using ASN.1 distinguished encoding rules
              (DER), as specified in ITU-T X.690.
 
-             For asymmetric key-based origin authentication of
-             a CSR based on the IDevID's private key for the
-             associated IDevID's public key, PKIMessages
-             contains one PKIMessage with the header and body
-             elements, no protection element, and should contain
-             the extraCerts element. The header element contains
-             the pvno, sender, and recipient elements. The pvno
-             contains cmp2000, and the sender contains the
-             subject of the IDevID certificate. The body element
-             contains a p10cr CHOICE of type CertificationRequet.
-             It is signed with the IDevID's private key. The
-             extraCerts element contains the IDevID certificate,
-             optionally followed by its certificate chain
-             excluding the trust anchor.
+             For asymmetric key-based origin authentication of a
+             CSR based on the initial device identity certificate's
+             private key for the associated initial device identity
+             certificate's public key, PKIMessages contains one
+             PKIMessage with the header and body elements, no
+             protection element, and should contain the extraCerts
+             element. The header element contains the pvno, sender,
+             and recipient elements. The pvno contains cmp2000, and
+             the sender contains the subject of the initial device
+             identity certificate. The body element contains a p10cr
+             CHOICE of type CertificationRequest.  It is signed with
+             the initial device identity certificate's private key.
+             The extraCerts element contains the initial device
+             identity certificate, optionally followed by its
+             certificate chain excluding the trust anchor.
 
-             For asymmetric key-based origin authentication
-             based on the IDevID's private key that signs the
-             encapsulated CSR signed by the LDevID's private
-             key, PKIMessages contains one PKIMessage with the
-             header, body, and protection elements, and should
-             contain the extraCerts element. The header element
-             contains the pvno, sender, recipient, protectionAlg,
-             and optionally senderKID elements. The pvno contains
-             cmp2000, the sender contains the subject of the
-             IDevID certificate, the protectionAlg contains the
+             For asymmetric key-based origin authentication based on
+             the initial device identity certificate's private key
+             that signs the encapsulated CSR signed by the local
+             device identity certificate's private key, PKIMessages
+             contains one PKIMessage with the header, body, and
+             protection elements, and should contain the extraCerts
+             element. The header element contains the pvno, sender,
+             recipient, protectionAlg, and optionally senderKID
+             elements. The pvno contains cmp2000, the sender
+             contains the subject of the initial device identity
+             certificate, the protectionAlg contains the
              AlgorithmIdentifier of the used signature algorithm,
-             and the senderKID contains the subject key
-             identifier of the IDevID certificate. The body
+             and the senderKID contains the subject key identifier
+             of the initial device identity certificate. The body
              element contains a p10cr CHOICE of type
-             CertificationRequet. It is signed with the LDevID's
-             private key.  The protection element contains the
-             digital signature generated with the IDevID's
-             private key. The extraCerts element contains the
-             IDevID certificate, optionally followed by its
+             CertificationRequest. It is signed with the local device
+             identity certificate's private key.  The protection
+             element contains the digital signature generated with
+             the initial device identity certificate's private key.
+             The extraCerts element contains the initial device
+             identity certificate, optionally followed by its
              certificate chain excluding the trust anchor.
 
              For shared secret-based origin authentication of a
-             CSR signed by the LDevID's private key, PKIMessages
-             contains one PKIMessage with the header, body, and
-             protection element, and no extraCerts element. The
-             header element contains the pvno, sender, recipient,
-             protectionAlg, and senderKID elements. The pvno
-             contains cmp2000, the protectionAlg contains the
-             AlgorithmIdentifier of the used MAC algorithm, and
-             the senderKID contains a reference the recipient
-             can use to identify the shared secret. The body
-             element contains a p10cr CHOICE of type
-             CertificationRequet. It is signed with the LDevID's
-             private key.  The protection element contains the
-             MAC value generated with the shared secret.";
+             CSR signed by the local device identity certificate's
+             private key, PKIMessages contains one PKIMessage with
+             the header, body, and protection element, and no
+             extraCerts element. The header element contains the
+             pvno, sender, recipient, protectionAlg, and senderKID
+             elements. The pvno contains cmp2000, the protectionAlg
+             contains the AlgorithmIdentifier of the used MAC
+             algorithm, and the senderKID contains a reference
+             the recipient can use to identify the shared secret.
+             The body element contains a p10cr CHOICE of type
+             CertificationRequest. It is signed with the local
+             device identity certificate's private key.  The
+             protection element contains the MAC value generated
+             with the shared secret.";
           reference
             "RFC 4210:
                Internet X.509 Public Key Infrastructure
