@@ -46,7 +46,7 @@ listed below. As model content may differ based on platform capabilities, sample
 | IR 1101 | [capability-ir1101.xml](capability-ir1101.xml) |
 | IE 3x00 | [capability-ie3x00.xml](capability-ie3x00.xml) |
 | ISR 1000 | [capability-isr1k.xml](capability-isr1k.xml) |
-| ISR 4000, C8200, C8300 | [capability-isr4k.xml](capability-isr4k.xml) |
+| ISR 4000 | [capability-isr4k.xml](capability-isr4k.xml) |
 
 
 ### Major Model Changes In 17.7.1
@@ -226,3 +226,5 @@ optional arguments:
 --out OUT Path to the output YANG file
 
 After the YANG model version 1.1 is created, either by downloading it from GitHub or by using the migrate_yang_version.py script and compiled on the client application, end-to-end YANG model tests can be executed and validated against Cisco IOS XE devices.
+
+Support: Please send inquiry related to the ‘migrate_yang_version.py’ script or XE YANG version 1.1 migration process to ‘xe-yang-migration@cisco.com’ mailing list.
