@@ -1,0 +1,312 @@
+module cisco-svo-otdr {
+    yang-version 1.1;
+    namespace "http://cisco.com/yang/svo/otdr";
+    prefix svo-otdr;
+
+    import cisco-svo-common-otdr-grp { prefix ccog; }
+    import cisco-svo-common-base-opt-grp { prefix ccbog; }
+    import cisco-svo-common-equipment-types { prefix ccet; }
+    import ietf-inet-types { prefix inet; }
+    import cisco-svo-common-otdr-oper-grp { prefix ccoog; }
+    
+
+    organization
+        "Cisco Systems, Inc.";
+
+    contact
+        "Cisco Systems, Inc. Customer Service Postal: 170 West Tasman
+        Drive San Jose, CA 95134 Tel: +1 800 553-NETS E-mail: cs-yang@cisco.com";
+
+    description
+        "YANG definition for otdr functionalities";
+
+  revision 2021-12-25 {
+  	description "Model version for SVO Release 12.3.0";
+  	reference cisco-svo-otdr.yang;
+  }
+  
+    revision 2021-04-16 {
+        description "
+          Model version for SVO Release 12.2.0
+          added:
+                 Configuration for absolute ORL threshold for rx and tx direction. 
+                 
+          modified:
+                 start-scan action now consider also the mode that could be fast or hybrid.
+        ";
+        reference cisco-svo-otdr.yang;
+    }
+    
+    revision 2020-12-04 { 
+       description "Model version for SVO Release 12.1.0 "; 
+       reference cisco-svo-otdr.yang; 
+    }
+ 
+     typedef scan-mode-e {
+        type enumeration {
+            enum fast {
+                value 0;
+                description "Start OTDR scan in fast mode.
+                			  This mode impact the OSC communication";
+                
+            }
+            enum hybrid {
+                value 1;
+                description "Start OTDR scan in hybrid mode
+                			  This mode does NOT impact the OSC communication";
+            }
+        }
+        description "Otdr scan mode";
+    }
+    
+    
+    typedef Ots-otdr-direction {
+        type enumeration {
+            enum tx {
+                value 0;
+                description "Tx";
+            }
+            enum rx {
+                value 1;
+                description "Rx";
+            }
+        }
+        description "Otdr direction";
+    }
+    
+
+   typedef Ots-otdr-event-type {
+        type enumeration {
+            enum reflection-event {
+                value 0;
+                description "Otdr reflection event";
+            }
+            enum loss-event {
+                value 1;
+                description "Otdr loss event";
+            }
+        }
+        description "Otdr event qualifier";
+    }
+
+
+   typedef protocol-type {
+        description "Defines the supported protocols for download of package";
+        type enumeration {
+            enum "sftp" {
+                value 1;
+            }
+        }
+    }
+
+   typedef Ots-otdr-data {
+        type enumeration {
+            enum scan {
+                value 1;
+                description "Display the list of saved measurements";
+            }
+            enum base-line {
+                value 2;
+                description "Display the list of saved baseline";
+            }
+        }
+        description "Ots otdr data";
+    }
+
+
+   grouping upload-input-param {
+        leaf sor-file-id {
+             type uint32;
+             description "sor file identifier";
+        }
+
+        leaf otdr-data-type {
+             type Ots-otdr-data;
+             description "scan or base-line sor file";
+         }
+
+
+        leaf protocol {
+            type protocol-type;
+            description
+                        "Protocol to be used to download the package";
+        }
+        choice credential {
+            case user-password {
+                leaf user {
+                    type string;
+                    description "user name to be used to download the package";
+                }
+                leaf password {
+                    type string;
+                    description "password to be used to download the package";
+                }
+            }
+            case authgroup {
+                leaf group-name {
+                    type string;
+                    description "authorization group configured for download";
+                }
+            }
+        }
+    }
+
+
+    grouping act-grp {
+      description "Grouping for OTDR commands";
+        container commands {
+          description "OTDR Commands definitions";
+            action otdr-scan {
+                input {
+                    leaf direction {
+                        type svo-otdr:Ots-otdr-direction;
+                        mandatory true;
+                        description "OTDR Measurement Fiber directions (typically RX or TX)";
+                    }
+                    
+                    leaf scan-mode {
+                        type svo-otdr:scan-mode-e;
+                        default hybrid;
+                        description "OTDR scan mode";
+                    }
+                }
+                output {
+                    uses ccbog:rpc-status;
+                }               
+            }
+
+            action terminate-otdr-scan {
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+
+            action otdr-save-baseline {
+                input {
+                    leaf sor-file-id {
+                        type uint32;
+                        description "the id is the identifier of the  SOR file that is set as baseline";
+                    }
+                }
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+
+            action otdr-force-sor-upload {
+                output {
+                    uses ccbog:rpc-status;
+                }                
+            }
+
+           action otdr-clear-alarms {
+                input {
+                    leaf direction {
+                        type svo-otdr:Ots-otdr-direction;
+                        description "OTDR Measurement Fiber directions (typically RX or TX)";
+                    }
+                    leaf event-type {
+                        type svo-otdr:Ots-otdr-event-type;
+                        description "OTDR Event type";
+                    }
+                }
+                output {
+                    uses ccbog:rpc-status;
+                }               
+            }
+
+
+             action otdr-upload-sorfile {                
+                input {
+                uses upload-input-param;
+             }
+             output {
+                 uses ccbog:rpc-status;
+                 }
+            }
+        }
+    }
+      
+    container otdrs {
+        description "OTDR Function Definitions (Config/Oper/Act)";
+        
+        leaf remote-file-path {
+             type inet:uri;
+             description "Remote file path. A URI for the remote file path. Format:sftp://user[:password]@host[:port]/path.
+                              Ex: sftp://test:verify@[2001:db8:0:1::10]:22/home/user/sample";
+             config true;
+        }
+
+
+        uses ccog:otdrs-conf;
+
+        list otdr {
+
+            key "otdr-port-name";
+            description "Otdr Id";
+
+            leaf otdr-port-name {
+                type ccet:port-name-t;
+                 
+                 must  "re-match(../otdr-port-name,'(.*)(/.*)(/.*)')"  {
+                 error-message "Invalid port name format for otdr: must be uid/slot/port"; }
+                 description "Port running the OTDR function";
+
+            }
+
+            uses ccoog:otdr-oper;
+            uses ccog:otdr-conf;
+            uses act-grp;
+
+        }
+    }
+
+     grouping OTDR-STATUS-NOTIF {
+        description "OTDR STATUS NOTIF";
+
+        leaf direction {
+            type ccoog:Direction;
+            description "Direction";
+        }
+        leaf otdr-training-status {
+            type ccoog:Otdr-status;
+            description "Training Status";
+        }
+        leaf orl-training-status {
+            type ccoog:Otdr-status;
+            description "Training Status";
+        }
+        leaf measurement-status {
+            type ccoog:Otdr-status;
+            description "Measurement Status";
+        }
+        leaf progress-pc {
+            type uint32;
+            description "Progress %";
+        }
+        leaf specific-problem {
+            type string;
+            description "Reason of failure";
+        }
+         leaf high-reflection-location {
+            type decimal64 {
+              fraction-digits 4;
+            }
+            default 0.0;
+            description "High Reflection Location in Km";
+        }
+
+    }
+
+
+     notification otdr-status-notification {
+         leaf otdr-port-name {
+                type ccet:port-name-t;
+         }
+          list otdr-status {
+            key "direction";
+            uses OTDR-STATUS-NOTIF;
+        }
+    }
+
+}
