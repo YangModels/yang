@@ -1,0 +1,180 @@
+module ietf-nmda-compare {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-nmda-compare";
+  prefix cmp;
+
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-datastores {
+    prefix ds;
+    reference
+      "RFC 8342: Network Management Datastore
+       Architecture (NMDA)";
+  }
+  import ietf-yang-patch {
+    prefix ypatch;
+    reference
+      "RFC 8072: YANG Patch Media Type";
+  }
+  import ietf-netconf {
+    prefix nc;
+    reference
+      "RFC 6241: Network Configuration Protocol (NETCONF)";
+  }
+
+  organization
+    "IETF NETMOD (Network Modeling) Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/netmod/>
+     WG List:  <mailto:netmod@ietf.org>
+
+     Author: Alexander Clemm
+             <mailto:ludwig@clemm.org>
+
+     Author: Yingzhen Qu
+             <mailto:yqu@futurewei.com>
+
+     Author: Jeff Tantsura
+             <mailto:jefftant.ietf@gmail.com>
+
+     Author: Andy Bierman
+             <mailto:andy@yumaworks.com>";
+  description
+    "The YANG data model defines a new operation, <compare>, that
+     can be used to compare NMDA datastores.
+
+     Copyright (c) 2021 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 9144; see the
+     RFC itself for full legal notices.";
+
+  revision 2021-12-10 {
+    description
+      "Initial revision.";
+    reference
+      "RFC 9144: Comparison of Network Management Datastore
+       Architecture (NMDA) Datastores";
+  }
+
+  /* RPC */
+
+  rpc compare {
+    description
+      "NMDA datastore compare operation.";
+    input {
+      leaf source {
+        type identityref {
+          base ds:datastore;
+        }
+        mandatory true;
+        description
+          "The source datastore to be compared.";
+      }
+      leaf target {
+        type identityref {
+          base ds:datastore;
+        }
+        mandatory true;
+        description
+          "The target datastore to be compared.";
+      }
+      leaf all {
+        type empty;
+        description
+          "When this leaf is provided, all data nodes are compared,
+           whether their schema node pertains to both datastores or
+           not.  When this leaf is omitted, a prefiltering step is
+           automatically applied that excludes data nodes from the
+           comparison that can occur in only one datastore but not
+           the other.  Specifically, if one of the datastores
+           (source or target) contains only configuration data and
+           the other datastore is <operational>, data nodes for
+           the config that is false are excluded from the
+           comparison.";
+      }
+      leaf report-origin {
+        type empty;
+        description
+          "When this leaf is provided, origin metadata is
+           included as part of RPC output.  When this leaf is
+           omitted, origin metadata in comparisons that involve
+           <operational> is by default omitted.";
+      }
+      choice filter-spec {
+        description
+          "Identifies the portions of the datastores to be
+               compared.";
+        anydata subtree-filter {
+          description
+            "This parameter identifies the portions of the
+             target datastore to retrieve.";
+          reference
+            "RFC 6241, Section 6.";
+        }
+        leaf xpath-filter {
+          if-feature "nc:xpath";
+          type yang:xpath1.0;
+          description
+            "This parameter contains an XPath expression
+             identifying the portions of the target
+             datastore to retrieve.";
+          reference
+            "RFC 6991: Common YANG Data Types";
+        }
+      }
+    }
+    output {
+      choice compare-response {
+        description
+          "Comparison results.";
+        leaf no-matches {
+          type empty;
+          description
+            "This leaf indicates that the filter did not match
+             anything and nothing was compared.";
+        }
+        container differences {
+          description
+            "The list of differences, encoded per RFC 8072 with an
+             augmentation to include source values where applicable.
+             When a datastore node in the source is not present in
+             the target, this can be indicated either as a 'delete'
+             or as a 'remove' as there is no difference between
+             them for the purposes of the comparison.";
+          uses ypatch:yang-patch {
+            augment "yang-patch/edit" {
+              description
+                "Provides the value of the source of the patch,
+                 respectively of the source of the comparison, in
+                 addition to the target value, where applicable.";
+              anydata source-value {
+                when "../operation = 'delete'"
+                   + "or ../operation = 'merge'"
+                   + "or ../operation = 'move'"
+                   + "or ../operation = 'replace'"
+                   + "or ../operation = 'remove'";
+                description
+                  "The anydata 'value' is only used for 'delete',
+                   'move', 'merge', 'replace', and 'remove'
+                   operations.";
+              }
+              reference
+                "RFC 8072: YANG Patch Media Type";
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+## Cisco-IOS-XR-pfi-im-cmd-oper.yang
+
+- [XPaths Obsoleted](#xpaths-obsoleted)
+- [XPaths Deprecated](#xpaths-deprecated)
+- [XPaths Added](#xpaths-added)
+- [XPaths Removed](#xpaths-removed)
+- [XPaths Modified](#xpaths-modified)
+
+### Description
+
+Changed datatype of bandwidth leaf.
+
+## XPaths Obsoleted
+
+N/A
+
+## XPaths Deprecated
+
+N/A
+
+## XPaths Added
+
+N/A
+
+## XPaths Removed
+
+N/A
+
+## XPaths Modified
+
+- (L4022)	{Im-attr-media}
+- (L4023)	{Im-attr-media}
+- (L4027)	{Im-attr-media}
+- (L4028)	{Im-attr-media}
+- (L4032)	{Im-attr-media}
+- (L4033)	{Im-attr-media}
+

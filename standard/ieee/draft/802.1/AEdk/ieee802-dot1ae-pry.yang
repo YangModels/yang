@@ -1,0 +1,797 @@
+module ieee802-dot1ae-pry {
+  yang-version "1.1";
+  namespace urn:ieee:std:802.1AE:yang:ieee802-dot1ae-pry;
+  prefix dot1ae-pry;
+  import ietf-interfaces {
+    prefix if;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ieee802-dot1q-types {
+    prefix dot1q-types;
+  }
+  import ieee802-types {
+    prefix ieee;
+  }
+    import iana-if-type {
+    prefix ianaift;
+  }
+
+  organization
+   "IEEE 802.1 Working Group";
+  contact
+    "WG-URL: http:ieee802.org/1/
+    WG-EMail: stds-802-1-l@ieee.org
+    
+    Contact: IEEE 802.1 Working Group Chair
+    Postal: C/O IEEE 802.1 Working Group
+           IEEE Standards Association
+           445 Hoes Lane
+           Piscataway, NJ 08855
+           USA
+    
+    E-mail: stds-802-1-chairs@ieee.org";
+  description
+    "This YANG module augments the configuration and operational state
+     data for interfaces for the MAC Privacy project: Std 802.1AE;
+     see that standard and its amendments for full legal notices. 
+ 
+     A MAC Privacy protection Entity (PrY) is a protocol shim in
+     an interface stack that encapsulates user data frames in MAC
+     Privacy protection Data Units (MPPDUs). Once those MPPDUs are
+     confidentiality protected by MACsec, the ability of potential
+     adversaries to draw conclusions from the source and
+     destination MAC addresses, sizes, and transmission timing and
+     frequency of user data frames is reduced or eliminated.
+ 
+     Each PrY in a system and its managed objects augments its
+     upper interface (Private Port), which provides a privacy
+     protected service to its user, typically a Bridge Port (IEEE
+     Std 802.1Q) or an end station protocol stack. Object names
+     can be conveniently pronounced by rendering Pry as Privacy"; 
+  
+  revision 2021-11-29 {
+    description
+      "Initial revision.";
+  }
+  
+  /*--------------------*/
+  /* Feature            */
+  /*--------------------*/
+  feature macsec-priv {
+    description
+      "Feature MAC Privacy";
+  }
+  
+  /*--------------------*/
+  /*   identities       */
+  /*--------------------*/
+  identity priority-map-identity {
+    description
+      "Base identity for assigning a priority to a Privacy type";
+  }
+  identity channel-identity {
+    description
+      "Base identity for privacy channel";
+  }
+  identity express-channel {
+    base channel-identity;
+    base priority-map-identity;
+    description
+      "This is the express privacy channel frame designation.";
+    reference
+      "20.13.4 of IEEE 802.1AEdk";
+  }
+  identity preemptable-channel {
+    base channel-identity;
+    base priority-map-identity;
+    description
+      "This is the preemptable privacy channel designation.";
+    reference
+      "20.13.4 of IEEE 802.1AEdk";
+  }
+  identity frame-identity {
+    description
+      "Base identity for privacy frame";
+  }
+  identity privacy-frame {
+    base frame-identity;
+    base priority-map-identity;
+    description
+      "This is a privacy frame designation.";   
+    reference 
+      "20.13.5.1 of IEEE 802.1AEdk";
+  }
+  identity none-identity {
+    description
+      "Base identity for privacy frame";
+  }
+  identity none {
+    base none-identity;
+    base priority-map-identity;
+    description
+      "This is no privacy encapsulation. Frames mapped to this
+       identity are forwarded directly without MAC privacy
+       encapsulation.";
+    reference
+      "20.13.5.1 of IEEE 802.1AEdk";
+  }
+  
+  /*--------------------*/
+  /* Configuration Data */
+  /*--------------------*/
+  augment "/if:interfaces/if:interface" {
+    if-feature "macsec-priv";
+    description
+      "MACsec Privacy Mode";
+    when
+      "if:type = 'ianaift:ethernetCsmacd' or if:type = "+
+      "'ianaift:ilan' or if:type = 'ianaift:macSecControlledIF' or "+
+      "if:type = 'ianaift:ptm' or if:type = 'ianaift:bridge'" {
+      description
+        "Augment interfaces with 802.1ae MACSec System specific
+        configuration nodes.";
+    }
+    container pry {
+      description
+        "Configure the MAC Privacy Options";
+      container reception {
+        description
+          "Configure the MAC Privacy Reception";
+        leaf privacy-protection {
+          type boolean; 
+          default true;
+          description
+            "MACSec Privacy Reception Enable - true or false. When
+             true the PrY processes received MPPDUs addressed to
+             ieee8021PryAddr and if-mppdu-dest-address (if that is
+             a Group address).  When false they are passed
+             directly to the PrY's Private Port. All other MPPDUs
+             are passed to the Private Port, unprocessed,
+             irrespective of this control’s value.";
+          reference
+            "20.11 of IEEE 802.1AEdk";
+        }
+        leaf if-address {
+          type ieee:mac-address;
+          config false;
+          description
+            "The individual MAC address associated with the PrY
+             and other components of the PrYs interface stack.
+             Allocated by the system. Used by PrY as the source
+             address of MPPDUs and by a supporting SecY (if
+             present) for SCI assignment. The PrY will receive and
+             process MPPDUs with this destination address.";
+          reference
+            "18.1, of IEEE 802.1AEdk";
+        }
+        leaf-list peer-entry {
+          type ieee:mac-address;
+          config false;
+          description
+            "A list of peer PrYs. Frame Fragments received in
+             MPPDUs with source MAC addresses not in this table
+             are discarded.  When ieee8021PryIfSecySupport is
+             true, table entries are created and deleted by the
+             supporting Key Agreement Entity. When false the
+             system automatically creates an entry for
+             ieee8021PryIfMppduDA if that is not a Group address,
+             and other entries can be created by management";
+        }                   
+        leaf default-reassembly-algorithm {
+          type boolean;
+          config false;
+          description
+            "Set true by the system to indicate that the default
+             reassembly algorithm is used. Set false, otherwise.
+             If the system supports additional reassembly
+             algorithms it shall also support selection of the
+             default algorithm. The maximum size of the user data
+             frame (DA, SA, MSDU) that can be reassembled for
+             delivery to the Private Port is the value of ifMtu
+             (as provided by the IF-MIB plus 22 octets.)";
+          reference
+            "20.13, 20.13.1, 10.7.17 of IEEE 802.1AEdk";
+        }
+        leaf if-max-peers {
+          type uint8;
+          description 
+            "The maximum number of peer PrYs supported by the
+             configured reassembly algorithm.";
+          reference
+            "20.13, of IEEE 802.1AEdk";
+        }
+        leaf if-num-peers {
+          type uint8;
+          config false;
+          description
+            "The number of peer PrYs detected by the system. This
+             value may be greater than if-max-peers a notification
+             is raised when this value exceeds if-max-peers."; 
+          reference
+            "20.13, of IEEE 802.1AEdk";
+        }                   
+        container rx-statistics {
+          description
+            "Configure the MAC Privacy Reception Statistics";
+          leaf in-user-frames {
+            type yang:counter64;
+            config false;
+            description
+              "Total number of protected user data frames received
+               in MPPDUs, encoded as Encapsulated Frames or
+               reassembled from Frame Fragments.";
+            reference
+              "20.13.8 of IEEE 802.1AEdk";
+          }
+          leaf in-user-octets {
+            type yang:counter64;
+            config false;
+            description
+              "Total number of user data frame octets received.
+               Excludes padding.";
+            reference
+              "20.14.2 of IEEE 802.1AEdk";
+          }
+          leaf in-pad-octets {
+            type yang:counter64;
+            config false;
+            description
+              "Number of pad octets received in MPPDUs. This
+               includes MPPDU overhead bytes."; 
+            reference
+              "20.14.2 of IEEE 802.1AEdk";
+          }
+          leaf in-mppdus {
+            type yang:counter64;
+            config false;
+            description
+              "Total number of MAC Privacy PDUs received.";
+            reference
+              "20.14.2 of IEEE 802.1AEdk";
+          }
+          leaf in-encapsulated-frames {
+            type yang:counter64;
+            config false;
+            description
+              "Total number of MAC Privacy user frames received
+               that were not fragmented.";
+            reference
+              "20.14.2 of IEEE 802.1AEdk";
+          }
+          leaf in-user-express-fragments {
+            type yang:counter64;
+            config false;
+            description
+              "Total number of correctly encoded Express Frame
+              Fragments received in MPPDUs. Includes fragments
+              discarded by reassembly (unknown peer, too many peers,
+              out of order, reassembled frame too large).";
+            reference
+              "20.14.2 of IEEE 802.1AEdk";
+          }
+          leaf in-user-preemptable-fragments {
+            type yang:counter64;
+            config false;
+            description
+              "Total number of correctly encoded Preemptable Frame
+               Fragments received in MPPDUs. Includes fragments
+               discarded by reassembly (unknown peer, too many
+               peers, out of order, reassembled frame too
+               large).";
+            reference
+              "20.14.2 of IEEE 802.1AEdk";
+          }
+          leaf in-express-discard-fragments {
+            type yang:counter64;
+            config false;
+            description
+              "Number of Express Frame Fragment discard events
+               (discarding a fragment and/or a partially
+               reassembled user data frame).";
+            reference
+              "20.14.2 of IEEE 802.1AEdk";
+          }
+          leaf in-preemptable-discard-fragments {
+            type yang:counter64;
+            config false;
+            description
+              "Number of Preemptable Frame Fragment discard events
+               (discarding a fragment and/or a partially
+               reassembled user data frame).";
+            reference
+              "20.14.2 of IEEE 802.1AEdk";
+          }
+          leaf in-unknown-mppcis {
+            type yang:counter64;
+            config false;
+            description
+              "Number of of unknown MPPDU components received.";
+            reference
+              "20.14.2 of IEEE 802.1AEdk";
+          }
+          leaf in-errored-mppdus {
+            type yang:counter64;
+            config false;
+            description
+              "Number of received MPPDUs containing an incorrectly
+               encoded component"; 
+            reference
+              "20.14.2 of IEEE 802.1AEdk";
+          }
+          leaf in-user-unprotected-frames {
+            type yang:counter64;
+            config false;
+            description
+              "Total number of frames with no privacy protection
+               received."; 
+            reference
+              "20.14.2 of IEEE 802.1AEdk";
+          }
+          leaf in-user-unprotected-octets {
+            type yang:counter64;
+            config false;
+            description
+              "Total number of octets with no privacy protection
+               received."; 
+            reference
+              "20.14.2 of IEEE 802.1AEdk";
+          }
+        }
+      }
+      container transmission {
+        description
+          "Configure the MAC Privacy Transmission";
+        leaf privacy-protection {
+          type boolean; 
+          default true;
+          description
+            "MACSec Privacy Enable - True or False. When true, the
+             PrY protects transmitted user data frames as
+             configured in the Privacy Selection list. When false,
+             all user data frames are passed directly to the PrY's
+             Controlled Port.";
+          reference
+            "20.13.1 of IEEE 802.1AEdk";
+        }
+        leaf if-secy-support {
+          type boolean;
+          config false;
+          description
+            "Set true by the system if the PrY is directly
+             supported by a SecY and MKA, and false otherwise.
+             When true, the value of ieee8021PryIfMppduDA and the
+             entries in the PrYs peer address table
+             (ieee8021PryPeerTable) are determined by the Key
+             Agreement Entity (KaY) operating MKA, and are not
+             writable by network management.";
+          reference
+            "18.1, 20.11, of IEEE 802.1AEdk";
+        }
+        leaf if-mppdu-destination-address {
+          type ieee:mac-address;
+          description 
+            "The destination MAC address used by the PrY to
+             transmit MPPDUs. Also used to receive MPPDUs (if a
+             Group address) when ieee8021PryIfRxProtection is
+             true. Set by the KaY if ieee8021PryIfSecySupport is
+             true, otherwise writable. If ieee8021PryIfSecySupport
+             transitions from true to false, defaults to the
+             Nearest non-TPMR Bridge Group address.";
+          reference
+            "18.1, 20.11 of IEEE 802.1AEdk";
+        }
+        list privacy-selection {
+          key "user-priority";
+          description
+            "User priority is mapped to privacy channels express or preemptable
+            or to privacy frames";
+          reference
+            "";
+          leaf user-priority {
+            type dot1q-types:priority-type {
+              range "0..7";
+            }
+            description
+              "Transmit request user priority. There are eight
+               values of User Priority that map to ether a
+               priority channel, a priority frame or to none.";
+            reference
+              "20.13.5.1 of IEEE 802.1AEdk";
+          }
+          leaf privacy-type {
+            type identityref {
+              base priority-map-identity;
+            }
+            mandatory true;
+            description
+              "An identity associated with the privacy channel or
+               frame. Privacy protection type: none, privacyFrame,
+               preemptableChannel, or expressChannel."; 
+            reference
+              "20.13.5.1 of IEEE 802.1AEdk";
+          }
+          leaf frame-access-priority {
+            type dot1q-types:priority-type;
+            description
+              "The Controlled Port priority (access priority) used
+               to transmit Privacy Frames with the Private Port
+               transmission priority (user priority) that selects
+               this table entry.";
+            reference
+                "20.13.6.2, 20.13.7.2 of IEEE 802.1AEdk";
+          }
+          leaf frame-reveal-de {
+            type enumeration {
+              enum hidden {
+                value 0;
+              }
+              enum visible {
+                value 1;
+              }
+            }
+            default hidden;
+            description
+              "For privacy frames only, this parameter allows
+               Privacy frames with transmit discard eligible set
+               to be visible and set on the encapsulated frame. ";
+            reference
+                "20.13.6.2, 20.13.7.2 of IEEE 802.1AEdk";
+          }
+          leaf frame-padding {
+            type enumeration { 
+              enum none {
+                value 1;
+              }
+              enum to-16 {
+                value 16;
+              }
+              enum to-32 {
+                value 32;
+              }
+              enum to-64 {
+                value 64;
+              }
+            }
+            default to-64;
+            description
+              "Specifies padding of the Privacy Frame MPPDU
+               (excluding its source and destination MAC
+               addresses) to four octets (to allow for the MAC
+               Privacy protection EtherType and the MPPCI for an
+               Encapsulated Frame) plus the nearest multiple of
+               one(1) (for no padding), sixteen(16), thirty
+               two(32), or sixty four (64) octets. The specified
+               size excludes any octets to be added by supporting
+               components lower in the interface stack (e.g. a
+               MACsec SecTAG and ICV, and the Ethernet FCS) or
+               other bridge components (e.g. an outer VLAN tag
+               added by an EDE’s network component).";
+            reference
+              "20.13.7.3 of IEEE 802.1AEdk";
+          }
+        }
+        container frame {
+          presence "Common Frame parameters";
+          description
+            "Frame attributes";
+          reference
+            "20.13.6.6 of IEEE 802.1AEdk";
+          container tx-statistics {
+            description
+              "Frame Transmission stats.";
+            leaf out-privacy-frames {
+              type yang:counter64;
+              config false;
+              description
+                "Total number of user data frames sent as Privacy
+                 Frames (each in a separate MPDDU).";
+              reference
+                "20.14.1 of IEEE 802.1AEdk";
+            }
+            leaf out-pf-user-octets {
+              type yang:counter64;
+              config false;
+              description
+                "Total number of user data octets sent in Privacy
+                 Frames (each user data frame in a separate
+                 MPPDU).  Not counting pad octets.";
+              reference
+                "20.14.1 of IEEE 802.1AEdk";
+            }
+            leaf out-pf-pad-octets {
+              type yang:counter64;
+              config false;
+              description
+                "Total number of pad octets sent in Privacy Frames
+                 (each conveying a singe Private Port user data
+                 frame).  This includes MPPDU overhead."; 
+              reference
+                "20.14.1 of IEEE 802.1AEdk";
+            }
+          }
+        }
+        list channel {
+         key "channel-id";
+          description
+            "List of Channels supported with their corresponding
+             per channel configuration Note both channles are
+             forced to be configured";
+          reference
+            "20.13.6 of IEEE 802.1AEdk";
+          leaf channel-id {
+            type identityref {
+              base channel-identity;
+            }
+          }
+          leaf enable {
+            type boolean;
+            default false;
+            description
+              "When true, user data frames assigned to this
+               Privacy Channel a privacy-selection are
+               transmitted using this channel’s parameters. When
+               false, they are transmitted using the other channel
+               if ieee8021PryChEnable is true for that channel and
+               transmitted as Privacy Frames using the relevant
+               ieee8021PryFrameEntry otherwise"; 
+            reference
+              "20.8 of IEEE 802.1AEdk";
+          } 
+          leaf fragment-enable {
+            type boolean;
+            config true;
+            default true; 
+            description
+              "When true permits user data frame fragmentation in
+              this Privacy Channel. Should be true, for bandwidth
+              efficiency and delay minimization. Provided to allow
+              simple performance testing and fragmentation benefit
+              analysis";
+            reference
+              "20.10 of IEEE 802.1AEdk";
+          }
+          leaf access-priority {
+            type dot1q-types:priority-type;
+            description
+              "The Controlled Port priority (access priority) used to
+               transmit MPPDUs for this Privacy Channel."; 
+            reference
+                "20.8 20.9.3 of IEEE 802.1AEdk";
+          }
+          leaf user-data-frame-size {
+            type uint16 {
+              range "128 .. 32768";
+            }
+            units octets;
+            default 1518;
+            description
+              "User specification of MPPDU size. The largest user
+               data frame, at the Private Port interface (i.e.
+               prior to MAC Privacy protection)that can be
+               transmitted as an MPDDU Encapsulated Frame without
+               fragmentation. Includes the user data frame DA, SA,
+               MSDU with EtherType, and a four octet FCS
+               allowance.  Excludes octets subsequently added by
+               MACsec, or other supporting interface stack
+               components.Physical media, and the configuration of
+               other system components can impose an upper bound
+               lower than the configured value of this
+               parameter.";
+            reference
+             "20.9.3 of IEEE 802.1AEdk";
+          } 
+          leaf mppdu-generation {
+            type enumeration { 
+              enum fixed-rate {
+                value 1;
+              }
+              enum transmission-gate {
+                value 2;
+              }
+              enum other {
+                value 3;
+              }
+            }
+            default fixed-rate;
+            description
+              "The MPPDU generation algorithm for this Privacy
+              Channel. When fixed-rate, the (maximum) bandwidth is
+              requested, with a catch up (burst)parameter to
+              recovers lost bandwidth if an MPPDU transmission has
+              been delayed by another frame sent with higher
+              access priority or by another component of the same
+              interface stack. When transmission-gate, MPPDU
+              transmission timing is gated, see 20.9.5 and IEEE
+              Std 802.1Q.";
+            reference
+              "20.9, 20.9.4, 20.9.5 of IEEE 802.1AEdk";
+          }
+          leaf requested-kbit-rate {
+            type uint64;
+            units "kbit/s";
+            mandatory true;
+            description
+              "The physical medium bit rate (kilobits per second)
+               to be used by this Privacy Channel and the default
+               MPPDU generation algorithm in the absence of higher
+               priority traffic or other resource competition.";
+            reference
+              "20.13.6.3 of IEEE 802.1AEdk";
+          }
+          leaf mppdu-bits-on-wire  {
+            type uint16; 
+            units "octets";
+            config false;
+            description
+              "The number of bit times required to transmit an MPPDU
+              that conveys a single, Private Port transmitted, user
+              data frame of user-data-frame-size encoded as an
+              Encapsulated Frame(19.5.1). Calculated by the system,
+              including all fields added by the interface stack.";
+            reference
+              "20.13.6.6 of IEEE 802.1AEdk";
+          }
+          leaf mppdu-interval {
+            type uint32;
+            config false;
+            description
+              "The approximate interval (as calculated by the
+               system) in nanoseconds between the transmission of
+               MPPDUs for this Privacy Channel, in the absence of
+               competing higher priority traffic or other resource
+               competition";
+            reference
+              "20.13.6.6 of IEEE 802.1AEdk";
+          }
+          leaf burst-octets {
+            type uint32;
+            description
+              "The number of additional user data frame burst for
+               use by the default MPPDU generation algorithm to
+               recover channel bandwidth lost to competing higher
+               priority traffic.";
+            reference
+              "20.9.4 of IEEE 802.1AEdk";
+          }
+          leaf user-burst-octets {
+            type uint32;
+            description
+              "The number of additional user data frame burst for use
+              by the default MPPDU generation algorithm to recover
+              channel bandwidth lost to competing higher priority
+              traffic";
+            reference
+              "20.9.4 of IEEE 802.1AEdk";
+          }
+          leaf actual-bit-rate {
+            type uint64;
+            units "octets";
+            config false;
+            description
+              "Bitrate in bps for the stream of MAC Privacy packets.
+               This is computed using the actual interval times the 
+               effective frame size including all overhead. A system
+               computes this value value adding the overhead on top 
+               of max-mppdu-payload-size.";
+            reference
+              "20.13.6.4 of IEEE 802.1AEdk";
+          }
+          container tx-statistics {
+            description
+              "Transmission statistics for a Privacy Channel.";
+            leaf out-pc-user-frames {
+              type yang:counter64;
+              config false;
+              description
+                "Number of user data frames sent in this Privacy
+                Channel."; 
+              reference
+                "20.14.1 of IEEE 802.1AEdk";
+            }
+            leaf out-pc-user-octets {
+              type yang:counter64;
+              config false;
+              description
+                "Number of user data octets sent in this Privacy
+                 Channel.  Not counting pad octets.";
+              reference
+                "20.14.1 of IEEE 802.1AEdk";
+            }
+            leaf out-pc-pad-octets {
+              type yang:counter64;
+              config false;
+              description
+                "Number of pad octets sent in this Privacy
+                 Channel. This includes MPPDU overhead."; 
+              reference
+                "20.14.1 of IEEE 802.1AEdk";
+            }
+            leaf out-mppdus{
+              type yang:counter64;
+              config false;
+              description
+                "Number of mppdus sent in this Privacy Channel.";
+              reference
+                "20.14.1 of IEEE 802.1AEdk";
+            }
+            leaf out-encapsulated-frames{
+              type yang:counter64;
+              config false;
+              description
+                "Number of Encapsulated Frames encoded for this
+                 Privacy Channel.";
+              reference
+                "20.14.1 of IEEE 802.1AEdk";
+            }
+            leaf out-express-fragments {
+              type yang:counter64;
+              config false;
+              description
+                "Number of Express Fragments encoded for this Privacy
+                 Channel."; 
+              reference
+                "20.14.1 of IEEE 802.1AEdk";
+            }
+            leaf out-preempt-fragments {
+              type yang:counter64;
+              config false;
+              description
+                "Number of Preemptable Fragments encoded for this
+                 Privacy Channel."; 
+              reference
+                "20.14.1 of IEEE 802.1AEdk";
+            }
+          }
+        }
+        container tx-statistics {
+          description
+            "Unprotected Transmission stats.";
+          leaf out-unprotected-frames {
+          type yang:counter64;
+            config false;
+            description
+              "Total number of user frames sent that are not privacy
+               protected. These frames are mapped to none and
+               these frames are not MPPDU encapsulated.";
+            reference
+              "20.14.1 of IEEE 802.1AEdk";
+          }
+          leaf out-unprotected-octets {
+            type yang:counter64;
+            config false;
+            description
+              "Total number of user octets sent that are not privacy
+               protected. These octets are from the frames that
+               are mapped to none and these frames are not MPPDU
+               encapsulated.";
+            reference
+              "20.14.1 of IEEE 802.1AEdk";
+          }
+        }
+      }
+    }
+  }
+
+  /*-------------------------*/
+  /* Notification statements */
+  /*-------------------------*/
+  
+  notification pry-max-peers-exceeded {
+    description          
+      "A max-peers exceeded is sent when the value of if-num-peers
+       exceeds if-max-peers. This is triggered only on the
+       transition to the exceeded state and reset when the if-num
+       peers is less than or equal to if-num-peers.";
+    leaf pry-interface {
+      type leafref {
+         path "/if:interfaces/if:interface/if:name";
+      }
+      description
+        "Contains the interface name containing the pry that has
+         exceeded the number of peers.";
+    }
+  }
+}
+
