@@ -1,0 +1,390 @@
+module cisco-svo-common-pm-grp {
+  yang-version 1.1;
+  namespace "http://cisco.com/yang/svo/common-pm-grp";
+  prefix "ccpmg";
+
+  import tailf-common { prefix tailf; }
+  import ietf-yang-types { prefix yang; revision-date 2013-07-15; }
+  import org-openroadm-pm-types { prefix org-openroadm-pm-types; }
+  import org-openroadm-resource-types { prefix org-openroadm-resource-types; }
+  import org-openroadm-common-types { prefix org-openroadm-common-types; }
+  import org-openroadm-common-alarm-pm-types { prefix org-openroadm-common-alarm-pm-types; }
+  import cisco-svo-common-pm-types { prefix ccpmt; }
+
+  organization
+    "Cisco Systems, Inc.";
+
+  contact
+    "Cisco Systems, Inc. Customer Service Postal: 170 West Tasman Drive San Jose, CA 95134 Tel: +1 800 553-NETS E-mail: cs-yang@cisco.com";
+
+  description
+    "YANG definition for PM Config Data";
+
+  revision 2020-12-04 { 
+      description "Model version for SVO Release 12.1.0 "; 
+      reference cisco-svo-common-pm-grp.yang; 
+  }
+ 
+
+  grouping current-pm-val-group {
+	    uses org-openroadm-pm-types:pm-names;
+	    leaf location {
+	      type org-openroadm-common-alarm-pm-types:location;
+	    }
+	    leaf direction {
+	      type org-openroadm-common-alarm-pm-types:direction;
+	    }
+	    list measurement {
+	      key "granularity";
+	      leaf granularity {
+	        type ccpmt:pm-granularity;
+	      }
+	      uses ccpmt:pm-measurement;
+	    }
+  }
+  
+  grouping current-pm-live-group {
+    description
+        "PM Data with current values - both realtime (granularity=notApplicable) and binned (granularity=15 min, 24h, 1 min, 1 h))";
+    leaf pm-resource-instance {
+      type instance-identifier;
+      description
+            "Retrieves all PM associate with the resource instance";
+    }
+    leaf pm-resource-type {
+      type org-openroadm-resource-types:resource-type-enum;
+      description
+            "The supported pm-resource-type associated with the given resource instance.";
+    }
+    leaf pm-resource-type-extension {
+      type string;
+      description
+            "The resource type extension when the type is not defined in the resource-type-enum.";
+    }
+    leaf retrieval-time {
+      type yang:date-and-time;
+      description
+            "Represents the time when the data is being read, not the bin start or end time.";
+    }
+    list current-pm {
+      key "type extension location direction";
+      uses current-pm-val-group;
+    }
+  }
+
+  grouping current-pm-list-cont-live-grp {
+    list current-pm-entry {
+      config false;
+      key "pm-resource-type pm-resource-type-extension pm-resource-instance";
+      uses current-pm-live-group;
+      leaf last-cleared-time {
+        when "../pm-resource-type-extension = 'ethernetCsmacd'";
+        type yang:date-and-time;
+      }
+      description
+            "List of current PM entries";
+    }
+  }
+
+
+  grouping historical-pm-val-group {
+    description
+        "PM Data with historical values";
+    uses org-openroadm-pm-types:pm-names;
+    leaf location {
+      type org-openroadm-common-alarm-pm-types:location;
+    }
+    leaf direction {
+      type org-openroadm-common-alarm-pm-types:direction;
+    }
+    list measurement {
+      key "granularity bin-number";
+      config false;
+      leaf granularity {
+        type ccpmt:pm-granularity;
+        mandatory true;
+      }
+      leaf bin-number {
+        type uint16 {
+          range "1..max";
+        }
+        mandatory true;
+      }
+      uses ccpmt:pm-measurement;
+      leaf completion-time {
+        type yang:date-and-time;
+        config false;
+        mandatory true;
+        description
+                "The time at the end of the period; For example if bin starts at 01:15:00 and ends at 01:29:59, the completion-time is 01:29:59";
+      }
+    }
+  }
+  
+  grouping historical-pm-live-group {
+    description
+        "PM Data with historical values - binned (granularity=15 min, 24h, 1 min, 1h))";
+    leaf pm-resource-instance {
+      type instance-identifier;
+      description
+            "Retrieves all PM associate with the resource instance";
+    }
+    leaf pm-resource-type {
+      type org-openroadm-resource-types:resource-type-enum;
+    }
+    leaf pm-resource-type-extension {
+      type string;
+      description
+            "The resource type extension when the type is not defined in the resource-type-enum.";
+    }
+    list historical-pm {
+      key "type extension location direction";
+      uses historical-pm-val-group;
+    }
+  }
+
+  
+  grouping historical-pm-list-cont-live-grp {
+    list historical-pm-entry {
+      config false;
+      key "pm-resource-type pm-resource-type-extension pm-resource-instance";
+      uses historical-pm-live-group;
+      description
+            "List of historical PM entries";
+    }
+  }
+
+  grouping pm-data-file-grp {
+    leaf resource-type {
+      type ccpmt:pm-resource-type;
+    }
+    leaf granularity {
+      type ccpmt:pm-granularity;
+    }
+    leaf completion-time {
+      type yang:date-and-time;
+    }
+    leaf file-name {
+      type string;
+      description "It's the plain file name, without any path.";
+    }
+  }
+
+  grouping pm-commands-grp {
+	action clear-pm-data {
+	 tailf:actionpoint pm-manager-clear-pm-data-ap;
+
+      description
+            "A synchronous action for clearing current or historical PM data of a given resource";
+
+      input {
+        leaf pm-resource-instance {
+          type instance-identifier;
+          mandatory true;
+          description
+          "Clear the PM data related to the resource instance";
+        }
+
+        leaf granularity {
+          type ccpmt:pm-granularity;
+        }
+        
+        leaf time-frame {
+          type ccpmt:pm-clear-time-frame;
+          default "current";
+        }
+      
+      }
+      output {
+        uses org-openroadm-common-types:rpc-response-status;
+      }
+    }
+
+    action get-historical-pm-data {
+      tailf:actionpoint pm-manager-get-historical-pm-data-ap;
+
+      description
+            "A synchronous action for reading historical PM data of a given resource";
+
+      input {
+        leaf pm-resource-instance {
+          type instance-identifier;
+          mandatory true;
+          description
+          "Retrieves the PM data related to the resource instance";
+        }
+        choice request {
+          description
+          "The PM data-set to be returned. It can be a group of consecutive bins or a single bin identified by either the bin number or the completion time-stamp";
+          default bin;
+          case allBins {
+          	leaf all-bins {
+          	    type empty;
+          	}
+            description
+              "Request all bins for the selected granularity";
+          }
+          case bins {
+            leaf from-bin-number {
+              type uint16 {
+                range "0..max";
+              }
+              mandatory true;
+              description
+              "The start bin-number of the range";
+            }
+            leaf to-bin-number {
+              type uint16 {
+                range "1..max";
+              }
+              mandatory true;
+              description
+              "The end bin-number of the range";
+            }
+          }
+          case bin {
+            leaf bin-number {
+              type uint16 {
+                range "0..max";
+              }
+              default "1";
+              description
+              "The bin to be retrieved";
+            }
+          }
+          case time-stamp {
+            leaf completion-time {
+              type yang:date-and-time;
+              description
+              "The time at the end of the required historical period (e.g. 01:29:59)";
+            }
+          }
+        }
+        leaf granularity {
+          type ccpmt:pm-granularity;
+          default "15min"; 
+
+        }
+      }
+      output {
+        uses org-openroadm-common-types:rpc-response-status;
+        uses historical-pm-list-cont-live-grp;
+      }  
+    }
+
+    action get-pm-data-file {
+      tailf:actionpoint pm-manager-get-pm-data-file-ap;
+
+      description
+            "An action for retrieving the xml file with the historical PM data of all resources for the given granularity and bin/timestamp.
+             The file is gzip compressed and returned as a binary base64 encoded element.
+             Please note that since this is a synchronous action that may return a big amount of data, it's NOT the suggested method
+             for retrieving periodically PM historical data: SVO PM data files for enabled resources are automatically made available for transfer through https";
+
+      input {
+        leaf resource-type {
+          type ccpmt:pm-resource-type;
+          mandatory true;
+          description
+          "The required PM resource type.";
+        }
+        leaf granularity {
+          type ccpmt:pm-granularity;
+          mandatory true;
+        }
+        choice request {
+          description
+          "The PM data-set to be returned. It can be represented as a unique bin number or the completion time-stamp";
+          default bin;
+          case bin {
+            leaf bin-number {
+              type uint16 {
+                range "1..max";
+              }
+              default "1";
+              description
+              "The bin to be retrieved";
+            }
+          }
+          case time-stamp {
+            leaf completion-time {
+              type yang:date-and-time;
+              description
+              "The time at the end of the required historical period (e.g. 01:29:59)";
+            }
+          }
+        }
+      }
+      output {
+        uses org-openroadm-common-types:rpc-response-status;
+
+        leaf file-name {
+          type string;
+          description "It's the plain file name, without any path.";
+        }
+        
+        leaf pm-data-file {
+          type binary;
+          description
+          "A GZIP and base64 encoded xml data file";
+        }
+      }  
+    }
+
+    action get-current-pm-data {
+      tailf:actionpoint pm-manager-get-current-pm-data-ap;
+
+      description
+            "A synchronous action for reading current PM data of a given resource, both realtime (granularity=notApplicable)
+       and binned (granularity=15 minute, 24h)";
+
+      input {
+        leaf pm-resource-instance {
+          type instance-identifier;
+          mandatory true;
+          description
+          "Retrieves the PM data related to the resource instance";
+        }
+        leaf granularity {
+          type ccpmt:pm-granularity;
+        }
+      }
+      output {
+        uses org-openroadm-common-types:rpc-response-status;
+        uses current-pm-list-cont-live-grp;
+      }  
+    }
+
+    action list-pm-data-files {
+      tailf:actionpoint pm-manager-list-pm-data-files-ap;
+
+      description
+      "Returns a list of the available historical PM data files";
+
+      input {
+        leaf resource-type {
+          type ccpmt:pm-resource-type;
+          description
+          "The required PM resource type. If not present, file descriptors for all PM resource types are returned";
+        }
+        leaf granularity {
+          type ccpmt:pm-granularity;
+          description
+          "The required granularity. If not present, file descriptors for all granularities are returned";
+        }
+        leaf completion-time {
+          type yang:date-and-time;
+          description
+          "The time at the end of the required period (e.g. 01:29:59). If not present, file descriptors for all periods are returned";
+        }
+      }
+      output {
+        uses org-openroadm-common-types:rpc-response-status;
+        list pm-data-file {
+          key "resource-type granularity completion-time";
+          uses ccpmg:pm-data-file-grp;
+        }
+      }  
+    }
+  }
+}
