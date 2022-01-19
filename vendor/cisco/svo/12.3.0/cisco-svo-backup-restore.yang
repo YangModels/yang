@@ -1,0 +1,493 @@
+module cisco-svo-backup-restore {
+    yang-version 1.1;
+    namespace "http://cisco.com/yang/svo/br";
+    prefix svo-backup-restore;
+
+    import ietf-yang-types {
+        prefix ietf;
+    }
+
+    import cisco-svo-common-base-opt-grp {
+        prefix ccbog;
+    }
+    import cisco-svo-common-node-functionalities-grp {
+        prefix ccnfg;
+    }
+    import ietf-inet-types { prefix inet; }
+    import cisco-svo-common-equipment-types { prefix ccet; }
+    
+    import cisco-svo {
+        prefix svo;
+    }
+
+    organization
+      "Cisco Systems, Inc.";
+
+    contact
+      "Cisco Systems, Inc. Customer Service Postal: 170 West Tasman
+       Drive San Jose, CA 95134 Tel: +1 800 553-NETS E-mail: cs-yang@cisco.com";
+
+    description
+      "Yang definition of types and action for backup and restore in
+       SVO system";
+
+    revision 2021-12-25 { 
+       description "
+           Model version for SVO Release 12.3.0
+           modified   : action backup, backup-and-upload, restore, download-and-restore. Added a new NOT mandatory leafs
+                          with a default that maintain the 12.1.0 behavior.
+                          This assure the backward compatibility to the already created netconf client.
+                          
+           deprecated : the leafs /svo-backup/latest-backup-time and /svo-backup/latest-backup-file-name. 
+                          both are substitute by similar leafs present in the latest-backup-summary list  
+           
+           added      : the list /svo-backup/latest-backup-summary that reports all the useful information are present in the summary json file of the backup.
+           					In this release the list is limited to only one element.
+       "; 
+       reference cisco-svo-backup-restore.yang; 
+    }
+
+    revision 2020-12-04 { 
+       description "Model version for SVO Release 12.1.0 "; 
+       reference cisco-svo-backup-restore.yang; 
+    }
+
+ 	typedef svo-backup-restore-action-t {
+      type enumeration {
+        enum "backup-procedure" {
+          description "System is in backup.";
+        }      
+        enum "restore-procedure" {
+          description "System is in restore.";
+        }
+      }
+    }
+    
+    typedef svo-backup-restore-status-t {
+        type enumeration {
+
+            enum "backup-restore-idle" {
+                description
+                  "System ready for new backup or restore.";
+            }
+            enum "backup-restore-running" {
+                description
+                  "System running on a backup or restore.";
+            }
+            enum "backup-restore-error" {
+                description
+                  "System fails last backup or restore.";
+            }
+
+            enum "backup-restore-svo-running" {
+                description
+                  "backup or restore of svo db in progress.";
+            }
+            enum "backup-restore-svo-error" {
+                description
+                  "backup or restore of svo db errored.";
+            }
+            enum "backup-restore-svo-completed" {
+                description
+                  "backup or restore of svo db completed.";
+            }
+
+            enum "backup-restore-device-running" {
+                description
+                  "backup or restore of devices db in progress.";
+            }
+            enum "backup-restore-device-error" {
+                description
+                  "backup or restore of devices db errored.";
+            }
+            enum "backup-restore-device-completed" {
+                description
+                  "backup or restore of devices db completed.";
+            }
+            enum "backup-restore-all-device-completed" {
+                description
+                  "backup or restore of all devices db completed.";
+            }
+            enum "backup-restore-all-device-completed-with-error" {
+                description
+                  "backup or restore of all devices db completed with some error.";
+            }
+        }
+        description
+          "All possible Backup and Restore log status";
+    }
+
+
+    grouping backup-restore-switch {    
+      leaf stop-on-mismatch {
+        type boolean;
+        default true;
+        mandatory false;
+        description " with the leaf value set to true the backup fails: 
+                         At the first device found in admin-state locked.
+                         
+                      with the leaf value set to true the restore fails;
+                         If the SW_version of the backup is not congruent with the running.
+                         At the first device found in admin-state locked.
+                         If there is at least one device in locked mode ant it is present in the summary.json file.
+                         If the number of backup devices in the summary is different than the current configured.
+                         If in the restore file is not present the debug file for a configured device.
+                         
+                         
+                      with the false value the backup or restore continue and skips any found locked device or inconsistence between.
+                      backup and runing SW.
+                      
+                      ATTENTION: use the TRUE selection carefully because the system could restart in an unwanted situation.";
+      }
+    }  
+    
+    grouping restore-switch {      
+      choice component-to-restore {
+         case svo-cdb-restore {
+            leaf only-svo {
+               type boolean;
+               description "if set to true only the cdb will be restored, devices db remain unchanged";
+            }
+         }
+      
+         case devices-db-restore {
+            list devices {
+               key device;
+               leaf device {
+                 description "the device that will be restored, the SVO cdb remain unchanged.";
+                 type leafref {
+                   path '/svo:svo/svo:devices/svo:device';
+                 }                 
+               }
+            }
+         }
+      }
+    }
+
+    grouping backup-restore-grp {
+        list components-status {
+            key component-name;
+            leaf component-name {
+                type string;
+                description
+                  "name of the latest backup/restore component";
+            }
+
+            leaf device-status {
+                type backup-restore-device-status;
+                default not-applicable;
+                description "status of the device on the latest backup/restore";
+            }
+            
+            leaf log-message {
+                type string;
+                description
+                  "Message of the backup/restore status.";
+            }
+
+            leaf time-stamp {
+                type ietf:date-and-time;
+                description
+                  "time stamp of the latest backup/restore component";
+            }
+        }
+    }
+
+
+  typedef backup-restore-device-status {
+    type enumeration {
+      enum not-applicable {
+        description " used for all those device are not applicable the status, or as default value.";
+      }
+      enum locked {
+        description
+          "When a device is admistratively locked, it is not possible
+           to modify its configuration, and no changes are ever
+           pushed to the device.";
+      }
+      enum unlocked {
+        description
+          "Device is assumed to be operational.
+           All changes are attempted to be sent southbound.";
+      }
+      enum not-sync-completed {
+        description " Device is not fully discovered.";
+      }
+    }
+    description "the admin state type for subtended devices";
+  } 
+    grouping backup-restore-status-leafs {
+        leaf status {
+            type svo-backup-restore-status-t;
+            description
+              "report the status of the FSM of backup restore log.";
+        }
+        
+
+        leaf action-type {
+            description "Inform id the system is in backup or restore procedure";
+            type svo-backup-restore-action-t;
+        }
+        
+        uses ccnfg:log-status-msg;
+        uses backup-restore-grp;
+    }
+
+    container svo-backup {
+    
+        container log {
+            config false;
+            uses backup-restore-status-leafs;
+        }
+
+        uses ccnfg:remote-file-path;
+
+        leaf latest-backup-file-name {
+      	    status deprecated;
+            description
+              "The name of the latest backup file.";
+            config false;
+            type string;
+        }
+
+        leaf latest-backup-time {
+      	    status deprecated;            
+            description
+              "refer to the summary container for the date-time";
+            config false;
+            type ietf:date-and-time;
+        }
+         
+        list latest-backup-summary {
+        	config false;
+        	max-elements 1;        	
+        	key latest-backup-file-name;
+        	            
+            leaf latest-backup-file-name {      	    
+              description "The name of the latest backup file.";
+              type string;
+        	}
+        	
+        	leaf date-time {
+        	  type ietf:date-and-time;
+              description "Time stamp of the latest backup file.";
+        	}
+        	
+        	container svo-data {
+        	description "The leaf refers to the SVO that create the backup file of which the json file refer to.";
+        	
+          	  leaf name {
+        	    type string;
+        	    description "The name of the SVO container that create the backup file.";
+        	  }
+        	
+        	  leaf ip {
+        	    type inet:ip-address;
+        	    description "The ip of the SVO container that create the backup file.";
+        	  }
+        	
+        	  leaf sw-version{
+        	    type string;
+        	    description "The SW Version of the SVO container that create the backup file.";
+        	  }
+        	    
+        	  leaf tdm-terminology-type {
+                type identityref {
+                  base ccet:tdm-terminology-type;
+                }
+                description "it could be ANSI/ETSI.";
+        	  }
+		
+              leaf optical-type {
+                type identityref {
+                  base ccet:optical-type;
+                }
+        	    description "It could be ROADM/OLA/DGE/TXP.";
+        	  }
+        	}
+        	
+        	list devices {
+        	  key name;
+        	  config false;
+        	  
+        	  leaf name {
+        	    type string;
+        	    description "the name of the device that has been backup togheter with the SVO"; 
+        	  }
+        	
+        	  leaf sw-version{
+        	    type string;
+        	    description "The SW Version of the device that has been backup togheter with the SVO.";
+        	  }
+        	
+        	  leaf admin-state {
+        	    type string;
+        	    description "The admin-state of the device that has been backup togheter with the SVO.";
+        	  }
+        	}
+        }
+
+        leaf db-from-backup {
+            description
+              "Inform the system that this Db comes from a restore. NCS2k Devices
+               will not start the automatic sync-from before the system did not
+               complete the restore feature. Restore is considered completed
+               only when any instance of the following restore is successfully
+               completed. 1) SVO db restore 2) conf-D restore 3) all NCS2k devices
+               restore.";
+            config false;
+            type boolean;
+        }
+
+        uses ccnfg:transfer-grouping;
+
+        container commands {
+
+            action upload-latest-backup {
+                description
+                  "upload the latest svo backup";
+                input {
+                    uses ccnfg:upload-input-param;
+                }
+
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+
+            action download-restore-file {
+                description
+                  "download a bundle file for db restore";
+                input {
+                    leaf download-file-name {
+                        description
+                          "The backup filename to download on the system";
+                        type string;
+                    }
+
+                    uses ccnfg:upload-input-param;
+                }
+
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+
+            action backup {
+                description
+                  "Backup the complete SVO data base The backup file is a complex
+                      unique zip file which contains: 
+                      1) The SVO ncs-cdb.
+                      2) All the NCS2k configured devices DB. 
+                      3) The ConfD ncs-cdb.
+                      4) User defined capabilities file.s 
+                      5) all the SOR file of the OTDR. 
+                      
+                      The backup lock the DB during the entire phase of the backup, and unlock the same at the end.
+                      Backup fails if one of the devices is not in status sync-completed.";
+
+                input {
+                    uses backup-restore-switch;
+                }
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+
+            action restore {
+                description
+                  "Restore the complete SVO data base.
+                   Restore operate also on those devices are not in status sync-completed.";
+
+                input {
+                    leaf restore-file-name {
+                        description
+                          "The filename with the data that will be restored on the system";
+                        type string;
+                    }
+                    uses backup-restore-switch;
+                    uses restore-switch;
+                }
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+
+            action restore-devices {
+                description
+                  "Restore the 2kDevices This action shall be called by orchestrator
+                      after slave SVO stopped. All the NCS2K devices will remain in
+                      lock south-bound till the latest device restoration is complete.
+                      At the end the devices will do the automatic synch from. Start
+                      restore the ncs2k devices";
+
+                input {
+                    leaf restore-session-id {
+                        description
+                          "String representing the restore session uuid provided by SVO
+                                      to orchestrator during the execution of restore";
+                        type string;
+                    }
+                }
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+
+            action backup-and-upload {
+                description
+                  "Backup the complete SVO data base and upload file to SFTP server
+                      The backup file is a complex unique zip file which contains: 1)
+                      The SVO ncs-cdb 2) All the NCS2k configured devices DB 3) The
+                      ConfD ncs-cdb 4) user defined capabilities files The backup lock
+                      the DB during the entire phase of the backup, and unlock the same
+                      at the end.";
+
+                input {
+                    uses ccnfg:remote-file-path;
+                    uses ccnfg:upload-input-param;
+                    uses backup-restore-switch;	
+                }
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+
+            action download-and-restore {
+                description
+                  "Download a bundle file and use it to restore the complete SVO
+                      data base and 2kDevices.";
+
+                input {
+                    leaf download-file-name {
+                        description
+                          "The backup filename to download on the system";
+                        type string;
+                    }
+
+                    uses ccnfg:remote-file-path;
+                    uses ccnfg:upload-input-param;                    
+                    uses backup-restore-switch;
+                    uses restore-switch;
+                }
+                output {
+                    uses ccbog:rpc-status;
+                }
+            }
+        }
+    }
+
+    notification backup-restore-notification {
+        leaf status {
+            type svo-backup-restore-status-t;
+            description
+              "report the status of the FSM of diagnostic log.";
+        }
+
+        leaf log-message {
+            type string;
+            description
+              "Message of the diagnostic status.";
+        }
+    }
+}

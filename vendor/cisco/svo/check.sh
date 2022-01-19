@@ -22,7 +22,7 @@
 platform_dir="vendor/cisco/svo"
 
 # NOTE: please just have the directories you are checking here
-to_check="12.1.0 12.2.0"
+to_check="12.1.0 12.2.0 12.3.0"
 
 debug=0
 

@@ -1,0 +1,186 @@
+module cisco-svo-networking {
+  yang-version 1.1;
+  namespace "http://cisco.com/yang/cisco-svo-networking";
+  prefix svo-networking;
+  import ietf-inet-types { prefix inet; }
+  import tailf-ncs { prefix ncs; }
+  import cisco-svo { prefix svo; }
+  import tailf-common { prefix tailf; }
+
+  organization
+    "Cisco Systems, Inc.";
+
+  contact
+    "Cisco Systems, Inc.
+    Customer Service
+
+    Postal: 170 West Tasman Drive
+    San Jose, CA 95134
+
+    Tel: +1 800 553-NETS
+
+    E-mail: cs-yang@cisco.com";
+
+  description
+    "YANG definition for Network configuration among SVO and subtended devices 
+     via a pool of external switches.";
+
+  revision 2020-12-04 { 
+     description "Model version for SVO Release 12.1.0 "; 
+     reference cisco-svo-networking; 
+  }
+  
+  typedef config-status {
+    type enumeration {
+      enum "Successful" {
+        value 1;
+      }
+      enum "Failed" {
+        value 2;
+      }
+      enum "In-progress" {
+        value 3;
+      }
+    }
+    description
+      "result of configuration execution";
+  }
+
+  augment "/svo:svo/svo:node-information/svo:time-settings" {
+    tailf:action configure {
+      tailf:info "Trigger the configuration of the time-setting on SVOs, devices and card controllers";
+      tailf:actionpoint configureNtp;
+        description 
+          "This action triggers the configuration of the time-setting on SVOs, devices and card controllers. 
+           The configuration is applied every time the action is performed.";
+      input {
+        leaf overwrite {
+          description
+            "Force the action to be executed even if time-setting have been already configured.";
+          mandatory true;
+          type boolean;
+        }
+      }
+      output {
+        leaf status {
+          type config-status;
+          mandatory true;
+          description
+            "Successful, Failed or In-progress";
+        }
+        leaf details {
+          type string;
+          description
+            "Gives a more detailed status.";
+        }
+      }
+    }
+  }
+
+  augment "/svo:svo/svo:node-information/svo:networking" {
+
+      description 
+         "Network configuration of the SVO setup";
+
+      list external-switches {
+        description 
+            "This is the list of external switches to be configured.
+             It  must match the list of external switches configured as NCS devices.";
+        key "device";
+        leaf device {
+          description 
+            "External Switch to be configured.";
+          type leafref {
+            path '/ncs:devices/ncs:device/ncs:name';
+          }
+        }
+
+        unique "device-address";
+        leaf device-address {
+          description
+            "IP Address in the NCS2K subnet";
+          type inet:ip-address;
+        }
+
+        leaf device-address-mask {
+          description
+            "Subnet mask in the NCS2K subnet";
+          type inet:ip-address;
+        }
+      }
+
+      leaf hsrp-group-id {
+        description
+          "This is the HSRP group id to be configured on External Switches.
+           It must be 8 bits because becomes the last octet of the MAC address used by HSRP.";
+        type uint8;
+      }
+
+      leaf-list ntp-server {
+        description 
+          "This is the list of NTP servers available to NCS2K nodes.
+           They are in the device subnet, and very probably they are the external switches.";
+          type inet:ip-address;
+      }
+
+      container ospf {
+        leaf subnet {
+          type inet:ip-address;
+        }
+        leaf mask {
+          description "This is actually the OSPF wild card bits";
+          type inet:ip-address;
+        }
+        leaf area-id {
+          type inet:ip-address;
+        }
+      }
+
+      container configuration {
+        leaf status {
+          description "This leaf contains the result of the configuration. ";
+          type config-status;
+          config false;
+          tailf:cdb-oper {
+            tailf:persistent true;
+          }
+        }
+        
+        leaf details {
+          type string;
+          config false;
+          description
+            "Gives a more detailed status.";
+        }
+      }
+
+      tailf:action configure {
+        tailf:info "Trigger the configuration of the networking of all external switches and containers";
+        tailf:actionpoint configureNetworking;
+          description 
+            "This action triggers the configuration of the networking of all external switches 
+             and containers. The configuration is applied every time the action is performed.";
+        input {
+          leaf overwrite {
+            description
+              "Force the action to be executed even if switches have been already configured.";
+            mandatory true;
+            type boolean;
+          }
+        }
+        output {
+          leaf status {
+            type config-status;
+            mandatory true;
+            description
+              "Successful, Failed or In-progress";
+          }
+          leaf details {
+            type string;
+            description
+              "Gives a more detailed status.";
+          }
+        }
+      }
+  }
+}

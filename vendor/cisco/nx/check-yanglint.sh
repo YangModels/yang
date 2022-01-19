@@ -11,7 +11,7 @@
 # should be removed.
 #
 platform_dir="vendor/cisco/nx"
-to_check="7.0-3-I7-10"
+to_check="10.2-2"
 debug=1
 
 checkDir () {

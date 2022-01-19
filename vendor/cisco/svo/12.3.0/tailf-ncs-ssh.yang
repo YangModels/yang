@@ -1,0 +1,370 @@
+submodule tailf-ncs-ssh {
+  yang-version 1.1;
+  belongs-to tailf-ncs {
+    prefix ncs;
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  organization "Tail-f Systems";
+
+  description
+    "This submodule contains configuration items for SSH connections.
+
+     Copyright 2019 Cisco Systems, Inc.
+     All rights reserved.
+     Permission is hereby granted to redistribute this file without
+     modification.";
+
+  revision 2016-12-12 {
+    description
+      "Released as part of NCS-4.2.2.
+
+       Changed typedef ssh-private-key, to support automatic
+       upgrade of pre-4.2 private keys.";
+  }
+
+  revision 2016-01-01 {
+    description
+      "Released as part of NCS-4.1.1.
+
+       Added the 'updated-uncommitted' enum value for the 'result' leaf
+       in the fetch-ssh-host-keys-result grouping and updated the
+       description for the fetch-host-keys action.";
+  }
+
+  revision 2014-06-30 {
+    description
+      "Initial revision, released as part of NCS-3.2.";
+  }
+
+  typedef ssh-host-key-verification-level {
+    description
+      "This enumeration is used to specify how strictly the verification of
+       SSH host keys is done.";
+    type enumeration {
+      enum reject-unknown {
+        tailf:info "Reject unknown host keys";
+        description
+          "With this setting, the SSH host key provided by the device or
+           cluster node must already be known.";
+      }
+      enum reject-mismatch {
+        tailf:info "Reject host keys that do not match the stored key";
+        description
+          "With this setting, the SSH host key provided by the device or
+           cluster node may be unknown, but it must not be different from
+           a 'known' key for the same key algorithm.";
+      }
+      enum none {
+        tailf:info "Accept any host key";
+        description
+          "With this setting, no SSH host key verification is done - the
+           key provided by the device or cluster node may be either unknown
+           or different from a 'known' key for the same key algorithm.";
+
+      }
+    }
+  }
+
+  typedef ssh-key-algorithm {
+    type enumeration {
+      enum ssh-dss {
+        tailf:info "SSH DSA key";
+      }
+      enum ssh-rsa {
+        tailf:info "SSH RSA key";
+      }
+    }
+  }
+
+  typedef ssh-host-key {
+    tailf:info "SSH public host key";
+    type binary;
+    tailf:typepoint ncs-ssh-host-key;
+  }
+
+  typedef ssh-private-key-iv {
+    tailf:info "SSH private user key";
+    type tailf:aes-cfb-128-encrypted-string;
+    tailf:typepoint ncs-ssh-private-key;
+  }
+
+  grouping fetch-ssh-host-keys-result {
+    description
+      "This grouping defines the result of the 'fetch-ssh-host-keys' and
+       'fetch-host-keys' actions for one device or cluster node.";
+    grouping ssh-host-keys-result {
+      description
+        "This grouping defines the result of host key retrieval for
+         a device, a cluster node, or an additional protocol for the
+         live-tree of a device.";
+      leaf result {
+        description
+          "The overall result of the host key retrieval.";
+        type enumeration {
+          enum failed {
+            description
+              "The key retrieval failed, e.g. due to failure to connect
+               to the device or cluster node.";
+            tailf:code-name hostkey_failed;
+          }
+          enum unchanged {
+            description
+              "The key retrieval succeeded, and the keys were the same
+               as those already known.";
+          }
+          enum updated {
+            description
+              "The key retrieval succeeded, and the keys were not the same
+               as those already known - i.e. there was at least one new or
+               changed key. The updated keys were committed";
+          }
+          enum updated-uncommitted {
+            description
+              "The key retrieval succeeded, and the keys were not the same
+               as those already known - i.e. there was at least one new or
+               changed key. The updated keys were not committed, only stored
+               in the current transaction, since the device or cluster node
+               entry the keys pertain to was not committed (i.e. it only
+               exists in the current transaction). The keys will be
+               committed when the user commits the transaction.";
+          }
+          enum not-available {
+            description
+              "Key retrieval was not attempted due to not being applicable for
+               the device type or additional live-tree protocol (e.g. CLI
+               access via telnet rather than SSH).";
+          }
+        }
+      }
+      leaf info {
+        type string;
+        description
+          "If present, contains additional information about the result.";
+      }
+      list fingerprint {
+        description
+          "This list gives the key algorithm and fingerprint for each
+           retrieved key.";
+        key algorithm;
+        leaf algorithm {
+          type ssh-key-algorithm;
+        }
+        leaf value {
+          type yang:hex-string;
+        }
+      }
+    }
+    uses ssh-host-keys-result;
+    list live-status-protocol {
+      description
+        "This list gives the result of key retrieval for additional
+         protocols for the live-tree of a device, one entry per protocol.";
+      key name;
+      leaf name {
+        type string;
+        description
+          "The name of the protocol, as configured in
+           /devices/device/live-status-protocol/name.";
+      }
+      uses ssh-host-keys-result;
+    }
+  }
+
+  grouping ssh-host-keys {
+    list host-key {
+      tailf:info "Known SSH host keys";
+      key algorithm;
+      description
+        "The list of SSH host keys known by NCS for a device, a cluster
+         node, or an additional protocol for the live-tree of a device.
+         The list may be populated by the 'fetch-ssh-host-keys' or
+         'fetch-host-keys' actions, or by direct configuration.";
+      leaf algorithm {
+        type ssh-key-algorithm;
+        tailf:cli-allow-range;
+      }
+      leaf key-data {
+        type ssh-host-key;
+        mandatory true;
+        description
+          "The binary data for the SSH host key for the given algorithm.
+           Besides the direct base64 encoding of the data, the format
+           defined by RFC 4716 (produced by 'ssh-keygen -e'), or the
+           'native' OpenSSH format, can be used when configuring a key.";
+        tailf:cli-multi-line-prompt;
+        tailf:validate ncs {
+          tailf:internal;
+          tailf:dependency ".";
+        }
+      }
+      tailf:action show-fingerprint {
+        tailf:info "Show the fingerprint for the key";
+        tailf:actionpoint ncsinternal {
+          tailf:internal;
+        }
+        output {
+          leaf value {
+            type yang:hex-string;
+          }
+        }
+      }
+    }
+  }
+
+  grouping ssh-fetch-host-keys {
+    tailf:action fetch-host-keys {
+      tailf:info "Retrieve host keys from remote";
+      description
+        "Retrieve the SSH host keys from the device or remote cluster
+         node and store them in the 'host-key' list. The keys will be
+         committed by the action when possible, i.e. when the device or
+         cluster node entry is already committed. Otherwise the keys
+         are stored in the current transaction, and committed only when
+         the user commits the transaction.";
+      tailf:actionpoint ncsinternal {
+        tailf:internal;
+      }
+      output {
+        uses fetch-ssh-host-keys-result;
+      }
+    }
+  }
+
+  grouping ssh-connection-config {
+    container ssh {
+      tailf:info "SSH connection configuration";
+      tailf:code-name ssh_container;
+      uses ssh-host-keys;
+      leaf host-key-verification {
+        tailf:info "Level of host key verification";
+        type ssh-host-key-verification-level;
+        tailf:default-ref "/ssh/host-key-verification";
+        description
+          "The level of SSH host key verification for a device or cluster
+           node. If no value is set, the value of /ssh/host-key-verification
+           is used.";
+      }
+      uses ssh-fetch-host-keys;
+    }
+  }
+
+  grouping public-key-auth {
+    container public-key {
+      presence "public-key authentication";
+      tailf:info "Use public-key authentication";
+      description
+        "Parameters for SSH public-key authentication.";
+      container private-key {
+        tailf:info "Specify which private key to use for authentication";
+        choice private-key {
+          default file;
+          container file {
+            tailf:info "Use private key file in local user's key directory";
+            description
+              "This case will take the private key from a file in the user's
+               SSH key directory (determined according to the description of
+               /ncs-config/aaa/ssh-pubkey-authentication in the ncs.conf(5)
+               manual page). If the key is encrypted, the passphrase for the
+               key must be configured via 'passphrase' or 'use-password'.";
+            leaf name {
+              tailf:info "Name of private key file";
+              type string;
+              default "id_dsa";
+            }
+            choice passphrase-source {
+              leaf passphrase {
+                tailf:info "Passphrase for private key";
+                type tailf:aes-cfb-128-encrypted-string;
+                tailf:suppress-echo "true";
+                description
+                  "If this leaf exists, its value is used as passphrase
+                   for the key if it is encrypted.";
+              }
+              leaf use-password {
+                tailf:info "Use local user's password as passphrase";
+                type empty;
+                description
+                  "If this leaf exists, the password used by the local user
+                   when logging in to NCS is used as passphrase for the key
+                   if it is encrypted.";
+              }
+            }
+          }
+          leaf name {
+            tailf:info "Name of private key configured in /ssh/private-key";
+            description
+              "This case will take the private key identified by 'name' from
+               the /ssh/private-key list in the configuration.";
+            type leafref {
+              path "/ssh/private-key/name";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  container ssh {
+    tailf:info "Global SSH connection configuration";
+    tailf:code-name ssh_container;
+
+    leaf host-key-verification {
+      tailf:info "Level of host key verification";
+      type ssh-host-key-verification-level;
+      default reject-unknown;
+      description
+        "The level of SSH host key verification for a devices and cluster
+         nodes that do not have a level set in the device/node-specific
+         SSH connection configuration.";
+    }
+
+    list private-key {
+      tailf:info "Configured private keys";
+      description
+         "This list holds named private keys that can be used for SSH
+          public-key authentication towards a device or cluster node.";
+      key name;
+      leaf name {
+        tailf:info "Name of key";
+        type string;
+        description
+          "An arbitrary name for the key, used as reference when configuring
+           public-key authentication.";
+      }
+      leaf key-data {
+        type ssh-private-key-iv;
+        mandatory true;
+        tailf:cli-multi-line-prompt;
+        tailf:validate ncs {
+          tailf:dependency "../passphrase";
+          tailf:internal;
+        }
+        description
+          "The binary data for the private key, in one of several possible
+          PEM formats. Either in PKCS#1 format (text starting with
+          '-----BEGIN DSA PRIVATE KEY-----' or
+          '-----BEGIN RSA PRIVATE KEY-----') or in PKCS#8 format (text
+          starting with '-----BEGIN PRIVATE KEY-----' or
+          '-----BEGIN ENCRYPTED PRIVATE KEY-----') or in OpenSSH format
+          (text starting with '-----BEGIN OPENSSH PRIVATE KEY-----').
+          If the key is encrypted, the passphrase for the key must be
+          configured via 'passphrase'.";
+      }
+      leaf passphrase {
+        tailf:info "Passphrase for key";
+        type tailf:aes-cfb-128-encrypted-string;
+        tailf:suppress-echo "true";
+        description
+          "The value of this leaf is used as passphrase for the key if
+           it is encrypted.";
+      }
+    }
+  }
+}

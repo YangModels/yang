@@ -1,0 +1,535 @@
+module cisco-svo-diagnostic {
+    yang-version 1.1;
+    namespace "http://cisco.com/yang/svo/diag";
+    prefix svo-diag;
+
+    import tailf-common {
+        prefix tailfs;
+    }
+    import ietf-yang-types {
+        prefix ietf;
+    }
+    import cisco-svo-common-base-opt-grp {
+        prefix ccbog;
+    }
+    import cisco-svo-common-node-functionalities-grp {
+        prefix ccnfg;
+    }
+    import cisco-svo {
+        prefix svo;
+    }
+
+    organization
+      "Cisco Systems, Inc.";
+
+    contact
+      "Cisco Systems, Inc. Customer Service Postal: 170 West Tasman
+       Drive San Jose, CA 95134 Tel: +1 800 553-NETS E-mail: cs-yang@cisco.com";
+
+    description
+      "Yang definition of types and action for collection and upload
+       of diagnostics files ";
+
+   revision 2021-04-16 { 
+      description "Model version for SVO Release 12.2.0 "; 
+      reference cisco-svo-diagnostic.yang; 
+   }
+ 
+
+    revision 2020-12-04 { 
+       description "Model version for SVO Release 12.1.0 "; 
+       reference cisco-svo-diagnostic.yang; 
+    }
+
+    typedef device-log-status-t {
+        description
+          "All possible diagnostic log status";
+
+        type enumeration {
+            enum "log-completed" {
+                description
+                  "Diagnostic action completed";
+            }
+
+            enum "start-collecting-requested-log" {
+                description
+                  "Start to collect all the requested logs";
+            }
+
+            enum "complete-device-log-file" {
+                description
+                  "Completed the download of the requested diagnostic file of a
+                      specific device. The leaf 'log-message' reports the name of the
+                      device. Errors are reportend on the operational list 'diagnostic-command-progress-status'.";
+            }
+
+            enum "compressing-log-file" {
+                description
+                  "compressing all the internal logs files in a unique file";
+            }
+
+            enum "log-ftp-transfer" {
+                description
+                  "transferring the latest diagnostic compressed file ";
+            }
+
+            enum "complete-log-ftp-transfer" {
+                description
+                  "Completed transfer of latest diagnostic compressed file ";
+            }
+            enum "failed-log-ftp-transfer" {
+                description
+                  "failed transfer of latest diagnostic compressed file ";
+            }
+
+            enum "complete-svo-log-file" {
+                description
+                  "Completed the compression of the SVO diagnostic files.";
+            }
+
+            enum "complete-system-log-file" {
+                description
+                  "Completed the compression of the System diagnostic files.";
+            }
+        }
+    }
+
+    typedef diagnostic-progress-status {
+        type enumeration {
+            enum "idle" {
+                value 0;
+            }
+            enum "running" {
+                value 1;
+            }
+            enum "completed" {
+                value 2;
+            }
+        }
+    }
+
+    grouping status-leafs {
+        leaf status {
+            type device-log-status-t;
+            description
+              "report the status of the FSM of diagnostic log.";
+        }
+
+        uses ccnfg:log-status-msg;
+    }
+
+    grouping progress-info {
+        leaf diagnostic-type {
+            config false;
+            type string;
+            description
+              "could have diagnostic log type or backup and restore type";
+        }
+        leaf progress-status {
+            config false;
+            type diagnostic-progress-status;
+            description
+              "Progress of diagnostic operation";
+        }
+        leaf result-info {
+            type string;
+            config false;
+            description
+              "Message error: which file is not retrieved or no error if successfully
+               completed";
+        }
+    }
+
+    grouping diagnostic-command-progress-status {
+        list progress-status {
+            key diagnostic-type;
+
+            uses progress-info;
+            description
+              "Progress status related to the retrieve of devices logs";
+        }
+    }
+
+    grouping file-grp {
+        leaf latest-log-file-name {
+            type string;
+            description
+              "name of the latest file of logs";
+            tailfs:info "name of the latest file of logs";
+            config false;
+        }
+        leaf latest-log-time-stamp {
+            type ietf:date-and-time;
+            description
+              "time stamp of the latest file of logs";
+            tailfs:info "time stamp of the latest file of logs";
+            config false;
+        }
+
+        leaf latest-retrieved-log-files {
+            type string;
+            description
+              "the list of the logs file contained in the compressed file";
+            tailfs:info "the list of the logs file contained in the compressed file";
+            config false;
+        }
+    }
+
+    grouping ha-action-log {
+        leaf ha-logs {
+            description
+              "ha-manager logs: HaApp.log txt file supervisord.log txt file
+               hamanager_stdout.log txt file hamanager_stderr.log txt file";
+            type boolean;
+            default true;
+        }
+    }
+
+    grouping svo-logs {
+        container logs {
+            container svo-diagnostic {
+                uses file-grp;
+            }
+
+            container system-diagnostic {
+                uses file-grp;
+            }
+
+            uses ccnfg:remote-file-path;
+
+            container log-status {
+                config false;
+                uses status-leafs;
+                uses diagnostic-command-progress-status;
+            }
+
+            container commands {
+
+                tailfs:action upload-latest-svo-logs {
+                    tailfs:info "upload the latest svo logs file";
+                    description
+                      "upload the latest svo logs file";
+                    tailfs:actionpoint upload-latest-svo-logs;
+                    input {
+                        uses ccnfg:upload-input-param;
+                    }
+
+                    output {
+                        uses ccbog:rpc-status;
+                    }
+                }
+
+                tailfs:action retrieve-svo-logs {
+                    tailfs:info "create and send all the svo logs file";
+                    description
+                      "create and send all the svo logs file";
+                    tailfs:actionpoint retrieve-svo-logs;
+                    input {
+                        container SVO-logs {
+                            leaf ap-logs {
+                                description
+                                  "collect all the adminplane logs";
+                                type boolean;
+                                default true;
+                            }
+
+                            leaf audit-logs {
+                                description
+                                  "NSO log files (txt files): audit.log devel.log ncs.log nso_stderr.log
+                                                      supervisord.log";
+                                type boolean;
+                                default true;
+                            }
+
+                            leaf engineer-logs {
+                                description
+                                  "Erlang and java logs (txt files): ncs-genet.log ncs-java-vm.log
+                                  ";
+                                type boolean;
+                                default true;
+                            }
+
+                            leaf alarms-logs {
+                                type boolean;
+                                description
+                                  "alarms.html  html file";
+                                default true;
+                            }
+
+                            leaf history-logs {
+                                type boolean;
+                                description
+                                  "history.html  html file";
+                                default true;
+                            }
+
+                            leaf inventory-logs {
+                                description
+                                  "inventory.html  html file";
+                                type boolean;
+                                default true;
+                            }
+
+                            leaf conditions-logs {
+                                description
+                                  "conditions.html  html file";
+                                type boolean;
+                                default true;
+                            }
+                            
+                            leaf check-callbacks-logs {
+                                description
+                                  "runs the ncs --check-callbacks, the output in ncs-check-callbacks.log. Could be very long operation for big nodes";
+                                type boolean;
+                                default false;
+                            }
+                        }
+
+                        list devices {
+                            key "device";
+                            description
+                              "List of SVO controlled devices. NS2K logs will be collected for
+                                              both active and stdby TNC.";
+                            tailfs:info "List of SVO controlled devices. NS2K logs will be collected for
+                                                        both active and stdby TNC.";
+
+                            leaf device {
+                                type leafref {
+                                    path '/svo:svo/svo:devices/svo:device';
+                                }
+                            }
+                            leaf device-audit-logs {
+                                description
+                                  "Ncs2K = Audit<device name>.html html file. ConfD = ntp.log txt
+                                                      file audit.log txt file";
+                                type boolean;
+                                default true;
+                            }
+
+                            leaf node-diagnostics {
+                                description
+                                  "diagnostic<device name>.gz  binary compressed file";
+                                type boolean;
+                                default true;
+                            }
+
+                            leaf OBFL {
+                                description
+                                  "OBFL<device name>.bin of active TNC  binary file";
+                                type boolean;
+                                default true;
+                            }
+
+                            leaf OBFLSby {
+                                description
+                                  "OBFLSby<device name>.bin of sby TNC  binary file";
+                                type boolean;
+                                default true;
+                            }
+                        }
+                    }
+                    output {
+                        uses ccbog:rpc-status;
+                    }
+                }
+
+                tailfs:action lamp-test {
+                    tailfs:info "Execute lamp test on a chassis";
+                    description
+                      "Execute lamp test on a chassis";
+                    tailfs:actionpoint lamp-test;
+                    input {
+                        leaf chassis-uid {
+                            type leafref {
+                                path '/svo:svo/svo:chassis/svo:uid';
+                            }
+                        }
+                    }
+                    output {
+                        uses ccbog:rpc-status;
+                    }
+                }
+                
+                tailfs:action get-audit-log {
+                    tailfs:info "Gets the audit log formatted in a readable way";
+                    description "Gets the audit log formatted in a readable way";
+                    tailfs:actionpoint get-audit-log;
+                    
+                    input {
+                        uses audit-filter;
+                    }
+
+                    output {
+                        uses audit-result;
+                    }
+                }
+                
+            }
+        }
+    }
+
+    container svo-diagnostic {
+        uses svo-logs;
+    }
+
+    notification diagnostic-notification {
+        leaf status {
+            type device-log-status-t;
+            description
+              "report the status of the FSM of diagnostic log.";
+        }
+
+        leaf log-message {
+            type string;
+            description
+              "Message of the diagnostic status.";
+        }
+    }
+
+    notification diagnostic-progress-notification {
+        uses progress-info;
+    }
+    
+    grouping audit-filter {
+        leaf from {
+            type ietf:date-and-time;
+            description
+              	"Gets entries whose date is equal or after this one, if absent take all entries in the past";
+            tailfs:info 
+            	"Gets entries whose date is equal or after this one, if absent take all entries in the past";
+            config false;
+        }
+        
+        leaf to {
+            type ietf:date-and-time;
+            description
+              	"Gets entries whose date is before this one, if absent take all entries till now";
+            tailfs:info 
+            	"Gets entries whose date is before this one, if absent take all entries till now";
+            config false;
+        }
+		
+		leaf user {
+			type enumeration {
+	            enum system {
+	                description "Gets only system user log";
+	                tailfs:info "Gets only system user log";
+	            }
+	            enum other {
+	                description "Gets only non system users logs";
+	                tailfs:info "Gets only non system users logs";
+	            }
+	            enum all {
+	             	description "No filter on user";
+	             	tailfs:info "No filter on user";
+	            }
+	        }
+	        description "Filter based on the user name";
+	        tailfs:info "Filter based on the user name";
+		}
+		
+		leaf page-size {
+			type uint32 {
+				range "1..50000";
+			}
+			default 50000;
+			description "Max number of returned records";
+			tailfs:info "Max number of returned records";
+		}
+		
+        leaf page-number {
+            type uint32 {
+				range "1..max";
+			}
+			description "Page number (start from 1)";
+			tailfs:info "Page number (start from 1)";
+        }
+        
+        leaf force-reload {
+        	type boolean;
+        	description "Force the rereading of the audit log file";
+        	tailfs:info "Force the rereading of the audit log file";
+        }
+        
+        leaf date-sort-desc {
+        	type boolean;
+        	default true;
+        	description "If true the entries are returned in descending order";
+        	tailfs:info "If true the entries are returned in descending order";
+        }
+        
+        leaf cid-only {
+        	type boolean;
+        	default false;
+        	description "If true only entries having cid are returned";
+        	tailfs:info "If true only entries having cid are returned";
+        }
+    }
+    
+    grouping audit-result {
+    
+    	leaf total-entries {
+    		type uint32;
+			description "Total entries size";
+			tailfs:info "Total entries size";
+    	}
+    	
+    	leaf page {
+    		type uint32 {
+				range "1..max";
+			}
+            description "Page number of current set";
+            tailfs:info "Page number of current set";
+    	}
+    
+        leaf error {
+    		type string;
+			description "If some execution error occurs some information is returned here";
+			tailfs:info "If some execution error occurs some information is returned here";
+    	}
+    	
+	    container audit-list {
+	    	list audit {				
+				leaf date {
+					type ietf:date-and-time;
+					description "Date and time of the log";
+					tailfs:info "Date and time of the log";
+					config false;
+					mandatory true;
+				}
+				
+				leaf user {
+					type string;
+					description "User name";
+					tailfs:info "User name";
+					config false;
+					mandatory true;
+				}
+				
+				leaf sid {
+					type uint32;
+					description "User Session ID";
+					tailfs:info "User Session ID";
+					config false;
+					mandatory true;
+				}
+	            
+	            leaf cid {
+	            	type uint32;
+	            	description "Commit ID";
+	            	tailfs:info "Commit ID";
+	            	config false;
+	            }
+	            
+	            leaf msg {
+	         	   	type string;
+	         	   	description "Log message";
+	               	tailfs:info "Log message";
+	         	   	config false;
+	         	   	mandatory true;
+	            }
+	        }
+	    }
+	}
+    
+}

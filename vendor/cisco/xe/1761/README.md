@@ -44,7 +44,7 @@ listed below. As model content may differ based on platform capabilities, sample
 | IR 1101 | [capability-ir1101.xml](capability-ir1101.xml) |
 | IE 3x00 | [capability-ie3x00.xml](capability-ie3x00.xml) |
 | ISR 1000 | [capability-isr1k.xml](capability-isr1k.xml) |
-| ISR 4000, C8200, C8300 | [capability-isr4k.xml](capability-isr4k.xml) |
+| ISR 4000 | [capability-isr4k.xml](capability-isr4k.xml) |
 
 
 ### Major Model Changes In 17.6.1

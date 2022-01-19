@@ -11,7 +11,7 @@ to_check="draft/802 draft/802.1 draft/802.1/ABcu draft/802.1/AEdk draft/802.1/CB
 
 # relax constraint for now
 # add --ietf if you want to do strict IETF checking
-ietf_dir_flag="--path $cwd/$ietf_dir/RFC/"
+ietf_dir_flag="$cwd/$ietf_dir/RFC/"
 
 checkDir() {
     local dir="$ieee_dir/$1"
