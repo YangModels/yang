@@ -1,0 +1,3071 @@
+module ietf-l3vpn-ntw {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-l3vpn-ntw";
+  prefix l3nm;
+
+  import ietf-vpn-common {
+    prefix vpn-common;
+    reference
+      "RFC 9181: A Common YANG Data Model for Layer 2 and Layer 3
+                 VPNs";
+  }
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types, Section 4";
+  }
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types, Section 3";
+  }
+  import ietf-key-chain {
+    prefix key-chain;
+    reference
+      "RFC 8177: YANG Data Model for Key Chains";
+  }
+  import ietf-routing-types {
+    prefix rt-types;
+    reference
+      "RFC 8294: Common YANG Data Types for the Routing Area";
+  }
+  import ietf-interfaces {
+    prefix if;
+    reference
+      "RFC 8343: A YANG Data Model for Interface Management";
+  }
+
+  organization
+    "IETF OPSAWG (Operations and Management Area Working Group)";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/opsawg/>
+     WG List:  <mailto:opsawg@ietf.org>
+
+     Author:   Samier Barguil
+               <mailto:samier.barguilgiraldo.ext@telefonica.com>
+     Editor:   Oscar Gonzalez de Dios
+               <mailto:oscar.gonzalezdedios@telefonica.com>
+     Editor:   Mohamed Boucadair
+               <mailto:mohamed.boucadair@orange.com>
+     Author:   Luis Angel Munoz
+               <mailto:luis-angel.munoz@vodafone.com>
+     Author:   Alejandro Aguado
+               <mailto:alejandro.aguado_martin@nokia.com>";
+  description
+    "This YANG module defines a generic network-oriented model
+     for the configuration of Layer 3 Virtual Private Networks.
+
+     Copyright (c) 2022 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Revised BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 9182; see the
+     RFC itself for full legal notices.";
+
+  revision 2022-02-14 {
+    description
+      "Initial revision.";
+    reference
+      "RFC 9182: A YANG Network Data Model for Layer 3 VPNs";
+  }
+
+  /* Features */
+
+  feature msdp {
+    description
+      "This feature indicates that Multicast Source Discovery
+       Protocol (MSDP) capabilities are supported by the VPN.";
+    reference
+      "RFC 3618: Multicast Source Discovery Protocol (MSDP)";
+  }
+
+  /* Identities */
+
+  identity address-allocation-type {
+    description
+      "Base identity for address allocation type in the
+       Provider Edge to Customer Edge (PE-CE) link.";
+  }
+
+  identity provider-dhcp {
+    base address-allocation-type;
+    description
+      "The provider's network provides a DHCP service to the
+       customer.";
+  }
+
+  identity provider-dhcp-relay {
+    base address-allocation-type;
+    description
+      "The provider's network provides a DHCP relay service to the
+       customer.";
+  }
+
+  identity provider-dhcp-slaac {
+    if-feature "vpn-common:ipv6";
+    base address-allocation-type;
+    description
+      "The provider's network provides a DHCP service to the
+       customer as well as IPv6 Stateless Address
+       Autoconfiguration (SLAAC).";
+    reference
+      "RFC 4862: IPv6 Stateless Address Autoconfiguration";
+  }
+
+  identity static-address {
+    base address-allocation-type;
+    description
+      "The provider's network provides static IP addressing to the
+       customer.";
+  }
+
+  identity slaac {
+    if-feature "vpn-common:ipv6";
+    base address-allocation-type;
+    description
+      "The provider's network uses IPv6 SLAAC to provide
+       addressing to the customer.";
+    reference
+      "RFC 4862: IPv6 Stateless Address Autoconfiguration";
+  }
+
+  identity local-defined-next-hop {
+    description
+      "Base identity of local defined next hops.";
+  }
+
+  identity discard {
+    base local-defined-next-hop;
+    description
+      "Indicates an action to discard traffic for the
+       corresponding destination.
+       For example, this can be used to black-hole traffic.";
+  }
+
+  identity local-link {
+    base local-defined-next-hop;
+    description
+      "Treat traffic towards addresses within the specified
+       next-hop prefix as though they are connected to a local
+       link.";
+  }
+
+  identity l2-tunnel-type {
+    description
+      "Base identity for Layer 2 tunnel selection under the VPN
+       network access.";
+  }
+
+  identity pseudowire {
+    base l2-tunnel-type;
+    description
+      "Pseudowire tunnel termination in the VPN network access.";
+  }
+
+  identity vpls {
+    base l2-tunnel-type;
+    description
+      "Virtual Private LAN Service (VPLS) tunnel termination in
+       the VPN network access.";
+  }
+
+  identity vxlan {
+    base l2-tunnel-type;
+    description
+      "Virtual eXtensible Local Area Network (VXLAN) tunnel
+       termination in the VPN network access.";
+  }
+
+  /* Typedefs */
+
+  typedef predefined-next-hop {
+    type identityref {
+      base local-defined-next-hop;
+    }
+    description
+      "Predefined next-hop designation for locally generated
+       routes.";
+  }
+
+  typedef area-address {
+    type string {
+      pattern '[0-9A-Fa-f]{2}(\.[0-9A-Fa-f]{4}){0,6}';
+    }
+    description
+      "This type defines the area address format.";
+  }
+
+  /* Groupings */
+
+  grouping vpn-instance-profile {
+    description
+      "Grouping for data nodes that may be factorized
+       among many levels of the model.  The grouping can
+       be used to define generic profiles at the VPN service
+       level and then referenced at the VPN node and VPN
+       network access levels.";
+    leaf local-as {
+      if-feature "vpn-common:rtg-bgp";
+      type inet:as-number;
+      description
+        "Provider's Autonomous System (AS) number.  Used if the
+         customer requests BGP routing.";
+    }
+    uses vpn-common:route-distinguisher;
+    list address-family {
+      key "address-family";
+      description
+        "Set of parameters per address family.";
+      leaf address-family {
+        type identityref {
+          base vpn-common:address-family;
+        }
+        description
+          "Indicates the address family (IPv4 and/or IPv6).";
+      }
+      container vpn-targets {
+        description
+          "Set of route targets to match for import and export
+           routes to/from VRF.";
+        uses vpn-common:vpn-route-targets;
+      }
+      list maximum-routes {
+        key "protocol";
+        description
+          "Defines the maximum number of routes for VRF.";
+        leaf protocol {
+          type identityref {
+            base vpn-common:routing-protocol-type;
+          }
+          description
+            "Indicates the routing protocol.  A value of 'any'
+             can be used to identify a limit that will apply for
+             each active routing protocol.";
+        }
+        leaf maximum-routes {
+          type uint32;
+          description
+            "Indicates the maximum number of prefixes that VRF can
+             accept for this address family and protocol.";
+        }
+      }
+    }
+    container multicast {
+      if-feature "vpn-common:multicast";
+      description
+        "Global multicast parameters.";
+      leaf tree-flavor {
+        type identityref {
+          base vpn-common:multicast-tree-type;
+        }
+        description
+          "Type of the multicast tree to be used.";
+      }
+      container rp {
+        description
+          "Rendezvous Point (RP) parameters.";
+        container rp-group-mappings {
+          description
+            "RP-to-group mapping parameters.";
+          list rp-group-mapping {
+            key "id";
+            description
+              "List of RP-to-group mappings.";
+            leaf id {
+              type uint16;
+              description
+                "Unique identifier for the mapping.";
+            }
+            container provider-managed {
+              description
+                "Parameters for a provider-managed RP.";
+              leaf enabled {
+                type boolean;
+                default "false";
+                description
+                  "Set to 'true' if the RP must be a
+                   provider-managed node.  Set to 'false' if it is
+                   a customer-managed node.";
+              }
+              leaf rp-redundancy {
+                type boolean;
+                default "false";
+                description
+                  "If set to 'true', it indicates that a
+                   redundancy mechanism for the RP is required.";
+              }
+              leaf optimal-traffic-delivery {
+                type boolean;
+                default "false";
+                description
+                  "If set to 'true', the service provider (SP)
+                   must ensure that the traffic uses an optimal
+                   path.  An SP may use Anycast RP or
+                   RP-tree-to-SPT ('SPT' is 'shortest path tree')
+                   switchover architectures.";
+              }
+              container anycast {
+                when "../rp-redundancy = 'true' and
+                      ../optimal-traffic-delivery = 'true'" {
+                  description
+                    "Only applicable if both RP redundancy and
+                     delivery through an optimal path are
+                     activated.";
+                }
+                description
+                  "PIM Anycast-RP parameters.";
+                leaf local-address {
+                  type inet:ip-address;
+                  description
+                    "IP local address for the PIM RP.  Usually
+                     corresponds to the Router ID or the
+                     primary address.";
+                }
+                leaf-list rp-set-address {
+                  type inet:ip-address;
+                  description
+                    "Specifies the IP address of other RP routers
+                     that share the same RP IP address.";
+                }
+              }
+            }
+            leaf rp-address {
+              when "../provider-managed/enabled = 'false'" {
+                description
+                  "Relevant when the RP is not managed by the
+                   provider.";
+              }
+              type inet:ip-address;
+              mandatory true;
+              description
+                "Defines the address of the RP.
+                 Used if the RP is managed by the customer.";
+            }
+            container groups {
+              description
+                "Multicast groups associated with the RP.";
+              list group {
+                key "id";
+                description
+                  "List of multicast groups.";
+                leaf id {
+                  type uint16;
+                  description
+                    "Identifier for the group.";
+                }
+                choice group-format {
+                  mandatory true;
+                  description
+                    "Choice for multicast group format.";
+                  case group-prefix {
+                    leaf group-address {
+                      type inet:ip-prefix;
+                      description
+                        "A single multicast group prefix.";
+                    }
+                  }
+                  case startend {
+                    leaf group-start {
+                      type inet:ip-address;
+                      description
+                        "The first multicast group address in
+                         the multicast group address range.";
+                    }
+                    leaf group-end {
+                      type inet:ip-address;
+                      description
+                        "The last multicast group address in
+                         the multicast group address range.";
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        container rp-discovery {
+          description
+            "RP discovery parameters.";
+          leaf rp-discovery-type {
+            type identityref {
+              base vpn-common:multicast-rp-discovery-type;
+            }
+            default "vpn-common:static-rp";
+            description
+              "Type of RP discovery used.";
+          }
+          container bsr-candidates {
+            when "derived-from-or-self(../rp-discovery-type, "
+               + "'vpn-common:bsr-rp')" {
+              description
+                "Only applicable if the discovery type
+                 is 'bsr-rp'.";
+            }
+            description
+              "Container for the customer Bootstrap Router (BSR)
+               candidate's addresses.";
+            leaf-list bsr-candidate-address {
+              type inet:ip-address;
+              description
+                "Specifies the address of the candidate BSR.";
+            }
+          }
+        }
+      }
+      container igmp {
+        if-feature "vpn-common:igmp and vpn-common:ipv4";
+        description
+          "Includes IGMP-related parameters.";
+        list static-group {
+          key "group-addr";
+          description
+            "Multicast static source/group associated with the
+             IGMP session.";
+          leaf group-addr {
+            type rt-types:ipv4-multicast-group-address;
+            description
+              "Multicast group IPv4 address.";
+          }
+          leaf source-addr {
+            type rt-types:ipv4-multicast-source-address;
+            description
+              "Multicast source IPv4 address.";
+          }
+        }
+        leaf max-groups {
+          type uint32;
+          description
+            "Indicates the maximum number of groups.";
+        }
+        leaf max-entries {
+          type uint32;
+          description
+            "Indicates the maximum number of IGMP entries.";
+        }
+        leaf version {
+          type identityref {
+            base vpn-common:igmp-version;
+          }
+          default "vpn-common:igmpv2";
+          description
+            "Indicates the IGMP version.";
+          reference
+            "RFC 1112: Host Extensions for IP Multicasting
+             RFC 2236: Internet Group Management Protocol,
+                       Version 2
+             RFC 3376: Internet Group Management Protocol,
+                       Version 3";
+        }
+      }
+      container mld {
+        if-feature "vpn-common:mld and vpn-common:ipv6";
+        description
+          "Includes MLD-related parameters.";
+        list static-group {
+          key "group-addr";
+          description
+            "Multicast static source/group associated with the
+             MLD session.";
+          leaf group-addr {
+            type rt-types:ipv6-multicast-group-address;
+            description
+              "Multicast group IPv6 address.";
+          }
+          leaf source-addr {
+            type rt-types:ipv6-multicast-source-address;
+            description
+              "Multicast source IPv6 address.";
+          }
+        }
+        leaf max-groups {
+          type uint32;
+          description
+            "Indicates the maximum number of groups.";
+        }
+        leaf max-entries {
+          type uint32;
+          description
+            "Indicates the maximum number of MLD entries.";
+        }
+        leaf version {
+          type identityref {
+            base vpn-common:mld-version;
+          }
+          default "vpn-common:mldv2";
+          description
+            "Indicates the MLD protocol version.";
+          reference
+            "RFC 2710: Multicast Listener Discovery (MLD) for IPv6
+             RFC 3810: Multicast Listener Discovery Version 2
+                       (MLDv2) for IPv6";
+        }
+      }
+      container pim {
+        if-feature "vpn-common:pim";
+        description
+          "Only applies when the protocol type is 'pim'.";
+        leaf hello-interval {
+          type rt-types:timer-value-seconds16;
+          default "30";
+          description
+            "Interval between PIM Hello messages.  If set to
+             'infinity' or 'not-set', no periodic Hello messages
+             are sent.";
+          reference
+            "RFC 7761: Protocol Independent Multicast - Sparse
+                       Mode (PIM-SM): Protocol Specification
+                       (Revised), Section 4.11
+             RFC 8294: Common YANG Data Types for the Routing
+                       Area";
+        }
+        leaf dr-priority {
+          type uint32;
+          default "1";
+          description
+            "Indicates the preference associated with the
+             Designated Router (DR) election process.  A larger
+             value has a higher priority over a smaller value.";
+          reference
+            "RFC 7761: Protocol Independent Multicast - Sparse
+                       Mode (PIM-SM): Protocol Specification
+                       (Revised), Section 4.3.2";
+        }
+      }
+    }
+  }
+
+  /* Main Blocks */
+  /* Main l3vpn-ntw */
+
+  container l3vpn-ntw {
+    description
+      "Main container for management of Layer 3 Virtual Private
+       Network (L3VPN) services.";
+    container vpn-profiles {
+      description
+        "Contains a set of valid VPN profiles to reference
+         in the VPN service.";
+      uses vpn-common:vpn-profile-cfg;
+    }
+    container vpn-services {
+      description
+        "Container for the VPN services.";
+      list vpn-service {
+        key "vpn-id";
+        description
+          "List of VPN services.";
+        uses vpn-common:vpn-description;
+        leaf parent-service-id {
+          type vpn-common:vpn-id;
+          description
+            "Pointer to the parent service, if any.
+             A parent service can be an L3SM, a slice request,
+             a VPN+ service, etc.";
+        }
+        leaf vpn-type {
+          type identityref {
+            base vpn-common:service-type;
+          }
+          description
+            "Indicates the service type.";
+        }
+        leaf vpn-service-topology {
+          type identityref {
+            base vpn-common:vpn-topology;
+          }
+          default "vpn-common:any-to-any";
+          description
+            "VPN service topology.";
+        }
+        uses vpn-common:service-status;
+        container vpn-instance-profiles {
+          description
+            "Container for a list of VPN instance profiles.";
+          list vpn-instance-profile {
+            key "profile-id";
+            description
+              "List of VPN instance profiles.";
+            leaf profile-id {
+              type string;
+              description
+                "VPN instance profile identifier.";
+            }
+            leaf role {
+              type identityref {
+                base vpn-common:role;
+              }
+              default "vpn-common:any-to-any-role";
+              description
+                "Role of the VPN node in the VPN.";
+            }
+            uses vpn-instance-profile;
+          }
+        }
+        container underlay-transport {
+          description
+            "Container for the underlay transport.";
+          uses vpn-common:underlay-transport;
+        }
+        container external-connectivity {
+          if-feature "vpn-common:external-connectivity";
+          description
+            "Container for external connectivity.";
+          choice profile {
+            description
+              "Choice for the external connectivity profile.";
+            case profile {
+              leaf profile-name {
+                type leafref {
+                  path "/l3vpn-ntw/vpn-profiles"
+                     + "/valid-provider-identifiers"
+                     + "/external-connectivity-identifier/id";
+                }
+                description
+                  "Name of the service provider's profile to be
+                   applied at the VPN service level.";
+              }
+            }
+          }
+        }
+        container vpn-nodes {
+          description
+            "Container for VPN nodes.";
+          list vpn-node {
+            key "vpn-node-id";
+            description
+              "Includes a list of VPN nodes.";
+            leaf vpn-node-id {
+              type vpn-common:vpn-id;
+              description
+                "An identifier of the VPN node.";
+            }
+            leaf description {
+              type string;
+              description
+                "Textual description of the VPN node.";
+            }
+            leaf ne-id {
+              type string;
+              description
+                "Unique identifier of the network element where
+                 the VPN node is deployed.";
+            }
+            leaf local-as {
+              if-feature "vpn-common:rtg-bgp";
+              type inet:as-number;
+              description
+                "Provider's AS number.  Used if the customer
+                 requests BGP routing.";
+            }
+            leaf router-id {
+              type rt-types:router-id;
+              description
+                "A 32-bit number in the dotted-quad format that is
+                 used to uniquely identify a node within an AS.
+                 This identifier is used for both IPv4 and IPv6.";
+            }
+            container active-vpn-instance-profiles {
+              description
+                "Container for active VPN instance profiles.";
+              list vpn-instance-profile {
+                key "profile-id";
+                description
+                  "Includes a list of active VPN instance
+                   profiles.";
+                leaf profile-id {
+                  type leafref {
+                    path "/l3vpn-ntw/vpn-services/vpn-service"
+                       + "/vpn-instance-profiles"
+                       + "/vpn-instance-profile/profile-id";
+                  }
+                  description
+                    "Node's active VPN instance profile.";
+                }
+                list router-id {
+                  key "address-family";
+                  description
+                    "Router ID per address family.";
+                  leaf address-family {
+                    type identityref {
+                      base vpn-common:address-family;
+                    }
+                    description
+                      "Indicates the address family for which the
+                       Router ID applies.";
+                  }
+                  leaf router-id {
+                    type inet:ip-address;
+                    description
+                      "The 'router-id' information can be an IPv4
+                       or IPv6 address.  This can be used,
+                       for example, to configure an IPv6 address
+                       as a Router ID when such a capability is
+                       supported by underlay routers.  In such a
+                       case, the configured value overrides the
+                       generic value defined at the VPN node
+                       level.";
+                  }
+                }
+                uses vpn-instance-profile;
+              }
+            }
+            container msdp {
+              if-feature "msdp";
+              description
+                "Includes MSDP-related parameters.";
+              leaf peer {
+                type inet:ipv4-address;
+                description
+                  "Indicates the IPv4 address of the MSDP peer.";
+              }
+              leaf local-address {
+                type inet:ipv4-address;
+                description
+                  "Indicates the IPv4 address of the local end.
+                   This local address must be configured on
+                   the node.";
+              }
+              uses vpn-common:service-status;
+            }
+            uses vpn-common:vpn-components-group;
+            uses vpn-common:service-status;
+            container vpn-network-accesses {
+              description
+                "List of network accesses.";
+              list vpn-network-access {
+                key "id";
+                description
+                  "List of network accesses.";
+                leaf id {
+                  type vpn-common:vpn-id;
+                  description
+                    "Identifier for the network access.";
+                }
+                leaf interface-id {
+                  type string;
+                  description
+                    "Identifier for the physical or logical
+                     interface.
+                     The identification of the sub-interface
+                     is provided at the connection level and/or
+                     the IP connection level.";
+                }
+                leaf description {
+                  type string;
+                  description
+                    "Textual description of the network access.";
+                }
+                leaf vpn-network-access-type {
+                  type identityref {
+                    base vpn-common:site-network-access-type;
+                  }
+                  default "vpn-common:point-to-point";
+                  description
+                    "Describes the type of connection, e.g.,
+                     point to point.";
+                }
+                leaf vpn-instance-profile {
+                  type leafref {
+                    path "/l3vpn-ntw/vpn-services/vpn-service"
+                       + "/vpn-nodes/vpn-node"
+                       + "/active-vpn-instance-profiles"
+                       + "/vpn-instance-profile/profile-id";
+                  }
+                  description
+                    "An identifier of an active VPN instance
+                     profile.";
+                }
+                uses vpn-common:service-status;
+                container connection {
+                  description
+                    "Defines Layer 2 protocols and parameters that
+                     are required to enable connectivity between
+                     the PE and the CE.";
+                  container encapsulation {
+                    description
+                      "Container for Layer 2 encapsulation.";
+                    leaf type {
+                      type identityref {
+                        base vpn-common:encapsulation-type;
+                      }
+                      default "vpn-common:priority-tagged";
+                      description
+                        "Encapsulation type.  By default, the type
+                         of the tagged interface is
+                         'priority-tagged'.";
+                    }
+                    container dot1q {
+                      when "derived-from-or-self(../type, "
+                         + "'vpn-common:dot1q')" {
+                        description
+                          "Only applies when the type of the
+                           tagged interface is 'dot1q'.";
+                      }
+                      description
+                        "Tagged interface.";
+                      leaf tag-type {
+                        type identityref {
+                          base vpn-common:tag-type;
+                        }
+                        default "vpn-common:c-vlan";
+                        description
+                          "Tag type.  By default, the tag type is
+                           'c-vlan'.";
+                      }
+                      leaf cvlan-id {
+                        type uint16 {
+                          range "1..4094";
+                        }
+                        description
+                          "VLAN identifier.";
+                      }
+                    }
+                    container priority-tagged {
+                      when "derived-from-or-self(../type, "
+                         + "'vpn-common:priority-tagged')" {
+                        description
+                          "Only applies when the type of
+                           the tagged interface is
+                           'priority-tagged'.";
+                      }
+                      description
+                        "Priority tagged.";
+                      leaf tag-type {
+                        type identityref {
+                          base vpn-common:tag-type;
+                        }
+                        default "vpn-common:c-vlan";
+                        description
+                          "Tag type.  By default, the tag type is
+                           'c-vlan'.";
+                      }
+                    }
+                    container qinq {
+                      when "derived-from-or-self(../type, "
+                         + "'vpn-common:qinq')" {
+                        description
+                          "Only applies when the type of the
+                           tagged interface is 'qinq'.";
+                      }
+                      description
+                        "Includes QinQ parameters.";
+                      leaf tag-type {
+                        type identityref {
+                          base vpn-common:tag-type;
+                        }
+                        default "vpn-common:s-c-vlan";
+                        description
+                          "Tag type.";
+                      }
+                      leaf svlan-id {
+                        type uint16;
+                        mandatory true;
+                        description
+                          "Service VLAN (S-VLAN) identifier.";
+                      }
+                      leaf cvlan-id {
+                        type uint16;
+                        mandatory true;
+                        description
+                          "Customer VLAN (C-VLAN) identifier.";
+                      }
+                    }
+                  }
+                  choice l2-service {
+                    description
+                      "The Layer 2 connectivity service can be
+                       provided by indicating a pointer to an
+                       L2VPN or by specifying a Layer 2 tunnel
+                       service.";
+                    container l2-tunnel-service {
+                      description
+                        "Defines a Layer 2 tunnel termination.
+                         It is only applicable when a tunnel is
+                         required.  The supported values are
+                         'pseudowire', 'vpls', and 'vxlan'.  Other
+                         values may be defined, if needed.";
+                      leaf type {
+                        type identityref {
+                          base l2-tunnel-type;
+                        }
+                        description
+                          "Selects the tunnel termination option
+                           for each VPN network access.";
+                      }
+                      container pseudowire {
+                        when "derived-from-or-self(../type, "
+                           + "'pseudowire')" {
+                          description
+                            "Only applies when the Layer 2 service
+                             type is 'pseudowire'.";
+                        }
+                        description
+                          "Includes pseudowire termination
+                           parameters.";
+                        leaf vcid {
+                          type uint32;
+                          description
+                            "Indicates a pseudowire (PW) or
+                             virtual circuit (VC) identifier.";
+                        }
+                        leaf far-end {
+                          type union {
+                            type uint32;
+                            type inet:ip-address;
+                          }
+                          description
+                            "Neighbor reference.";
+                          reference
+                            "RFC 8077: Pseudowire Setup and
+                                       Maintenance Using the Label
+                                       Distribution Protocol
+                                       (LDP), Section 6.1";
+                        }
+                      }
+                      container vpls {
+                        when "derived-from-or-self(../type, "
+                           + "'vpls')" {
+                          description
+                            "Only applies when the Layer 2 service
+                             type is 'vpls'.";
+                        }
+                        description
+                          "VPLS termination parameters.";
+                        leaf vcid {
+                          type uint32;
+                          description
+                            "VC identifier.";
+                        }
+                        leaf-list far-end {
+                          type union {
+                            type uint32;
+                            type inet:ip-address;
+                          }
+                          description
+                            "Neighbor reference.";
+                        }
+                      }
+                      container vxlan {
+                        when "derived-from-or-self(../type, "
+                           + "'vxlan')" {
+                          description
+                            "Only applies when the Layer 2 service
+                             type is 'vxlan'.";
+                        }
+                        description
+                          "VXLAN termination parameters.";
+                        leaf vni-id {
+                          type uint32;
+                          mandatory true;
+                          description
+                            "VXLAN Network Identifier (VNI).";
+                        }
+                        leaf peer-mode {
+                          type identityref {
+                            base vpn-common:vxlan-peer-mode;
+                          }
+                          default "vpn-common:static-mode";
+                          description
+                            "Specifies the VXLAN access mode.  By
+                             default, the peer mode is set to
+                             'static-mode'.";
+                        }
+                        leaf-list peer-ip-address {
+                          type inet:ip-address;
+                          description
+                            "List of a peer's IP addresses.";
+                        }
+                      }
+                    }
+                    case l2vpn {
+                      leaf l2vpn-id {
+                        type vpn-common:vpn-id;
+                        description
+                          "Indicates the L2VPN service associated
+                           with an Integrated Routing and Bridging
+                           (IRB) interface.";
+                      }
+                    }
+                  }
+                  leaf l2-termination-point {
+                    type string;
+                    description
+                      "Specifies a reference to a local Layer 2
+                       termination point, such as a Layer 2
+                       sub-interface.";
+                  }
+                  leaf local-bridge-reference {
+                    type string;
+                    description
+                      "Specifies a local bridge reference to
+                       accommodate, for example, implementations
+                       that require internal bridging.
+                       A reference may be a local bridge domain.";
+                  }
+                  leaf bearer-reference {
+                    if-feature "vpn-common:bearer-reference";
+                    type string;
+                    description
+                      "This is an internal reference for the
+                       service provider to identify the bearer
+                       associated with this VPN.";
+                  }
+                  container lag-interface {
+                    if-feature "vpn-common:lag-interface";
+                    description
+                      "Container for configuration of Link
+                       Aggregation Group (LAG) interface
+                       attributes.";
+                    leaf lag-interface-id {
+                      type string;
+                      description
+                        "LAG interface identifier.";
+                    }
+                    container member-link-list {
+                      description
+                        "Container for the member link list.";
+                      list member-link {
+                        key "name";
+                        description
+                          "Member link.";
+                        leaf name {
+                          type string;
+                          description
+                            "Member link name.";
+                        }
+                      }
+                    }
+                  }
+                }
+                container ip-connection {
+                  description
+                    "Defines IP connection parameters.";
+                  leaf l3-termination-point {
+                    type string;
+                    description
+                      "Specifies a reference to a local Layer 3
+                       termination point, such as a bridge domain
+                       interface.";
+                  }
+                  container ipv4 {
+                    if-feature "vpn-common:ipv4";
+                    description
+                      "IPv4-specific parameters.";
+                    leaf local-address {
+                      type inet:ipv4-address;
+                      description
+                        "The IP address used at the provider's
+                         interface.";
+                    }
+                    leaf prefix-length {
+                      type uint8 {
+                        range "0..32";
+                      }
+                      description
+                        "Subnet prefix length expressed in bits.
+                         It is applied to both local and customer
+                         addresses.";
+                    }
+                    leaf address-allocation-type {
+                      type identityref {
+                        base address-allocation-type;
+                      }
+                      must "not(derived-from-or-self(current(), "
+                         + "'slaac') or "
+                         + "derived-from-or-self(current(), "
+                         + "'provider-dhcp-slaac'))" {
+                        error-message "SLAAC is only applicable "
+                                    + "to IPv6.";
+                      }
+                      description
+                        "Defines how addresses are allocated to
+                         the peer site.
+
+                         If there is no value for the address
+                         allocation type, then IPv4 addressing
+                         is not enabled.";
+                    }
+                    choice allocation-type {
+                      description
+                        "Choice of the IPv4 address allocation.";
+                      case provider-dhcp {
+                        description
+                          "Parameters related to DHCP-allocated
+                           addresses.  IP addresses are allocated
+                           by DHCP, which is provided by the
+                           operator.";
+                        leaf dhcp-service-type {
+                          type enumeration {
+                            enum server {
+                              description
+                                "Local DHCP server.";
+                            }
+                            enum relay {
+                              description
+                                "Local DHCP relay.  DHCP requests
+                                 are relayed to a provider's
+                                 server.";
+                            }
+                          }
+                          description
+                            "Indicates the type of DHCP service to
+                             be enabled on this access.";
+                        }
+                        choice service-type {
+                          description
+                            "Choice based on the DHCP service
+                             type.";
+                          case relay {
+                            description
+                              "Container for a list of the
+                               provider's DHCP servers (i.e.,
+                               'dhcp-service-type' is set to
+                               'relay').";
+                            leaf-list server-ip-address {
+                              type inet:ipv4-address;
+                              description
+                                "IPv4 addresses of the provider's
+                                 DHCP server, for use by the local
+                                 DHCP relay.";
+                            }
+                          }
+                          case server {
+                            description
+                              "A choice for how addresses are
+                               assigned when a local DHCP server
+                               is enabled.";
+                            choice address-assign {
+                              default "number";
+                              description
+                                "A choice for how IPv4 addresses
+                                 are assigned.";
+                              case number {
+                                leaf number-of-dynamic-address {
+                                  type uint16;
+                                  default "1";
+                                  description
+                                    "Specifies the number of IP
+                                     addresses to be assigned to
+                                     the customer on this
+                                     access.";
+                                }
+                              }
+                              case explicit {
+                                container customer-addresses {
+                                  description
+                                    "Container for customer
+                                     addresses to be allocated
+                                     using DHCP.";
+                                  list address-pool {
+                                    key "pool-id";
+                                    description
+                                      "Describes IP addresses to
+                                       be allocated by DHCP.
+
+                                       When only 'start-address'
+                                       is present, it represents a
+                                       single address.
+
+                                       When both 'start-address'
+                                       and 'end-address' are
+                                       specified, it implies a
+                                       range inclusive of both
+                                       addresses.";
+                                    leaf pool-id {
+                                      type string;
+                                      description
+                                        "A pool identifier for the
+                                         address range from
+                                         'start-address' to
+                                         'end-address'.";
+                                    }
+                                    leaf start-address {
+                                      type inet:ipv4-address;
+                                      mandatory true;
+                                      description
+                                        "Indicates the first
+                                         address in the pool.";
+                                    }
+                                    leaf end-address {
+                                      type inet:ipv4-address;
+                                      description
+                                        "Indicates the last
+                                         address in the pool.";
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                      case dhcp-relay {
+                        description
+                          "The DHCP relay is provided by the
+                           operator.";
+                        container customer-dhcp-servers {
+                          description
+                            "Container for a list of the
+                             customer's DHCP servers.";
+                          leaf-list server-ip-address {
+                            type inet:ipv4-address;
+                            description
+                              "IPv4 addresses of the customer's
+                               DHCP server.";
+                          }
+                        }
+                      }
+                      case static-addresses {
+                        description
+                          "Lists the IPv4 addresses that are
+                           used.";
+                        leaf primary-address {
+                          type leafref {
+                            path "../address/address-id";
+                          }
+                          description
+                            "Primary address of the connection.";
+                        }
+                        list address {
+                          key "address-id";
+                          description
+                            "Lists the IPv4 addresses that are
+                             used.";
+                          leaf address-id {
+                            type string;
+                            description
+                              "An identifier of the static IPv4
+                               address.";
+                          }
+                          leaf customer-address {
+                            type inet:ipv4-address;
+                            description
+                              "IPv4 address of the customer
+                               side.";
+                          }
+                        }
+                      }
+                    }
+                  }
+                  container ipv6 {
+                    if-feature "vpn-common:ipv6";
+                    description
+                      "IPv6-specific parameters.";
+                    leaf local-address {
+                      type inet:ipv6-address;
+                      description
+                        "IPv6 address of the provider side.";
+                    }
+                    leaf prefix-length {
+                      type uint8 {
+                        range "0..128";
+                      }
+                      description
+                        "Subnet prefix length expressed in bits.
+                         It is applied to both local and customer
+                         addresses.";
+                    }
+                    leaf address-allocation-type {
+                      type identityref {
+                        base address-allocation-type;
+                      }
+                      description
+                        "Defines how addresses are allocated.
+                         If there is no value for the address
+                         allocation type, then IPv6 addressing is
+                         disabled.";
+                    }
+                    choice allocation-type {
+                      description
+                        "A choice based on the IPv6 allocation
+                         type.";
+                      container provider-dhcp {
+                        when "derived-from-or-self(../address-allo"
+                           + "cation-type, 'provider-dhcp') or "
+                           + "derived-from-or-self(../address-allo"
+                           + "cation-type, 'provider-dhcp-slaac')" {
+                          description
+                            "Only applies when addresses are
+                             allocated by DHCPv6 as provided by
+                             the operator.";
+                        }
+                        description
+                          "Parameters related to DHCP-allocated
+                           addresses.";
+                        leaf dhcp-service-type {
+                          type enumeration {
+                            enum server {
+                              description
+                                "Local DHCPv6 server.";
+                            }
+                            enum relay {
+                              description
+                                "DHCPv6 relay.";
+                            }
+                          }
+                          description
+                            "Indicates the type of the DHCPv6
+                             service to be enabled on this
+                             access.";
+                        }
+                        choice service-type {
+                          description
+                            "Choice based on the DHCPv6 service
+                             type.";
+                          case relay {
+                            leaf-list server-ip-address {
+                              type inet:ipv6-address;
+                              description
+                                "IPv6 addresses of the provider's
+                                 DHCPv6 server.";
+                            }
+                          }
+                          case server {
+                            choice address-assign {
+                              default "number";
+                              description
+                                "Choice for how IPv6 prefixes are
+                                 assigned by the DHCPv6 server.";
+                              case number {
+                                leaf number-of-dynamic-address {
+                                  type uint16;
+                                  default "1";
+                                  description
+                                    "Describes the number of IPv6
+                                     prefixes that are allocated
+                                     to the customer on this
+                                     access.";
+                                }
+                              }
+                              case explicit {
+                                container customer-addresses {
+                                  description
+                                    "Container for customer IPv6
+                                     addresses allocated by
+                                     DHCPv6.";
+                                  list address-pool {
+                                    key "pool-id";
+                                    description
+                                      "Describes IPv6 addresses
+                                       allocated by DHCPv6.
+
+                                       When only 'start-address'
+                                       is present, it represents a
+                                       single address.
+
+                                       When both 'start-address'
+                                       and 'end-address' are
+                                       specified, it implies a
+                                       range inclusive of both
+                                       addresses.";
+                                    leaf pool-id {
+                                      type string;
+                                      description
+                                        "A pool identifier for the
+                                         address range from
+                                         'start-address' to
+                                         'end-address'.";
+                                    }
+                                    leaf start-address {
+                                      type inet:ipv6-address;
+                                      mandatory true;
+                                      description
+                                        "Indicates the first
+                                         address.";
+                                    }
+                                    leaf end-address {
+                                      type inet:ipv6-address;
+                                      description
+                                        "Indicates the last
+                                         address.";
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                      case dhcp-relay {
+                        description
+                          "DHCPv6 relay provided by the
+                           operator.";
+                        container customer-dhcp-servers {
+                          description
+                            "Container for a list of the
+                             customer's DHCP servers.";
+                          leaf-list server-ip-address {
+                            type inet:ipv6-address;
+                            description
+                              "Contains the IP addresses of the
+                               customer's DHCPv6 server.";
+                          }
+                        }
+                      }
+                      case static-addresses {
+                        description
+                          "IPv6-specific parameters for static
+                           allocation.";
+                        leaf primary-address {
+                          type leafref {
+                            path "../address/address-id";
+                          }
+                          description
+                            "Principal address of the
+                             connection.";
+                        }
+                        list address {
+                          key "address-id";
+                          description
+                            "Describes IPv6 addresses that are
+                             used.";
+                          leaf address-id {
+                            type string;
+                            description
+                              "An identifier of an IPv6 address.";
+                          }
+                          leaf customer-address {
+                            type inet:ipv6-address;
+                            description
+                              "An IPv6 address of the customer
+                               side.";
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                container routing-protocols {
+                  description
+                    "Defines routing protocols.";
+                  list routing-protocol {
+                    key "id";
+                    description
+                      "List of routing protocols used on the
+                       CE-PE link.  This list can be augmented.";
+                    leaf id {
+                      type string;
+                      description
+                        "Unique identifier for the routing
+                         protocol.";
+                    }
+                    leaf type {
+                      type identityref {
+                        base vpn-common:routing-protocol-type;
+                      }
+                      description
+                        "Type of routing protocol.";
+                    }
+                    list routing-profiles {
+                      key "id";
+                      description
+                        "Routing profiles.";
+                      leaf id {
+                        type leafref {
+                          path "/l3vpn-ntw/vpn-profiles"
+                             + "/valid-provider-identifiers"
+                             + "/routing-profile-identifier/id";
+                        }
+                        description
+                          "Routing profile to be used.";
+                      }
+                      leaf type {
+                        type identityref {
+                          base vpn-common:ie-type;
+                        }
+                        description
+                          "Import, export, or both.";
+                      }
+                    }
+                    container static {
+                      when "derived-from-or-self(../type, "
+                         + "'vpn-common:static-routing')" {
+                        description
+                          "Only applies when the protocol is a
+                           static routing protocol.";
+                      }
+                      description
+                        "Configuration specific to static
+                         routing.";
+                      container cascaded-lan-prefixes {
+                        description
+                          "LAN prefixes from the customer.";
+                        list ipv4-lan-prefixes {
+                          if-feature "vpn-common:ipv4";
+                          key "lan next-hop";
+                          description
+                            "List of LAN prefixes for the site.";
+                          leaf lan {
+                            type inet:ipv4-prefix;
+                            description
+                              "LAN prefixes.";
+                          }
+                          leaf lan-tag {
+                            type string;
+                            description
+                              "Internal tag to be used in VPN
+                               policies.";
+                          }
+                          leaf next-hop {
+                            type union {
+                              type inet:ip-address;
+                              type predefined-next-hop;
+                            }
+                            description
+                              "The next hop that is to be used
+                               for the static route.  This may be
+                               specified as an IP address or a
+                               predefined next-hop type (e.g.,
+                               'discard' or 'local-link').";
+                          }
+                          leaf bfd-enable {
+                            if-feature "vpn-common:bfd";
+                            type boolean;
+                            description
+                              "Enables Bidirectional Forwarding
+                               Detection (BFD).";
+                          }
+                          leaf metric {
+                            type uint32;
+                            description
+                              "Indicates the metric associated
+                               with the static route.";
+                          }
+                          leaf preference {
+                            type uint32;
+                            description
+                              "Indicates the preference associated
+                               with the static route.";
+                          }
+                          uses vpn-common:service-status;
+                        }
+                        list ipv6-lan-prefixes {
+                          if-feature "vpn-common:ipv6";
+                          key "lan next-hop";
+                          description
+                            "List of LAN prefixes for the site.";
+                          leaf lan {
+                            type inet:ipv6-prefix;
+                            description
+                              "LAN prefixes.";
+                          }
+                          leaf lan-tag {
+                            type string;
+                            description
+                              "Internal tag to be used in VPN
+                               policies.";
+                          }
+                          leaf next-hop {
+                            type union {
+                              type inet:ip-address;
+                              type predefined-next-hop;
+                            }
+                            description
+                              "The next hop that is to be used for
+                               the static route.  This may be
+                               specified as an IP address or a
+                               predefined next-hop type (e.g.,
+                               'discard' or 'local-link').";
+                          }
+                          leaf bfd-enable {
+                            if-feature "vpn-common:bfd";
+                            type boolean;
+                            description
+                              "Enables BFD.";
+                          }
+                          leaf metric {
+                            type uint32;
+                            description
+                              "Indicates the metric associated
+                               with the static route.";
+                          }
+                          leaf preference {
+                            type uint32;
+                            description
+                              "Indicates the preference associated
+                               with the static route.";
+                          }
+                          uses vpn-common:service-status;
+                        }
+                      }
+                    }
+                    container bgp {
+                      when "derived-from-or-self(../type, "
+                         + "'vpn-common:bgp-routing')" {
+                        description
+                          "Only applies when the protocol is
+                           BGP.";
+                      }
+                      description
+                        "Configuration specific to BGP.";
+                      leaf description {
+                        type string;
+                        description
+                          "Includes a description of the BGP
+                           session.
+
+                           This description is meant to be used
+                           for diagnostic purposes.  The semantic
+                           of the description is local to an
+                           implementation.";
+                      }
+                      leaf local-as {
+                        type inet:as-number;
+                        description
+                          "Indicates a local AS Number (ASN), if
+                           an ASN distinct from the ASN configured
+                           at the VPN node level is needed.";
+                      }
+                      leaf peer-as {
+                        type inet:as-number;
+                        mandatory true;
+                        description
+                          "Indicates the customer's ASN when
+                           the customer requests BGP routing.";
+                      }
+                      leaf address-family {
+                        type identityref {
+                          base vpn-common:address-family;
+                        }
+                        description
+                          "This node contains the address families
+                           to be activated.  'dual-stack' means
+                           that both IPv4 and IPv6 will be
+                           activated.";
+                      }
+                      leaf local-address {
+                        type union {
+                          type inet:ip-address;
+                          type if:interface-ref;
+                        }
+                        description
+                          "Sets the local IP address to use for
+                           the BGP transport session.  This may be
+                           expressed as either an IP address or a
+                           reference to an interface.";
+                      }
+                      leaf-list neighbor {
+                        type inet:ip-address;
+                        description
+                          "IP address(es) of the BGP neighbor.
+                           IPv4 and IPv6 neighbors may be
+                           indicated if two sessions will be used
+                           for IPv4 and IPv6.";
+                      }
+                      leaf multihop {
+                        type uint8;
+                        description
+                          "Describes the number of IP hops allowed
+                           between a given BGP neighbor and
+                           the PE.";
+                      }
+                      leaf as-override {
+                        type boolean;
+                        default "false";
+                        description
+                          "Defines whether ASN override is
+                           enabled, i.e., replacing the ASN of
+                           the customer specified in the AS_PATH
+                           attribute with the local ASN.";
+                      }
+                      leaf allow-own-as {
+                        type uint8;
+                        default "0";
+                        description
+                          "If set, specifies the maximum number of
+                           occurrences of the provider's ASN that
+                           are permitted within the AS_PATH
+                           before it is rejected.";
+                      }
+                      leaf prepend-global-as {
+                        type boolean;
+                        default "false";
+                        description
+                          "In some situations, the ASN that is
+                           provided at the VPN node level may be
+                           distinct from the ASN configured at the
+                           VPN network access level.  When such
+                           ASNs are provided, they are both
+                           prepended to the BGP route updates
+                           for this access.  To disable that
+                           behavior, 'prepend-global-as'
+                           must be set to 'false'.  In such a
+                           case, the ASN that is provided at
+                           the VPN node level is not prepended
+                           to the BGP route updates for
+                           this access.";
+                      }
+                      leaf send-default-route {
+                        type boolean;
+                        default "false";
+                        description
+                          "Defines whether default routes can be
+                           advertised to a peer.  If set, the
+                           default routes are advertised to a
+                           peer.";
+                      }
+                      leaf site-of-origin {
+                        when "../address-family = 'vpn-common:ipv4' "
+                           + "or 'vpn-common:dual-stack'" {
+                          description
+                            "Only applies if IPv4 is activated.";
+                        }
+                        type rt-types:route-origin;
+                        description
+                          "The Site of Origin attribute is encoded
+                           as a Route Origin Extended Community.
+                           It is meant to uniquely identify the
+                           set of routes learned from a site via a
+                           particular CE-PE connection and is used
+                           to prevent routing loops.";
+                        reference
+                          "RFC 4364: BGP/MPLS IP Virtual Private
+                                     Networks (VPNs), Section 7";
+                      }
+                      leaf ipv6-site-of-origin {
+                        when "../address-family = 'vpn-common:ipv6' "
+                           + "or 'vpn-common:dual-stack'" {
+                          description
+                            "Only applies if IPv6 is activated.";
+                        }
+                        type rt-types:ipv6-route-origin;
+                        description
+                          "The IPv6 Site of Origin attribute is
+                           encoded as an IPv6 Route Origin
+                           Extended Community.  It is meant to
+                           uniquely identify the set of routes
+                           learned from a site via VRF
+                           information.";
+                        reference
+                          "RFC 5701: IPv6 Address Specific BGP
+                                     Extended Community
+                                     Attribute";
+                      }
+                      list redistribute-connected {
+                        key "address-family";
+                        description
+                          "Indicates, per address family, the
+                           policy to follow for connected
+                           routes.";
+                        leaf address-family {
+                          type identityref {
+                            base vpn-common:address-family;
+                          }
+                          description
+                            "Indicates the address family.";
+                        }
+                        leaf enable {
+                          type boolean;
+                          description
+                            "Enables the redistribution of
+                             connected routes.";
+                        }
+                      }
+                      container bgp-max-prefix {
+                        description
+                          "Controls the behavior when a prefix
+                           maximum is reached.";
+                        leaf max-prefix {
+                          type uint32;
+                          default "5000";
+                          description
+                            "Indicates the maximum number of BGP
+                             prefixes allowed in the BGP session.
+
+                             It allows control of how many
+                             prefixes can be received from a
+                             neighbor.
+
+                             If the limit is exceeded, the action
+                             indicated in 'violate-action' will be
+                             followed.";
+                          reference
+                            "RFC 4271: A Border Gateway Protocol 4
+                                       (BGP-4), Section 8.2.2";
+                        }
+                        leaf warning-threshold {
+                          type decimal64 {
+                            fraction-digits 5;
+                            range "0..100";
+                          }
+                          units "percent";
+                          default "75";
+                          description
+                            "When this value is reached, a warning
+                             notification will be triggered.";
+                        }
+                        leaf violate-action {
+                          type enumeration {
+                            enum warning {
+                              description
+                                "Only a warning message is sent to
+                                 the peer when the limit is
+                                 exceeded.";
+                            }
+                            enum discard-extra-paths {
+                              description
+                                "Discards extra paths when the
+                                 limit is exceeded.";
+                            }
+                            enum restart {
+                              description
+                                "The BGP session restarts after
+                                 the indicated time interval.";
+                            }
+                          }
+                          description
+                            "If the BGP neighbor 'max-prefix'
+                             limit is reached, the action
+                             indicated in 'violate-action'
+                             will be followed.";
+                        }
+                        leaf restart-timer {
+                          type uint32;
+                          units "seconds";
+                          description
+                            "Time interval after which the BGP
+                             session will be reestablished.";
+                        }
+                      }
+                      container bgp-timers {
+                        description
+                          "Includes two BGP timers that can be
+                           customized when building a VPN service
+                           with BGP used as the CE-PE routing
+                           protocol.";
+                        leaf keepalive {
+                          type uint16 {
+                            range "0..21845";
+                          }
+                          units "seconds";
+                          default "30";
+                          description
+                            "This timer indicates the KEEPALIVE
+                             messages' frequency between a PE
+                             and a BGP peer.
+
+                             If set to '0', it indicates that
+                             KEEPALIVE messages are disabled.
+
+                             It is suggested that the maximum
+                             time between KEEPALIVE messages be
+                             one-third of the Hold Time
+                             interval.";
+                          reference
+                            "RFC 4271: A Border Gateway Protocol 4
+                                       (BGP-4), Section 4.4";
+                        }
+                        leaf hold-time {
+                          type uint16 {
+                            range "0 | 3..65535";
+                          }
+                          units "seconds";
+                          default "90";
+                          description
+                            "Indicates the maximum number of
+                             seconds that may elapse between the
+                             receipt of successive KEEPALIVE
+                             and/or UPDATE messages from the peer.
+
+                             The Hold Time must be either zero or
+                             at least three seconds.";
+                          reference
+                            "RFC 4271: A Border Gateway Protocol 4
+                                       (BGP-4), Section 4.2";
+                        }
+                      }
+                      container authentication {
+                        description
+                          "Container for BGP authentication
+                           parameters between a PE and a CE.";
+                        leaf enable {
+                          type boolean;
+                          default "false";
+                          description
+                            "Enables or disables authentication.";
+                        }
+                        container keying-material {
+                          when "../enable = 'true'";
+                          description
+                            "Container for describing how a BGP
+                             routing session is to be secured
+                             between a PE and a CE.";
+                          choice option {
+                            description
+                              "Choice of authentication options.";
+                            case ao {
+                              description
+                                "Uses the TCP Authentication
+                                 Option (TCP-AO).";
+                              reference
+                                "RFC 5925: The TCP Authentication
+                                           Option";
+                              leaf enable-ao {
+                                type boolean;
+                                description
+                                  "Enables the TCP-AO.";
+                              }
+                              leaf ao-keychain {
+                                type key-chain:key-chain-ref;
+                                description
+                                  "Reference to the TCP-AO key
+                                   chain.";
+                                reference
+                                  "RFC 8177: YANG Data Model for
+                                             Key Chains";
+                              }
+                            }
+                            case md5 {
+                              description
+                                "Uses MD5 to secure the session.";
+                              reference
+                                "RFC 4364: BGP/MPLS IP Virtual
+                                           Private Networks
+                                           (VPNs), Section 13.2";
+                              leaf md5-keychain {
+                                type key-chain:key-chain-ref;
+                                description
+                                  "Reference to the MD5 key
+                                   chain.";
+                                reference
+                                  "RFC 8177: YANG Data Model for
+                                             Key Chains";
+                              }
+                            }
+                            case explicit {
+                              leaf key-id {
+                                type uint32;
+                                description
+                                  "Key identifier.";
+                              }
+                              leaf key {
+                                type string;
+                                description
+                                  "BGP authentication key.
+                                   This model only supports the
+                                   subset of keys that are
+                                   representable as ASCII
+                                   strings.";
+                              }
+                              leaf crypto-algorithm {
+                                type identityref {
+                                  base key-chain:crypto-algorithm;
+                                }
+                                description
+                                  "Indicates the cryptographic
+                                   algorithm associated with the
+                                   key.";
+                              }
+                            }
+                            case ipsec {
+                              description
+                                "Specifies a reference to an
+                                 Internet Key Exchange Protocol
+                                 (IKE) Security Association
+                                 (SA).";
+                              leaf sa {
+                                type string;
+                                description
+                                  "Indicates the
+                                   administrator-assigned name
+                                   of the SA.";
+                              }
+                            }
+                          }
+                        }
+                      }
+                      uses vpn-common:service-status;
+                    }
+                    container ospf {
+                      when "derived-from-or-self(../type, "
+                         + "'vpn-common:ospf-routing')" {
+                        description
+                          "Only applies when the protocol is
+                           OSPF.";
+                      }
+                      description
+                        "Configuration specific to OSPF.";
+                      leaf address-family {
+                        type identityref {
+                          base vpn-common:address-family;
+                        }
+                        description
+                          "Indicates whether IPv4, IPv6, or
+                           both are to be activated.";
+                      }
+                      leaf area-id {
+                        type yang:dotted-quad;
+                        mandatory true;
+                        description
+                          "Area ID.";
+                        reference
+                          "RFC 4577: OSPF as the Provider/Customer
+                                     Edge Protocol for BGP/MPLS IP
+                                     Virtual Private Networks
+                                     (VPNs), Section 4.2.3
+                           RFC 6565: OSPFv3 as a Provider Edge to
+                                     Customer Edge (PE-CE) Routing
+                                     Protocol, Section 4.2";
+                      }
+                      leaf metric {
+                        type uint16;
+                        default "1";
+                        description
+                          "Metric of the PE-CE link.  It is used
+                           in the routing state calculation and
+                           path selection.";
+                      }
+                      container sham-links {
+                        if-feature "vpn-common:rtg-ospf-sham-link";
+                        description
+                          "List of sham links.";
+                        reference
+                          "RFC 4577: OSPF as the Provider/Customer
+                                     Edge Protocol for BGP/MPLS IP
+                                     Virtual Private Networks
+                                     (VPNs), Section 4.2.7
+                           RFC 6565: OSPFv3 as a Provider Edge to
+                                     Customer Edge (PE-CE) Routing
+                                     Protocol, Section 5";
+                        list sham-link {
+                          key "target-site";
+                          description
+                            "Creates a sham link with another
+                             site.";
+                          leaf target-site {
+                            type string;
+                            description
+                              "Target site for the sham link
+                               connection.  The site is referred
+                               to by its identifier.";
+                          }
+                          leaf metric {
+                            type uint16;
+                            default "1";
+                            description
+                              "Metric of the sham link.  It is
+                               used in the routing state
+                               calculation and path selection.
+                               The default value is set to '1'.";
+                            reference
+                              "RFC 4577: OSPF as the
+                                         Provider/Customer Edge
+                                         Protocol for BGP/MPLS IP
+                                         Virtual Private Networks
+                                         (VPNs), Section 4.2.7.3
+                               RFC 6565: OSPFv3 as a Provider Edge
+                                         to Customer Edge (PE-CE)
+                                         Routing Protocol,
+                                         Section 5.2";
+                          }
+                        }
+                      }
+                      leaf max-lsa {
+                        type uint32 {
+                          range "1..4294967294";
+                        }
+                        description
+                          "Maximum number of allowed Link State
+                           Advertisements (LSAs) that the OSPF
+                           instance will accept.";
+                      }
+                      container authentication {
+                        description
+                          "Authentication configuration.";
+                        leaf enable {
+                          type boolean;
+                          default "false";
+                          description
+                            "Enables or disables authentication.";
+                        }
+                        container keying-material {
+                          when "../enable = 'true'";
+                          description
+                            "Container for describing how an OSPF
+                             session is to be secured between a CE
+                             and a PE.";
+                          choice option {
+                            description
+                              "Options for OSPF authentication.";
+                            case auth-key-chain {
+                              leaf key-chain {
+                                type key-chain:key-chain-ref;
+                                description
+                                  "Name of the key chain.";
+                              }
+                            }
+                            case auth-key-explicit {
+                              leaf key-id {
+                                type uint32;
+                                description
+                                  "Key identifier.";
+                              }
+                              leaf key {
+                                type string;
+                                description
+                                  "OSPF authentication key.
+                                   This model only supports the
+                                   subset of keys that are
+                                   representable as ASCII
+                                   strings.";
+                              }
+                              leaf crypto-algorithm {
+                                type identityref {
+                                  base key-chain:crypto-algorithm;
+                                }
+                                description
+                                  "Indicates the cryptographic
+                                   algorithm associated with the
+                                   key.";
+                              }
+                            }
+                            case ipsec {
+                              leaf sa {
+                                type string;
+                                description
+                                  "Indicates the
+                                   administrator-assigned name
+                                   of the SA.";
+                                reference
+                                  "RFC 4552: Authentication/
+                                             Confidentiality for
+                                             OSPFv3";
+                              }
+                            }
+                          }
+                        }
+                      }
+                      uses vpn-common:service-status;
+                    }
+                    container isis {
+                      when "derived-from-or-self(../type, "
+                         + "'vpn-common:isis-routing')" {
+                        description
+                          "Only applies when the protocol is
+                           IS-IS.";
+                      }
+                      description
+                        "Configuration specific to IS-IS.";
+                      leaf address-family {
+                        type identityref {
+                          base vpn-common:address-family;
+                        }
+                        description
+                          "Indicates whether IPv4, IPv6, or both
+                           are to be activated.";
+                      }
+                      leaf area-address {
+                        type area-address;
+                        mandatory true;
+                        description
+                          "Area address.";
+                      }
+                      leaf level {
+                        type identityref {
+                          base vpn-common:isis-level;
+                        }
+                        description
+                          "Can be 'level-1', 'level-2', or
+                           'level-1-2'.";
+                        reference
+                          "RFC 9181: A Common YANG Data Model for
+                                     Layer 2 and Layer 3 VPNs";
+                      }
+                      leaf metric {
+                        type uint16;
+                        default "1";
+                        description
+                          "Metric of the PE-CE link.  It is used
+                           in the routing state calculation and
+                           path selection.";
+                      }
+                      leaf mode {
+                        type enumeration {
+                          enum active {
+                            description
+                              "The interface sends or receives
+                               IS-IS protocol control packets.";
+                          }
+                          enum passive {
+                            description
+                              "Suppresses the sending of IS-IS
+                               updates through the specified
+                               interface.";
+                          }
+                        }
+                        default "active";
+                        description
+                          "IS-IS interface mode type.";
+                      }
+                      container authentication {
+                        description
+                          "Authentication configuration.";
+                        leaf enable {
+                          type boolean;
+                          default "false";
+                          description
+                            "Enables or disables authentication.";
+                        }
+                        container keying-material {
+                          when "../enable = 'true'";
+                          description
+                            "Container for describing how an IS-IS
+                             session is to be secured between a CE
+                             and a PE.";
+                          choice option {
+                            description
+                              "Options for IS-IS authentication.";
+                            case auth-key-chain {
+                              leaf key-chain {
+                                type key-chain:key-chain-ref;
+                                description
+                                  "Name of the key chain.";
+                              }
+                            }
+                            case auth-key-explicit {
+                              leaf key-id {
+                                type uint32;
+                                description
+                                  "Key identifier.";
+                              }
+                              leaf key {
+                                type string;
+                                description
+                                  "IS-IS authentication key.
+                                   This model only supports the
+                                   subset of keys that are
+                                   representable as ASCII
+                                   strings.";
+                              }
+                              leaf crypto-algorithm {
+                                type identityref {
+                                  base key-chain:crypto-algorithm;
+                                }
+                                description
+                                  "Indicates the cryptographic
+                                   algorithm associated with the
+                                   key.";
+                              }
+                            }
+                          }
+                        }
+                      }
+                      uses vpn-common:service-status;
+                    }
+                    container rip {
+                      when "derived-from-or-self(../type, "
+                         + "'vpn-common:rip-routing')" {
+                        description
+                          "Only applies when the protocol is RIP.
+                           For IPv4, the model assumes that RIP
+                           version 2 is used.";
+                      }
+                      description
+                        "Configuration specific to RIP routing.";
+                      leaf address-family {
+                        type identityref {
+                          base vpn-common:address-family;
+                        }
+                        description
+                          "Indicates whether IPv4, IPv6, or both
+                           address families are to be activated.";
+                      }
+                      container timers {
+                        description
+                          "Indicates the RIP timers.";
+                        reference
+                          "RFC 2453: RIP Version 2";
+                        leaf update-interval {
+                          type uint16 {
+                            range "1..32767";
+                          }
+                          units "seconds";
+                          default "30";
+                          description
+                            "Indicates the RIP update time, i.e.,
+                             the amount of time for which RIP
+                             updates are sent.";
+                        }
+                        leaf invalid-interval {
+                          type uint16 {
+                            range "1..32767";
+                          }
+                          units "seconds";
+                          default "180";
+                          description
+                            "The interval before a route is
+                             declared invalid after no updates are
+                             received.  This value is at least
+                             three times the value for the
+                             'update-interval' argument.";
+                        }
+                        leaf holddown-interval {
+                          type uint16 {
+                            range "1..32767";
+                          }
+                          units "seconds";
+                          default "180";
+                          description
+                            "Specifies the interval before better
+                             routes are released.";
+                        }
+                        leaf flush-interval {
+                          type uint16 {
+                            range "1..32767";
+                          }
+                          units "seconds";
+                          default "240";
+                          description
+                            "Indicates the RIP flush timer, i.e.,
+                             the amount of time that must elapse
+                             before a route is removed from the
+                             routing table.";
+                        }
+                      }
+                      leaf default-metric {
+                        type uint8 {
+                          range "0..16";
+                        }
+                        default "1";
+                        description
+                          "Sets the default metric.";
+                      }
+                      container authentication {
+                        description
+                          "Authentication configuration.";
+                        leaf enable {
+                          type boolean;
+                          default "false";
+                          description
+                            "Enables or disables authentication.";
+                        }
+                        container keying-material {
+                          when "../enable = 'true'";
+                          description
+                            "Container for describing how a RIP
+                             session is to be secured between a CE
+                             and a PE.";
+                          choice option {
+                            description
+                              "Specifies the authentication
+                               scheme.";
+                            case auth-key-chain {
+                              leaf key-chain {
+                                type key-chain:key-chain-ref;
+                                description
+                                  "Name of the key chain.";
+                              }
+                            }
+                            case auth-key-explicit {
+                              leaf key {
+                                type string;
+                                description
+                                  "RIP authentication key.
+                                   This model only supports the
+                                   subset of keys that are
+                                   representable as ASCII
+                                   strings.";
+                              }
+                              leaf crypto-algorithm {
+                                type identityref {
+                                  base key-chain:crypto-algorithm;
+                                }
+                                description
+                                  "Indicates the cryptographic
+                                   algorithm associated with the
+                                   key.";
+                              }
+                            }
+                          }
+                        }
+                      }
+                      uses vpn-common:service-status;
+                    }
+                    container vrrp {
+                      when "derived-from-or-self(../type, "
+                         + "'vpn-common:vrrp-routing')" {
+                        description
+                          "Only applies when the protocol is the
+                           Virtual Router Redundancy Protocol
+                           (VRRP).";
+                      }
+                      description
+                        "Configuration specific to VRRP.";
+                      reference
+                        "RFC 5798: Virtual Router Redundancy
+                                   Protocol (VRRP) Version 3 for
+                                   IPv4 and IPv6";
+                      leaf address-family {
+                        type identityref {
+                          base vpn-common:address-family;
+                        }
+                        description
+                          "Indicates whether IPv4, IPv6, or both
+                           address families are to be enabled.";
+                      }
+                      leaf vrrp-group {
+                        type uint8 {
+                          range "1..255";
+                        }
+                        description
+                          "Includes the VRRP group identifier.";
+                      }
+                      leaf backup-peer {
+                        type inet:ip-address;
+                        description
+                          "Indicates the IP address of the peer.";
+                      }
+                      leaf-list virtual-ip-address {
+                        type inet:ip-address;
+                        description
+                          "Virtual IP addresses for a single VRRP
+                           group.";
+                        reference
+                          "RFC 5798: Virtual Router Redundancy
+                                     Protocol (VRRP) Version 3 for
+                                     IPv4 and IPv6,
+                                     Sections 1.2 and 1.3";
+                      }
+                      leaf priority {
+                        type uint8 {
+                          range "1..254";
+                        }
+                        default "100";
+                        description
+                          "Sets the local priority of the VRRP
+                           speaker.";
+                      }
+                      leaf ping-reply {
+                        type boolean;
+                        default "false";
+                        description
+                          "Controls whether the VRRP speaker
+                           should reply to ping requests.";
+                      }
+                      uses vpn-common:service-status;
+                    }
+                  }
+                }
+                container oam {
+                  description
+                    "Defines the Operations, Administration,
+                     and Maintenance (OAM) mechanisms used.
+
+                     BFD is set as a fault detection mechanism,
+                     but other mechanisms can be defined in the
+                     future.";
+                  container bfd {
+                    if-feature "vpn-common:bfd";
+                    description
+                      "Container for BFD.";
+                    leaf session-type {
+                      type identityref {
+                        base vpn-common:bfd-session-type;
+                      }
+                      default "vpn-common:classic-bfd";
+                      description
+                        "Specifies the BFD session type.";
+                    }
+                    leaf desired-min-tx-interval {
+                      type uint32;
+                      units "microseconds";
+                      default "1000000";
+                      description
+                        "The minimum interval between
+                         transmissions of BFD Control packets, as
+                         desired by the operator.";
+                      reference
+                        "RFC 5880: Bidirectional Forwarding
+                                   Detection (BFD),
+                                   Section 6.8.7";
+                    }
+                    leaf required-min-rx-interval {
+                      type uint32;
+                      units "microseconds";
+                      default "1000000";
+                      description
+                        "The minimum interval between received BFD
+                         Control packets that the PE should
+                         support.";
+                      reference
+                        "RFC 5880: Bidirectional Forwarding
+                                   Detection (BFD),
+                                   Section 6.8.7";
+                    }
+                    leaf local-multiplier {
+                      type uint8 {
+                        range "1..255";
+                      }
+                      default "3";
+                      description
+                        "Specifies the detection multiplier that
+                         is transmitted to a BFD peer.
+
+                         The detection interval for the receiving
+                         BFD peer is calculated by multiplying the
+                         value of the negotiated transmission
+                         interval by the received detection
+                         multiplier value.";
+                      reference
+                        "RFC 5880: Bidirectional Forwarding
+                                   Detection (BFD),
+                                   Section 6.8.7";
+                    }
+                    leaf holdtime {
+                      type uint32;
+                      units "milliseconds";
+                      description
+                        "Expected BFD holdtime.
+
+                         The customer may impose some fixed
+                         values for the holdtime period if the
+                         provider allows the customer to use
+                         this function.
+
+                         If the provider doesn't allow the
+                         customer to use this function,
+                         fixed values will not be set.";
+                      reference
+                        "RFC 5880: Bidirectional Forwarding
+                                   Detection (BFD),
+                                   Section 6.8.18";
+                    }
+                    leaf profile {
+                      type leafref {
+                        path "/l3vpn-ntw/vpn-profiles"
+                           + "/valid-provider-identifiers"
+                           + "/bfd-profile-identifier/id";
+                      }
+                      description
+                        "Well-known service provider profile name.
+
+                         The provider can propose some profiles
+                         to the customer, depending on the
+                         service level the customer wants to
+                         achieve.";
+                    }
+                    container authentication {
+                      presence "Enables BFD authentication";
+                      description
+                        "Parameters for BFD authentication.";
+                      leaf key-chain {
+                        type key-chain:key-chain-ref;
+                        description
+                          "Name of the key chain.";
+                      }
+                      leaf meticulous {
+                        type boolean;
+                        description
+                          "Enables meticulous mode.";
+                        reference
+                          "RFC 5880: Bidirectional Forwarding
+                                     Detection (BFD),
+                                     Section 6.7";
+                      }
+                    }
+                    uses vpn-common:service-status;
+                  }
+                }
+                container security {
+                  description
+                    "Site-specific security parameters.";
+                  container encryption {
+                    if-feature "vpn-common:encryption";
+                    description
+                      "Container for CE-PE security encryption.";
+                    leaf enabled {
+                      type boolean;
+                      default "false";
+                      description
+                        "If set to 'true', traffic encryption on
+                         the connection is required.  Otherwise,
+                         it is disabled.";
+                    }
+                    leaf layer {
+                      when "../enabled = 'true'" {
+                        description
+                          "Included only when encryption
+                           is enabled.";
+                      }
+                      type enumeration {
+                        enum layer2 {
+                          description
+                            "Encryption occurs at Layer 2.";
+                        }
+                        enum layer3 {
+                          description
+                            "Encryption occurs at Layer 3.
+                             For example, IPsec may be used when
+                             a customer requests Layer 3
+                             encryption.";
+                        }
+                      }
+                      description
+                        "Indicates the layer on which encryption
+                         is applied.";
+                    }
+                  }
+                  container encryption-profile {
+                    when "../encryption/enabled = 'true'" {
+                      description
+                        "Indicates the layer on which encryption
+                         is enabled.";
+                    }
+                    description
+                      "Container for the encryption profile.";
+                    choice profile {
+                      description
+                        "Choice for the encryption profile.";
+                      case provider-profile {
+                        leaf profile-name {
+                          type leafref {
+                            path "/l3vpn-ntw/vpn-profiles"
+                               + "/valid-provider-identifiers"
+                               + "/encryption-profile-identifier/id";
+                          }
+                          description
+                            "Name of the service provider's
+                             profile to be applied.";
+                        }
+                      }
+                      case customer-profile {
+                        leaf customer-key-chain {
+                          type key-chain:key-chain-ref;
+                          description
+                            "Customer-supplied key chain.";
+                        }
+                      }
+                    }
+                  }
+                }
+                container service {
+                  description
+                    "Service parameters of the attachment.";
+                  leaf pe-to-ce-bandwidth {
+                    if-feature "vpn-common:inbound-bw";
+                    type uint64;
+                    units "bps";
+                    description
+                      "From the customer site's perspective, the
+                       service inbound bandwidth of the connection
+                       or download bandwidth from the SP to the
+                       site.  Note that the L3SM uses
+                       'input-bandwidth' to refer to the same
+                       concept.";
+                  }
+                  leaf ce-to-pe-bandwidth {
+                    if-feature "vpn-common:outbound-bw";
+                    type uint64;
+                    units "bps";
+                    description
+                      "From the customer site's perspective,
+                       the service outbound bandwidth of the
+                       connection or upload bandwidth from
+                       the site to the SP.  Note that the L3SM
+                       uses 'output-bandwidth' to refer to the
+                       same concept.";
+                  }
+                  leaf mtu {
+                    type uint32;
+                    units "bytes";
+                    description
+                      "MTU at the service level.  If the service
+                       is IP, it refers to the IP MTU.  If
+                       Carriers' Carriers (CsC) is enabled, the
+                       requested MTU will refer to the MPLS
+                       maximum labeled packet size and not to the
+                       IP MTU.";
+                  }
+                  container qos {
+                    if-feature "vpn-common:qos";
+                    description
+                      "QoS configuration.";
+                    container qos-classification-policy {
+                      description
+                        "Configuration of the traffic
+                         classification policy.";
+                      uses vpn-common:qos-classification-policy;
+                    }
+                    container qos-action {
+                      description
+                        "List of QoS action policies.";
+                      list rule {
+                        key "id";
+                        description
+                          "List of QoS actions.";
+                        leaf id {
+                          type string;
+                          description
+                            "An identifier of the QoS action
+                             rule.";
+                        }
+                        leaf target-class-id {
+                          type string;
+                          description
+                            "Identification of the class of
+                             service.  This identifier is internal
+                             to the administration.";
+                        }
+                        leaf inbound-rate-limit {
+                          type decimal64 {
+                            fraction-digits 5;
+                            range "0..100";
+                          }
+                          units "percent";
+                          description
+                            "Specifies whether/how to rate-limit
+                             the inbound traffic matching this QoS
+                             policy.  It is expressed as a percent
+                             of the value that is indicated in
+                             'input-bandwidth'.";
+                        }
+                        leaf outbound-rate-limit {
+                          type decimal64 {
+                            fraction-digits 5;
+                            range "0..100";
+                          }
+                          units "percent";
+                          description
+                            "Specifies whether/how to rate-limit
+                             the outbound traffic matching this
+                             QoS policy.  It is expressed as a
+                             percent of the value that is
+                             indicated in 'output-bandwidth'.";
+                        }
+                      }
+                    }
+                    container qos-profile {
+                      description
+                        "QoS profile configuration.";
+                      list qos-profile {
+                        key "profile";
+                        description
+                          "QoS profile.
+                           Can be a standard profile or
+                           a customized profile.";
+                        leaf profile {
+                          type leafref {
+                            path "/l3vpn-ntw/vpn-profiles"
+                               + "/valid-provider-identifiers"
+                               + "/qos-profile-identifier/id";
+                          }
+                          description
+                            "QoS profile to be used.";
+                        }
+                        leaf direction {
+                          type identityref {
+                            base vpn-common:qos-profile-direction;
+                          }
+                          default "vpn-common:both";
+                          description
+                            "The direction to which the QoS
+                             profile is applied.";
+                        }
+                      }
+                    }
+                  }
+                  container carriers-carrier {
+                    if-feature "vpn-common:carriers-carrier";
+                    description
+                      "This container is used when the customer
+                       provides MPLS-based services.  This is
+                       only used in the case of CsC (i.e., a
+                       customer builds an MPLS service using an
+                       IP VPN to carry its traffic).";
+                    leaf signaling-type {
+                      type enumeration {
+                        enum ldp {
+                          description
+                            "Uses LDP as the signaling protocol
+                             between the PE and the CE.  In this
+                             case, an IGP routing protocol must
+                             also be configured.";
+                        }
+                        enum bgp {
+                          description
+                            "Uses BGP as the signaling protocol
+                             between the PE and the CE.
+                             In this case, BGP must also be
+                             configured as the routing protocol.";
+                          reference
+                            "RFC 8277: Using BGP to Bind MPLS
+                                       Labels to Address
+                                       Prefixes";
+                        }
+                      }
+                      default "bgp";
+                      description
+                        "MPLS signaling type.";
+                    }
+                  }
+                  container ntp {
+                    description
+                      "Time synchronization may be needed in some
+                       VPNs, such as infrastructure and management
+                       VPNs.  This container includes parameters
+                       to enable the NTP service.";
+                    reference
+                      "RFC 5905: Network Time Protocol Version 4:
+                                 Protocol and Algorithms
+                                 Specification";
+                    leaf broadcast {
+                      type enumeration {
+                        enum client {
+                          description
+                            "The VPN node will listen to NTP
+                             broadcast messages on this VPN
+                             network access.";
+                        }
+                        enum server {
+                          description
+                            "The VPN node will behave as a
+                             broadcast server.";
+                        }
+                      }
+                      description
+                        "Indicates the NTP broadcast mode to use
+                         for the VPN network access.";
+                    }
+                    container auth-profile {
+                      description
+                        "Pointer to a local profile.";
+                      leaf profile-id {
+                        type string;
+                        description
+                          "A pointer to a local authentication
+                           profile on the VPN node is provided.";
+                      }
+                    }
+                    uses vpn-common:service-status;
+                  }
+                  container multicast {
+                    if-feature "vpn-common:multicast";
+                    description
+                      "Multicast parameters for the network
+                       access.";
+                    leaf access-type {
+                      type enumeration {
+                        enum receiver-only {
+                          description
+                            "The peer site only has receivers.";
+                        }
+                        enum source-only {
+                          description
+                            "The peer site only has sources.";
+                        }
+                        enum source-receiver {
+                          description
+                            "The peer site has both sources and
+                             receivers.";
+                        }
+                      }
+                      default "source-receiver";
+                      description
+                        "Type of multicast site.";
+                    }
+                    leaf address-family {
+                      type identityref {
+                        base vpn-common:address-family;
+                      }
+                      description
+                        "Indicates the address family.";
+                    }
+                    leaf protocol-type {
+                      type enumeration {
+                        enum host {
+                          description
+                            "Hosts are directly connected to the
+                             provider network.
+
+                             Host protocols, such as IGMP or MLD,
+                             are required.";
+                        }
+                        enum router {
+                          description
+                            "Hosts are behind a customer router.
+                             PIM will be implemented.";
+                        }
+                        enum both {
+                          description
+                            "Some hosts are behind a customer
+                             router, and some others are directly
+                             connected to the provider network.
+                             Both host and routing protocols must
+                             be used.
+
+                             Typically, IGMP and PIM will be
+                             implemented.";
+                        }
+                      }
+                      default "both";
+                      description
+                        "Multicast protocol type to be used with
+                         the customer site.";
+                    }
+                    leaf remote-source {
+                      type boolean;
+                      default "false";
+                      description
+                        "A remote multicast source is a source
+                         that is not on the same subnet as the
+                         VPN network access.  When set to 'true',
+                         the multicast traffic from a remote
+                         source is accepted.";
+                    }
+                    container igmp {
+                      when "../protocol-type = 'host' and "
+                         + "../address-family = 'vpn-common:ipv4' "
+                         + "or 'vpn-common:dual-stack'";
+                      if-feature "vpn-common:igmp";
+                      description
+                        "Includes IGMP-related parameters.";
+                      list static-group {
+                        key "group-addr";
+                        description
+                          "Multicast static source/group
+                           associated with the IGMP session.";
+                        leaf group-addr {
+                          type rt-types:ipv4-multicast-group-address;
+                          description
+                            "Multicast group IPv4 address.";
+                        }
+                        leaf source-addr {
+                          type
+                            rt-types:ipv4-multicast-source-address;
+                          description
+                            "Multicast source IPv4 address.";
+                        }
+                      }
+                      leaf max-groups {
+                        type uint32;
+                        description
+                          "Indicates the maximum number of
+                           groups.";
+                      }
+                      leaf max-entries {
+                        type uint32;
+                        description
+                          "Indicates the maximum number of IGMP
+                           entries.";
+                      }
+                      leaf max-group-sources {
+                        type uint32;
+                        description
+                          "The maximum number of group sources.";
+                      }
+                      leaf version {
+                        type identityref {
+                          base vpn-common:igmp-version;
+                        }
+                        default "vpn-common:igmpv2";
+                        description
+                          "Indicates the IGMP version.";
+                      }
+                      uses vpn-common:service-status;
+                    }
+                    container mld {
+                      when "../protocol-type = 'host' and "
+                         + "../address-family = 'vpn-common:ipv6' "
+                         + "or 'vpn-common:dual-stack'";
+                      if-feature "vpn-common:mld";
+                      description
+                        "Includes MLD-related parameters.";
+                      list static-group {
+                        key "group-addr";
+                        description
+                          "Multicast static source/group associated
+                           with the MLD session.";
+                        leaf group-addr {
+                          type rt-types:ipv6-multicast-group-address;
+                          description
+                            "Multicast group IPv6 address.";
+                        }
+                        leaf source-addr {
+                          type
+                            rt-types:ipv6-multicast-source-address;
+                          description
+                            "Multicast source IPv6 address.";
+                        }
+                      }
+                      leaf max-groups {
+                        type uint32;
+                        description
+                          "Indicates the maximum number of
+                           groups.";
+                      }
+                      leaf max-entries {
+                        type uint32;
+                        description
+                          "Indicates the maximum number of MLD
+                           entries.";
+                      }
+                      leaf max-group-sources {
+                        type uint32;
+                        description
+                          "The maximum number of group sources.";
+                      }
+                      leaf version {
+                        type identityref {
+                          base vpn-common:mld-version;
+                        }
+                        default "vpn-common:mldv2";
+                        description
+                          "Indicates the MLD protocol version.";
+                      }
+                      uses vpn-common:service-status;
+                    }
+                    container pim {
+                      when "../protocol-type = 'router'";
+                      if-feature "vpn-common:pim";
+                      description
+                        "Only applies when the protocol type is
+                         'pim'.";
+                      leaf hello-interval {
+                        type rt-types:timer-value-seconds16;
+                        default "30";
+                        description
+                          "Interval between PIM Hello messages.
+                           If set to 'infinity' or 'not-set',
+                           no periodic Hello messages are sent.";
+                        reference
+                          "RFC 7761: Protocol Independent
+                                     Multicast - Sparse Mode
+                                     (PIM-SM): Protocol
+                                     Specification (Revised),
+                                     Section 4.11
+                           RFC 8294: Common YANG Data Types for
+                                     the Routing Area";
+                      }
+                      leaf dr-priority {
+                        type uint32;
+                        default "1";
+                        description
+                          "Indicates the preference associated
+                           with the DR election process.  A larger
+                           value has a higher priority over a
+                           smaller value.";
+                        reference
+                          "RFC 7761: Protocol Independent
+                                     Multicast - Sparse Mode
+                                     (PIM-SM): Protocol
+                                     Specification (Revised),
+                                     Section 4.3.2";
+                      }
+                      uses vpn-common:service-status;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
