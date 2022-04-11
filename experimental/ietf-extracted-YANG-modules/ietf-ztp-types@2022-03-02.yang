@@ -1,0 +1,446 @@
+module ietf-ztp-types {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-ztp-types";
+  prefix zt;
+
+  import ietf-crypto-types {
+    prefix ct;
+    reference
+      "RFC AAAA: YANG Data Types and Groupings for Cryptography";
+  }
+
+  organization
+    "IETF NETCONF (Network Configuration) Working Group";
+
+  contact
+    "WG Web:   https://datatracker.ietf.org/wg/netconf
+     WG List:  NETCONF WG list <mailto:netconf@ietf.org>
+     Authors:  Kent Watsen <mailto:kent+ietf@watsen.net>
+               Russ Housley <mailto:housley@vigilsec.com>
+               Sean Turner <mailto:sean@sn3rd.com>";
+
+  description
+    "This module defines three groupings that enable
+     bootstrapping devices to 1) indicate if and how they
+     support generating CSRs, 2) obtain a request to
+     generate a CSR, and 3) communicate the requested CSR.
+
+     Copyright (c) 2022 IETF Trust and the persons identified
+     as authors of the code. All rights reserved.
+
+     Redistribution and use in source and binary forms, with
+     or without modification, is permitted pursuant to, and
+     subject to the license terms contained in, the Revised
+     BSD License set forth in Section 4.c of the IETF Trust's
+     Legal Provisions Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC
+     itself for full legal notices.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this
+     document are to be interpreted as described in BCP 14
+     (RFC 2119) (RFC 8174) when, and only when, they appear
+     in all capitals, as shown here.";
+
+  revision 2022-03-02 {
+    description
+      "Initial version";
+    reference
+      "RFC XXXX: Conveying a Certificate Signing Request (CSR)
+                 in a Secure Zero Touch Provisioning (SZTP)
+                 Bootstrapping Request";
+  }
+
+  identity certificate-request-format {
+    description
+      "A base identity for the request formats supported
+       by the ZTP-client.
+
+       Additional derived identities MAY be defined by
+       future efforts.";
+  }
+
+  identity p10-csr {
+    base certificate-request-format;
+    description
+      "Indicates that the ZTP-client supports generating
+       requests using the 'CertificationRequest' structure
+       defined in RFC 2986.";
+    reference
+      "RFC 2986: PKCS #10: Certification Request Syntax
+                 Specification Version 1.7";
+  }
+
+  identity cmp-csr {
+    base certificate-request-format;
+    description
+      "Indicates that the ZTP-client supports generating
+       requests using a profiled version of the PKIMessage
+       that MUST contain a PKIHeader followed by a PKIBody
+       containing only the ir, cr, kur, or p10cr structure
+       defined in RFC 4210.";
+    reference
+      "RFC 4210: Internet X.509 Public Key Infrastructure
+                 Certificate Management Protocol (CMP)";
+  }
+
+  identity cmc-csr {
+    base certificate-request-format;
+    description
+      "Indicates that the ZTP-client supports generating
+       requests using a profiled version of the 'Full
+       PKI Request' structure defined in RFC 5272.";
+    reference
+      "RFC 5272: Certificate Management over CMS (CMC)";
+  }
+
+  // Protocol-accessible nodes
+
+  grouping csr-support-grouping {
+    description
+      "A grouping enabling use by other efforts.";
+    container csr-support {
+      description
+      "Enables a ZTP-client to indicate that it supports
+       generating certificate signing requests (CSRs) and
+       provides details about the CSRs it is able to
+       generate.";
+      container key-generation {
+        presence
+          "Indicates that the ZTP-client is capable of
+           generating a new asymmetric key pair.
+
+           If this node is not present, the ZTP-server MAY
+           request a CSR using the asymmetric key associated
+           with the device's existing identity certificate
+           (e.g., an IDevID from IEEE 802.1AR).";
+        description
+          "Specifies details for the ZTP-client's ability to
+           generate a new asymmetric key pair.";
+        container supported-algorithms {
+          description
+            "A list of public key algorithms supported by the
+             ZTP-client for generating a new asymmetric key.";
+          leaf-list algorithm-identifier {
+            type binary;
+            min-elements 1;
+            description
+              "An AlgorithmIdentifier, as defined in RFC 2986,
+               encoded using ASN.1 distinguished encoding rules
+               (DER), as specified in ITU-T X.690.";
+            reference
+              "RFC 2986: PKCS #10: Certification Request Syntax
+                         Specification Version 1.7
+               ITU-T X.690:
+                 Information technology - ASN.1 encoding rules:
+                 Specification of Basic Encoding Rules (BER),
+                 Canonical Encoding Rules (CER) and Distinguished
+                 Encoding Rules (DER).";
+          }
+        }
+      }
+      container csr-generation {
+        description
+          "Specifies details for the ZTP-client's ability to
+           generate a certificate signing requests.";
+        container supported-formats {
+          description
+            "A list of certificate request formats supported
+             by the ZTP-client for generating a new key.";
+          leaf-list format-identifier {
+            type identityref {
+              base zt:certificate-request-format;
+            }
+            min-elements 1;
+            description
+              "A certificate request format supported by the
+               ZTP-client.";
+          }
+        }
+      }
+    }
+  }
+
+  grouping csr-request-grouping {
+    description
+      "A grouping enabling use by other efforts.";
+    container key-generation {
+      presence
+        "Provided by a ZTP-server to indicate that it wishes
+         the ZTP-client to generate a new asymmetric key.
+
+         This statement is present so the mandatory descendant
+         nodes do not imply that this node must be configured.";
+      description
+        "The key generation parameters selected by the ZTP-server.
+
+         This leaf MUST only appear if the ZTP-client's
+         'csr-support' included the 'key-generation' node.";
+      container selected-algorithm {
+        description
+          "The key algorithm selected by the ZTP-server. The
+           algorithm MUST be one of the algorithms specified by
+           the 'supported-algorithms' node in the ZTP-client's
+           message containing the 'csr-support' structure.";
+        leaf algorithm-identifier {
+          type binary;
+          mandatory true;
+          description
+            "An AlgorithmIdentifier, as defined in RFC 2986,
+             encoded using ASN.1 distinguished encoding rules
+             (DER), as specified in ITU-T X.690.";
+          reference
+            "RFC 2986: PKCS #10: Certification Request Syntax
+                       Specification Version 1.7
+             ITU-T X.690:
+               Information technology - ASN.1 encoding rules:
+               Specification of Basic Encoding Rules (BER),
+               Canonical Encoding Rules (CER) and Distinguished
+               Encoding Rules (DER).";
+        }
+      }
+    }
+    container csr-generation {
+      description
+        "Specifies details for the CSR that the ZTP-client
+         is to generate.";
+      container selected-format {
+        description
+          "The CSR format selected by the ZTP-server. The
+           format MUST be one of the formats specified by
+           the 'supported-formats' node in the ZTP-client's
+           request message.";
+        leaf format-identifier {
+          type identityref {
+            base zt:certificate-request-format;
+          }
+          mandatory true;
+          description
+            "A certificate request format to be used by the
+             ZTP-client.";
+        }
+      }
+    }
+    leaf cert-req-info {
+      type ct:csr-info;
+      description
+        "A CertificationRequestInfo structure, as defined in
+         RFC 2986, and modeled via a 'typedef' statement by
+         RFC AAAA.
+
+         Enables the ZTP-server to provide a fully-populated
+         CertificationRequestInfo structure that the ZTP-client
+         only needs to sign in order to generate the complete
+         'CertificationRequest' structure to send to ZTP-server
+         in its next 'get-bootstrapping-data' request message.
+
+         When provided, the ZTP-client MUST use this structure
+         to generate its CSR; failure to do so will result in a
+         400 Bad Request response containing another 'csr-request'
+         structure.
+
+         When not provided, the ZTP-client SHOULD generate a CSR
+         using the same structure defined in its existing identity
+         certificate (e.g., an IDevID from IEEE 802.1AR).
+
+         If the 'AlgorithmIdentifier' field contained inside the
+         certificate 'SubjectPublicKeyInfo' field does not match
+         the algorithm identified by the 'selected-algorithm' node,
+         then the client MUST reject the certificate and raise an
+         error.";
+
+      reference
+        "RFC 2986:
+           PKCS #10: Certification Request Syntax Specification
+         RFC AAAA:
+           YANG Data Types and Groupings for Cryptography";
+    }
+  }
+
+  grouping csr-grouping {
+    description
+      "Enables a ZTP-client to convey a certificate signing
+       request, using the encoding format selected by a
+       ZTP-server's 'csr-request' response to the ZTP-client's
+       previously sent request containing the 'csr-support'
+       node.";
+    choice csr-type {
+      mandatory true;
+      description
+        "A choice amongst certificate signing request formats.
+
+         Additional formats MAY be augmented into this 'choice'
+         statement by future efforts.";
+      case p10-csr {
+        leaf p10-csr {
+          type ct:csr;
+          description
+            "A CertificationRequest structure, per RFC 2986.
+             Encoding details are defined in the 'ct:csr'
+             typedef defined in RFC AAAA.
+
+             A raw P10 does not support origin authentication in
+             the CSR structure.  External origin authentication
+             may be provided via the ZTP-client's authentication
+             to the ZTP-server at the transport layer (e.g., TLS).";
+          reference
+            "RFC 2986: PKCS #10: Certification Request Syntax
+                       Specification
+             RFC AAAA: YANG Data Types and Groupings for
+                       Cryptography";
+        }
+      }
+      case cmc-csr {
+        leaf cmc-csr {
+          type binary;
+          description
+            "A profiled version of the 'Full PKI Request'
+             message defined in RFC 5272, encoded using ASN.1
+             distinguished encoding rules (DER), as specified
+             in ITU-T X.690.
+
+             For asymmetric key-based origin authentication of a
+             CSR based on the initial device identity certificate's
+             private key for the associated identity certificate's
+             public key, the PKIData contains one reqSequence
+             element and no cmsSequence or otherMsgSequence
+             elements. The reqSequence is the TaggedRequest
+             and it is the tcr CHOICE branch. The tcr is the
+             TaggedCertificationRequest and it is the bodyPartId
+             and the certificateRequest elements.  The
+             certificateRequest is signed with the initial device
+             identity certificate's private key. The initial device
+             identity certificate and optionally its certificate
+             chain is included in the SignedData certificates that
+             encapsulates the PKIData.
+
+             For asymmetric key-based origin authentication based on
+             the initial device identity certificate's private key
+             that signs the encapsulated CSR signed by the local
+             device identity certificate's private key, the
+             PKIData contains one cmsSequence element and no
+             reqSequence or otherMsgSequence
+             elements.  The cmsSequence is the TaggedContentInfo
+             and it includes a bodyPartID element and a contentInfo.
+             The contentInfo is a SignedData encapsulating a PKIData
+             with one reqSequence element and no cmsSequence or
+             otherMsgSequence elements. The reqSequence is the
+             TaggedRequest and it is the tcr CHOICE. The tcr is the
+             TaggedCertificationRequest and it is the bodyPartId and
+             the certificateRequest elements.  PKIData contains one
+             cmsSequence element and no controlSequence, reqSequence,
+             or otherMsgSequence elements.  The certificateRequest
+             is signed with the local device identity certificate's
+             private key.  The initial device identity certificate
+             and optionally its certificate chain is included in the
+             SignedData certificates that encapsulates the PKIData.
+
+             For shared secret-based origin authentication of a
+             CSR signed by the local device identity certificate's
+             private key, the PKIData contains one cmsSequence
+             element and no reqSequence or otherMsgSequence
+             elements. The cmsSequence is the TaggedContentInfo
+             and it includes a bodyPartID element and a contentInfo.
+             The contentInfo is an AuthenticatedData encapsulating
+             a PKIData with one reqSequence element and no
+             cmsSequences or otherMsgSequence elements. The
+             reqSequence is the TaggedRequest and it is the tcr
+             CHOICE. The tcr is the TaggedCertificationRequest
+             and it is the bodyPartId and the certificateRequest
+             elements.  The certificateRequest is signed with the
+             local device identity certificate's private key. The
+             initial device identity certificate and optionally its
+             certificate chain is included in the SignedData
+             certificates that encapsulates the PKIData.";
+          reference
+            "RFC 5272: Certificate Management over CMS (CMC)
+             ITU-T X.690:
+               Information technology - ASN.1 encoding rules:
+               Specification of Basic Encoding Rules (BER),
+               Canonical Encoding Rules (CER) and Distinguished
+               Encoding Rules (DER).";
+        }
+      }
+      case cmp-csr {
+        leaf cmp-csr {
+          type binary;
+          description
+            "A PKIMessage structure, as defined in RFC 4210,
+             encoded using ASN.1 distinguished encoding rules
+             (DER), as specified in ITU-T X.690.
+
+             For asymmetric key-based origin authentication of a
+             CSR based on the initial device identity certificate's
+             private key for the associated initial device identity
+             certificate's public key, PKIMessages contains one
+             PKIMessage with the header and body elements, no
+             protection element, and SHOULD contain the extraCerts
+             element. The header element contains the pvno, sender,
+             and recipient elements. The pvno contains cmp2000, and
+             the sender contains the subject of the initial device
+             identity certificate. The body element contains an ir,
+             cr, kur, or p10cr CHOICE of type CertificationRequest.
+             It is signed with the initial device identity
+             certificate's private key.  The extraCerts element
+             contains the initial device identity certificate,
+             optionally followed by its certificate chain excluding
+             the trust anchor.
+
+             For asymmetric key-based origin authentication based
+             on the initial device identity certificate's private
+             key that signs the encapsulated CSR signed by the local
+             device identity certificate's private key, PKIMessages
+             contains one PKIMessage with the header, body, and
+             protection elements, and SHOULD contain the extraCerts
+             element. The header element contains the pvno, sender,
+             recipient, protectionAlg, and optionally senderKID
+             elements. The pvno contains cmp2000, the sender
+             contains the subject of the initial device identity
+             certificate, the protectionAlg contains the
+             AlgorithmIdentifier of the used signature algorithm,
+             and the senderKID contains the subject key identifier
+             of the initial device identity certificate. The body
+             element contains an ir, cr, kur, or p10cr CHOICE of
+             type CertificationRequest. It is signed with the local
+             device identity certificate's private key.  The
+             protection element contains the digital signature
+             generated with the initial device identity
+             certificate's private key.  The extraCerts element
+             contains the initial device identity certificate,
+             optionally followed by its certificate chain excluding
+             the trust anchor.
+
+             For shared secret-based origin authentication of a
+             CSR signed by the local device identity certificate's
+             private key, PKIMessages contains one PKIMessage with
+             the header, body, and protection element, and no
+             extraCerts element. The header element contains the
+             pvno, sender, recipient, protectionAlg, and senderKID
+             elements. The pvno contains cmp2000, the protectionAlg
+             contains the AlgorithmIdentifier of the used MAC
+             algorithm, and the senderKID contains a reference the
+             recipient can use to identify the shared secret.  The
+             body element contains an ir, cr, kur, or p10cr CHOICE
+             of type CertificationRequest. It is signed with the
+             local device identity certificate's private key.  The
+             protection element contains the MAC value generated
+             with the shared secret.";
+          reference
+            "RFC 4210:
+               Internet X.509 Public Key Infrastructure
+               Certificate Management Protocol (CMP)
+             ITU-T X.690:
+               Information technology - ASN.1 encoding rules:
+               Specification of Basic Encoding Rules (BER),
+               Canonical Encoding Rules (CER) and Distinguished
+               Encoding Rules (DER).";
+        }
+      }
+    }
+  }
+
+}

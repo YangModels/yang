@@ -1,0 +1,292 @@
+module ietf-sr-service-programming-proxy {
+  yang-version 1.1;
+
+  namespace "urn:ietf:params:xml:ns:yang:ietf-sr-service-programming-proxy";
+  prefix "sr-svc-proxy";
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  import ietf-routing {
+    prefix rt;
+    reference "RFC 8349: A YANG Data Model for Routing
+               Management (NMDA Version)";
+  }
+
+  import ietf-inet-types {
+    prefix "inet";
+  }
+
+  import ietf-segment-routing {
+    prefix sr;
+  }
+
+  import ietf-sr-service-programming {
+    prefix "sr-svc-pgm";
+  }
+
+  import ietf-sr-service-programming-types {
+    prefix "sr-svc-pgm-types";
+  }
+
+  import ietf-routing-types {
+    prefix "rt-types";
+  }
+
+  import ietf-srv6-types {
+    prefix "srv6-types";
+  }
+
+  import ietf-segment-routing-mpls {
+    prefix sr-mpls;
+  }
+
+  organization "IETF SPRING Working Group";
+
+  contact
+      "WG Web:   <http://tools.ietf.org/wg/spring/>
+       WG List:  <mailto:spring@ietf.org>
+
+       Editor:   Jaganbabu Rajamanickam
+                 <mailto:jrajaman@cisco.com>
+
+       Editor:   Kamran Raza
+                 <mailto:skraza@cisco.com>
+
+       Editor:   Daniel Bernier
+                 <mailto:daniel.bernier@bell.ca>
+
+       Editor:   Gaurav Dawra
+                 <mailto:gdawra.ietf@gmail.com>
+
+       Editor:   Cheng Li
+                 <mailto:c.l@huawei.com>";
+
+  grouping service-proxy-parameters {
+
+    leaf out-interface-name {
+      mandatory true;
+      type string;
+      description
+        "Interface name on which the packet sent to the service endpoint";
+    }
+
+    leaf in-interface-name {
+      mandatory true;
+      type string;
+      description
+        "Interface name on which the packet received from the service endpoint";
+    }
+  }
+
+  grouping mpls-packet-cache-info {
+    description
+      "MPLS Label stack";
+
+    list mpls-sids {
+      key "index";
+
+      leaf index {
+        type uint8 {
+          range "1..16";
+        }
+        description
+          "cache index - MPLS Label stack index";
+      }
+
+      leaf mpls-label {
+        mandatory true;
+        type rt-types:mpls-label;
+        description
+          "MPLS Label value.";
+      }
+    }
+  }
+
+  grouping srv6-packet-cache-info {
+    description
+      "SRv6 SID stack";
+
+    leaf ipv6-source-address {
+      type inet:ipv6-address;
+      description
+        "IPv6 source address that needs in the case if SRv6.";
+    }
+    list srv6-sids {
+      key "index";
+
+      leaf index {
+        type uint8 {
+          range "1..16";
+        }
+        description
+          "cache index - SRv6 SID index";
+      }
+
+      leaf srv6-sid {
+        mandatory true;
+        type srv6-types:srv6-sid;
+        description
+          "SRv6 SID.";
+      }
+    }
+  }
+
+  grouping service-proxy-packet-cache-info {
+    description
+      "SRv6 Proxy header cache";
+
+    container packet-cache-info {
+
+      choice cache-type {
+        mandatory true;
+        case mpls {
+
+          when "/rt:routing/sr:segment-routing
+                /sr-svc-pgm:service-programming
+                /sr-svc-pgm:service-program
+                /sr-svc-pgm:service-programming-info
+                /sr-svc-pgm:dataplane = 'mpls'";
+          uses mpls-packet-cache-info;
+        }
+        case srv6 {
+
+          when "/rt:routing/sr:segment-routing/sr-svc-pgm:service-programming
+            /sr-svc-pgm:service-program
+            /sr-svc-pgm:service-programming-info
+            /sr-svc-pgm:dataplane = 'srv6'";
+
+          uses srv6-packet-cache-info;
+        }
+      }
+    }
+  }
+
+  grouping static-service-proxy {
+    container static-proxy {
+      when "/rt:routing/sr:segment-routing/sr-svc-pgm:service-programming
+            /sr-svc-pgm:service-program
+            /sr-svc-pgm:service-programming-info
+            /sr-svc-pgm:behaviour = 'static-proxy'";
+      description
+        "Parameters related to static service proxy";
+
+      leaf inner-packet-type {
+        mandatory true;
+        type identityref {
+          base sr-svc-pgm-types:service-proxy-inner-pkt-type;
+        }
+        description
+          "Defines the expected inner packet type";
+      }
+
+      leaf next-hop {
+        when "(../inner-packet-type = 'IPv4' or ../inner-packet-type = 'IPv6')";
+        type yang:mac-address;
+        description
+          "Nexthop Ethernet address for inner packet type IPv4/IPv6";
+      }
+      uses service-proxy-parameters;
+      uses service-proxy-packet-cache-info;
+    }
+  }
+
+  grouping dynamic-service-proxy {
+    container dynamic-proxy {
+      when "/rt:routing/sr:segment-routing/sr-svc-pgm:service-programming
+            /sr-svc-pgm:service-program
+            /sr-svc-pgm:service-programming-info
+            /sr-svc-pgm:behaviour = 'dynamic-proxy'";
+      description
+        "Parameters related to dynamic service proxy";
+      uses service-proxy-parameters;
+    }
+  }
+
+  grouping masquerading-service-parameters {
+
+    leaf next-hop {
+      type yang:mac-address;
+      description
+        "Nexthop Ethernet address";
+    }
+    uses service-proxy-parameters;
+  }
+
+  grouping masquerading-service-proxy {
+    container masquerading-proxy {
+      description
+        "Parameters related to masquerading service proxy";
+
+      when "/rt:routing/sr:segment-routing
+            /sr-svc-pgm:service-programming
+            /sr-svc-pgm:service-program
+            /sr-svc-pgm:service-programming-info
+            /sr-svc-pgm:dataplane = 'srv6' and /rt:routing
+            /sr:segment-routing/sr-svc-pgm:service-programming
+            /sr-svc-pgm:service-program
+            /sr-svc-pgm:service-programming-info
+            /sr-svc-pgm:behaviour = 'Masquerading-proxy'";
+
+      uses masquerading-service-parameters;
+    }
+  }
+
+  grouping service-proxy-programming {
+    container service-proxy {
+
+      choice proxy-type {
+        mandatory true;
+        case static {
+          uses static-service-proxy;
+        }
+        case dynamic {
+          uses dynamic-service-proxy;
+        }
+        case masquerading {
+          uses masquerading-service-proxy;
+        }
+      }
+    }
+
+  }
+
+  augment "/rt:routing/sr:segment-routing/
+           sr-svc-pgm:service-programming/
+           sr-svc-pgm:service-program/
+           sr-svc-pgm:service-programming-info/
+           sr-svc-pgm:sr-services" {
+    description
+      "Augmenting the segment-routing bindings to add SR-unaware
+       service programming";
+
+    uses service-proxy-programming;
+  }
+
+  grouping static-mpls-service-proxy-programming {
+    container static-mpls-service-proxy {
+
+      choice proxy-type {
+        mandatory true;
+        case static {
+          uses static-service-proxy;
+        }
+        case dynamic {
+          uses dynamic-service-proxy;
+        }
+      }
+    }
+
+  }
+
+  augment "/rt:routing/sr:segment-routing/
+           sr-mpls:sr-mpls/sr-mpls:bindings/
+           sr-svc-pgm:mpls-static-service-programming/
+           sr-svc-pgm:service-program/
+           sr-svc-pgm:service-programming-info/
+           sr-svc-pgm:sr-services" {
+    uses static-mpls-service-proxy-programming;
+  }
+
+}
