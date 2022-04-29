@@ -34,6 +34,12 @@ module ietf-l2vpn-ntw {
     reference
       "RFC 8294: Common YANG Data Types for the Routing Area";
   }
+  import ieee802-dot1q-types {
+    prefix dot1q-types;
+    reference
+      "IEEE Std 802.1Qcp-2018: Bridges and Bridged Networks -
+                               Amendment: YANG Data Model";
+  }
 
   organization
     "IETF OPSA (Operations and Management Area) Working Group";
@@ -64,7 +70,7 @@ module ietf-l2vpn-ntw {
      This version of this YANG module is part of RFC XXXX; see
      the RFC itself for full legal notices.";
 
-  revision 2022-04-05 {
+  revision 2022-04-28 {
     description
       "Initial version.";
     reference
@@ -123,7 +129,6 @@ module ietf-l2vpn-ntw {
     description
       "Identity of loop prevention.";
   }
-
   identity shut {
     base loop-prevention-type;
     description
@@ -280,7 +285,7 @@ module ietf-l2vpn-ntw {
   identity warning {
     base mac-action;
     description
-      "Sending a warning message as the MAC action.";
+      "Log a warning message as the MAC action.";
   }
 
   identity precedence-type {
@@ -524,9 +529,7 @@ module ietf-l2vpn-ntw {
       description
         "Layer 2 service MTU.
          It is also known as the maximum transmission
-         unit or maximum frame size. When a frame is larger than
-         the MTU, it is fragmented to accommodate the MTU of the
-         network.";
+         unit or maximum frame size.";
     }
     leaf ce-vlan-preservation {
       type boolean;
@@ -535,9 +538,9 @@ module ietf-l2vpn-ntw {
          CE-VLAN tag of the egress frame is identical to
          that of the ingress frame that yielded this egress
          service frame. If all-to-one bundling within a site
-         is enabled, then preservation applies to all Ingress
+         is enabled, then preservation applies to all ingress
          service frames. If all-to-one bundling is disabled,
-         then preservation applies to tagged Ingress service
+         then preservation applies to tagged ingress service
          frames having CE-VLAN ID 1 through 4094.";
     }
     leaf ce-vlan-cos-preservation {
@@ -566,28 +569,31 @@ module ietf-l2vpn-ntw {
           "Container of MAC address limit configuration.";
         leaf limit-number {
           type uint16;
-          default "2";
           description
             "Maximum number of MAC addresses learned from
-             the customer for a single service instance.";
+             the customer for a single service instance.
+             The default value is '2' when this grouping
+             is used at the service level";
         }
         leaf time-interval {
           type uint32;
           units "milliseconds";
-          default "300";
           description
-            "The aging time of the mac address.";
+            "The aging time of the mac address.
+             The default value is '300' when this grouping
+             is used at the service level";
         }
         leaf action {
           type identityref {
             base mac-action;
           }
-          default "warning";
           description
             "Specifies the action when the upper limit is
-             exceeded: drop the packet, flood the
-             packet, or simply send a warning message
-             (without dropping the packet).";
+             exceeded: drop the packet, flood the packet,
+             or log a warning message (without dropping
+             the packet).
+             The default value is 'warning' when this
+             grouping is used at the service level";
         }
       }
       container mac-loop-prevention {
@@ -596,20 +602,22 @@ module ietf-l2vpn-ntw {
         leaf window {
           type uint32;
           units "seconds";
-          default "180";
           description
             "The time interval over which a MAC mobility event
-             is detected and checked.";
+             is detected and checked.
+             The default value is '180' when this grouping
+             is used at the service level";
         }
         leaf frequency {
           type uint32;
-          default "5";
           description
             "The number of times to detect MAC duplication, where
              a 'duplicate MAC address' situation has occurred
              within the 'window' time interval and the duplicate
              MAC address has been added to a list of duplicate
-             MAC addresses.";
+             MAC addresses.
+             The default value is '5' when this grouping is
+             called at the service level";
         }
         leaf retry-timer {
           type uint32;
@@ -623,9 +631,10 @@ module ietf-l2vpn-ntw {
           type identityref {
             base loop-prevention-type;
           }
-          default "trap";
           description
-            "Protection type.";
+            "Protection type.
+             The default value is 'trap' when this grouping
+             is used at the service level";
         }
       }
     }
@@ -1375,13 +1384,13 @@ module ietf-l2vpn-ntw {
                         description
                           "Container for QinQ.";
                         leaf s-tag {
-                          type uint32;
+                          type dot1q-types:vlanid;
                           mandatory true;
                           description
                             "S-TAG.";
                         }
                         leaf c-tag {
-                          type uint32;
+                          type dot1q-types:vlanid;
                           mandatory true;
                           description
                             "C-TAG.";
@@ -1443,7 +1452,7 @@ module ietf-l2vpn-ntw {
                   description
                     "Refers to a physical or logical interface.";
                 }
-                leaf global-parameters-profile {
+                leaf active-vpn-node-profile {
                   type leafref {
                       path "../../.."
                        + "/active-global-parameters-profiles"
@@ -1512,7 +1521,7 @@ module ietf-l2vpn-ntw {
                            'c-vlan'.";
                       }
                       leaf cvlan-id {
-                        type uint16;
+                        type dot1q-types:vlanid;
                         description
                           "VLAN identifier.";
                       }
@@ -1539,28 +1548,46 @@ module ietf-l2vpn-ntw {
                           leaf push {
                             type empty;
                             description
-                              "Push a tag.";
+                              "Push one or two tags defined by the
+                               tag-1 and tag-2 leaves. It is
+                               assumed that, absent any policy, the
+                               default value of 0 will be used for
+                               PCP setting.";
                           }
                           leaf translate {
                             type empty;
                             description
                               "Translate the outer tag to one or two
-                               tags.";
+                               tags. PCP bits are preserved.";
                           }
                         }
                         leaf tag-1 {
                           when 'not(../pop)';
-                          type uint16;
+                          type dot1q-types:vlanid;
                           description
                             "A first tag to be used for push or
-                             translate operations.";
+                             translate operations. This tag will be
+                             used as the outermost tag as a result
+                             of the tag operation.";
+                        }
+                        leaf tag-1-type {
+                          type dot1q-types:dot1q-tag-type;
+                          description
+                            "Specifies a specific 802.1Q tag type
+                             of tag-1.";
                         }
                         leaf tag-2 {
                           when '(../translate)';
-                          type uint16;
+                          type dot1q-types:vlanid;
                           description
                             "A second tag to be used for
                              translation.";
+                        }
+                        leaf tag-2-type {
+                          type dot1q-types:dot1q-tag-type;
+                          description
+                            "Specifies a specific 802.1Q tag type
+                             of tag-2.";
                         }
                       }
                     }
@@ -1602,13 +1629,13 @@ module ietf-l2vpn-ntw {
                            's-c-vlan'.";
                       }
                       leaf svlan-id {
-                        type uint16;
+                        type dot1q-types:vlanid;
                         mandatory true;
                         description
                           "S-VLAN identifier.";
                       }
                       leaf cvlan-id {
-                        type uint16;
+                        type dot1q-types:vlanid;
                         mandatory true;
                         description
                           "C-VLAN identifier.";
@@ -1633,33 +1660,52 @@ module ietf-l2vpn-ntw {
                               range "1|2";
                             }
                             description
-                              "Pop one or two out tags tag as a
-                               fucntion of indicated pop value.";
+                              "Pop one or two tags as a function
+                               of the indicated pop value.";
                           }
                           leaf push {
                             type empty;
                             description
-                              "Push a tag.";
+                              "Push one or two tags defined by the
+                               tag-1 and tag-2 leaves. It is
+                               assumed that, absent any policy, the
+                               default value of 0 will be used for
+                               PCP setting.";
                           }
                           leaf translate {
                             type empty;
                             description
-                              "Translate the outer tags.";
+                              "Translate one or two outer tags. PCP
+                                bits are preserved.";
                           }
                         }
                         leaf tag-1 {
                           when 'not(../pop)';
-                          type uint16;
+                          type dot1q-types:vlanid;
                           description
                             "A first tag to be used for push or
-                             translate operations.";
+                             translate operations. This tag will be
+                             used as the outermost tag as a result
+                             of the tag operation.";
+                        }
+                        leaf tag-1-type {
+                          type dot1q-types:dot1q-tag-type;
+                          description
+                            "Specifies a specific 802.1Q tag type
+                             of tag-1.";
                         }
                         leaf tag-2 {
                           when 'not(../pop)';
-                          type uint16;
+                          type dot1q-types:vlanid;
                           description
                             "A second tag to be used for push or
                              translate operations.";
+                        }
+                        leaf tag-2-type {
+                          type dot1q-types:dot1q-tag-type;
+                          description
+                            "Specifies a specific 802.1Q tag type
+                             of tag-2.";
                         }
                       }
                     }
@@ -2065,11 +2111,7 @@ module ietf-l2vpn-ntw {
                     type uint32;
                     description
                       "Layer 2 MTU, it is also known as the maximum
-                       transmission unit or maximum frame size. When
-                       a frame is larger than the MTU, it is broken
-                       down, or fragmented, into smaller pieces by
-                       the network protocol to accommodate the MTU
-                       of the network.";
+                       transmission unit or maximum frame size.";
                   }
                   container svc-pe-to-ce-bandwidth {
                     if-feature "vpn-common:inbound-bw";
@@ -2167,7 +2209,7 @@ module ietf-l2vpn-ntw {
                         }
                         case other {
                           description
-                            "Other bandwidth types.";
+                            "Other non CoS-aware bandwidth types.";
                           uses bandwidth-parameters;
                         }
                       }
@@ -2416,8 +2458,8 @@ module ietf-l2vpn-ntw {
                         description
                           "Specifies the action when the upper limit
                            is exceeded: drop the packet, flood the
-                           packet, or simply send a warning
-                           message (without dropping the packet).";
+                           packet, or log a warning message (without
+                           dropping the packet).";
                       }
                     }
                   }
