@@ -1,6 +1,5 @@
 # Cisco IOS XR Release 7.5.2 Models
 [README.md](README.md)  
-[README.md~](README.md~)  
 ## Platform Capabilities
 [platform-metadata.json](platform-metadata.json)  
 [capabilities-8000.xml](capabilities-8000.xml)  
