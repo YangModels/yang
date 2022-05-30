@@ -22,7 +22,8 @@ checkDir() {
 
     if [ -f "./check_pyang_extra_flags" ]; then
         check_pyang_extra_flags=$(cat ./check_pyang_extra_flags)
-        pyang_flags="$pyang_flags $check_pyang_extra_flags"
+        #pyang_flags="$pyang_flags $check_pyang_extra_flags"
+        pyang_flags="$check_pyang_extra_flags $pyang_flags"
     fi
     printf "\n"
     for f in *.yang; do
