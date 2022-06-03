@@ -13,4 +13,4 @@
 ./standard/bbf/check.sh
 ./experimental/ieee/check.sh
 ./standard/ieee/check.sh
-
+./standard/iana/check.sh
