@@ -24,6 +24,11 @@ module ietf-tcp {
     reference
       "RFC 8341: Network Configuration Access Control Model";
   }
+  import ietf-key-chain {
+    prefix key-chain;
+    reference
+      "RFC 8177: YANG Key Chain.";
+  }
 
   organization
     "IETF TCPM Working Group";
@@ -41,7 +46,7 @@ module ietf-tcp {
      statistics. The model can be augmented to address more advanced
      or implementation specific TCP features.
 
-     Copyright (c) 2021 IETF Trust and the persons identified as
+     Copyright (c) 2022 IETF Trust and the persons identified as
      authors of the code.  All rights reserved.
 
      Redistribution and use in source and binary forms, with or
@@ -61,12 +66,12 @@ module ietf-tcp {
      described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
      they appear in all capitals, as shown here.";
 
-  revision "2022-02-04" {
+  revision "2022-06-15" {
     description
       "Initial Version";
     reference
       "RFC XXXX, A YANG Model for Transmission Control Protocol (TCP)
-                 Configuration.";
+                 Configuration and State.";
   }
 
   // Features
@@ -111,7 +116,6 @@ module ietf-tcp {
       reference
         "RFC 5925: The TCP Authentication Option, Section 3.1.";
     }
-
     leaf include-tcp-options {
       type boolean;
       must "../enable-ao = 'true'";
@@ -132,6 +136,18 @@ module ietf-tcp {
       reference
         "RFC 5925: The TCP Authentication Option, Section 7.3.";
     }
+
+    leaf r-next-key-id {
+      type uint8;
+      config false;
+      description
+        "A field indicating the Master Key Tuple (MKT) that is ready
+         at the sender to be used to authenticate received segments,
+         i.e., the desired 'receive next' key ID.";
+      reference
+        "RFC 5925: The TCP Authentication Option.";
+    }
+
     description
       "Authentication Option (AO) for TCP.";
     reference
@@ -201,28 +217,90 @@ module ietf-tcp {
              connection identifier.";
         }
 
-        container common {
-          uses tcpcmn:tcp-common-grouping;
+        uses tcpcmn:tcp-common-grouping;
 
-          choice authentication {
-            case ao {
-              uses ao;
+        leaf state {
+          type enumeration {
+            enum closed {
+              value 1;
               description
-                "Use TCP-AO to secure the connection.";
+                "Connection is closed. Connections in this state
+                 may not appear in this list.";
             }
-
-            case md5 {
-              uses md5;
+            enum listen {
+              value 2;
               description
-                "Use TCP-MD5 to secure the connection.";
+                "Represents waiting for a connection request from any
+                 remote TCP peer and port.";
             }
-            description
-              "Choice of TCP authentication.";
+            enum syn-sent {
+              value 3;
+              description
+                "Represents waiting for a matching connection request
+                 after having sent a connection request.";
+            }
+            enum syn-received {
+              value 4;
+              description
+                "Represents waiting for a confirming connection
+                 request acknowledgment after having both received
+                 and sent a connection request.";
+            }
+            enum established {
+              value 5;
+              description
+                "Represents an open connection, data received can be
+                 delivered to the user. The normal state for the data
+                 transfer phase of the connection.";
+            }
+            enum fin-wait-1 {
+              value 6;
+              description
+                "Represents waiting for a connection termination
+                 request from the remote TCP peer, or an
+                 acknowledgment of the connection termination request
+                 previously sent.";
+            }
+            enum fin-wait-2 {
+              value 7;
+              description
+                "Represents waiting for a connection termination
+                 request from the remote TCP peer.";
+            }
+            enum close-wait {
+              value 8;
+              description
+                "Represents waiting for a connection termination
+                 request from the local user.";
+            }
+            enum last-ack {
+              value 9;
+              description
+                "Represents waiting for an acknowledgment of the
+                 connection termination request previously sent to
+                 the remote TCP peer (this termination request sent
+                 to the remote TCP peer already included an
+                 acknowledgment of the termination request sent from
+                 the remote TCP peer)";
+            }
+            enum closing {
+              value 10;
+              description
+                "Represents waiting for a connection termination
+                 request acknowledgment from the remote TCP peer.";
+            }
+            enum time-wait {
+              value 11;
+              description
+                "Represents waiting for enough time to pass to be
+                 sure the remote TCP peer received the acknowledgment
+                 of its connection termination request, and to avoid
+                 new connections being impacted by delayed segments
+                 from previous connections.";
+            }
           }
           description
-            "Common definitions of TCP configuration. This includes
-             parameters such as how to secure the connection,
-             that can be part of either the client or server.";
+            "The state of this TCP connection.";
         }
         description
           "List of TCP connections with their parameters. The list
@@ -235,6 +313,58 @@ module ietf-tcp {
       }
       description
         "A container of all TCP connections.";
+    }
+
+    list tcp-listeners {
+      key "type address port";
+      config false;
+
+      description
+        "A table containing information about a particular
+         TCP listener.";
+
+      leaf type {
+        type inet:ip-version;
+        description
+          "The address type of address.  The value
+           should be unknown (0) if connection initiations
+           to all local IP addresses are accepted.";
+      }
+
+      leaf address {
+        type union {
+          type string;
+          type inet:ip-address;
+        }
+        description
+          "The local IP address for this TCP connection.
+
+           The value of this object can be represented in three
+           possible ways, depending on the characteristics of the
+           listening application:
+
+           1. For an application willing to accept both IPv4 and
+              IPv6 datagrams, the value of this object must be
+              ''h (a zero-length octet-string), with the value
+              of the corresponding 'type' object being
+              unknown (0).
+
+           2. For an application willing to accept only IPv4 or
+              IPv6 datagrams, the value of this object must be
+              '0.0.0.0' or '::' respectively, with
+              'type' representing the appropriate address type.
+
+           3. For an application which is listening for data
+              destined only to a specific IP address, the value
+              of this object is the specific local address, with
+              'type' representing the appropriate address type.";
+      }
+
+      leaf port {
+        type inet:port-number;
+        description
+          "The local port number for this TCP connection.";
+      }
     }
 
     container statistics {
@@ -274,7 +404,6 @@ module ietf-tcp {
           "I-D.ietf-tcpm-rfc793bis: Transmission Control Protocol
            (TCP) Specification.";
       }
-
       leaf establish-resets {
         type yang:counter32;
         description
@@ -285,6 +414,7 @@ module ietf-tcp {
           "I-D.ietf-tcpm-rfc793bis: Transmission Control Protocol
            (TCP) Specification.";
       }
+
       leaf currently-established {
         type yang:gauge32;
         description
@@ -298,9 +428,9 @@ module ietf-tcp {
       leaf in-segments {
         type yang:counter64;
         description
-          "The total number of segments received, including those
-           received in error.  This count includes segments received
-           on currently established connections.";
+          "The total number of TCP segments received, including those
+           received in error. This count includes TCP segments
+           received on currently established connections.";
         reference
           "I-D.ietf-tcpm-rfc793bis: Transmission Control Protocol
            (TCP) Specification.";
@@ -309,7 +439,7 @@ module ietf-tcp {
       leaf out-segments {
         type yang:counter64;
         description
-          "The total number of segments sent, including those on
+          "The total number of TCP segments sent, including those on
            current connections but excluding those containing only
            retransmitted octets.";
         reference
@@ -320,9 +450,9 @@ module ietf-tcp {
       leaf retransmitted-segments {
         type yang:counter32;
         description
-          "The total number of segments retransmitted; that is, the
-           number of TCP segments transmitted containing one or more
-           previously transmitted octets.";
+          "The total number of TCP segments retransmitted; that is,
+           the number of TCP segments transmitted containing one or
+           more previously transmitted octets.";
         reference
           "I-D.ietf-tcpm-rfc793bis: Transmission Control Protocol
            (TCP) Specification.";
@@ -331,8 +461,8 @@ module ietf-tcp {
       leaf in-errors {
         type yang:counter32;
         description
-          "The total number of segments received in error (e.g., bad
-           TCP checksums).";
+          "The total number of TCP segments received in error
+           (e.g., bad TCP checksums).";
         reference
           "I-D.ietf-tcpm-rfc793bis: Transmission Control Protocol
            (TCP) Specification.";
@@ -369,6 +499,45 @@ module ietf-tcp {
       }
       description
         "Statistics across all connections.";
+    }
+  }
+
+  augment "/key-chain:key-chains/key-chain:key-chain/key-chain:key" {
+    description
+      "Augmentation of the key-chain model to add TCP-AO and TCP-MD5
+       authentication.";
+
+    container authentication {
+      leaf keychain {
+        type key-chain:key-chain-ref;
+        description
+          "Reference to the key chain that will be used by
+           this model. Applicable for TCP-AO and TCP-MD5
+           only";
+        reference
+          "RFC 8177: YANG Key Chain.";
+      }
+
+      choice authentication {
+        case ao {
+          uses ao;
+          description
+            "Use TCP-AO to secure the connection.";
+        }
+
+        case md5 {
+          uses md5;
+          description
+            "Use TCP-MD5 to secure the connection.";
+        }
+        description
+          "Choice of TCP authentication.";
+      }
+      description
+        "Authentication definitions for TCP configuration.
+         This includes parameters such as how to secure the
+         connection, that can be part of either the client
+         or server.";
     }
   }
 }
