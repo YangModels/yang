@@ -13,6 +13,11 @@ module ietf-udp-notif {
     reference
       "RFC 6991: Common YANG Data Types";
   }
+  import ietf-tls-client {
+    prefix tlsc;
+    reference
+      "RFC YYYY: YANG Groupings for TLS Clients and TLS Servers";
+  }
 
   organization "IETF NETCONF (Network Configuration) Working Group";
   contact
@@ -27,6 +32,8 @@ module ietf-udp-notif {
                <mailto:thomas.graf@swisscom.com>
                Pierre Francois
                <mailto:pierre.francois@insa-lyon.fr>
+               Alex Huang Feng
+               <mailto:alex.huang-feng@insa-lyon.fr>
                Paolo Lucente
                <mailto:paolo@ntt.net>";
 
@@ -34,8 +41,8 @@ module ietf-udp-notif {
     "Defines UDP-Notif as a supported transport for subscribed
     event notifications.
 
-    Copyright (c) 2018 IETF Trust and the persons identified as authors
-    of the code.  All rights reserved.
+    Copyright (c) 2018-2022 IETF Trust and the persons identified as
+    authors of the code.  All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
     modification, is permitted pursuant to, and subject to the license
@@ -46,11 +53,16 @@ module ietf-udp-notif {
     This version of this YANG module is part of RFC XXXX; see the RFC
     itself for full legal notices.";
 
-  revision 2021-10-18 {
+  revision 2022-05-25 {
     description
-    "Slight change to the name of two parameters.";
+      "Added container for DTLS parameters.
+      Changed grouping name to 'udp-receiver-grouping'.
+      Port made mandatory.
+      Added segmentation feature.
+      Added dtls-supported feature.
+      Changed 'max-segmentation-size' leaf name to 'max-segment-size'.";
     reference
-    "RFC XXXX: UDP-based Transport for Configured Subscriptions";
+      "RFC XXXX: UDP-based Transport for Configured Subscriptions";
   }
 
  /*
@@ -61,6 +73,16 @@ module ietf-udp-notif {
       "This feature indicates that CBOR encoding of notification
        messages is supported.";
   }
+  feature dtls-supported {
+    description
+      "This feature indicates that DTLS encryption of notification
+       messages is supported.";
+  }
+  feature segmentation {
+    description
+      "This feature indicates segmentation of notification messages
+      is supported.";
+  }
 
  /*
   * IDENTITIES
@@ -68,10 +90,9 @@ module ietf-udp-notif {
   identity udp-notif {
     base sn:transport;
     description
-   "UDP-Notif is used as transport for notification messages
-      and state change notifications.";
+      "UDP-Notif is used as transport for notification messages
+        and state change notifications.";
   }
-
   identity encode-cbor {
     base sn:encoding;
     description
@@ -81,7 +102,7 @@ module ietf-udp-notif {
         Data Modeled with YANG";
   }
 
-  grouping target-receiver {
+  grouping udp-receiver-grouping {
     description
       "Provides a reusable description of a UDP-Notif target
       receiver.";
@@ -95,13 +116,14 @@ module ietf-udp-notif {
     }
 
     leaf port {
-    type inet:port-number;
-    description
-      "Port number of target UDP-Notif receiver, if not specified,
-      the system should use default port number.";
+      type inet:port-number;
+      mandatory true;
+      description
+        "Port number of target UDP-Notif receiver.";
     }
 
     leaf enable-segmentation {
+      if-feature segmentation;
       type boolean;
       default false;
       description
@@ -109,20 +131,40 @@ module ietf-udp-notif {
         publisher will not allow fragment for a very large data";
     }
 
-    leaf max-segmentation-size {
-    when "../enable-segmentation = 'true'";
-    type uint32;
-    description "UDP-Notif provides a configurable
-      max-segmentation-size to control the size of each message.";
+    leaf max-segment-size {
+      when "../enable-segmentation = 'true'";
+      if-feature segmentation;
+      type uint32;
+      description
+        "UDP-Notif provides a configurable max-segment-size to
+        control the size of each segment (UDP-Notif header, with
+        options, included).";
+    }
+
+    leaf enable-dtls {
+      if-feature dtls-supported;
+      type boolean;
+      default false;
+      description
+        "The switch for the DTLS encryption feature. When disabled, the
+        publisher will not encrypt UDP-Notif messages.";
+    }
+
+    container dtls {
+      when "../enable-dtls = 'true'";
+      if-feature dtls-supported;
+      uses tlsc:tls-client-grouping;
+      description
+        "Container for configuring DTLS parameters if DTLS is enabled.";
     }
   }
 
   augment "/sn:subscriptions/sn:subscription/sn:receivers/sn:receiver" {
-    when "derived-from(../../../transport, 'un:udp-notif')";
+    when "derived-from(../../transport, 'un:udp-notif')";
     description
       "This augmentation allows UDP-Notif specific parameters to be
        exposed for a subscription.";
 
-    uses target-receiver;
+    uses udp-receiver-grouping;
   }
 }
