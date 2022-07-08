@@ -1,0 +1,1482 @@
+module ietf-ntp {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-ntp";
+  prefix ntp;
+
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-interfaces {
+    prefix if;
+    reference
+      "RFC 8343: A YANG Data Model for Interface Management";
+  }
+  import ietf-system {
+    prefix sys;
+    reference
+      "RFC 7317: A YANG Data Model for System Management";
+  }
+  import ietf-access-control-list {
+    prefix acl;
+    reference
+      "RFC 8519: YANG Data Model for Network Access Control
+       Lists (ACLs)";
+  }
+  import ietf-routing-types {
+    prefix rt-types;
+    reference
+      "RFC 8294: Common YANG Data Types for the Routing Area";
+  }
+  import ietf-netconf-acm {
+    prefix nacm;
+    reference
+      "RFC 8341: Network Configuration Access Control Model";
+  }
+
+  organization
+    "IETF NTP (Network Time Protocol) Working Group";
+  contact
+    "WG Web:  <https://datatracker.ietf.org/wg/ntp/>
+     WG List:  <mailto: ntp@ietf.org
+     Editor:   Dhruv Dhody
+              <mailto:dhruv.ietf@gmail.com>
+     Editor:   Ankit Kumar Sinha
+              <mailto:ankit.ietf@gmail.com>";
+  description
+    "This document defines a YANG data model that can be used
+     to configure and manage  Network Time Protocol (NTP) version 4.
+     It can also be used to configure and manage version 3.
+     The data model includes configuration data and state data.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.
+
+     Copyright (c) 2022 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Revised BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 9249; see the
+     RFC itself for full legal notices.";
+
+  revision 2022-07-05 {
+    description
+      "Initial revision";
+    reference
+      "RFC 9249: A YANG Data Model for NTP";
+  }
+
+  /* Typedef Definitions */
+
+  typedef ntp-stratum {
+    type uint8 {
+      range "1..16";
+    }
+    description
+      "The level of each server in the hierarchy is defined by
+       a stratum.  Primary servers are assigned with stratum
+       one; secondary servers at each lower level are assigned with
+       one stratum greater than the preceding level.";
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Section 3";
+  }
+
+  typedef ntp-version {
+    type uint8 {
+      range "3..max";
+    }
+    default "4";
+    description
+      "The current NTP version supported by the corresponding
+       association";
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Section 1";
+  }
+
+  typedef refid {
+    type union {
+      type inet:ipv4-address;
+      type uint32;
+      type string {
+        length "4";
+      }
+    }
+    description
+      "A code identifying the particular server or reference
+       clock.  The interpretation depends upon stratum.  It
+       could be an IPv4 address, the first 32 bits of the MD5 hash
+       of the IPv6 address, or a string for the Reference Identifier
+       and kiss codes.  Some examples:
+
+       -- a refclock ID like '127.127.1.0' for local clock sync
+
+       -- uni/multi/broadcast associations for IPv4 will look like
+          '203.0.113.1' and '0x4321FEDC' for IPv6
+
+       -- sync with a primary source will look like 'DCN', 'NIST',
+          'ATOM'
+
+       -- kiss codes will look like 'AUTH', 'DROP', or 'RATE'
+
+       Note that the use of an MD5 hash for IPv6 addresses is not
+       for cryptographic purposes.";
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Section 7.3";
+  }
+
+  typedef ntp-date-and-time {
+    type union {
+      type yang:date-and-time;
+      type uint8;
+    }
+    description
+      "Follows the date-and-time format when valid values exist.
+       Otherwise, allows for setting a special value such as
+       zero.";
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+
+  typedef log2seconds {
+    type int8;
+    description
+      "An 8-bit signed integer that represents signed log2
+       seconds.";
+  }
+
+  /* features */
+
+  feature ntp-port {
+    description
+      "Support for NTP port configuration";
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Section 7.2";
+  }
+
+  feature authentication {
+    description
+      "Support for NTP symmetric key authentication";
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Section 7.3";
+  }
+
+  feature deprecated {
+    description
+      "Support deprecated MD5-based authentication (RFC 8573),
+       SHA-1, or any other deprecated authentication mechanism.
+       It is enabled to support legacy compatibility when secure
+       cryptographic algorithms are not available to use.
+       It is also used to configure keystrings in ASCII format.";
+    reference
+      "RFC 1321: The MD5 Message-Digest Algorithm,
+       RFC 3174: US Secure Hash Algorithm 1 (SHA1),
+       SHS: Secure Hash Standard (SHS) (FIPS PUB 180-4)";
+  }
+
+  feature hex-key-string {
+    description
+      "Support hexadecimal key string";
+  }
+
+  feature access-rules {
+    description
+      "Support for NTP access control";
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Section 9.2";
+  }
+
+  feature unicast-configuration {
+    description
+      "Support for NTP client/server or active/passive
+       in unicast";
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Section 3";
+  }
+
+  feature broadcast-server {
+    description
+      "Support for broadcast server";
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Section 3";
+  }
+
+  feature broadcast-client {
+    description
+      "Support for broadcast client";
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Section 3";
+  }
+
+  feature multicast-server {
+    description
+      "Support for multicast server";
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Section 3.1";
+  }
+  feature multicast-client {
+    description
+      "Support for multicast client";
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Section 3.1";
+  }
+
+  feature manycast-server {
+    description
+      "Support for manycast server";
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Section 3.1";
+  }
+
+  feature manycast-client {
+    description
+      "Support for manycast client";
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Section 3.1";
+  }
+
+  /* Identity */
+  /* unicast-configurations types */
+
+  identity unicast-configuration-type {
+    if-feature "unicast-configuration";
+    description
+      "This defines NTP unicast mode of operation as used
+       for unicast-configurations.";
+  }
+
+  identity uc-server {
+    if-feature "unicast-configuration";
+    base unicast-configuration-type;
+    description
+      "Use client association mode where the unicast server
+       address is configured.";
+  }
+
+  identity uc-peer {
+    if-feature "unicast-configuration";
+    base unicast-configuration-type;
+    description
+      "Use symmetric active association mode where the peer
+       address is configured.";
+  }
+
+  /* association-modes */
+
+  identity association-mode {
+    description
+      "The NTP association modes";
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Section 3";
+  }
+
+  identity active {
+    base association-mode;
+    description
+      "Use symmetric active association mode (mode 1).
+       This device may synchronize with its NTP peer
+       or provide synchronization to a configured NTP peer.";
+  }
+
+  identity passive {
+    base association-mode;
+    description
+      "Use symmetric passive association mode (mode 2).
+       This device has learned this association dynamically.
+       This device may synchronize with its NTP peer.";
+  }
+
+  identity client {
+    base association-mode;
+    description
+      "Use client association mode (mode 3).
+       This device will not provide synchronization
+       to the configured NTP server.";
+  }
+
+  identity server {
+    base association-mode;
+    description
+      "Use server association mode (mode 4).
+       This device will provide synchronization to
+       NTP clients.";
+  }
+
+  identity broadcast-server {
+    base association-mode;
+    description
+      "Use broadcast server mode (mode 5).
+       This mode defines that it's either working
+       as a broadcast server or a multicast server.";
+  }
+
+  identity broadcast-client {
+    base association-mode;
+    description
+      "This mode defines that it's either working
+       as a broadcast client (mode 6) or a multicast client.";
+  }
+
+  /* access-mode */
+
+  identity access-mode {
+    if-feature "access-rules";
+    description
+      "This defines NTP access-modes.  These identify
+       how the ACL is applied with NTP.";
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Section 9.2";
+  }
+
+  identity peer-access-mode {
+    if-feature "access-rules";
+    base access-mode;
+    description
+      "Permit others to synchronize their time with this NTP
+       or vice versa.
+       NTP control queries are also accepted.  This enables
+       full access authority.";
+  }
+
+  identity server-access-mode {
+    if-feature "access-rules";
+    base access-mode;
+    description
+      "Permit others to synchronize their time with this NTP
+       entity, but vice versa is not supported.  NTP control
+       queries are accepted.";
+  }
+
+  identity server-only-access-mode {
+    if-feature "access-rules";
+    base access-mode;
+    description
+      "Permit others to synchronize their time with this NTP
+       entity, but vice versa is not supported.  NTP control
+       queries are not accepted.";
+  }
+
+  identity query-only-access-mode {
+    if-feature "access-rules";
+    base access-mode;
+    description
+      "Only control queries are accepted.";
+  }
+
+  /* clock-state */
+
+  identity clock-state {
+    description
+      "This defines NTP clock status at a high level.";
+  }
+
+  identity synchronized {
+    base clock-state;
+    description
+      "Indicates that the local clock has been synchronized with
+       an NTP server or the reference clock.";
+  }
+
+  identity unsynchronized {
+    base clock-state;
+    description
+      "Indicates that the local clock has not been synchronized
+       with any NTP server.";
+  }
+
+  /* ntp-sync-state */
+
+  identity ntp-sync-state {
+    description
+      "This defines NTP clock sync state at a more granular
+       level.  Referred to as 'Clock state definitions' in
+       RFC 5905.";
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Appendix A.1.1";
+  }
+
+  identity clock-never-set {
+    base ntp-sync-state;
+    description
+      "Indicates the clock was never set.";
+  }
+
+  identity freq-set-by-cfg {
+    base ntp-sync-state;
+    description
+      "Indicates the clock frequency is set by
+       NTP configuration or file.";
+  }
+
+  identity spike {
+    base ntp-sync-state;
+    description
+      "Indicates a spike is detected.";
+  }
+
+  identity freq {
+    base ntp-sync-state;
+    description
+      "Indicates the frequency mode.";
+  }
+
+  identity clock-synchronized {
+    base ntp-sync-state;
+    description
+      "Indicates that the clock is synchronized.";
+  }
+
+  /* crypto-algorithm */
+
+  identity crypto-algorithm {
+    description
+      "Base identity of cryptographic algorithm options.";
+  }
+
+  identity md5 {
+    if-feature "deprecated";
+    base crypto-algorithm;
+    description
+      "The MD5 algorithm.  Note that RFC 8573
+       deprecates the use of MD5-based authentication.";
+    reference
+      "RFC 1321: The MD5 Message-Digest Algorithm";
+  }
+
+  identity sha-1 {
+    if-feature "deprecated";
+    base crypto-algorithm;
+    description
+      "The SHA-1 algorithm";
+    reference
+      "RFC 3174: US Secure Hash Algorithm 1 (SHA1)";
+  }
+
+  identity hmac-sha-1 {
+    if-feature "deprecated";
+    base crypto-algorithm;
+    description
+      "HMAC-SHA-1 authentication algorithm";
+    reference
+      "SHS: Secure Hash Standard (SHS) (FIPS PUB 180-4)";
+  }
+
+  identity hmac-sha1-12 {
+    if-feature "deprecated";
+    base crypto-algorithm;
+    description
+      "The HMAC-SHA1-12 algorithm";
+  }
+
+  identity hmac-sha-256 {
+    description
+      "HMAC-SHA-256 authentication algorithm";
+    reference
+      "SHS: Secure Hash Standard (SHS) (FIPS PUB 180-4)";
+  }
+
+  identity hmac-sha-384 {
+    description
+      "HMAC-SHA-384 authentication algorithm";
+    reference
+      "SHS: Secure Hash Standard (SHS) (FIPS PUB 180-4)";
+  }
+
+  identity hmac-sha-512 {
+    description
+      "HMAC-SHA-512 authentication algorithm";
+    reference
+      "SHS: Secure Hash Standard (SHS) (FIPS PUB 180-4)";
+  }
+
+  identity aes-cmac {
+    base crypto-algorithm;
+    description
+      "The AES-CMAC algorithm -- required by
+       RFC 8573 for MAC for the NTP.";
+    reference
+      "RFC 4493: The AES-CMAC Algorithm,
+       RFC 8573: Message Authentication Code for the Network
+       Time Protocol";
+  }
+
+  /* Groupings */
+
+  grouping key {
+    description
+      "The key";
+    nacm:default-deny-all;
+    choice key-string-style {
+      description
+        "Key string styles";
+      case keystring {
+        leaf keystring {
+          if-feature "deprecated";
+          type string;
+          description
+            "Key string in ASCII format";
+        }
+      }
+      case hexadecimal {
+        if-feature "hex-key-string";
+        leaf hexadecimal-string {
+          type yang:hex-string;
+          description
+            "Key in hexadecimal string format.  When compared
+             to ASCII, specification in hexadecimal affords
+             greater key entropy with the same number of
+             internal key-string octets.  Additionally, it
+             discourages use of well-known words or
+             numbers.";
+        }
+      }
+    }
+  }
+
+  grouping authentication-key {
+    description
+      "To define an authentication key for an NTP
+       time source.";
+    leaf keyid {
+      type uint32 {
+        range "1..max";
+      }
+      description
+        "Authentication key identifier";
+    }
+    leaf algorithm {
+      type identityref {
+        base crypto-algorithm;
+      }
+      description
+        "Authentication algorithm.  Note that RFC 8573
+         deprecates the use of MD5-based authentication
+         and recommends AES-CMAC.";
+    }
+    container key {
+      uses key;
+      description
+        "The key.  Note that RFC 8573 deprecates the use
+         of MD5-based authentication.";
+    }
+    leaf istrusted {
+      type boolean;
+      description
+        "Keyid is trusted or not";
+    }
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification, Sections 7.3 and 7.4";
+  }
+
+  grouping authentication {
+    description
+      "Authentication";
+    choice authentication-type {
+      description
+        "Type of authentication";
+      case symmetric-key {
+        leaf keyid {
+          type leafref {
+            path "/ntp:ntp/ntp:authentication/"
+               + "ntp:authentication-keys/ntp:keyid";
+          }
+          description
+            "Authentication key id referenced in this
+             association.";
+        }
+      }
+    }
+  }
+
+  grouping statistics {
+    description
+      "NTP packet statistic";
+    leaf discontinuity-time {
+      type ntp-date-and-time;
+      description
+        "The time on the most recent occasion at which any one or
+         more of these NTP counters suffered a discontinuity.  If
+         no such discontinuities have occurred, then this node
+         contains the time the NTP association was
+         (re-)initialized.";
+    }
+    leaf packet-sent {
+      type yang:counter32;
+      description
+        "The total number of NTP packets delivered to the
+         transport service by this NTP entity for this
+         association.
+         Discontinuities in the value of this counter can occur
+         upon cold start, reinitialization of the NTP entity or the
+         management system, and at other times.";
+    }
+    leaf packet-sent-fail {
+      type yang:counter32;
+      description
+        "The number of times NTP packet sending failed.";
+    }
+    leaf packet-received {
+      type yang:counter32;
+      description
+        "The total number of NTP packets delivered to the
+         NTP entity from this association.
+         Discontinuities in the value of this counter can occur
+         upon cold start, reinitialization of the NTP entity or the
+         management system, and at other times.";
+    }
+    leaf packet-dropped {
+      type yang:counter32;
+      description
+        "The total number of NTP packets that were delivered
+         to this NTP entity from this association and that this
+         entity was not able to process due to an NTP error.
+         Discontinuities in the value of this counter can occur
+         upon cold start, reinitialization of the NTP entity or the
+         management system, and at other times.";
+    }
+  }
+
+  grouping common-attributes {
+    description
+      "NTP common attributes for configuration";
+    leaf minpoll {
+      type log2seconds;
+      default "6";
+      description
+        "The minimum poll interval used in this association";
+      reference
+        "RFC 5905: Network Time Protocol Version 4: Protocol and
+         Algorithms Specification, Section 7.2";
+    }
+    leaf maxpoll {
+      type log2seconds;
+      default "10";
+      description
+        "The maximum poll interval used in this association";
+      reference
+        "RFC 5905: Network Time Protocol Version 4: Protocol and
+         Algorithms Specification, Section 7.2";
+    }
+    leaf port {
+      if-feature "ntp-port";
+      type inet:port-number {
+        range "123 | 1024..max";
+      }
+      default "123";
+      description
+        "Specify the port used to send NTP packets.";
+      reference
+        "RFC 5905: Network Time Protocol Version 4: Protocol and
+         Algorithms Specification, Section 7.2";
+    }
+    leaf version {
+      type ntp-version;
+      description
+        "NTP version";
+    }
+    reference
+      "RFC 5905: Network Time Protocol Version 4: Protocol and
+       Algorithms Specification";
+  }
+
+  grouping association-ref {
+    description
+      "Reference to NTP association mode";
+    leaf associations-address {
+      type leafref {
+        path "/ntp:ntp/ntp:associations/ntp:association"
+           + "/ntp:address";
+      }
+      description
+        "Indicates the association's address
+         that results in clock synchronization.";
+    }
+    leaf associations-local-mode {
+      type leafref {
+        path "/ntp:ntp/ntp:associations/ntp:association"
+           + "/ntp:local-mode";
+      }
+      description
+        "Indicates the association's local-mode
+         that results in clock synchronization.";
+    }
+    leaf associations-isconfigured {
+      type leafref {
+        path "/ntp:ntp/ntp:associations/ntp:association/"
+           + "ntp:isconfigured";
+      }
+      description
+        "Indicates if the association (that resulted in the
+         clock synchronization) is explicitly configured.";
+    }
+  }
+
+  container ntp {
+    when 'false() = boolean(/sys:system/sys:ntp)' {
+      description
+        "Applicable when the system /sys/ntp/ is not used.";
+    }
+    presence "NTP is enabled and system should attempt to
+              synchronize the system clock with an NTP server
+              from the 'ntp/associations' list.";
+    description
+      "Configuration parameters for NTP";
+    leaf port {
+      if-feature "ntp-port";
+      type inet:port-number {
+        range "123 | 1024..max";
+      }
+      default "123";
+      description
+        "Specify the port used to send and receive NTP packets.";
+      reference
+        "RFC 5905: Network Time Protocol Version 4: Protocol and
+         Algorithms Specification, Section 7.2";
+    }
+    container refclock-master {
+      presence "NTP master clock is enabled.";
+      description
+        "Configures the local clock of this device as NTP server.";
+      leaf master-stratum {
+        type ntp-stratum;
+        default "16";
+        description
+          "Stratum level from which NTP clients get their time
+           synchronized.";
+      }
+    }
+    container authentication {
+      if-feature "authentication";
+      description
+        "Configuration of authentication";
+      leaf auth-enabled {
+        type boolean;
+        default "false";
+        description
+          "Controls whether NTP authentication is enabled
+           or disabled on this device.";
+      }
+      list authentication-keys {
+        key "keyid";
+        uses authentication-key;
+        description
+          "List of authentication keys";
+      }
+    }
+    container access-rules {
+      if-feature "access-rules";
+      description
+        "Configuration to control access to NTP service
+         by using the NTP access-group feature.
+         The access-mode identifies how the ACL is
+         applied with NTP.";
+      list access-rule {
+        key "access-mode";
+        description
+          "List of access rules";
+        leaf access-mode {
+          type identityref {
+            base access-mode;
+          }
+          description
+            "The NTP access-mode.  Some of the possible values
+             include peer, server, synchronization, query,
+             etc.";
+        }
+        leaf acl {
+          type leafref {
+            path "/acl:acls/acl:acl/acl:name";
+          }
+          description
+            "Control access configuration to be used.";
+        }
+        reference
+          "RFC 5905: Network Time Protocol Version 4: Protocol and
+           Algorithms Specification, Section 9.2";
+      }
+    }
+    container clock-state {
+      config false;
+      description
+        "Clock operational state of the NTP";
+      container system-status {
+        description
+          "System status of NTP";
+        leaf clock-state {
+          type identityref {
+            base clock-state;
+          }
+          mandatory true;
+          description
+            "The state of the system clock.  Some of the possible
+             values include synchronized and unsynchronized.";
+        }
+        leaf clock-stratum {
+          type ntp-stratum;
+          mandatory true;
+          description
+            "The NTP entity's own stratum value.  Should be one
+             greater than the preceding level.
+             16 if unsynchronized.";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Section 3";
+        }
+        leaf clock-refid {
+          type refid;
+          mandatory true;
+          description
+            "A code identifying the particular server or reference
+             clock.  The interpretation depends upon stratum.  It
+             could be an IPv4 address, the first 32 bits of the MD5
+             hash of the IPv6 address, or a string for the Reference
+             Identifier and kiss codes.  Some examples:
+
+             -- a refclock ID like '127.127.1.0' for local clock sync
+
+             -- uni/multi/broadcast associations for IPv4 will look
+                like '203.0.113.1' and '0x4321FEDC' for IPv6
+
+             -- sync with primary source will look like 'DCN',
+                'NIST', 'ATOM'
+
+             -- kiss codes will look like 'AUTH', 'DROP', 'RATE'
+
+             Note that the use of MD5 hash for IPv6 address is not
+             for cryptographic purposes.";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Section 7.3";
+        }
+        uses association-ref {
+          description
+            "Reference to association";
+        }
+        leaf nominal-freq {
+          type decimal64 {
+            fraction-digits 4;
+          }
+          units "Hz";
+          mandatory true;
+          description
+            "The nominal frequency of the local clock.  An ideal
+             frequency with zero uncertainty.";
+        }
+        leaf actual-freq {
+          type decimal64 {
+            fraction-digits 4;
+          }
+          units "Hz";
+          mandatory true;
+          description
+            "The actual frequency of the local clock";
+        }
+        leaf clock-precision {
+          type log2seconds;
+          mandatory true;
+          description
+            "Clock precision of this system in signed integer format,
+             in log 2 seconds -  (prec=2^(-n)).  A value of 5 would
+             mean 2^-5 = 0.03125 seconds = 31.25 ms.";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Section 7.3";
+        }
+        leaf clock-offset {
+          type decimal64 {
+            fraction-digits 3;
+          }
+          units "milliseconds";
+          description
+            "The signed time offset to the current selected reference
+             time source, e.g., '0.032ms' or '1.232ms'.  The negative
+             value indicates that the local clock is behind the
+             current selected reference time source.";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Section 9.1";
+        }
+        leaf root-delay {
+          type decimal64 {
+            fraction-digits 3;
+          }
+          units "milliseconds";
+          description
+            "Total delay along the path to the root clock";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Sections 4 and 7.3";
+        }
+        leaf root-dispersion {
+          type decimal64 {
+            fraction-digits 3;
+          }
+          units "milliseconds";
+          description
+            "The dispersion to the local clock
+             and the root clock, e.g., '6.927ms'.";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Sections 4, 7.3, and 10";
+        }
+        leaf reference-time {
+          type ntp-date-and-time;
+          description
+            "The reference timestamp.  Time when the system clock was
+             last set or corrected.";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Section 7.3";
+        }
+        leaf sync-state {
+          type identityref {
+            base ntp-sync-state;
+          }
+          mandatory true;
+          description
+            "The synchronization status of the local clock.  Referred
+             to as 'Clock state definitions' in RFC 5905.";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Appendix A.1.1";
+        }
+      }
+    }
+    list unicast-configuration {
+      if-feature "unicast-configuration";
+      key "address type";
+      description
+        "List of NTP unicast-configurations";
+      leaf address {
+        type inet:ip-address;
+        description
+          "Address of this association";
+      }
+      leaf type {
+        type identityref {
+          base unicast-configuration-type;
+        }
+        description
+          "The unicast configuration type, for example,
+           unicast-server";
+      }
+      container authentication {
+        if-feature "authentication";
+        description
+          "Authentication used for this association";
+        uses authentication;
+      }
+      leaf prefer {
+        type boolean;
+        default "false";
+        description
+          "Whether or not this association is preferred";
+      }
+      leaf burst {
+        type boolean;
+        default "false";
+        description
+          "If set, a series of packets are sent instead of a single
+           packet within each synchronization interval to achieve
+           faster synchronization.";
+        reference
+          "RFC 5905: Network Time Protocol Version 4: Protocol
+           and Algorithms Specification, Section 13.1";
+      }
+      leaf iburst {
+        type boolean;
+        default "false";
+        description
+          "If set, a series of packets are sent instead of a single
+           packet within the initial synchronization interval to
+           achieve faster initial synchronization.";
+        reference
+          "RFC 5905: Network Time Protocol Version 4: Protocol
+           and Algorithms Specification, Section 13.1";
+      }
+      leaf source {
+        type if:interface-ref;
+        description
+          "The interface whose IP address is used by this association
+           as the source address.";
+      }
+      uses common-attributes {
+        description
+          "Common attributes like port, version, and min and max
+           poll.";
+      }
+    }
+    container associations {
+      description
+        "Association parameters";
+      list association {
+        key "address local-mode isconfigured";
+        config false;
+        description
+          "List of NTP associations.  Here address, local-mode,
+           and isconfigured are required to uniquely identify
+           a particular association.  Let's take the following
+           examples:
+
+           1) If RT1 is acting as broadcast server
+              and RT2 is acting as broadcast client, then RT2
+              will form a dynamic association with the address as
+              RT1, local-mode as client, and isconfigured as false.
+
+           2) When RT2 is configured with unicast server RT1,
+              then RT2 will form an association with the address as
+              RT1, local-mode as client, and isconfigured as true.
+
+           Thus, all three leaves are needed as key to uniquely
+           identify the association.";
+        leaf address {
+          type inet:ip-address;
+          description
+            "The remote address of this association.  Represents the
+             IP address of a unicast/multicast/broadcast address.";
+        }
+        leaf local-mode {
+          type identityref {
+            base association-mode;
+          }
+          description
+            "Local-mode of this NTP association";
+        }
+        leaf isconfigured {
+          type boolean;
+          description
+            "Indicates if this association is configured (true) or
+             dynamically learned (false).";
+        }
+        leaf stratum {
+          type ntp-stratum;
+          description
+            "The association stratum value";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Section 3";
+        }
+        leaf refid {
+          type refid;
+          description
+            "A code identifying the particular server or reference
+             clock.  The interpretation depends upon stratum.  It
+             could be an IPv4 address or first 32 bits of the MD5
+             hash of the IPv6 address or a string for the Reference
+             Identifier and kiss codes.  Some examples:
+
+             -- a refclock ID like '127.127.1.0' for local clock sync
+
+             -- uni/multi/broadcast associations for IPv4 will look
+                like '203.0.113.1' and '0x4321FEDC' for IPv6
+
+             -- sync with primary source will look like 'DCN',
+                'NIST', or 'ATOM'
+
+             -- kiss codes will look like 'AUTH', 'DROP', or 'RATE'
+
+             Note that the use of an MD5 hash for IPv6 address is
+             not for cryptographic purposes.";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Section 7.3";
+        }
+        leaf authentication {
+          if-feature "authentication";
+          type leafref {
+            path "/ntp:ntp/ntp:authentication/"
+               + "ntp:authentication-keys/ntp:keyid";
+          }
+          description
+            "Authentication key used for this association";
+        }
+        leaf prefer {
+          type boolean;
+          default "false";
+          description
+            "Indicates if this association is preferred";
+        }
+        leaf peer-interface {
+          type if:interface-ref;
+          description
+            "The interface that is used for communication";
+        }
+        uses common-attributes {
+          description
+            "Common attributes like port, version, and min and
+             max poll";
+        }
+        leaf reach {
+          type uint8;
+          description
+            "An 8-bit shift register that tracks packet
+             generation and receipt.  It is used to determine
+             whether the server is reachable and the data are
+             fresh.";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Sections 9.2 and 13";
+        }
+        leaf unreach {
+          type uint8;
+          units "seconds";
+          description
+            "A count of how long in second the server has been
+             unreachable, i.e., the reach value has been zero.";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Sections 9.2 and 13";
+        }
+        leaf poll {
+          type log2seconds;
+          description
+            "The polling interval for current association in signed
+             log2 seconds.";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Section 7.3";
+        }
+        leaf now {
+          type uint32;
+          units "seconds";
+          description
+            "The time since the last NTP packet was
+             received or last synchronized.";
+        }
+        leaf offset {
+          type decimal64 {
+            fraction-digits 3;
+          }
+          units "milliseconds";
+          description
+            "The signed offset between the local clock
+             and the peer clock, e.g., '0.032ms' or '1.232ms'.  The
+             negative value indicates that the local clock is behind
+             the peer.";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Section 8";
+        }
+        leaf delay {
+          type decimal64 {
+            fraction-digits 3;
+          }
+          units "milliseconds";
+          description
+            "The network delay between the local clock
+             and the peer clock";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Section 8";
+        }
+        leaf dispersion {
+          type decimal64 {
+            fraction-digits 3;
+          }
+          units "milliseconds";
+          description
+            "The root dispersion between the local clock
+             and the peer clock.";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Section 10";
+        }
+        leaf originate-time {
+          type ntp-date-and-time;
+          description
+            "This is the local time, in timestamp format,
+             when the latest NTP packet was sent to the peer
+             (called T1).";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol and
+             Algorithms Specification, Section 8";
+        }
+        leaf receive-time {
+          type ntp-date-and-time;
+          description
+            "This is the local time, in timestamp format,
+             when the latest NTP packet arrived at the peer
+             (called T2).  If the peer becomes unreachable,
+             the value is set to zero.";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol
+             and Algorithms Specification, Section 8";
+        }
+        leaf transmit-time {
+          type ntp-date-and-time;
+          description
+            "This is the local time, in timestamp format,
+             at which the NTP packet departed the peer
+             (called T3).  If the peer becomes unreachable,
+             the value is set to zero.";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol
+             and Algorithms Specification, Section 8";
+        }
+        leaf input-time {
+          type ntp-date-and-time;
+          description
+            "This is the local time, in timestamp format,
+             when the latest NTP message from the peer arrived
+             (called T4).  If the peer becomes unreachable,
+             value is set to zero.";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol
+             and Algorithms Specification, Section 8";
+        }
+        container ntp-statistics {
+          description
+            "Per peer packet send and receive statistics";
+          uses statistics {
+            description
+              "NTP send and receive packet statistics";
+          }
+        }
+      }
+    }
+    container interfaces {
+      description
+        "Configuration parameters for NTP interfaces";
+      list interface {
+        key "name";
+        description
+          "List of interfaces";
+        leaf name {
+          type if:interface-ref;
+          description
+            "The interface name";
+        }
+        container broadcast-server {
+          if-feature "broadcast-server";
+          presence "NTP broadcast-server is configured on this
+                    interface.";
+          description
+            "Configuration of broadcast server";
+          leaf ttl {
+            type uint8;
+            description
+              "Specifies the time to live (TTL) for a
+               broadcast packet";
+            reference
+              "RFC 5905: Network Time Protocol Version 4: Protocol
+               and Algorithms Specification, Section 3.1";
+          }
+          container authentication {
+            if-feature "authentication";
+            description
+              "Authentication used on this interface";
+            uses authentication;
+          }
+          uses common-attributes {
+            description
+              "Common attributes such as port, version, and min and
+               max poll";
+          }
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol
+             and Algorithms Specification, Section 3.1";
+        }
+        container broadcast-client {
+          if-feature "broadcast-client";
+          presence "NTP broadcast-client is configured on this
+                    interface.";
+          description
+            "Configuration of broadcast client";
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol
+             and Algorithms Specification, Section 3.1";
+        }
+        list multicast-server {
+          if-feature "multicast-server";
+          key "address";
+          description
+            "Configuration of multicast server";
+          leaf address {
+            type rt-types:ip-multicast-group-address;
+            description
+              "The IP address to send NTP multicast packets";
+          }
+          leaf ttl {
+            type uint8;
+            description
+              "Specifies the TTL for a  multicast packet";
+            reference
+              "RFC 5905: Network Time Protocol Version 4: Protocol
+               and Algorithms Specification, Section 3.1";
+          }
+          container authentication {
+            if-feature "authentication";
+            description
+              "Authentication used on this interface";
+            uses authentication;
+          }
+          uses common-attributes {
+            description
+              "Common attributes such as port, version, and min and
+               max poll";
+          }
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol
+             and Algorithms Specification, Section 3.1";
+        }
+        list multicast-client {
+          if-feature "multicast-client";
+          key "address";
+          description
+            "Configuration of a multicast client";
+          leaf address {
+            type rt-types:ip-multicast-group-address;
+            description
+              "The IP address of the multicast group to
+               join";
+          }
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol
+             and Algorithms Specification, Section 3.1";
+        }
+        list manycast-server {
+          if-feature "manycast-server";
+          key "address";
+          description
+            "Configuration of a manycast server";
+          leaf address {
+            type rt-types:ip-multicast-group-address;
+            description
+              "The multicast group IP address to receive
+               manycast client messages.";
+          }
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol
+             and Algorithms Specification, Section 3.1";
+        }
+        list manycast-client {
+          if-feature "manycast-client";
+          key "address";
+          description
+            "Configuration of manycast-client";
+          leaf address {
+            type rt-types:ip-multicast-group-address;
+            description
+              "The group IP address that the manycast client
+               broadcasts the request message to";
+          }
+          container authentication {
+            if-feature "authentication";
+            description
+              "Authentication used on this interface";
+            uses authentication;
+          }
+          leaf ttl {
+            type uint8;
+            description
+              "Specifies the maximum TTL for the expanding
+               ring search";
+            reference
+              "RFC 5905: Network Time Protocol Version 4: Protocol
+               and Algorithms Specification, Section 3.1";
+          }
+          leaf minclock {
+            type uint8;
+            description
+              "The minimum manycast survivors in this
+               association";
+            reference
+              "RFC 5905: Network Time Protocol Version 4: Protocol
+               and Algorithms Specification, Section 13.2";
+          }
+          leaf maxclock {
+            type uint8;
+            description
+              "The maximum manycast candidates in this
+               association";
+            reference
+              "RFC 5905: Network Time Protocol Version 4: Protocol
+               and Algorithms Specification, Section 13.2";
+          }
+          leaf beacon {
+            type log2seconds;
+            description
+              "The beacon is the upper limit of the poll interval.
+               When the TTL reaches its limit without finding the
+               minimum number of manycast servers, the poll interval
+               increases until reaching the beacon value, when it
+               starts over from the beginning.";
+            reference
+              "RFC 5905: Network Time Protocol Version 4: Protocol
+               and Algorithms Specification, Section 13.2";
+          }
+          uses common-attributes {
+            description
+              "Common attributes like port, version, and min and
+               max poll";
+          }
+          reference
+            "RFC 5905: Network Time Protocol Version 4: Protocol
+             and Algorithms Specification, Section 3.1";
+        }
+      }
+    }
+    container ntp-statistics {
+      config false;
+      description
+        "Total NTP packet statistics";
+      uses statistics {
+        description
+          "NTP send and receive packet statistics";
+      }
+    }
+  }
+
+  rpc statistics-reset {
+    description
+      "Reset statistics collected.";
+    input {
+      choice association-or-all {
+        description
+          "Resets statistics for a particular association or
+           all.";
+        case association {
+          uses association-ref;
+          description
+            "This resets all the statistics collected for
+             the association.";
+        }
+        case all {
+          description
+            "This resets all the statistics collected.";
+        }
+      }
+    }
+  }
+}
