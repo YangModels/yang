@@ -41,6 +41,26 @@ module ietf-bmp {
       "RFC 8341: Network Configuration Access Control Model";
   }
 
+  import ietf-tcp-common {
+       prefix "tcpcmn";
+       reference
+         "I-D.ietf-netconf-tcp-client-server: YANG Groupings for TCP
+          Clients and TCP Servers.";
+  }
+
+  import ietf-tcp {
+       prefix "tcp";
+       reference
+         "I-D.ietf-tcpm-yang-tcp: A YANG Model for
+         Transmission Control Protocol (TCP) Configuration";
+  }
+
+  import ietf-network-instance {
+       prefix "ni";
+       reference
+       "RFC 8529: YANG Data Model for Network Instances";
+  }
+
   organization
     "IETF GROW Working Group";
   contact
@@ -90,42 +110,175 @@ module ietf-bmp {
       "RFC YYYY: BMP YANG Module
       RFC-EDITOR: please update YYYY with this RFC ID";
   }
-  typedef bmp-peer-types {
-    type enumeration {
-      enum all-peers {
-        value 10;
-        description
-          "Selects all peers.";
-      }
-    }
+  identity bmp-peer-types-idty {
+    description "Enum values for peer selection specific for BMP";
+  }
+
+  identity bmp-peer-types-all-peers-idty {
+    base bmp-peer-types-idty;
+    description "This identify is an explicit way
+      of defining that the device should send the
+      updates from all peers to the station for a
+      particular RIB/AFI.";
+  }
+
+  identity bmp-ni-types-idty {
+    description "Enum values for network instances specific for BMP";
+  }
+
+  identity bmp-ni-types-all-ni-idty {
+    base bmp-ni-types-idty;
+    description "The identify is an explicit way
+      of defining that the device should send the
+      updates from all network instances.";
+  }
+
+  grouping bmp-tcp-options {
     description
-      "Enum values for peer selection specific for BMP.  The
-      all-peers value is an explicit way of defining that the device
-      should send the updates from all peers to the station for
-      a particular RIB/AFI.  The module also allows the selection
-      of individual peers (through its remote-address), or use the
-      bgp:peer-type to select the type of peers.";
+      "TCP options for the connection to the station";
+    leaf maximum-segment-size {
+      type uint16;
+      description
+        "Maximum segment size for the TCP connections.";
+    }
+    // Taken from the bgp yang module
+    leaf mtu-discovery {
+        type boolean;
+        default "true";
+        description
+          "Turns path mtu discovery for the  TCP sessions
+          on (true) or off (false).";
+        reference
+          "RFC 1191: Path MTU discovery.";
+      }
+    uses tcpcmn:tcp-common-grouping;
+
+    // taken from the bgp yang module but using groupings
+    leaf secure-session-enable {
+       type boolean;
+       default "false";
+       description
+         "Does this session need to be secured?";
+    }
+
+   container secure-session {
+     when "../secure-session-enable = 'true'";
+     description
+       "Container for describing how a particular BGP session
+        is to be secured.";
+
+      choice authentication {
+       case ao {
+         uses tcp:ao;
+         description
+           "Use TCP-AO to secure the connection.";
+       }
+
+       case md5 {
+         uses tcp:md5;
+         description
+           "Use TCP-MD5 to secure the connection.";
+       }
+       description
+         "Choice of TCP authentication.";
+      }
+   }
+
   }
 
   grouping bmp-ip-connection {
     description
       "common elements for defining connectivity
        to a bmp station";
-    leaf destination-address {
-      type inet:ip-address;
-      mandatory true;
+    choice passive_or_active {
       description
-        "Destination IP address of station";
-    }
-    leaf local-address {
-      type inet:ip-address;
-      description
-        "Local IP address to source connections";
-    }
-    leaf destination-port {
-      type inet:port-number;
-      description
-        "Destination port for connections";
+        "Choice for active or passive connection";
+      case active {
+        description
+          "The device starts the connection to  the station";
+        container active {
+          description
+            "The device starts the connection to  the station";
+          leaf network-instance {
+            type leafref {
+              path "/ni:network-instances/ni:network-instance/"
+                 + "ni:name";
+            }
+            mandatory true;
+            description
+              "Network-instance to used to reach the station.";
+          }
+          leaf station-address {
+            type inet:ip-address;
+            mandatory true;
+            description
+              "Destination IP address of station";
+          }
+          leaf station-port {
+            type inet:port-number;
+            mandatory true;
+            description
+              "Destination port of the station";
+          }
+          leaf local-address {
+            type inet:ip-address;
+            mandatory true;
+            description
+              "Local IP address to source active connection";
+          }
+          leaf local-port {
+            type inet:port-number;
+            description
+              "Optional Local port for active connection";
+          }
+
+        }
+
+      }
+
+      case passive {
+        description
+          "The device waits for the connection to
+          start the connection to a local endpoint";
+        container passive {
+          description
+            "The device waits for the connection
+            to start the connection to a local endpoint";
+          leaf network-instance {
+            type leafref {
+              path "/ni:network-instances/ni:network-instance/"
+                 + "ni:name";
+            }
+            mandatory true;
+            description
+              "Network-instance to used to reach the station.";
+          }
+          leaf station-address {
+            type inet:ip-address;
+            mandatory true;
+            description
+              "address of station";
+          }
+          leaf station-port {
+            type inet:port-number;
+            description
+              "Optional port identifying the connection,
+              if provided it must match";
+          }
+          leaf local-address {
+            type inet:ip-address;
+            description
+              "Local IP address to wait for the connection";
+          }
+          leaf local-port {
+            type inet:port-number;
+            description
+              "Local port to wait for the connection";
+          }
+
+        }
+
+      }
     }
   }
 
@@ -138,6 +291,7 @@ module ietf-bmp {
       description
         "Enables the specified RIB";
     }
+
     container address-families {
       description
         "container for lists of address-families";
@@ -164,7 +318,9 @@ module ietf-bmp {
                  + "bgp:neighbors/bgp:neighbor/bgp:remote-address";
             }
             type bt:peer-type;
-            type bmp-peer-types;
+            type identityref {
+              base bmp-peer-types-idty;
+            }
           }
           description
             "Peers can be identified by a remote-address,
@@ -178,57 +334,88 @@ module ietf-bmp {
 
   grouping bmp-route-monitoring-sources {
     description
-      "";
-    container adj-rib-in-pre {
+      "Route monitoring sources";
+
+    container network-instances {
       description
-        "Configuration for the adj-rib-in pre-policy";
-      reference
-        "RFC7854: BGP Monitoring Protocol (BMP), Section 2.";
-      uses bmp-peer-ribs-filter;
-    }
-    container adj-rib-in-post {
-      description
-        "Configuration for the adj-rib-in post-policy";
-      reference
-        "RFC7854: BGP Monitoring Protocol (BMP), Section 2.";
-      uses bmp-peer-ribs-filter;
-    }
-    container local-rib {
-      description
-        "Configuration for the local-rib";
-      reference
-        "RFC9069: Support for Local RIB in the BGP Monitoring
-        Protocol (BMP), Section 3.";
-      leaf enabled {
-        type boolean;
+      "container for lists of network-instances";
+      list network-instance {
+        key "network-instance-id";
         description
-          "Enables the specified RIB";
-      }
-      leaf-list address-families {
-        type identityref {
-          base bt:afi-safi-type;
+          "Network instance to monitory using BMP.";
+        leaf network-instance-id {
+          type union {
+            type leafref {
+              path "/ni:network-instances/ni:network-instance/"
+                 + "ni:name";
+            }
+            type identityref {
+              base bmp-ni-types-all-ni-idty;
+            }
+          }
+          description
+            "Identification of a network-instance.
+            Network instances can be identified
+            directly by their path or one can define all of
+            them using an identity";
+
         }
-        description
-          "List of address families to enable for
-           local-rib.";
+
+        container adj-rib-in-pre {
+          description
+            "Configuration for the adj-rib-in pre-policy";
+          reference
+            "RFC7854: BGP Monitoring Protocol (BMP), Section 2.";
+          uses bmp-peer-ribs-filter;
+        }
+        container adj-rib-in-post {
+          description
+            "Configuration for the adj-rib-in post-policy";
+          reference
+            "RFC7854: BGP Monitoring Protocol (BMP), Section 2.";
+          uses bmp-peer-ribs-filter;
+        }
+        container local-rib {
+          description
+            "Configuration for the local-rib";
+          reference
+            "RFC9069: Support for Local RIB in the BGP Monitoring
+            Protocol (BMP), Section 3.";
+          leaf enabled {
+            type boolean;
+            description
+              "Enables the specified RIB";
+          }
+          leaf-list address-families {
+            type identityref {
+              base bt:afi-safi-type;
+            }
+            description
+              "List of address families to enable for
+               local-rib.";
+          }
+        }
+        container adj-rib-out-pre {
+          description
+            "Configuration for the adj-rib-out pre-policy";
+          uses bmp-peer-ribs-filter;
+          reference
+            "RFC8671: Support for Adj-RIB-Out in the BGP Monitoring
+            Protocol (BMP) , Section 3.";
+        }
+        container adj-rib-out-post {
+          description
+            "Configuration for the adj-rib-out post-policy";
+          uses bmp-peer-ribs-filter;
+          reference
+            "RFC8671: Support for Adj-RIB-Out in the BGP Monitoring
+            Protocol (BMP) , Section 3.";
+        }
+
       }
+
     }
-    container adj-rib-out-pre {
-      description
-        "Configuration for the adj-rib-out pre-policy";
-      uses bmp-peer-ribs-filter;
-      reference
-        "RFC8671: Support for Adj-RIB-Out in the BGP Monitoring
-        Protocol (BMP) , Section 3.";
-    }
-    container adj-rib-out-post {
-      description
-        "Configuration for the adj-rib-out post-policy";
-      uses bmp-peer-ribs-filter;
-      reference
-        "RFC8671: Support for Adj-RIB-Out in the BGP Monitoring
-        Protocol (BMP) , Section 3.";
-    }
+
   }
 
   grouping bmp-session-options {
@@ -268,7 +455,9 @@ module ietf-bmp {
           description
             "Connection details for the station";
           uses bmp-ip-connection;
+          uses bmp-tcp-options;
         }
+
         container bmp_session {
           description
             "BMP session options for the station";
@@ -282,6 +471,7 @@ module ietf-bmp {
         container session-stats {
           description
             "stats and operational values for the station";
+
           leaf discontinuity-time {
              type yang:date-and-time;
              mandatory true;
@@ -346,44 +536,37 @@ module ietf-bmp {
           }
         }
       }
-    }
 
-    container actions {
-      nacm:default-deny-all;
-      description
-        "Container with the actions for the BMP operation";
-      action session-reset {
+      container actions {
+        nacm:default-deny-all;
         description
-          "Resets the session for a station.";
-        input {
-          leaf station {
-            type leafref {
-              path "/bmp/stations/station/id";
-            }
-            description
-              "Identifies the station to reset";
-          }
-        }
-        output {
-          choice outcome {
-            description
-              "Output of the reset operation. Either a success or
-               failure. For the latter, the reason for the
-               error is provided.";
-            leaf success {
-              type empty;
+          "Container with the actions for the BMP operation";
+        action session-reset {
+          description
+            "Resets the session for a station.";
+          output {
+            choice outcome {
               description
-                "Reset successful";
-            }
-            leaf failure {
-              type string;
-              description
-                "Reset could not be performed.
-                Reason is included in the field";
+                "Output of the reset operation. Either a success or
+                 failure. For the latter, the reason for the
+                 error is provided.";
+              leaf success {
+                type empty;
+                description
+                  "Reset successful";
+              }
+              leaf failure {
+                type string;
+                description
+                  "Reset could not be performed.
+                  Reason is included in the field";
+              }
             }
           }
         }
       }
+
     }
+
   }
 }
