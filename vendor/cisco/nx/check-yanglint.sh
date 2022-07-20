@@ -11,6 +11,7 @@
 # should be removed.
 #
 platform_dir="vendor/cisco/nx"
+
 to_check='9.3-10'
 debug=1
 
