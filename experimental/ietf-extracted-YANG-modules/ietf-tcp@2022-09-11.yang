@@ -66,12 +66,19 @@ module ietf-tcp {
      described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
      they appear in all capitals, as shown here.";
 
-  revision "2022-06-15" {
+  revision "2022-09-11" {
     description
       "Initial Version";
     reference
       "RFC XXXX, A YANG Model for Transmission Control Protocol (TCP)
                  Configuration and State.";
+  }
+
+  // Typedefs
+  typedef mss {
+    type uint16;
+    description
+      "Type definition for Maximum Segment Size.";
   }
 
   // Features
@@ -80,26 +87,32 @@ module ietf-tcp {
       "This implementation supports statistics reporting.";
   }
 
+  feature authentication {
+    description
+      "This implementation supports authentication.";
+  }
+
+  // Identities
+  identity aes-128 {
+    base key-chain:crypto-algorithm;
+    description
+      "AES128 authentication algorithm used by TCP-AO.";
+    reference
+       "RFC 5926: Cryptographic Algorithms for the TCP
+        Authentication Option (TCP-AO).";
+  }
+
   // TCP-AO Groupings
 
   grouping ao {
-    leaf enable-ao {
-      type boolean;
-      default "false";
-      description
-        "When set to true, TCP-Authentication Option (TCP-AO) is
-         enabled.";
-    }
-
     leaf send-id {
       type uint8 {
         range "0..max";
       }
-      must "../enable-ao = 'true'";
       description
         "The SendID is inserted as the KeyID of the TCP-AO option
-         of outgoing segments. The SendID must match the RecvID
-         at the other endpoint.";
+         of outgoing segments. In a consistent configuration, the
+         SendID matches the RecvID at the other endpoint.";
       reference
         "RFC 5925: The TCP Authentication Option, Section 3.1.";
     }
@@ -108,17 +121,16 @@ module ietf-tcp {
       type uint8 {
         range "0..max";
       }
-      must "../enable-ao = 'true'";
       description
         "The RecvID is matched against the TCP-AO KeyID of incoming
-         segments. The RecvID must match the SendID at the other
-         endpoint.";
+         segments. In a consistent configuration, the RecvID matches
+         the SendID at the other endpoint.";
       reference
         "RFC 5925: The TCP Authentication Option, Section 3.1.";
     }
+
     leaf include-tcp-options {
       type boolean;
-      must "../enable-ao = 'true'";
       default true;
       description
         "When set to true, TCP options are included in MAC
@@ -129,7 +141,6 @@ module ietf-tcp {
 
     leaf accept-key-mismatch {
       type boolean;
-      must "../enable-ao = 'true'";
       description
         "Accept, when set to true, TCP segments with a Master Key
          Tuple (MKT) that is not configured.";
@@ -152,25 +163,6 @@ module ietf-tcp {
       "Authentication Option (AO) for TCP.";
     reference
       "RFC 5925: The TCP Authentication Option.";
-  }
-
-  // MD5 grouping
-
-  grouping md5 {
-    description
-      "Grouping for use in authenticating TCP sessions using MD5.";
-    reference
-      "RFC 2385: Protection of BGP Sessions via the TCP MD5
-       Signature.";
-
-    leaf enable-md5 {
-      type boolean;
-      default "false";
-      description
-        "Enables, when set to true, support of MD5 to authenticate a
-        TCP session. As the TCP MD5 signature option is obsoleted by
-        TCP-AO, it is strongly RECOMMENDED to use TCP-AO instead.";
-    }
   }
 
   // TCP configuration
@@ -215,6 +207,28 @@ module ietf-tcp {
             "Identifies the remote TCP port used for the connection,
              and is one of the four elements that form the
              connection identifier.";
+        }
+
+        leaf mss {
+          type mss;
+          description
+            "Maximum Segment Size (MSS) desired on this connection.
+             Note, the 'effective send MSS' can be smaller than
+             what is configured here.";
+          reference
+            "RFC 9293: Transmission Control Protocol (TCP)
+                       Specification.";
+        }
+
+        leaf pmtud {
+          type boolean;
+          default false;
+          description
+            "Turns Path Maximum Transmission Unit Discovery (PMTUD)
+             on (true) or off (false).";
+          reference
+            "RFC 9293: Transmission Control Protocol (TCP)
+                       Specification.";
         }
 
         uses tcpcmn:tcp-common-grouping;
@@ -299,17 +313,27 @@ module ietf-tcp {
                  from previous connections.";
             }
           }
+          config false;
           description
             "The state of this TCP connection.";
         }
         description
-          "List of TCP connections with their parameters. The list
-           is modeled as writeable, but implementations may not
-           allow creation of new TCP connections by adding entries to
-           the list. Furthermore, the behavior upon removal is
-           implementation-specific. Implementations may support
-           closing or resetting a TCP connection upon an operation
-           that removes the entry from the list.";
+          "List of TCP connections with their parameters.
+
+           The list is modeled as writeable even though only some of
+           the nodes are writeable, e.g. keepalive. Connections
+           that are created and match this list SHOULD apply the
+           writeable parameters. At the same time, implementations
+           may not allow creation of new TCP connections simply by
+           adding entries to the list. Furthermore, the behavior
+           upon removal is implementation-specific. Implementations
+           may not support closing or resetting a TCP connection
+           upon an operation that removes the entry from the list.
+
+           The operational state of this list SHOULD reflect
+           connections that have configured, but not created, and
+           connections that have been created. Connections in
+           CLOSED state are not reflected on this list.";
       }
       description
         "A container of all TCP connections.";
@@ -327,36 +351,38 @@ module ietf-tcp {
         type inet:ip-version;
         description
           "The address type of address.  The value
-           should be unknown (0) if connection initiations
+           should be unspecified (0) if connection initiations
            to all local IP addresses are accepted.";
       }
 
       leaf address {
         type union {
-          type string;
           type inet:ip-address;
+          type string {
+            length 0;
+          }
         }
         description
           "The local IP address for this TCP connection.
 
-           The value of this object can be represented in three
+           The value of this node can be represented in three
            possible ways, depending on the characteristics of the
            listening application:
 
            1. For an application willing to accept both IPv4 and
-              IPv6 datagrams, the value of this object must be
+              IPv6 datagrams, the value of this node must be
               ''h (a zero-length octet-string), with the value
               of the corresponding 'type' object being
-              unknown (0).
+              unspecified (0).
 
            2. For an application willing to accept only IPv4 or
-              IPv6 datagrams, the value of this object must be
+              IPv6 datagrams, the value of this node must be
               '0.0.0.0' or '::' respectively, with
               'type' representing the appropriate address type.
 
            3. For an application which is listening for data
               destined only to a specific IP address, the value
-              of this object is the specific local address, with
+              of this node is the specific local address, with
               'type' representing the appropriate address type.";
       }
 
@@ -372,28 +398,28 @@ module ietf-tcp {
       config false;
 
       leaf active-opens {
-        type yang:counter32;
+        type yang:counter64;
         description
           "The number of times that TCP connections have made a
            direct transition to the SYN-SENT state from the CLOSED
            state.";
         reference
-          "I-D.ietf-tcpm-rfc793bis: Transmission Control Protocol
-           (TCP) Specification.";
+          "RFC 9293: Transmission Control Protocol (TCP)
+                     Specification.";
       }
 
       leaf passive-opens {
-        type yang:counter32;
+        type yang:counter64;
         description
           "The number of times TCP connections have made a direct
            transition to the SYN-RCVD state from the LISTEN state.";
         reference
-          "I-D.ietf-tcpm-rfc793bis: Transmission Control Protocol
-           (TCP) Specification.";
+          "RFC 9293: Transmission Control Protocol (TCP)
+                     Specification.";
       }
 
       leaf attempt-fails {
-        type yang:counter32;
+        type yang:counter64;
         description
           "The number of times that TCP connections have made a
            direct transition to the CLOSED state from either the
@@ -401,18 +427,19 @@ module ietf-tcp {
            times that TCP connections have made a direct transition
            to the LISTEN state from the SYN-RCVD state.";
         reference
-          "I-D.ietf-tcpm-rfc793bis: Transmission Control Protocol
-           (TCP) Specification.";
+          "RFC 9293: Transmission Control Protocol (TCP)
+                     Specification.";
       }
+
       leaf establish-resets {
-        type yang:counter32;
+        type yang:counter64;
         description
           "The number of times that TCP connections have made a
            direct transition to the CLOSED state from either the
            ESTABLISHED state or the CLOSE-WAIT state.";
         reference
-          "I-D.ietf-tcpm-rfc793bis: Transmission Control Protocol
-           (TCP) Specification.";
+          "RFC 9293: Transmission Control Protocol (TCP)
+                     Specification.";
       }
 
       leaf currently-established {
@@ -421,8 +448,8 @@ module ietf-tcp {
           "The number of TCP connections for which the current state
            is either ESTABLISHED or CLOSE-WAIT.";
         reference
-          "I-D.ietf-tcpm-rfc793bis: Transmission Control Protocol
-           (TCP) Specification.";
+          "RFC 9293: Transmission Control Protocol (TCP)
+                     Specification.";
       }
 
       leaf in-segments {
@@ -432,8 +459,8 @@ module ietf-tcp {
            received in error. This count includes TCP segments
            received on currently established connections.";
         reference
-          "I-D.ietf-tcpm-rfc793bis: Transmission Control Protocol
-           (TCP) Specification.";
+          "RFC 9293: Transmission Control Protocol (TCP)
+                     Specification.";
       }
 
       leaf out-segments {
@@ -443,38 +470,46 @@ module ietf-tcp {
            current connections but excluding those containing only
            retransmitted octets.";
         reference
-          "I-D.ietf-tcpm-rfc793bis: Transmission Control Protocol
-           (TCP) Specification.";
+          "RFC 9293: Transmission Control Protocol (TCP)
+                     Specification.";
       }
 
       leaf retransmitted-segments {
-        type yang:counter32;
+        type yang:counter64;
         description
           "The total number of TCP segments retransmitted; that is,
            the number of TCP segments transmitted containing one or
            more previously transmitted octets.";
         reference
-          "I-D.ietf-tcpm-rfc793bis: Transmission Control Protocol
-           (TCP) Specification.";
+          "RFC 9293: Transmission Control Protocol (TCP)
+                     Specification.";
       }
 
       leaf in-errors {
-        type yang:counter32;
+        type yang:counter64;
         description
           "The total number of TCP segments received in error
            (e.g., bad TCP checksums).";
         reference
-          "I-D.ietf-tcpm-rfc793bis: Transmission Control Protocol
-           (TCP) Specification.";
+          "RFC 9293: Transmission Control Protocol (TCP)
+                     Specification.";
       }
 
       leaf out-resets {
-        type yang:counter32;
+        type yang:counter64;
         description
           "The number of TCP segments sent containing the RST flag.";
         reference
-          "I-D.ietf-tcpm-rfc793bis: Transmission Control Protocol
-           (TCP) Specification.";
+          "RFC 9293: Transmission Control Protocol (TCP)
+                     Specification.";
+      }
+
+      leaf auth-failures {
+        if-feature authentication;
+        type yang:counter64;
+        description
+          "The number of times that authentication has failed either
+           with TCP-AO or MD5.";
       }
 
       action reset {
@@ -508,6 +543,7 @@ module ietf-tcp {
        authentication.";
 
     container authentication {
+      if-feature authentication;
       leaf keychain {
         type key-chain:key-chain-ref;
         description
@@ -519,16 +555,24 @@ module ietf-tcp {
       }
 
       choice authentication {
-        case ao {
+        container ao {
+          presence "Presence container for all TCP-AO related" +
+                   " configuration";
           uses ao;
           description
             "Use TCP-AO to secure the connection.";
         }
 
-        case md5 {
-          uses md5;
+        container md5 {
+          presence "Presence container for all MD5 related" +
+                   " configuration";
           description
-            "Use TCP-MD5 to secure the connection.";
+            "Use TCP-MD5 to secure the connection. As the TCP MD5
+             signature option is obsoleted by TCP-AO, it is
+             RECOMMENDED to use TCP-AO instead.";
+          reference
+            "RFC 2385: Protection of BGP Sessions via the TCP MD5
+                       Signature.";
         }
         description
           "Choice of TCP authentication.";
