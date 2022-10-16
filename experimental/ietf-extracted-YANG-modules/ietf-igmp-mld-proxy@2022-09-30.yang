@@ -2,29 +2,41 @@ module ietf-igmp-mld-proxy {
   yang-version 1.1;
   namespace "urn:ietf:params:xml:ns:yang:ietf-igmp-mld-proxy";
   // replace with IANA namespace when assigned
-  prefix imp;
+  prefix igmp-mld-proxy;
 
   import ietf-inet-types {
     prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types";
   }
-
   import ietf-interfaces {
     prefix if;
+    reference
+      "RFC 8343: A YANG Data Model for Interface Management";
   }
-
   import ietf-routing {
     prefix rt;
+    reference
+      "RFC 8349: A YANG Data Model for Routing Management (NMDA
+       Version)";
   }
-
+  import ietf-routing-types {
+    prefix rt-types;
+    reference
+      "RFC 8294: Common YANG Data Types for the Routing Area";
+  }
   import ietf-pim-base {
     prefix pim-base;
+    reference
+      "RFC 9128: A YANG Data Model for Protocol Independent Multicast
+      (PIM)";
   }
 
   organization
     "IETF PIM Working Group";
 
   contact
-    "WG Web:   <http://tools.ietf.org/wg/pim/>
+    "WG Web:   <https://datatracker.ietf.org/wg/pim/about/>
      WG List:  <mailto:pim@ietf.org>
 
      Editors:  Hongji Zhao
@@ -34,7 +46,7 @@ module ietf-igmp-mld-proxy {
                <mailto:xufeng.liu.ietf@gmail.com>
 
                Yisong Liu
-               <mailto:liuyisong@huawei.com>
+               <mailto:liuyisong@chinamobile.com>
 
                Mani Panchanathan
                <mailto:mapancha@cisco.com>
@@ -43,13 +55,12 @@ module ietf-igmp-mld-proxy {
                <mailto:sivakumar.mahesh@gmail.com>
 
     ";
-
   description
     "The module defines a collection of YANG definitions common for
      all Internet Group Management Protocol (IGMP) and Multicast
      Listener Discovery (MLD) Proxy devices.
 
-     Copyright (c) 2019 IETF Trust and the persons identified as
+     Copyright (c) 2022 IETF Trust and the persons identified as
      authors of the code.  All rights reserved.
 
      Redistribution and use in source and binary forms, with or
@@ -62,24 +73,25 @@ module ietf-igmp-mld-proxy {
      This version of this YANG module is part of RFC XXXX; see the
      RFC itself for full legal notices.";
 
-  revision 2019-11-01 {
+  revision 2022-09-30 {
     description
       "Initial revision.";
     reference
       "RFC XXXX: A YANG Data Model for IGMP and MLD Proxy";
   }
+
   /*
    * Features
    */
 
-  feature feature-igmp-proxy {
+  feature igmp-proxy {
     description
       "Support IGMP Proxy protocol.";
     reference
       "RFC 4605";
   }
 
-  feature feature-mld-proxy {
+  feature mld-proxy {
     description
       "Support MLD Proxy protocol.";
     reference
@@ -103,17 +115,11 @@ module ietf-igmp-mld-proxy {
   }
 
   /*
-   * Typedefs
-   */
-
-  /*
    * Groupings
    */
 
   grouping per-interface-config-attributes {
-
     description "Config attributes under interface view";
-
     leaf enable {
       type boolean;
       default false;
@@ -125,14 +131,12 @@ module ietf-igmp-mld-proxy {
   grouping state-group-attributes {
     description
       "State group attributes";
-
     leaf up-time {
       type uint32;
       units seconds;
       description
         "The elapsed time for (S,G) or (*,G).";
     }
-
     leaf filter-mode {
       type enumeration {
         enum "include" {
@@ -150,6 +154,7 @@ module ietf-igmp-mld-proxy {
              listed in the source-list parameter.";
         }
       }
+      mandatory true;
       description
         "Filter mode for a multicast group,
          may be either include or exclude.";
@@ -160,97 +165,87 @@ module ietf-igmp-mld-proxy {
 
   augment "/rt:routing/rt:control-plane-protocols"+
         "/rt:control-plane-protocol" {
-
+    when
+      "derived-from-or-self(rt:type, 'igmp-mld-proxy:igmp-proxy')" {
+        description
+          "This augmentation is only valid for IGMP Proxy.";
+    }
     description
       "IGMP Proxy augmentation to routing control plane protocol
        configuration and state.";
     container igmp-proxy {
-     when 'derived-from-or-self(../rt:type, "imp:igmp-proxy")' {
-        description
-          "This container is only valid for IGMP Proxy protocol.";
-      }
-      if-feature feature-igmp-proxy;
-      description "IGMP proxy";
+      if-feature "igmp-proxy";
+      presence "IGMP Proxy configuration.";
+      description "IGMP Proxy instance configuration.";
       container interfaces {
         description
           "Containing a list of upstream interfaces.";
-
         list interface {
           key "interface-name";
           description
             "List of upstream interfaces.";
-
           leaf interface-name {
             type if:interface-ref;
             must "not( current() = /rt:routing"+
-           "/rt:control-plane-protocols/pim-base:pim"+
-           "/pim-base:interfaces/pim-base:interface"+
-           "/pim-base:name )" {
-
-           description
+              "/rt:control-plane-protocols/pim-base:pim"+
+              "/pim-base:interfaces/pim-base:interface"+
+              "/pim-base:name )" {
+              description
                 "The upstream interface for IGMP proxy
-                 should not be configured PIM.";
+                 should not be configured to use PIM.";
             }
             description "The upstream interface name.";
           }
-
-          leaf version {
+          leaf igmp-version {
             type uint8 {
               range "1..3";
             }
             default 2;
             description "IGMP version.";
           }
-
           uses per-interface-config-attributes;
-
           leaf sender-source-address {
-            type inet:ipv4-address;
+            type inet:ipv4-address-no-zone;
             description
               "The sender source address of
-            IGMP memembership report or leave.";
+               IGMP membership report or leave.";
           }
-
           list group {
             key "group-address";
             config false;
             description
               "Multicast group membership information
               that joined on the interface.";
-
             leaf group-address {
-              type inet:ipv4-address;
+              type rt-types:ipv4-multicast-group-address;
               description
                 "Multicast group address.";
             }
-
             uses state-group-attributes;
-
             list source {
               key "source-address";
               description
                 "List of multicast source information
                  of the multicast group.";
               leaf source-address {
-                type inet:ipv4-address;
+                type inet:ipv4-address-no-zone;
                 description
                   "Multicast source address";
               }
-
               leaf up-time {
                 type uint32;
                 units seconds;
                 description
                   "The elapsed time for (S,G) or (*,G).";
               }
-
               list downstream-interface {
                 key "interface-name";
                 description "The downstream interfaces list.";
                 leaf interface-name {
                   type if:interface-ref;
                   description
-                    "Downstream interfaces for each upstream-interface";
+                    "Downstream interfaces
+                     for each upstream-interface";
                 }
               }
             } // list source
@@ -262,98 +257,87 @@ module ietf-igmp-mld-proxy {
 
   augment "/rt:routing/rt:control-plane-protocols"+
         "/rt:control-plane-protocol" {
-
+    when
+     "derived-from-or-self(rt:type, 'igmp-mld-proxy:mld-proxy')" {
+        description
+          "This augmentation is only valid for MLD Proxy.";
+    }
     description
       "MLD Proxy augmentation to routing control plane protocol
        configuration and state.";
-
     container mld-proxy {
-      when 'derived-from-or-self(../rt:type, "imp:mld-proxy")' {
-        description
-          "This container is only valid for MLD Proxy protocol.";
-      }
-      if-feature feature-mld-proxy;
-      description "MLD proxy";
+      if-feature "mld-proxy";
+      presence "MLD Proxy configuration.";
+      description "MLD Proxy instance configuration.";
       container interfaces {
         description
           "Containing a list of upstream interfaces.";
-
         list interface {
           key "interface-name";
           description
             "List of upstream interfaces.";
-
           leaf interface-name {
             type if:interface-ref;
             must "not( current() = /rt:routing"+
-           "/rt:control-plane-protocols/pim-base:pim"+
-           "/pim-base:interfaces/pim-base:interface"+
-           "/pim-base:name )" {
-
-           description
+              "/rt:control-plane-protocols/pim-base:pim"+
+              "/pim-base:interfaces/pim-base:interface"+
+              "/pim-base:name )" {
+              description
                 "The upstream interface for MLD proxy
-                 should not be configured PIM.";
+                 should not be configured to use PIM.";
             }
-           description "The upstream interface name.";
+            description "The upstream interface name.";
           }
-
-          leaf version {
+          leaf mld-version {
             type uint8 {
               range "1..2";
             }
             default 2;
             description "MLD version.";
           }
-
           uses per-interface-config-attributes;
-
-        leaf sender-source-address {
-            type inet:ipv6-address;
+          leaf sender-source-address {
+            type inet:ipv6-address-no-zone;
             description
               "The sender source address of
-            MLD memembership report or leave.";
+               MLD membership report or leave.";
           }
-
           list group {
             key "group-address";
             config false;
             description
               "Multicast group membership information
               that joined on the interface.";
-
             leaf group-address {
-              type inet:ipv6-address;
+              type rt-types:ipv6-multicast-group-address;
               description
                 "Multicast group address.";
             }
-
             uses state-group-attributes;
-
             list source {
               key "source-address";
               description
                 "List of multicast source information
                  of the multicast group.";
               leaf source-address {
-                type inet:ipv6-address;
+                type inet:ipv6-address-no-zone;
                 description
                   "Multicast source address";
               }
-
               leaf up-time {
                 type uint32;
                 units seconds;
                 description
                   "The elapsed time for (S,G) or (*,G).";
               }
-
               list downstream-interface {
                 key "interface-name";
                 description "The downstream interfaces list.";
                 leaf interface-name {
                   type if:interface-ref;
                   description
-                    "Downstream interfaces for each upstream-interface";
+                    "Downstream interfaces
+                     for each upstream-interface";
                 }
               }
             } // list source
@@ -362,7 +346,4 @@ module ietf-igmp-mld-proxy {
       } // interfaces
     }
   }
-
- /*  RPCs  */
-
 }
