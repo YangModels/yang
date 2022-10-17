@@ -7,15 +7,22 @@ module ietf-bgp-policy {
 
   import ietf-inet-types {
     prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types";
   }
   import ietf-routing-policy {
     prefix rt-pol;
+    reference
+      "RFC 9067: A YANG Data Model for Routing Policy";
   }
   import iana-bgp-types {
     prefix bt;
   }
   import ietf-routing-types {
     prefix rt-types;
+    reference
+      "RFC 8294 - Common YANG Data Types for the
+       Routing Area";
   }
 
   organization
@@ -54,13 +61,12 @@ module ietf-bgp-policy {
      described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
      they appear in all capitals, as shown here.";
 
-  revision 2022-07-03 {
+  revision 2022-10-13 {
     description
       "Initial Version";
     reference
       "RFC XXX, BGP Model for Service Provider Network.";
   }
-
   /*
    * typedef statements
    */
@@ -107,7 +113,6 @@ module ietf-bgp-policy {
 
   typedef bgp-set-med-type {
     type union {
-      type uint32;
       type string {
         pattern '[+-]([0-9]{1,8}|[0-3][0-9]{1,9}|4[0-1][0-9]{1,8}|'
               + '428[0-9]{1,7}|429[0-3][0-9]{1,6}|42948[0-9]{1,5}|'
@@ -139,6 +144,7 @@ module ietf-bgp-policy {
              multiple ASs.";
         }
       }
+      type uint32;
     }
     description
       "Type definition for specifying how the BGP MED can
@@ -173,9 +179,9 @@ module ietf-bgp-policy {
           }
           leaf-list member {
             type union {
+              type bt:bgp-well-known-community-type;
               type bt:bgp-std-community-type;
               type bt:bgp-community-regexp-type;
-              type bt:bgp-well-known-community-type;
             }
             description
               "Members of the community set";
@@ -250,7 +256,8 @@ module ietf-bgp-policy {
             type string;
             description
               "AS path regular expression -- list of ASes in the
-               set.";
+               set. If any of the regualr expression in the lists
+               is matched, the as-path-set is considered matched.";
           }
         }
       }
@@ -304,19 +311,18 @@ module ietf-bgp-policy {
            specified value.";
       }
 
-      leaf-list next-hop-in-eq {
-        type inet:ip-address-no-zone;
+      container match-afi-safi {
         description
-          "List of next hop addresses to check for in the route
-           update.";
-      }
-
-      leaf-list afi-safi-in {
-        type identityref {
-          base bt:afi-safi-type;
+          "Match an address family according to the logic defined in
+           the match-set-options leaf.";
+        leaf-list afi-safi-in {
+          type identityref {
+            base bt:afi-safi-type;
+          }
+          description
+            "List of address families which the NLRI may be within.";
         }
-        description
-          "List of address families which the NLRI may be within.";
+        uses rt-pol:match-set-options-restricted-group;
       }
 
       leaf local-pref-eq {
@@ -326,11 +332,18 @@ module ietf-bgp-policy {
            the specified value.";
       }
 
-      leaf-list neighbor-eq {
-        type inet:ip-address;
+      container match-neighbor {
         description
-          "List of neighbor addresses to check for in the ingress
-           direction.";
+          "Match a neighbor according to the logic defined in the
+           match-set-options leaf.";
+
+        leaf-list neighbor-eq {
+          type inet:ip-address;
+          description
+            "List of neighbor addresses to check for in the ingress
+             direction.";
+        }
+        uses rt-pol:match-set-options-restricted-group;
       }
 
       leaf route-type {
@@ -514,7 +527,7 @@ module ietf-bgp-policy {
           description
             "Reference a defined next-hop set.";
         }
-        uses rt-pol:match-set-options-group;
+        uses rt-pol:match-set-options-restricted-group;
       }
     }
   }
@@ -547,6 +560,7 @@ module ietf-bgp-policy {
         description
           "Set the med metric attribute in the route.";
       }
+
       container set-as-path-prepend {
         description
           "Action to prepend local AS number to the AS-path a
@@ -557,9 +571,14 @@ module ietf-bgp-policy {
             range "1..max";
           }
           description
-            "Number of times to prepend the local AS number to the AS
-             path.  The value should be between 1 and the maximum
+            "Number of times to prepend the AS number to the AS
+             path. The value should be between 1 and the maximum
              supported by the implementation.";
+        }
+        leaf-list asn {
+          type inet:as-number;
+          description
+            "AS number to prepend to the AS path.";
         }
       }
 
@@ -585,8 +604,8 @@ module ietf-bgp-policy {
           case inline {
             leaf-list communities {
               type union {
-                type bt:bgp-std-community-type;
                 type bt:bgp-well-known-community-type;
+                type bt:bgp-std-community-type;
               }
               description
                 "Set the community values for the update inline with
