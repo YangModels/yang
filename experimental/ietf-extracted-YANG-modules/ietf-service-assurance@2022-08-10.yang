@@ -91,7 +91,7 @@ module ietf-service-assurance {
       "A grouping for the symptoms for a specific subservice.";
     leaf symptom-id {
       type leafref {
-        path "/agents/symptoms-description/symptom-id";
+        path "/agents/agent[id=current()/../agent-id]/symptoms/id";
       }
       description
         "Identifier of the symptom, to be interpreted according
@@ -99,7 +99,7 @@ module ietf-service-assurance {
     }
     leaf agent-id {
       type leafref {
-        path "/agents/agent-id";
+        path "/agents/agent/id";
       }
       description
         "Identifier of the agent raising the current symptom.";
@@ -166,11 +166,11 @@ module ietf-service-assurance {
     config false;
     mandatory true;
     description
-      "Date and time at which the assurance graph last changed after the
-       changes (dependencies and/or maintenance windows parameters) are
-       applied to the subservice(s). These date and time must be more
-       recent or equal compared to the more recent value of any changed
-       subservices last-change";
+      "Time and date at which the assurance graph last changed after any
+       structural changes (dependencies and/or maintenance windows
+       parameters) are applied to the subservice(s). The time and date
+       must be the same or more recent than the most recent value of any
+       changed subservices last-change time and date.";
   }
   container subservices {
     description
@@ -211,21 +211,25 @@ module ietf-service-assurance {
            network/system/software engineers that are able to interpret
            it. Therefore, no mechanism for language tagging is needed.";
       }
-      leaf maintenance-contact {
-        type string;
+      container under-maintenance {
+        presence "true";
         description
-          "A string used to model an administratively assigned name of
-           the resource that is performing maintenance.
+          "The presence of this container indicates that the current
+           subservice is under maintenance";
+        leaf contact {
+          type string;
+          mandatory true;
+          description
+            "A string used to model an administratively assigned name of
+             the resource that is performing maintenance.
 
-           The presence of this field indicates that the current
-           subservice is under maintenance.
-
-           It is suggested that this name contain one or more of the
-           following: IP address, management station name,
-           network manager's name, location, or phone number. In some
-           cases the agent itself will be the owner of an entry. In
-           these cases, this string shall be set to a string starting
-           with 'monitor'.";
+             It is suggested that this name contain one or more of the
+             following: IP address, management station name,
+             network manager's name, location, or phone number. In some
+             cases the agent itself will be the owner of an entry. In
+             these cases, this string shall be set to a string starting
+             with 'monitor'.";
+        }
       }
       choice parameter {
         mandatory true;
@@ -293,6 +297,7 @@ module ietf-service-assurance {
           "Symptoms for the subservice.";
         list symptom {
           key "start-date-time agent-id symptom-id";
+          unique "agent-id symptom-id";
           description
             "List of symptoms the subservice. While the start-date-time
              key is not necessary per se, this would get the entries
@@ -313,90 +318,100 @@ module ietf-service-assurance {
       }
     }
   }
-  list agents {
-    key "agent-id";
+  container agents {
     config false;
     description
-      "Contains symptoms of each agent involved in computing the health
-       status of the current graph. This list act as a glossary for
-       understanding the symptom ids returned by each agent.";
-    leaf agent-id {
-      type string;
+      "Container for the list of agentsâs symptoms";
+    list agent {
+      key "id";
       description
-        "Id of the agent for which we are defining the symptoms. This
-         identifier must be unique among all agents.";
-    }
-    list symptoms-description {
-      key "symptom-id";
-      description
-        "List of symptoms raised by the current agent, identified
-         by their symptom-id.";
-      leaf symptom-id {
+        "Contains symptoms of each agent involved in computing the
+         health status of the current graph. This list acts as a
+         glossary for understanding the symptom ids returned by each
+         agent.";
+      leaf id {
         type string;
         description
-          "Id of the symptom for the current agent. The agent must
-           guarantee the unicity of this identifier.";
+          "Id of the agent for which we are defining the symptoms. This
+           identifier must be unique among all agents.";
       }
-      leaf description {
-        type string;
-        mandatory true;
+      list symptoms {
+        key "id";
         description
-          "Description of the symptom, i.e., text describing what the
-           symptom is, to be computer-consumable and be displayed on a
-           human interface.
+          "List of symptoms raised by the current agent, identified
+           by their symptom-id.";
+        leaf id {
+          type string;
+          description
+            "Id of the symptom for the current agent. The agent must
+             guarantee the unicity of this identifier.";
+        }
+        leaf description {
+          type string;
+          mandatory true;
+          description
+            "Description of the symptom, i.e., text describing what the
+             symptom is, to be computer-consumable and be displayed on a
+             human interface.
 
-           It is not intended for random end users but for
-           network/system/software engineers that are able to interpret
-           it. Therefore, no mechanism for language tagging is needed.";
+             It is not intended for random end users but for
+             network/system/software engineers that are able to
+             interpret it. Therefore, no mechanism for language tagging
+             is needed.";
+        }
       }
     }
   }
-  list assured-services {
-    key "service";
+  container assured-services {
     config false;
     description
-      "Types of service that are currently part of the assurance
-       graph. The list must contain an entry for every service type
-       that is currently present in the assurance graph. This list
-       presents an alternate access to the graph stored in /subservices
-       that optimizes querying the assurance graph of a specific
-       service instance.";
-    leaf service {
-      type leafref {
-        path "/subservices/subservice/service-instance-parameter/"
-           + "service";
-      }
+      "Container for the index of assured services";
+    list assured-service {
+      key "service";
       description
-        "Name of the service type.";
-    }
-    list instances {
-      key "instance-name";
-      description
-        "Instances of the parent service type. The list must contain an
-         entry for every instance of the parent service.";
-      leaf instance-name {
+        "Types of service that are currently part of the assurance
+         graph. The list must contain an entry for every service type
+         that is currently present in the assurance graph. This list
+         presents an alternate access to the graph stored in
+         /subservices that optimizes querying the assurance graph of a
+         specific service instance.";
+      leaf service {
         type leafref {
           path "/subservices/subservice/service-instance-parameter/"
-             + "instance-name";
+             + "service";
         }
         description
-          "Name of the service instance. The leafref must point to a
-           service-instance-parameter whose service leaf matches the
-           parent service.";
+          "Name of the service type.";
       }
-      list subservices {
-        key "type id";
+      list instances {
+        key "name";
         description
-          "Subservices that appear in the assurance graph of the current
-           service instance.
+          "Instances of the parent service type. The list must contain
+           an entry for every instance of the parent service.";
+        leaf name {
+          type leafref {
+            path
+              "/subservices/subservice/service-instance-parameter/"
+            + "instance-name";
+          }
+          description
+            "Name of the service instance. The leafref must point to a
+             service-instance-parameter whose service leaf matches the
+             parent service.";
+        }
+        list subservices {
+          key "type id";
+          description
+            "Subservices that appear in the assurance graph of the
+             current service instance.
 
-           The list must contain the subservice corresponding to the
-           service instance, that is the subservice that matches the
-           service and instance-name keys.
-
-           For every subservice in the list, all subservices listed as
-           dependencies must also appear in the list.";
-        uses subservice-reference;
+             The list must contain the subservice corresponding to the
+             service instance, that is the subservice that matches the
+             service and instance-name keys.
+             For every subservice in the list, all subservices listed as
+             dependencies must also appear in the list.";
+          uses subservice-reference;
+        }
       }
     }
   }
