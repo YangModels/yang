@@ -1,0 +1,535 @@
+module ietf-bgp-ls {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-bgp-ls";
+  prefix bgp-ls;
+
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types.";
+  }
+  import ietf-routing {
+    prefix rt;
+    reference
+      "RFC 8349, A YANG Data Model for Routing Management
+       (NMDA Version).";
+  }
+  import ietf-bgp {
+    prefix bgp;
+    reference
+      "I-D.ietf-idr-bgp-model: BGP YANG Model for Service Provider
+                               Networks.";
+  }
+  import ietf-bgp-types {
+    prefix bt;
+    reference
+      "I-D.ietf-idr-bgp-model: BGP YANG Model for Service Provider
+                               Networks.";
+  }
+  import ietf-bgp-lsdb {
+    prefix bgp-lsdb;
+    reference
+      "RFC XXXX: A YANG model for BGP-LS, BGP-LS-VPN,
+                 and BGP-LS-SPF.";
+  }
+
+  organization
+    "IETF LSVR Working Group";
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/lsvr>
+     WG List:  <lsvr@ietf.org>
+
+     Authors: Mahesh Jethanandani (mjethanandani at gmail.com),
+              Keyur Patel (keyur at arrcus.com)";
+
+  description
+    "This module contains contains management
+     information for BGP-LS database.
+     Copyright (c) 2022 IETF Trust and the persons identified as
+     authors of the code. All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+     for full legal notices.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.";
+
+  revision 2022-10-12 {
+    description
+      "Initial Version";
+    reference
+      "RFC XXXX, BGP Model for Link State Distribution.";
+  }
+
+  // Identities.
+  identity bgp-ls {
+    base bt:afi-safi-type;
+    description
+      "BGP Link-State.";
+    reference
+      "RFC 7752: Link-State Info Distribution using BGP.";
+  }
+
+  identity bgp-ls-vpn {
+    base bt:afi-safi-type;
+    description
+      "BGP Link-State VPN.";
+    reference
+      "RFC 7752: Link-State Info Distribution using BGP.";
+  }
+
+  identity bgp-ls-spf {
+    base bt:afi-safi-type;
+    description
+      "BGP Link-State Shortest Path First (BGP-LS-SPF).";
+    reference
+      "I-D.ietf-lsvr-bgp-spf: BGP Link-State SPF Routing.";
+  }
+
+  // Typedefs
+  typedef spf-algorithm-type {
+    type enumeration {
+      enum algorithm-normal {
+        description
+          "Normal Shortest Path First (SPF) algorithm based on link
+           metric. This is the standard shortest path algorithm as
+           computed by the IGP protocol. Consistent with the
+           deployed practice for link-state protocols, Algorithm 0
+           permits any node to overwrite the SPF path with a
+           different path based on its local policy.";
+      }
+      enum algorithm-strict {
+        description
+          "Strict Shortest Path First (SPF) algorithm based on link
+           metric. The algorithm is identical to Algorithm 0 but
+           Algorithm 1 requires that all nodes along the path will
+           honor the SPF routing decision. Local policy at the node
+           claiming support for Algorithm 1 MUST NOT alter the SPF
+           paths computed by Algorithm 1";
+      }
+      enum spf-algorithm-unknown {
+        description
+          "Unknown Algorithm";
+      }
+    }
+    description
+      "SPF algorithm type.";
+  }
+
+  // Groupings
+  grouping bgp-neighbor-ls-common {
+    description
+      "Grouping for neighbor configuration for Link-State.";
+
+      leaf metric {
+        type uint32;
+        default 10;
+        description
+          "Metric associated with the corresponding link to
+           be used in the SPF graph computation.";
+      }
+
+      leaf status {
+        type enumeration {
+          enum spf-status-reachable {
+            description
+              "The link is reachable in the current SPF topology.";
+          }
+          enum spf-status-uncreachable {
+            description
+              "The link is unreachable in the current SPF topology.";
+          }
+        }
+        default spf-status-reachable;
+        description
+          "Sets SPF-Status of the corresponding LS Link NLRI.";
+
+      }
+  }
+
+  grouping bgp-mp-ls {
+    description
+      "Grouping for BGP-LS paramters.";
+
+    container link-state {
+      when "derived-from-or-self(../../bgp:afi-safi/bgp:name,
+           'bgp-ls')" {
+        description
+          "Include this container for BGP Linkstate specific
+           configuration";
+      }
+
+      description
+        "Information related to Link-State configuration and
+         management.";
+
+      leaf enabled {
+        type boolean;
+        default false;
+        description
+          "Enable/disable receiving/sending of Link-State NLRIs.";
+      }
+
+      uses bgp:mp-all-afi-safi-common;
+
+      leaf max-rate {
+        type uint32;
+        units per-second;
+        default 200;
+        description
+          "Maximum rate at which Link-State NLRIs will be
+           advertised or withdrawn from neighbors.";
+        reference
+          "RFC 7752: Link-State Info Distribution Using BGP.";
+      }
+
+      leaf max-number {
+        type uint32;
+        description
+          "Maximim number of Link-State NLRIs stored in a router's
+           RIB.";
+        reference
+          "RFC 7752: Link-State Info Distribution Using BGP.";
+      }
+
+      leaf instance-id {
+        type uint64;
+        description
+          "64-bit Instance-ID.";
+        reference
+          "RFC 7752: Link-State Info Distribution Using BGP.";
+      }
+
+      leaf asn-plus-bgp-ls-ids {
+        type uint32;
+        description
+          "A pair of ASN and BGP-LS identifiers per flooding set
+           in which the node participates.";
+        reference
+          "RFC 7752: Link-State Info Distribution Using BGP.";
+      }
+    }
+  }
+
+  grouping bgp-mp-ls-spf {
+    description
+      "Grouping for BGP-LS-SPF parameters.";
+
+    container link-state-spf {
+      when "derived-from-or-self (../../bgp:afi-safi/bgp:name,
+                                 'bgp-ls-spf')" {
+        description
+          "Include this container for BGP Link-State SPF specific
+           configuration";
+      }
+      description "BGP Linkstate-SPF configuration options";
+
+      uses bgp:mp-all-afi-safi-common;
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols" +
+          "/rt:control-plane-protocol/bgp:bgp/bgp:global" +
+          "/bgp:afi-safis/bgp:afi-safi" {
+    description
+      "Augmentation of the BGP model to add BGL-LS.";
+    uses bgp-mp-ls;
+    uses bgp-mp-ls-spf;
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols" +
+          "/rt:control-plane-protocol/bgp:bgp/bgp:global" +
+          "/bgp:afi-safis/bgp:afi-safi/link-state" {
+    description
+      "Augmentation of BGL-LS to add dB.";
+    uses bgp-lsdb:lsdb-top;
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols" +
+          "/rt:control-plane-protocol/bgp:bgp/bgp:global" +
+          "/bgp:afi-safis/bgp:afi-safi/link-state-spf" {
+    description
+      "Augmentation of BGL-LS-SPF.";
+
+    leaf instance-identifier {
+      type uint64;
+      default 0;
+      description
+        "Instance Identifier to be used for all Link-State NLRI
+         advertisements originated locally";
+    }
+
+    leaf algorithm-type {
+      type spf-algorithm-type;
+      default algorithm-normal;
+      description
+        "SPF Algorithm type associated with Link-State AFI SAFI";
+    }
+
+    leaf node-status {
+      type enumeration {
+        enum status-reachable {
+          description
+            "The local node is reachable in the current SPF
+             topology.";
+        }
+        enum status-unreacable {
+          description
+            "The local node is unreachable in the current SPF
+             topology.";
+        }
+        enum status-no-transit-support {
+          description
+            "The local node is reachable but does not support
+             forwarding of transit traffic.";
+        }
+      }
+      default status-reachable;
+      description
+        "Sets SPF-Status of the local node.";
+    }
+
+    container log {
+      config false;
+      description
+        "This container lists the SPF computation events.";
+
+      list event {
+        key id;
+        description
+          "List of computation events - implemented as a
+           wrapping buffer.";
+
+        leaf id {
+          type uint32;
+          description
+            "Event identifier.";
+        }
+
+        leaf type {
+          type enumeration {
+            enum full {
+              description "Full SPF computation.";
+            }
+            enum route-only {
+              description
+                "Route reachability only SPF computation";
+            }
+          }
+          description "Type of SPF computation performed.";
+        }
+
+        leaf schedule-time {
+          type yang:date-and-time;
+          description
+            "Time when the SPF computation was
+             scheduled.";
+        }
+
+        leaf delay {
+          type uint64;
+          description
+            "Delay in micro-seconds applied for this SPF event.";
+        }
+
+        leaf start-time {
+          type yang:date-and-time;
+          description
+            "Time when the SPF computation started.";
+        }
+
+        leaf end-time {
+          type yang:date-and-time;
+          description
+            "Time when the SPF computation ended.";
+        }
+
+        leaf duration {
+          type uint64;
+          description
+            "Time taken in micro-seconds to execute the SPF
+             computations.";
+        }
+
+        leaf node-count {
+          type uint64;
+          description
+            "Number of nodes involved in the SPF computations.";
+        }
+
+        leaf prefix-count {
+          type uint64;
+          description
+            "Number of prefixes involved in the SPF computations.";
+        }
+
+        leaf route-download-count {
+          type uint64;
+          description
+            "Number of routes updated in the SPF computations.";
+        }
+
+        list lsp-trigger {
+          key "id";
+          description
+            "This list includes the LSPs that triggered the
+            SPF computation.";
+
+          leaf id {
+            type uint32;
+            description
+              "Trigger identifier.";
+          }
+
+          leaf nlri-prefix {
+            type string;
+            description
+              "Prefix of the NLRI triggering SPF computation.";
+          }
+
+          leaf nlri-sequence {
+            type uint32;
+            description
+              "Sequence number of the NLRI triggering SPF
+               computation.";
+          }
+
+          leaf trigger-time {
+            type yang:date-and-time;
+            description
+              "Time when the trigger event was recorded.";
+          }
+        }
+      }
+    }
+    uses bgp-lsdb:lsdb-top;
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols" +
+          "/rt:control-plane-protocol/bgp:bgp/bgp:neighbors" +
+          "/bgp:neighbor/bgp:afi-safis/bgp:afi-safi" {
+    description
+      "Augmentation of the BGP model to add BGL-LS.";
+    uses bgp-mp-ls;
+    uses bgp-mp-ls-spf;
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols" +
+          "/rt:control-plane-protocol/bgp:bgp/bgp:neighbors" +
+          "/bgp:neighbor/bgp:afi-safis/bgp:afi-safi/link-state-spf" {
+    description
+      "Augmentation of the BGP neighbor to add BGL-LS.";
+    uses bgp-neighbor-ls-common;
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols" +
+          "/rt:control-plane-protocol/bgp:bgp/bgp:global" +
+          "/bgp:afi-safis/bgp:afi-safi/bgp:statistics" {
+    description
+      "Augmentation of the global statistics counter to add BGP-LS
+       statistics.";
+
+    leaf updates-sent {
+      type yang:zero-based-counter32;
+      description
+        "Total number of Link-State NLRI updates sent.";
+      reference
+        "RFC 7752: Link-State Info Distribution Using BGP.";
+    }
+
+    leaf updates-received {
+      type yang:zero-based-counter32;
+      description
+        "Total number of Link-State NLRI updates received.";
+      reference
+        "RFC 7752: Link-State Info Distribution Using BGP.";
+    }
+
+    leaf local-ls-originated {
+      type yang:zero-based-counter32;
+      description
+        "Total number of locally originated Link-State NLRIs.";
+      reference
+        "RFC 7752: Link-State Info Distribution Using BGP.";
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols" +
+          "/rt:control-plane-protocol/bgp:bgp/bgp:neighbors" +
+          "/bgp:neighbor/bgp:statistics" {
+    description
+      "Augmentation of the BGP per-neighbor statistics to add
+       BGP-LS specific counters.";
+
+    leaf updates-sent {
+      type yang:zero-based-counter32;
+      description
+        "Total number of Link-State NLRIs updates sent per neighbor.";
+      reference
+        "RFC 7752: Link-State Info Distribution Using BGP.";
+    }
+
+    leaf updates-received {
+      type yang:zero-based-counter32;
+      description
+        "Total number of Link-State NLRIs updates received per
+         neighbor.";
+      reference
+        "RFC 7752: Link-State Info Distribution Using BGP.";
+    }
+
+    leaf error-updates-received {
+      type yang:zero-based-counter32;
+      description
+        "Total number of Link-State NLRIs updates received that
+         were errored, per neighbor.";
+      reference
+        "RFC 7752: Link-State Info Distribution Using BGP.";
+    }
+
+    leaf computations {
+      type yang:zero-based-counter32;
+      description
+        "Count of number of SPF computations made.";
+      reference
+        "I-D.ietf-lsvr-bgp-spf: BGP Link-State SPF Routing.";
+    }
+
+    leaf triggering-events {
+      type yang:zero-based-counter32;
+      description
+        "SPF triggering events.";
+      reference
+        "I-D.ietf-lsvr-bgp-spf: BGP Link-State SPF Routing.";
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols" +
+          "/rt:control-plane-protocol/bgp:bgp/bgp:peer-groups" +
+          "/bgp:peer-group/bgp:afi-safis/bgp:afi-safi" {
+    description
+      "Augmentation of the BGP peer-group to add BGP-LS and
+       BGP-LS-SPF.";
+
+    uses bgp-mp-ls;
+    uses bgp-mp-ls-spf;
+  }
+  augment "/rt:routing/rt:control-plane-protocols" +
+          "/rt:control-plane-protocol/bgp:bgp/bgp:peer-groups" +
+          "/bgp:peer-group/bgp:afi-safis/bgp:afi-safi/link-state-spf" {
+    description
+      "Augmentation of the BGP peer-groups to add BGL-LS.";
+    uses bgp-neighbor-ls-common;
+  }
+}
