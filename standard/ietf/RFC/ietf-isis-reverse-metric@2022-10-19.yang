@@ -1,0 +1,227 @@
+module ietf-isis-reverse-metric {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-isis-reverse-metric";
+  prefix isis-rmetric;
+
+  import ietf-routing {
+    prefix rt;
+    reference
+      "RFC 8349: A YANG Data Model for Routing Management
+                 (NMDA Version)";
+  }
+  import ietf-isis {
+    prefix isis;
+    reference
+      "RFC 9130: YANG Data Model for the IS-IS Protocol";
+  }
+
+  organization
+    "IETF LSR Working Group (LSR)";
+
+  contact
+    "WG Web:  <https://datatracker.ietf.org/wg/lsr/>
+     WG List: <mailto:lsr@ietf.org>
+
+     Author:  Christian Hopps
+              <mailto:chopps@chopps.org>";
+
+  description
+    "This module defines the configuration and operational state
+     for managing the IS-IS reverse metric functionality
+     (RFC 8500).
+
+     Copyright (c) 2022 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 9194; see the
+     RFC itself for full legal notices.";
+  reference
+    "RFC 8500: IS-IS Routing with Reverse Metric";
+
+  revision 2022-10-19 {
+    description
+      "Initial revision.";
+    reference
+      "RFC 9194: A YANG Module for IS-IS Reverse Metric";
+  }
+
+  grouping reverse-metric-data {
+    description
+      "IS-IS reverse metric data.";
+    leaf metric {
+      type isis:wide-metric;
+      description
+        "The reverse metric value.";
+      reference
+        "RFC 8500: IS-IS Routing with Reverse Metric, Section 2";
+    }
+    container flags {
+      description
+        "The reverse metric flag values.";
+      leaf whole-lan {
+        type boolean;
+        description
+          "The 'Whole LAN' bit (W bit) (RFC 8500).  If true, then
+           a Designated Intermediate System (DIS) processing this
+           reverse metric will add the metric value to all the
+           nodes it advertises in the pseudonode Link State
+           Protocol Data Unit (LSP) for this interface.
+           Otherwise, it will only increment the metric for the
+           advertising node in the pseudonode LSP for this
+           interface.";
+        reference
+          "RFC 8500: IS-IS Routing with Reverse Metric,
+                     Section 2";
+      }
+      leaf allow-unreachable {
+        type boolean;
+        description
+          "The 'Unreachable' bit (U bit) (RFC 8500).  If true, it
+           allows the neighbor to increment the overall metric up
+           to 2^24-1 rather than the lesser maximum of 2^24-2.
+           If the metric is then set by the neighbor to 2^24-1,
+           it will cause traffic to stop using, rather than avoid
+           using, the interface.";
+        reference
+          "RFC 8500: IS-IS Routing with Reverse Metric,
+                     Section 2";
+      }
+    }
+  }
+
+  grouping reverse-metric-if-config-data {
+    description
+      "IS-IS reverse metric config data.";
+    uses reverse-metric-data;
+    leaf exclude-te-metric {
+      type boolean;
+      default "false";
+      description
+        "If true and there is a TE metric defined for this
+         interface, then do not send the Traffic Engineering
+         Metric sub-TLV in the Reverse Metric TLV.";
+
+      reference
+        "RFC 8500: IS-IS Routing with Reverse Metric, Section 2";
+    }
+  }
+
+  grouping tlv16-reverse-metric {
+    description
+      "IS-IS Reverse Metric TLV data.";
+    uses reverse-metric-data;
+    leaf te-metric {
+      type uint32;
+      description
+        "The TE metric value from the sub-TLV, if present.";
+      reference
+        "RFC 8500: IS-IS Routing with Reverse Metric, Section 2";
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols/"
+        + "rt:control-plane-protocol/"
+        + "isis:isis" {
+    when "derived-from-or-self(../rt:type, 'isis:isis')" {
+      description
+        "This augment is only valid when the routing protocol
+         instance type is 'isis'.";
+    }
+
+    description
+      "The reverse metric configuration for an IS-IS instance.";
+
+    container reverse-metric {
+      description
+        "Global reverse metric configuration.";
+      leaf enable-receive {
+        type boolean;
+        default "false";
+        description
+          "Enables handling of reverse metric announcements from
+           neighbors.  By default, reverse metric handling is
+           disabled and must be explicitly enabled through this
+           configuration.";
+      }
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols/"
+        + "rt:control-plane-protocol/"
+        + "isis:isis/isis:interfaces/isis:interface" {
+    when "derived-from-or-self(../../../rt:type, 'isis:isis')" {
+      description
+        "This augment is only valid when the routing protocol
+         instance type is 'isis'.";
+    }
+
+    description
+      "The reverse metric configuration for an interface.";
+
+    container reverse-metric {
+      description
+        "Announces a reverse metric to neighbors.  The
+         configuration is hierarchical and follows the same
+         behavior as that defined for per-level values in the
+         augmented base module.
+
+         Reverse metric operation is enabled by the configuration
+         of a 'reverse-metric' metric value either at the top
+         level or under a level-specific container node.  If a
+         'reverse-metric' metric value is only specified under a
+         level-specific container node, then operation is only
+         enabled at the specified level.
+
+         As the reverse metric is advertised in IS-IS Hello
+         Protocol Data Units (IIH PDUs), level-specific
+         configuration is only available for broadcast interface
+         types.";
+      uses reverse-metric-if-config-data {
+        refine "flags/whole-lan" {
+          default "false";
+        }
+        refine "flags/allow-unreachable" {
+          default "false";
+        }
+      }
+      container level-1 {
+        when '../../isis:interface-type = "broadcast"';
+        description
+          "Announces a reverse metric to level-1 neighbors.";
+        uses reverse-metric-if-config-data;
+      }
+      container level-2 {
+        when '../../isis:interface-type = "broadcast"';
+        description
+          "Announces a reverse metric to level-2 neighbors.";
+        uses reverse-metric-if-config-data;
+      }
+    }
+  }
+  augment "/rt:routing/rt:control-plane-protocols/"
+        + "rt:control-plane-protocol/"
+        + "isis:isis/isis:interfaces/isis:interface/"
+        + "isis:adjacencies/isis:adjacency" {
+    when "derived-from-or-self(../../../../../rt:type,
+                               'isis:isis')" {
+      description
+        "This augment is only valid when the routing protocol
+         instance type is 'isis'.";
+    }
+
+    description
+      "The reverse metric state advertised by an adjacency.";
+    container reverse-metric {
+      description
+        "IS-IS Reverse Metric TLV data.";
+      uses tlv16-reverse-metric;
+    }
+  }
+}
