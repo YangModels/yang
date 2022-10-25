@@ -1,2 +1,0 @@
-MANO models
-
