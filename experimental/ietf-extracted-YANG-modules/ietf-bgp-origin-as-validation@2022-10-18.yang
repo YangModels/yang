@@ -1,0 +1,302 @@
+module ietf-bgp-origin-as-validation {
+  yang-version "1.1";
+  namespace "urn:ietf:params:xml:ns:yang:"
+          + "ietf-bgp-origin-as-validation";
+  prefix "oav";
+
+  import ietf-inet-types {
+    prefix "inet";
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+
+  import ietf-routing {
+    prefix "rt";
+    reference
+      "RFC 8349, A YANG Data Model for Routing Management
+       (NMDA Version).";
+  }
+
+  import ietf-bgp {
+    prefix "bgp";
+    reference
+      "RFC XXXX: BGP YANG Model for Service Provider Networks";
+  }
+
+  import iana-bgp-types {
+    prefix "bt";
+    reference
+      "RFC XXXX: BGP YANG Model for Service Provider Networks";
+  }
+
+  organization
+    "IETF SIDROPS Working Group";
+
+  contact
+    "TBD";
+
+  description
+    "This module describes configuration of the BGP origin AS
+     validation based on the Validated ROA Payload (VRP).";
+
+  revision 2022-10-18 {
+    description
+      "Initial Version";
+    reference
+      "RFC XXXX, YANG Data Model for RPKI to Router Protocol
+       and BGP Origin AS Validation";
+  }
+
+  identity vrp-protocol {
+    description
+      "Base identity from which VRP source protocol identities
+       are derived.";
+  }
+
+  identity rpki-rtr {
+    base vrp-protocol;
+    description
+      "RPKI to Router Protocol";
+  }
+
+  identity ineligible-orgin-as {
+    base bgp:ineligible-route-reason;
+    description
+      "Route was ineligible due to origin as validation";
+  }
+
+  typedef origin-as-validity-state {
+    type enumeration {
+      enum not-found {
+        description
+          "No VRP Covers the Route Prefix.";
+      }
+      enum valid {
+        description
+          "At least one VRP Matches the Route Prefix.";
+      }
+      enum invalid {
+        description
+          "At least one VRP Covers the Route Prefix, but no VRP
+           Matches it.";
+      }
+      enum disabled {
+        description
+          "BGP origin AS validation is not enabled.";
+      }
+    }
+    description
+      "Origin AS validation state of BGP routes.";
+    reference
+      "RFC 6811, BGP Prefix Origin Validation.";
+  }
+  grouping origin-as-validation-config {
+    description
+      "Origin AS validation of BGP prefix.";
+    container origin-as-validation {
+      leaf enabled {
+        type boolean;
+        default "false";
+        description
+          "Whether origin-AS validation of BGP prefix is enabled.";
+      }
+      leaf source-protocol {
+        type identityref {
+          base vrp-protocol;
+        }
+        description
+          "Type of the protocol from which the VRP originated.";
+      }
+      leaf redistribution-as {
+        type inet:as-number;
+        description
+          "Uses this AS number in the origin-AS validation for
+           redistributed routes since they have no AS-PATH.";
+        reference
+          "RFC 8481, Clarifications to BGP Origin Validation Based
+           on Resource Public Key Infrastructure (RPKI).";
+      }
+      description
+        "Origin AS validation of BGP prefix.";
+    }
+  }
+
+  grouping origin-as-selection-option {
+    description
+      "Origin AS option for BGP route selection.";
+    container origin-as {
+      leaf enabled {
+        type boolean;
+        default "false";
+        description
+          "When enabled allows the origin AS validity states to be
+           taken into consideration in the best-path calculation.";
+      }
+      leaf allow-invalid {
+        type boolean;
+        default "false";
+        description
+          "When enabled allows the route with 'invalid' origin AS
+           to be taken into consideration in the best-path
+           calculation.";
+      }
+      leaf allow-not-found {
+        type boolean;
+        default "true";
+        description
+          "When enabled allows the route with 'not-found' origin
+           AS to be taken into consideration in the best-path
+           calculation.";
+      }
+      description
+        "Origin AS option for BGP route selection.";
+    }
+  }
+
+  grouping origin-as-validity-advertisement {
+    description
+      "Advertisement of Origin Validation State Extended
+       Community to neighbor(s).";
+    leaf send-origin-as-validity {
+      type boolean;
+      default "false";
+      description
+        "If set to true, send the origin AS validity to the
+         neighbor(s) using Origin Validation State Extended
+         Community";
+      reference
+        "RFC 8097, BGP Prefix Origin Validation State Extended
+         Community.";
+    }
+  }
+
+  grouping export-origin-as-validation-config {
+    description
+      "Export Origin AS validation of BGP prefix.";
+    container export-origin-as-validation {
+      leaf enabled {
+        type boolean;
+        default "false";
+        description
+          "When enabled allows the origin AS validity states to be
+           taken into consideration in BGP export.";
+      }
+      leaf allow-not-found {
+        type boolean;
+        default "false";
+        description
+          "When enabled allows the route with 'not-found' origin
+           AS to be sent to the neighbor.";
+      }
+      description
+        "Export Origin AS validation of BGP prefix.";
+      reference
+        "RFC 8893, Resource Public Key Infrastructure (RPKI) Origin
+        Validation for BGP Export.";
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols"
+        + "/rt:control-plane-protocol/bgp:bgp/bgp:global"
+        + "/bgp:afi-safis/bgp:afi-safi/bgp:ipv4-unicast" {
+    description
+      "Origin AS validation augmentation of BGP IPv4 Unicast
+       Address Family.";
+    uses origin-as-validation-config;
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols"
+        + "/rt:control-plane-protocol/bgp:bgp/bgp:global"
+        + "/bgp:afi-safis/bgp:afi-safi/bgp:ipv6-unicast" {
+    description
+      "Origin AS validation augmentation of BGP IPv6 Unicast
+       Address Family.";
+    uses origin-as-validation-config;
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols"
+        + "/rt:control-plane-protocol/bgp:bgp/bgp:rib"
+        + "/bgp:afi-safis/bgp:afi-safi/bgp:ipv4-unicast"
+        + "/bgp:loc-rib/bgp:routes/bgp:route" {
+    description
+      "Origin AS validity augmentation of BGP IPv4 Unicast
+       route.";
+    leaf origin-as-validity {
+      type origin-as-validity-state;
+      description
+        "Origin AS validity of BGP IPv4 Unicast prefix";
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols"
+        + "/rt:control-plane-protocol/bgp:bgp/bgp:rib"
+        + "/bgp:afi-safis/bgp:afi-safi/bgp:ipv6-unicast"
+        + "/bgp:loc-rib/bgp:routes/bgp:route" {
+    description
+      "Origin AS validity augmentation of BGP IPv6 Unicast
+       route.";
+    leaf origin-as-validity {
+      type origin-as-validity-state;
+      description
+        "Origin AS validity of BGP IPv6 Unicast prefix";
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols"
+        + "/rt:control-plane-protocol/bgp:bgp/bgp:global"
+        + "/bgp:afi-safis/bgp:afi-safi"
+        + "/bgp:route-selection-options" {
+    when "derived-from-or-self(../bgp:name, 'bt:ipv4-unicast') or "
+       + "derived-from-or-self(../bgp:name, 'bt:ipv6-unicast')" {
+      description
+        "This augmentation is valid for IPv4 and IPv6 Unicast.";
+    }
+    description
+      "augmentation of BGP route selection options";
+    uses origin-as-selection-option;
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols"
+        + "/rt:control-plane-protocol/bgp:bgp/bgp:neighbors"
+        + "/bgp:neighbor/bgp:afi-safis/bgp:afi-safi"
+        + "/bgp:ipv4-unicast" {
+    description
+      "augmentation of Origin Validation State Extended
+       Community advertisement for IPv4 Unicast neighbor";
+    uses origin-as-validity-advertisement;
+    uses export-origin-as-validation-config;
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols"
+        + "/rt:control-plane-protocol/bgp:bgp/bgp:neighbors"
+        + "/bgp:neighbor/bgp:afi-safis/bgp:afi-safi"
+        + "/bgp:ipv6-unicast" {
+    description
+      "augmentation of Origin Validation State Extended
+       Community advertisement for IPv6 Unicast neighbor";
+    uses origin-as-validity-advertisement;
+    uses export-origin-as-validation-config;
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols"
+        + "/rt:control-plane-protocol/bgp:bgp/bgp:peer-groups"
+        + "/bgp:peer-group/bgp:afi-safis/bgp:afi-safi"
+        + "/bgp:ipv4-unicast" {
+    description
+      "augmentation of Origin Validation State Extended
+       Community advertisement for IPv4 Unicast peer group";
+    uses origin-as-validity-advertisement;
+    uses export-origin-as-validation-config;
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols"
+        + "/rt:control-plane-protocol/bgp:bgp/bgp:peer-groups"
+        + "/bgp:peer-group/bgp:afi-safis/bgp:afi-safi"
+        + "/bgp:ipv6-unicast" {
+    description
+      "augmentation of Origin Validation State Extended
+       Community advertisement for IPv6 Unicast peer group";
+    uses origin-as-validity-advertisement;
+    uses export-origin-as-validation-config;
+  }
+}
