@@ -1,0 +1,483 @@
+module ietf-rpki-rtr {
+  yang-version "1.1";
+  namespace "urn:ietf:params:xml:ns:yang:ietf-rpki-rtr";
+  prefix "rpki-rtr";
+
+  import ietf-yang-types {
+    prefix "yang";
+    reference
+      "RFC 6991: Common YANG Data Types.";
+  }
+
+  import ietf-inet-types {
+    prefix "inet";
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+
+  import iana-crypt-hash {
+    prefix "ianach";
+    reference
+      "RFC 7317: A YANG Data Model for System Management";
+  }
+
+  import ietf-ssh-client {
+    prefix "ssh";
+    reference
+      "RFC XXXX: YANG Groupings for SSH Clients and SSH Servers";
+  }
+
+  import ietf-interfaces {
+    prefix "if";
+       reference
+         "RFC 8343, A YANG Data Model for Interface Management.";
+  }
+
+  import ietf-key-chain {
+    prefix key-chain;
+    reference
+      "RFC 8177: YANG Key Chain.";
+  }
+
+  organization
+    "IETF SIDROPS Working Group";
+  contact
+    "TBD";
+
+  description
+    "This module describes a YANG model for the Resource Public
+     Key Infrastructure (RPKI) to Router Protocol configuration.";
+
+  revision 2022-10-18 {
+    description
+      "Initial Version";
+    reference
+      "RFC XXXX, YANG Data Model for RPKI to Router Protocol
+       and BGP Origin AS Validation";
+  }
+
+  typedef ipv4-pfx-len {
+    type uint8 {
+      range "0 .. 32";
+    }
+    description
+      "IPv4 Prefix Length.";
+  }
+
+  typedef ipv6-pfx-len {
+    type uint8 {
+      range "0 .. 128";
+    }
+    description
+      "IPv6 Prefix Length.";
+  }
+
+  container rpki-rtr {
+    description
+      "Configuration parameters for the RPKI to Router Protocol.";
+    container roa-table {
+      config false;
+      description
+        "Table of ROAs received from all RPKI cache servers.";
+      container ipv4 {
+        config false;
+        description
+          "Container for IPv4 ROAs table.";
+        container roas {
+          config false;
+          description
+            "ROAs received from the RPKI cache server.";
+          list roa {
+            key "prefix max-len asn server-address";
+            description
+              "An entry of ROA.";
+            leaf prefix {
+              type inet:ipv4-prefix;
+              description
+                "The IPv4 prefix of the ROA.";
+            }
+            leaf max-len {
+              type ipv4-pfx-len;
+              description
+                "Denotes the longest prefix allowed. This
+                 MUST NOT be less than the prefix length.";
+            }
+            leaf asn {
+              type inet:as-number;
+              description
+                "The origin AS number of the ROA.";
+            }
+            leaf server-address {
+              type inet:ip-address;
+              description
+                "IP address of the RPKI cache server.";
+            }
+          }
+        }
+      }
+      container ipv6 {
+        config false;
+        description
+          "Container for IPv6 ROAs table.";
+        container roas {
+          config false;
+          description
+            "ROAs received from the RPKI cache server.";
+          list roa {
+            key "prefix max-len asn server-address";
+            description
+              "An entry of ROA.";
+            leaf prefix {
+              type inet:ipv6-prefix;
+              description
+                "The IPv6 prefix of the ROA.";
+            }
+            leaf max-len {
+              type ipv6-pfx-len;
+              description
+                "Denotes the longest prefix allowed. This
+                 MUST NOT be less than the prefix length.";
+            }
+            leaf asn {
+              type inet:as-number;
+              description
+                "The origin AS number of the ROA.";
+            }
+            leaf server-address {
+              type inet:ip-address;
+              description
+                "IP address of the RPKI cache server.";
+            }
+          }
+        }
+      }
+    }
+    container cache-servers {
+      description
+        "Parameters of RPKI cache servers.";
+      list cache-server {
+        key "server-address";
+        description
+          "Each entry contains parameters for a RPKI cache server
+           identified by the 'server-address' key.";
+        leaf server-address {
+          type inet:ip-address;
+          mandatory true;
+          description
+            "The IP address of the RPKI cache server";
+        }
+        leaf server-port {
+          type inet:port-number;
+          description
+            "The remote port for the connection
+             to the RPKI cache server";
+        }
+        leaf local-address {
+          type union {
+            type inet:ip-address;
+            type if:interface-ref;
+            }
+          description
+            "The local IP (either IPv4 or IPv6) address to use for
+             the connection to the RPKI cache server. This may be
+             expressed as either an IP address or reference to the
+             name of an interface.";
+        }
+        leaf local-port {
+          type inet:port-number;
+          description
+            "The local port for the connection
+             to the RPKI cache server";
+        }
+        leaf enabled {
+          type boolean;
+          default "true";
+          description
+            "Whether the RPKI cache server is enabled.";
+        }
+        leaf protocol-version {
+          type uint32;
+          description
+            "The version number of the RPKI to Router Protocol.";
+        }
+        leaf preference {
+          type uint32;
+          description
+            "The router's preference to connect to that cache.
+             The lower the value, the more preferred.";
+        }
+        leaf description {
+          type string;
+          description
+            "Textual description of the RPKI cache server";
+        }
+        leaf secure-session-enable {
+          type boolean;
+          default "false";
+          description
+            "Whether the session is secured.";
+        }
+        container secure-session {
+          when "../secure-session-enable = 'true'";
+          description
+            "Container for describing how a particular session
+             is to be secured.";
+          choice option {
+            description
+              "Choice for session secruring methods.";
+            case md5 {
+              leaf md5-password {
+                type ianach:crypt-hash;
+                description
+                  "The password for md5 authentication.";
+              }
+              description
+                "Uses TCP-MD5 to secure the session.";
+            }
+            case ssh {
+              uses ssh:ssh-client-grouping {
+                reference
+                  "RFC XXXX: YANG Groupings for SSH Clients and
+                   SSH Servers";
+              }
+              description
+                "Uses SSH to secure the session.";
+            }
+            case keychain {
+              leaf keychain-name {
+                type key-chain:key-chain-ref;
+                description
+                  "Name of key chain.";
+                reference
+                  "RFC 8177: YANG Key Chain.";
+              }
+              description
+                "Uses key-chain to secure the session.";
+            }
+          }
+        }
+        leaf purge-time {
+          type uint32;
+          description
+            "Configures the time a router waits to keep data from
+             the RPKI cache server after the session drops.";
+        }
+        leaf refresh-time {
+          type uint32;
+          description
+            "Configures the time a router waits in between sending
+             periodic serial queries to the RPKI cache server.";
+        }
+        leaf response-time {
+          type uint32;
+          description
+            "Configures the time a router waits for a response
+             after sending a serial or reset query to the RPKI
+             cache server.";
+        }
+        container roa-limit {
+          leaf max-number {
+            type uint64;
+            description
+              "Configures the maximum number of ROAs that can be
+               received from the RPKI cache server.";
+          }
+          leaf threshold-percentage {
+            type uint8 {
+              range "0..100";
+            }
+            units "percent";
+            description
+              "Configures the threshold percentage for ROA maximum
+               number.";
+          }
+          leaf over-threshold-action {
+            type enumeration {
+              enum alert-only {
+                description
+                  "Generates alert messages.";
+              }
+              enum discard {
+                description
+                  "Discards excess ROAs.";
+              }
+              enum reconnect {
+                description
+                  "Diconncets with the RPKI cache server,
+                   and tries to reconnect after reconnection
+                   timer expires.";
+              }
+              enum idle-forever {
+                description
+                  "Diconncets with the RPKI cache server
+                   forever.";
+              }
+            }
+            description
+              "The action to taken when ROA number exceeds
+               threshold.";
+          }
+          leaf reconnect-interval {
+            type uint32 {
+              range "1..30000";
+            }
+            units "minutes";
+            description
+              "Time interval for the reconnection timer.";
+          }
+          description
+            "Limit of ROAs that can be received from the RPKI
+             cache server.";
+        }
+        leaf session-state {
+          type enumeration {
+            enum idle {
+              description
+                "The session is down.";
+            }
+            enum connect {
+              description
+                "The session is waiting for the underlying
+                 transport session to be established.";
+            }
+            enum establish {
+              description
+                "The session is up.";
+            }
+          }
+          config false;
+          description
+            "The session state.";
+        }
+        leaf session-id {
+          type uint16;
+          config false;
+          description
+            "When a cache server is started, it generates a
+             Session ID to identify the instance of the cache
+             and to bind it to the sequence of Serial Numbers
+             that cache instance will generate.";
+          reference
+            "RFC 6810, The Resource Public Key Infrastructure
+             (RPKI) to Router Protocol
+             RFC 8210, The Resource Public Key Infrastructure
+             (RPKI) to Router Protocol, Version 1";
+        }
+        leaf serial-number {
+          type uint32;
+          config false;
+          description
+            "A 32-bit strictly increasing unsigned integer which
+             wraps from 2^32-1 to 0. It denotes the logical
+             version of a cache.";
+          reference
+            "RFC 6810, The Resource Public Key Infrastructure
+             (RPKI) to Router Protocol
+             RFC 8210, The Resource Public Key Infrastructure
+             (RPKI) to Router Protocol, Version 1";
+        }
+        container statistics {
+          config false;
+          description
+            "Statistics of the RPKI cache server.";
+          leaf in-total-messages {
+            type yang:zero-based-counter64;
+            description
+              "The total number of messages received from the
+               RPKI cache server.";
+          }
+          leaf out-total-messages {
+            type yang:zero-based-counter64;
+            description
+              "The total number of messages transmitted to the
+               RPKI cache server.";
+          }
+          leaf ipv4-roa-records {
+            type yang:zero-based-counter64;
+            description
+              "The number of ROAs for IPv4 prefixes received
+               from the RPKI cache server.";
+          }
+          leaf ipv6-roa-records {
+            type yang:zero-based-counter64;
+            description
+              "The number of ROAs for IPv6 prefixes received
+               from the RPKI cache server.";
+          }
+        }
+        container roa-table {
+          config false;
+          description
+            "Table of ROAs received from the RPKI cache server.";
+          container ipv4 {
+            config false;
+            description
+              "Container for IPv4 ROAs table.";
+            container roas {
+              config false;
+              description
+                "ROAs received from the RPKI cache server.";
+              list roa {
+                key "prefix max-len asn";
+                description
+                  "An entry of ROA.";
+                leaf prefix {
+                  type inet:ipv4-prefix;
+                  description
+                    "The IPv4 prefix of the ROA.";
+                }
+                leaf max-len {
+                  type ipv4-pfx-len;
+                  description
+                    "Denotes the longest prefix allowed. This
+                     MUST NOT be less than the prefix length.";
+                }
+                leaf asn {
+                  type inet:as-number;
+                  description
+                    "The origin AS number of the ROA.";
+                }
+              }
+            }
+          }
+          container ipv6 {
+            config false;
+            description
+              "Container for IPv6 ROAs table.";
+            container roas {
+              config false;
+              description
+                "ROAs received from the RPKI cache server.";
+              list roa {
+                key "prefix max-len asn";
+                description
+                  "An entry of ROA.";
+                leaf prefix {
+                  type inet:ipv6-prefix;
+                  description
+                    "The IPv6 prefix of the ROA.";
+                }
+                leaf max-len {
+                  type ipv6-pfx-len;
+                  description
+                    "Denotes the longest prefix allowed. This
+                     MUST NOT be less than the prefix length.";
+                }
+                leaf asn {
+                  type inet:as-number;
+                  description
+                    "The origin AS number of the ROA.";
+                }
+              }
+            }
+          }
+          reference
+            "RFC 6810, The Resource Public Key Infrastructure
+             (RPKI) to Router Protocol
+             RFC 8210, The Resource Public Key Infrastructure
+             (RPKI) to Router Protocol, Version 1";
+        }
+      }
+    }
+  }
+}
