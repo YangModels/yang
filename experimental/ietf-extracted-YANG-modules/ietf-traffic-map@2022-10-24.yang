@@ -1,0 +1,299 @@
+module ietf-traffic-map {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-traffic-map";
+  prefix tm;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-te {
+    prefix te;
+    reference
+      "I-D.ietf-teas-yang-te: A YANG Data Model for Traffic
+       Engineering Tunnels and Interfaces";
+  }
+  import ietf-routing {
+    prefix rt;
+    reference
+      "RFC8349: A YANG Data Model for Routing Management";
+  }
+  import ietf-sr-policy {
+    prefix sr-policy;
+    reference
+      "I-D.ietf-spring-sr-policy-yang: YANG Data Model for Segment
+       Routing Policy";
+  }
+  import ietf-network-slice-service {
+    prefix ietf-nss;
+    reference
+      "I-D.ietf-teas-ietf-network-slice-nbi-yang: IETF
+       Network Slice Service YANG Model";
+  }
+  import ietf-packet-fields {
+    prefix packet-fields;
+    reference
+      "RFC 8519: YANG Data Model for Network Access
+       Control Lists (ACLs)";
+  }
+  import ietf-access-control-list {
+    prefix acl;
+    reference
+      "RFC 8519: YANG Data Model for Network Access Control
+       Lists (ACLs)";
+  }
+  import ietf-vpn-common {
+    prefix vpn-common;
+    reference
+      "RFC 9181: A Common YANG Data Model for Layer 2 and
+       Layer 3 VPNs";
+  }
+
+  organization
+    "IETF Traffic Engineering Architecture and Signaling (TEAS)
+     Working Group";
+  contact
+    "WG Web:  <https://datatracker.ietf.org/wg/teas/about/>
+     WG List:  <mailto:teas@ietf.org>
+     Editor: Dhruv Dhody <dhruv.ietf@gmail.com>";
+  description
+    "This module contains a YANG module to map traffic to
+     Traffic Engineering (TE) paths.
+
+     Copyright (c) 2022 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX; see the
+     RFC itself for full legal notices.";
+
+  revision 2022-10-24 {
+    description
+      "initial version.";
+    reference
+      "RFC XXXX: Traffic Mapping YANG model for Traffic
+       Engineering (TE)";
+  }
+
+  grouping traffic-description {
+    description
+      "The traffic description";
+    leaf id {
+      type string;
+      description
+        "The identifier for Traffic Description";
+    }
+    choice type {
+      description
+        "The various ways the traffic can be described";
+      case match-criteria {
+        description
+          "Use the match criteria";
+        list match-criterion {
+          key "index";
+          description
+            "List of traffic match criteria.";
+          leaf index {
+            type uint32;
+            description
+              "The entry index.";
+          }
+          leaf match-type {
+            type identityref {
+              base ietf-nss:service-match-type;
+            }
+            mandatory true;
+            description
+              "Identifies an entry in the list of the
+               match criteria.";
+          }
+          leaf-list value {
+            type string;
+            description
+              "Describes the slice service match criteria, e.g.
+               IP address, VLAN, etc.";
+          }
+        }
+      }
+      case acl {
+        description
+          "Reference to ACL";
+        leaf acl {
+          type leafref {
+            path "/acl:acls/acl:acl/acl:name";
+          }
+          description
+            "The ACL Name. The action part of the ACL is not
+             used.";
+          reference
+            "RFC8519: YANG Data Model for Network Access Control
+             Lists (ACLs)";
+        }
+      }
+      case flowspec {
+        description
+          "Based on FlowSpec component type - TODO";
+      }
+      case interface {
+        description
+          "All traffic received on an interface";
+        leaf node {
+          type string;
+          description
+            "The node identifier";
+        }
+        leaf if-name {
+          type string;
+          description
+            "The interface name on the node";
+        }
+      }
+      case flow {
+        description
+          "Match particular flows";
+        choice l3 {
+          description
+            "Either IPv4 or IPv6.";
+          container ipv4 {
+            description
+              "Rule set that matches the IPv4 header.";
+            uses packet-fields:acl-ip-header-fields;
+            uses packet-fields:acl-ipv4-header-fields;
+          }
+          container ipv6 {
+            description
+              "Rule set that matches the IPv6 header.";
+            uses packet-fields:acl-ip-header-fields;
+            uses packet-fields:acl-ipv6-header-fields;
+          }
+        }
+        choice l4 {
+          description
+            "Includes Layer-4-specific information.
+             This version focuses on TCP and UDP.";
+          container tcp {
+            description
+              "Rule set that matches the TCP header.";
+            uses packet-fields:acl-tcp-header-fields;
+            uses vpn-common:ports;
+          }
+          container udp {
+            description
+              "Rule set that matches the UDP header.";
+            uses packet-fields:acl-udp-header-fields;
+            uses vpn-common:ports;
+          }
+        }
+      }
+      case other {
+        description
+          "TODO";
+      }
+    }
+  }
+
+  grouping te-ref {
+    description
+      "Reference to TE paths";
+    leaf-list te-tunnel {
+      type te:tunnel-ref;
+      description
+        "Reference to TE Tunnels";
+      reference
+        "I-D.ietf-teas-yang-te: A YANG Data Model for Traffic
+         Engineering Tunnels and Interfaces";
+    }
+    list sr-policy {
+      key "headend policy-color-ref policy-endpoint-ref";
+      description
+        "SR Policy";
+      reference
+        "I-D.ietf-spring-sr-policy-yang: YANG Data Model for
+         Segment Routing Policy";
+      /*Headend needs to be added*/
+      leaf headend {
+        type inet:ip-address-no-zone;
+        description
+          "SR Policy headend";
+      }
+      leaf policy-color-ref {
+        type leafref {
+          path "/rt:routing/sr-policy:segment-routing"
+             + "/sr-policy:traffic-engineering/sr-policy:policies"
+             + "/sr-policy:policy/sr-policy:color";
+        }
+        description
+          "Reference to sr-policy color";
+      }
+      leaf policy-endpoint-ref {
+        type leafref {
+          path "/rt:routing/sr-policy:segment-routing"
+             + "/sr-policy:traffic-engineering/sr-policy:policies"
+             + "/sr-policy:policy/sr-policy:endpoint";
+        }
+        description
+          "Reference to sr-policy endpoint";
+      }
+    }
+    container other {
+      description
+        "To dp - VN, IETF Network Slice, SFC etc";
+    }
+  }
+
+  /* Configuration data nodes */
+
+  container traffic-map {
+    description
+      "AP configurations";
+    list maps {
+      key "id";
+      description
+        "traffic map identifier";
+      leaf id {
+        type string;
+        description
+          "The identifier for Traffic Maps";
+      }
+      container traffic {
+        description
+          "The traffic description";
+        uses traffic-description;
+      }
+      container action {
+        description
+          "The action is limited to identifying the TE resource";
+        uses te-ref;
+      }
+      container stats {
+        config false;
+        description
+          "Statistics";
+        leaf matched-packets {
+          type yang:counter64;
+          description
+            "The number of packets that matched the traffic
+             description";
+        }
+        leaf matched-octets {
+          type yang:counter64;
+          description
+            "The number of octets (byte) that matched the traffic
+             description";
+        }
+      }
+    }
+  }
+}

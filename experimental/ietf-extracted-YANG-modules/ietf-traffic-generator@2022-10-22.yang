@@ -1,0 +1,344 @@
+module ietf-traffic-generator {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-traffic-generator";
+  prefix nttg;
+
+  import ietf-interfaces {
+    prefix if;
+    reference
+      "RFC 8343: A YANG Data Model For Interface Management";
+  }
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+
+  organization
+    "IETF Benchmarking Methodology Working Group";
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/bmwg/>
+     WG List:  <mailto:bmwg@ietf.org>
+
+     Editor:   Vladimir Vassilev
+               <mailto:vladimir@lightside-instruments.com>";
+  description
+    "This module contains a collection of YANG definitions for
+     description and management of network interconnect testers.
+
+     Copyright (c) 2022 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX; see
+     the RFC itself for full legal notices.";
+
+  revision 2022-10-22 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX: A YANG Data Model for
+       Network Tester Management";
+  }
+
+  feature egress-direction {
+    description
+      "The device can generate traffic in the egress direction.";
+  }
+
+  feature ingress-direction {
+    description
+      "The device can generate traffic in the ingress direction.";
+  }
+
+  feature multi-stream {
+    description
+      "The device can generate multi-stream traffic.";
+  }
+
+  feature realtime-epoch {
+    description
+      "The device can generate traffic precisely
+       at configured realtime epoch.";
+  }
+
+  identity testframe-type {
+    description
+      "Base identity for all testframe types.";
+  }
+
+  identity static {
+    base testframe-type;
+    description
+      "Identity for static testframe.
+       The frame data and size are constant.";
+  }
+
+  identity dynamic {
+    base testframe-type;
+    description
+      "Identity to be used as base for dynamic
+       testframe type identities defined
+       in external modules.
+
+       When used itself it identifies dynamic testframe
+       where the last 18 octets of the payload contain
+       incrementing sequence number field (8 octets)
+       followed by timestamp field in the
+       IEEE 1588-2008 format (10 octets). If frame data is defined
+       for the last 18 octets of the payload it will be ignored
+       and overwritten with dynamic data according to this
+       specification.";
+  }
+
+  identity modifier-action-type {
+    description
+      "Base identity for all modifier action types.";
+  }
+
+  identity increment {
+    base modifier-action-type;
+    description
+      "Identity for increment modifier action.";
+  }
+
+  identity decrement {
+    base modifier-action-type;
+    description
+      "Identity for decrement modifier action.";
+  }
+
+  identity random {
+    base modifier-action-type;
+    description
+      "Identity for random modifier action.";
+  }
+
+  grouping common-data {
+    description
+      "Common configuration data.";
+    leaf realtime-epoch {
+      if-feature "realtime-epoch";
+      type yang:date-and-time;
+      description
+        "If this leaf is present the stream generation will start
+         at the specified realtime epoch.";
+    }
+    leaf total-frames {
+      type uint64;
+      description
+        "If this leaf is present the traffic generation will stop
+         after the specified number of frames are generated.";
+    }
+  }
+
+  grouping burst-data {
+    description
+      "Generated traffic burst parameters.";
+    leaf testframe-type {
+      type identityref {
+        base nttg:testframe-type;
+      }
+      default "nttg:static";
+      description
+        "In case of dynamic testframes this leaf specifies
+         the dynamic testframe identity.";
+    }
+    leaf frame-size {
+      type uint32;
+      mandatory true;
+      description
+        "Size of the frames generated. For example for
+         Ethernet interfaces the following definition
+         applies:
+
+         Ethernet frame-size in octets includes:
+         * Destination Address (6 octets),
+         * Source Address (6 octets),
+         * Frame Type (2 octets),
+         * Data (min 46 octets or 42 octets + 4 octets 802.1Q tag),
+         * CRC Checksum (4 octets).
+
+         Ethernet frame-size does not include:
+         * Preamble (dependent on MAC configuration
+                    by default 7 octets),
+         * Start of frame delimiter (1 octet)
+
+         Minimum standard Ethernet frame-size is 64 bytes but
+         generators might support smaller sizes for validation.";
+    }
+    leaf frame-data {
+      type string {
+        pattern '([0-9A-F]{2})*';
+      }
+      must 'string-length(.)<=(../frame-size*2)';
+      description
+        "The raw  frame data specified as hexadecimal string.
+         The specified data can be shorter then the ../frame-size
+         value specifying only the header or the header and the
+         payload with or without the 4 byte CRC Checksum
+         in the case of a Ethernet frame.";
+    }
+    leaf interframe-gap {
+      type uint32;
+      mandatory true;
+      description
+        "Length of the idle period between generated frames.
+         For example for Ethernet interfaces the following
+         definition applies:
+
+         Ethernet interframe-gap between transmission of frames
+         known as the interframe gap (IFG). A brief recovery time
+         between frames allows devices to prepare for
+         reception of the next frame. The minimum
+         interframe gap is 96 bit times (12 octet times) (the time it
+         takes to transmit 96 bits (12 octets) of raw data on the
+         medium). However the preamble (7 octets) and start of
+         frame delimiter (1 octet) are considered a constant gap that
+         should be included in the interframe-gap. Thus the minimum
+         value for standard Ethernet transmission should be considered
+         20 octets.";
+    }
+    leaf interburst-gap {
+      type uint32;
+      description
+        "Similar to the interframe-gap but takes place between
+         any two bursts of the stream.";
+    }
+    leaf frames-per-burst {
+      type uint32;
+      description
+        "Number of frames contained in a burst";
+    }
+  }
+
+  grouping modifier-data {
+    description
+      "Modifier parameters.";
+    container modifiers {
+      description
+        "Container holding the configured modifiers list.";
+      list modifier {
+        key "id";
+        description
+          "Each modifier specifies action to be performed
+           on data at certain offset.";
+        leaf id {
+          type uint32;
+          description
+            "Number specifying the identifier of the modifier.";
+        }
+        leaf action {
+          type identityref {
+            base nttg:modifier-action-type;
+          }
+          mandatory true;
+          description
+            "In case of dynamic testframes this leaf specifies
+             the dynamic testframe identity.";
+        }
+        leaf offset {
+          type uint32;
+          mandatory true;
+          description
+            "Offset in octets of the modified data of the frame.";
+        }
+        leaf mask {
+          type string {
+            pattern '([0-9A-F]{2})*';
+          }
+          mandatory true;
+          description
+            "Bit mask of the actual bits affected by the modifier.";
+        }
+        leaf repetitions {
+          type uint32;
+          mandatory true;
+          description
+            "Count of the packets that will repeat the data before
+             the modifier makes the next update.";
+        }
+      }
+    }
+  }
+
+  grouping multi-stream-data {
+    description
+      "Multi stream traffic generation parameters.";
+    container streams {
+      description
+        "Non-presence container holding the configured stream list.";
+      list stream {
+        key "id";
+        description
+          "Each stream repeats a burst until frames-per-stream
+           count is reached followed by interstream-gap delay.";
+        leaf id {
+          type uint32;
+          description
+            "Number specifying the order of the stream.";
+        }
+        uses burst-data;
+        leaf frames-per-stream {
+          type uint32;
+          mandatory true;
+          description
+            "The count of frames to be generated before
+             generation of the next stream is started.";
+        }
+        leaf interstream-gap {
+          type uint32;
+          mandatory true;
+          description
+            "Idle period after the last frame of the last burst.";
+        }
+        uses modifier-data;
+      }
+    }
+  }
+  augment "/if:interfaces/if:interface" {
+    description
+      "Traffic generator augmentations of ietf-interfaces.";
+    container traffic-generator {
+      if-feature "egress-direction";
+      description
+        "Traffic generator for egress direction.";
+      choice type {
+        description
+          "Choice of the type of the data model of the generator.
+           Single or multi stream.";
+        case single-stream {
+          uses burst-data;
+          uses modifier-data;
+        }
+        case multi-stream {
+          uses multi-stream-data;
+        }
+      }
+      uses common-data;
+    }
+    container traffic-generator-ingress {
+      if-feature "ingress-direction";
+      description
+        "Traffic generator for ingress direction.";
+      choice type {
+        description
+          "Choice of the type of the data model of the generator.
+           Single or multi stream.";
+        case single-stream {
+          uses burst-data;
+        }
+        case multi-stream {
+          uses multi-stream-data;
+        }
+      }
+      uses common-data;
+    }
+  }
+}
