@@ -63,14 +63,15 @@ module ietf-service-assurance {
   identity service-instance-type {
     base subservice-base;
     description
-      "Identity representing a service instance.";
+      "Specific type of subservice that represents a service
+       instance. Instance of this type will depend on other subservices
+       to build the top of the assurance graph.";
   }
 
   identity dependency-type {
     description
       "Base identity for representing dependency types.";
   }
-
   identity informational {
     base dependency-type;
     description
@@ -86,51 +87,11 @@ module ietf-service-assurance {
        status of the dependent.";
   }
 
-  grouping symptom {
-    description
-      "A grouping for the symptoms for a specific subservice.";
-    leaf symptom-id {
-      type leafref {
-        path "/agents/agent[id=current()/../agent-id]/symptoms/id";
-      }
-      description
-        "Identifier of the symptom, to be interpreted according
-         to the agent identified by the agent-id.";
-    }
-    leaf agent-id {
-      type leafref {
-        path "/agents/agent/id";
-      }
-      description
-        "Identifier of the agent raising the current symptom.";
-    }
-    leaf health-score-weight {
-      type uint8 {
-        range "0 .. 100";
-      }
-      description
-        "The weight to the health score incurred by this symptom. The
-         higher the value, the more of an impact this symptom has. If a
-         subservice health score is not 100, there must be at least one
-         symptom with a health score weight larger than 0.";
-    }
-    leaf start-date-time {
-      type yang:date-and-time;
-      description
-        "Date and time at which the symptom was detected.";
-    }
-    leaf stop-date-time {
-      type yang:date-and-time;
-      description
-        "Date and time at which the symptom stopped being detected.
-         must after the start-date-time.";
-    }
-  }
-
   grouping subservice-reference {
     description
       "Reference to a specific subservice, identified by its type and
-       identifier";
+       identifier. This grouping is only for internal use in this
+       module.";
     leaf type {
       type leafref {
         path "/subservices/subservice/type";
@@ -149,7 +110,8 @@ module ietf-service-assurance {
 
   grouping subservice-dependency {
     description
-      "Represents a dependency to another subservice.";
+      "Represents a dependency to another subservice. This grouping
+       is only for internal use in this module";
     uses subservice-reference;
     leaf dependency-type {
       type identityref {
@@ -184,7 +146,9 @@ module ietf-service-assurance {
           base subservice-base;
         }
         description
-          "Type of the subservice, for instance, device or interface.";
+          "Type of the subservice, identifying the type of the part
+           or functionality that is being assured by this list entry.
+           For instance 'interface', 'device', 'ip-connectivity'.";
       }
       leaf id {
         type string;
@@ -261,26 +225,16 @@ module ietf-service-assurance {
         // Other modules can augment their own cases into here
       }
       leaf health-score {
-        type union {
-          type uint8 {
-            range "0 .. 100";
-          }
-          type enumeration {
-            enum missing {
-              value -1;
-              description
-                "Explictly represent the fact that the health score is
-                 missing. This could be used when metrics crucial to
-                 establish the health score are not collected anymore.";
-            }
-          }
+        type int8 {
+          range "-1 .. 100";
         }
         config false;
         description
           "Score value of the subservice health. A value of 100 means
            that subservice is healthy. A value of 0 means that the
            subservice is broken. A value between 0 and 100 means that
-           the subservice is degraded.";
+           the subservice is degraded. A value of -1 means that the
+           health-score is not available.";
       }
       leaf symptoms-history-start {
         type yang:date-and-time;
@@ -302,7 +256,45 @@ module ietf-service-assurance {
             "List of symptoms the subservice. While the start-date-time
              key is not necessary per se, this would get the entries
              sorted by start-date-time for easy consumption.";
-          uses symptom;
+          leaf symptom-id {
+            type leafref {
+              path "/agents/agent[id=current()/../agent-id]"
+                 + "/symptoms/id";
+            }
+            description
+              "Identifier of the symptom, to be interpreted according
+               to the agent identified by the agent-id.";
+          }
+          leaf agent-id {
+            type leafref {
+              path "/agents/agent/id";
+            }
+            description
+              "Identifier of the agent raising the current symptom.";
+          }
+          leaf health-score-weight {
+            type uint8 {
+              range "0 .. 100";
+            }
+            description
+              "The weight to the health score incurred by this symptom.
+               The higher the value, the more of an impact this symptom
+               has. If a subservice health score is not 100, there must
+               be at least one symptom with a health score weight
+               larger than 0.";
+          }
+          leaf start-date-time {
+            type yang:date-and-time;
+            description
+              "Date and time at which the symptom was detected.";
+          }
+          leaf stop-date-time {
+            type yang:date-and-time;
+            description
+              "Date and time at which the symptom stopped being
+               detected. must be after the start-date-time. If the
+               symptom is ongoing, this field should not be populated.";
+          }
         }
       }
       container dependencies {
@@ -369,8 +361,8 @@ module ietf-service-assurance {
     list assured-service {
       key "service";
       description
-        "Types of service that are currently part of the assurance
-         graph. The list must contain an entry for every service type
+        "Service instances that are currently part of the assurance
+         graph. The list must contain an entry for every service
          that is currently present in the assurance graph. This list
          presents an alternate access to the graph stored in
          /subservices that optimizes querying the assurance graph of a
@@ -381,12 +373,12 @@ module ietf-service-assurance {
              + "service";
         }
         description
-          "Name of the service type.";
+          "Name of the service.";
       }
       list instances {
         key "name";
         description
-          "Instances of the parent service type. The list must contain
+          "Instances of the service. The list must contain
            an entry for every instance of the parent service.";
         leaf name {
           type leafref {
@@ -408,6 +400,7 @@ module ietf-service-assurance {
              The list must contain the subservice corresponding to the
              service instance, that is the subservice that matches the
              service and instance-name keys.
+
              For every subservice in the list, all subservices listed as
              dependencies must also appear in the list.";
           uses subservice-reference;
