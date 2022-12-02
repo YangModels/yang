@@ -1,0 +1,511 @@
+module ietf-acl-enh {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-acl-enh";
+  prefix enh-acl;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-access-control-list {
+    prefix ietf-acl;
+    reference
+      "RFC 8519: YANG Data Model for Network Access
+                 Control Lists (ACLs), Section 4.1";
+  }
+  import ietf-packet-fields {
+    prefix packet-fields;
+    reference
+      "RFC 8519: YANG Data Model for Network Access
+                 Control Lists (ACLs), Section 4.2";
+  }
+
+  organization
+    "IETF NETMOD Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/netmod/>
+     WG List:  <mailto:netmod@ietf.org>
+
+     Author:    Mohamed Boucadair
+               <mailto:mohamed.boucadair@orange.com>
+     Author:    Samier Barguil
+               <mailto:samier.barguilgiraldo.ext@telefonica.com>
+     Author:    Oscar Gonzalez de Dios
+               <mailto:oscar.gonzalezdedios@telefonica.com>";
+  description
+    "This module contains YANG definitions for enhanced ACLs.
+
+     Copyright (c) 2022 IETF Trust and the persons identified as
+     authors of the code. All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Revised BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (http://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX; see
+     the RFC itself for full legal notices.";
+
+  revision 2022-10-24 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX: Extensions to the Access Control Lists (ACLs)
+                 YANG Model";
+  }
+
+  feature match-on-payload {
+    description
+      "Match based on a pattern is supported.";
+  }
+
+  identity offset-type {
+    description
+      "Base identity for payload offset type.";
+  }
+
+  identity layer3 {
+    base offset-type;
+    description
+      "IP header.";
+  }
+
+  identity layer4 {
+    base offset-type;
+    description
+      "Transport header (e.g., TCP or UDP).";
+  }
+
+  identity payload {
+    base offset-type;
+    description
+      "Transport payload. For example, this represents the beginning
+       of the TCP data right after any TCP options.";
+  }
+
+  typedef operator {
+    type bits {
+      bit not {
+        position 0;
+        description
+          "If set, logical negation of operation.";
+      }
+      bit match {
+        position 1;
+        description
+          "Match bit.  This is a bitwise match operation
+           defined as '(data & value) == value'.";
+      }
+      bit any {
+        position 2;
+        description
+          "Any bit.  This is a match on any of the bits in
+           bitmask.  It evaluates to 'true' if any of the bits
+           in the value mask are set in the data,
+           i.e., '(data & value) != 0'.";
+       }
+     }
+     description
+       "Specifies how to apply the defined bitmask.
+       'any' and 'match' bits must not be set simultaneously.";
+  }
+
+  typedef fragment-type {
+    type bits {
+      bit df {
+        position 0;
+        description
+          "Don't fragment bit for IPv4.
+           Must be set to 0 when it appears in an IPv6 filter.";
+      }
+      bit isf {
+        position 1;
+        description
+          "Is a fragment.";
+      }
+      bit ff {
+        position 2;
+        description
+          "First fragment.";
+      }
+      bit lf {
+        position 3;
+        description
+          "Last fragment.";
+      }
+    }
+    description
+      "Different fragment types to match against.";
+  }
+
+  grouping tcp-flags {
+    description
+      "Operations on TCP flags.";
+    leaf operator {
+      type operator;
+      default "match";
+      description
+        "How to interpret the TCP flags.";
+    }
+    leaf bitmask {
+      type uint16;
+      description
+        "The bitmask matches the last 4 bits of byte 12
+        and byte 13 of the TCP header.  For clarity, the 4 bits
+        of byte 12 corresponding to the TCP data offset field
+        are not included in any matching.";
+    }
+  }
+
+  grouping fragment-fields {
+    description
+      "Operations on fragment types.";
+    leaf operator {
+      type operator;
+      default "match";
+      description
+        "How to interpret the fragment type.";
+    }
+    leaf type {
+      type fragment-type;
+      description
+        "What fragment type to look for.";
+    }
+  }
+
+  grouping payload {
+    description
+      "Operations on payload match.";
+    leaf offset {
+      type identityref {
+        base offset-type;
+      }
+      description
+        "Indicates the payload offset.";
+    }
+    leaf offset-end {
+      type uint64;
+      description
+        "Indicates the number of bytes to cover when
+         performing the prefix match.";
+    }
+    leaf operator {
+      type operator;
+      default "match";
+      description
+        "How to interpret the prefix match.";
+    }
+    leaf prefix {
+      type binary;
+      description
+        "The pattern to match against.";
+    }
+  }
+
+  augment "/ietf-acl:acls/ietf-acl:acl" {
+    description
+      "add a new container to store sets (prefix
+       sets, port sets, etc";
+    container defined-sets {
+      description
+        "Predefined sets of attributes used in policy match
+         statements.";
+      container ipv4-prefix-sets {
+        description
+          "Data definitions for a list of IPv4 or IPv6
+           prefixes which are matched as part of a policy.";
+        list prefix-set {
+          key "name";
+          description
+            "List of the defined prefix sets.";
+          leaf name {
+            type string;
+            description
+              "Name of the prefix set -- this is used as a label to
+               reference the set in match conditions.";
+          }
+          leaf description {
+            type string;
+            description
+              "Defined Set description.";
+          }
+          leaf-list prefix {
+            type inet:ipv4-prefix;
+            description
+              "List of IPv4 prefixes to be used in match
+               conditions.";
+          }
+        }
+      }
+      container ipv6-prefix-sets {
+        description
+          "Data definitions for a list of IPv6 prefixes
+           which are matched as part of a policy.";
+        list prefix-set {
+          key "name";
+          description
+            "List of the defined prefix sets.";
+          leaf name {
+            type string;
+            description
+              "Name of the prefix set -- this is used as a label to
+               reference the set in match conditions.";
+          }
+          leaf description {
+            type string;
+            description
+              "A textual description of the prefix list.";
+          }
+          leaf-list prefix {
+            type inet:ipv6-prefix;
+            description
+              "List of IPv6 prefixes to be used in match
+               conditions.";
+          }
+        }
+      }
+      container port-sets {
+        description
+          "Data definitions for a list of ports which can
+           be matched in policies.";
+        list port-set {
+          key "name";
+          description
+            "List of port set definitions.";
+          leaf name {
+            type string;
+            description
+              "Name of the port set -- this is used as a label to
+               reference the set in match conditions.";
+          }
+          list port {
+            key "id";
+            description
+              "Port numbers along with the operator on which to
+               match.";
+            leaf id {
+              type string;
+              description
+                "Identifier of the list of port numbers.";
+            }
+            choice port {
+              description
+                "Choice of specifying the port number or referring
+                 to a group of port numbers.";
+              container port-range-or-operator {
+                description
+                  "Indicates a set of ports.";
+                uses packet-fields:port-range-or-operator;
+              }
+            }
+          }
+        }
+      }
+      container protocol-sets {
+        description
+          "Data definitions for a list of protocols which can
+           be matched in policies.";
+        list protocol-set {
+          key "name";
+          description
+            "List of protocol set definitions.";
+          leaf name {
+            type string;
+            description
+              "Name of the protocols set -- this is used as a label to
+               reference the set in match conditions.";
+          }
+          leaf-list protocol {
+            type union {
+              type uint8;
+              type string; //Check if we can reuse an IANA-maintained module
+            }
+            description
+              "Value of the protocl set.";
+          }
+        }
+      }
+      container icmp-type-sets {
+        description
+          "Data definitions for a list of ICMP types which can
+           be matched in policies.";
+        list icmp-type-set {
+          key "name";
+          description
+            "List of ICMP type set definitions.";
+          leaf name {
+            type string;
+            description
+              "Name of the ICMP type set -- this is used as a label to
+               reference the set in match conditions.";
+          }
+          list types {
+            key "type";
+            description
+              "Includes a list of ICMP types.";
+            uses packet-fields:acl-icmp-header-fields;
+          }
+        }
+      }
+    }
+  }
+
+  augment "/ietf-acl:acls/ietf-acl:acl/ietf-acl:aces"
+        + "/ietf-acl:ace/ietf-acl:matches" {
+    description
+      "Add a new match types.";
+    choice payload {
+      description
+        "Match a prefix pattern.";
+      container prefix-pattern {
+        if-feature "match-on-payload";
+        description
+          "Rule to perform payload-based match.";
+        uses payload;
+      }
+    }
+  }
+
+  augment "/ietf-acl:acls/ietf-acl:acl/ietf-acl:aces"
+        + "/ietf-acl:ace/ietf-acl:matches/ietf-acl:l3/ietf-acl:ipv4" {
+    description
+      "Handle non-initial and initial fragments for IPv4 packets.";
+    container ipv4-fragment {
+      description
+        "Indicates how to handle IPv4 fragments.";
+      uses fragment-fields;
+    }
+    leaf source-ipv4-prefix-list {
+      type leafref {
+        path "../../../../defined-sets/ipv4-prefix-sets/prefix-set/name";
+      }
+      description
+        "A reference to a prefix list to match the source address.";
+    }
+    leaf destination-ipv4-prefix-list {
+      type leafref {
+        path "../../../../defined-sets/ipv4-prefix-sets/prefix-set/name";
+      }
+      description
+        "A reference to a prefix list to match the destination address.";
+    }
+    leaf next-header-set {
+      type leafref {
+        path "../../../../defined-sets/protocol-sets/protocol-set/name";
+      }
+      description
+        "A reference to a protocol set to match the next-header field.";
+    }
+  }
+
+  augment "/ietf-acl:acls/ietf-acl:acl/ietf-acl:aces"
+        + "/ietf-acl:ace/ietf-acl:matches/ietf-acl:l3/ietf-acl:ipv6" {
+    description
+      "Handles non-initial and initial fragments for IPv6 packets.";
+    container ipv6-fragment {
+      description
+        "Indicates how to handle IPv6 fragments.";
+      uses fragment-fields;
+    }
+    leaf source-ipv6-prefix-list {
+      type leafref {
+        path "../../../../defined-sets/ipv6-prefix-sets/prefix-set/name";
+      }
+      description
+        "A reference to a prefix list to match the source address.";
+    }
+    leaf destination-ipv6-prefix-list {
+      type leafref {
+        path "../../../../defined-sets/ipv6-prefix-sets/prefix-set/name";
+      }
+      description
+        "A reference to a prefix list to match the destination address.";
+    }
+    leaf protocol-set {
+      type leafref {
+        path "../../../../defined-sets/protocol-sets/protocol-set/name";
+      }
+      description
+        "A reference to a protocol set to match the protocol field.";
+    }
+  }
+
+  augment "/ietf-acl:acls/ietf-acl:acl/ietf-acl:aces"
+        + "/ietf-acl:ace/ietf-acl:matches/ietf-acl:l4/ietf-acl:tcp" {
+    description
+      "Handles TCP flags and port sets.";
+    container flags-bitmask {
+      description
+        "Indicates how to handle TCP flags.";
+      uses tcp-flags;
+    }
+    leaf source-tcp-port-set {
+      type leafref {
+        path "../../../../defined-sets/port-sets/port-set/name";
+      }
+      description
+        "A reference to a port set to match the source port.";
+    }
+    leaf destination-tcp-port-set {
+      type leafref {
+        path "../../../../defined-sets/port-sets/port-set/name";
+      }
+      description
+        "A reference to a port set to match the destination port.";
+    }
+  }
+
+  augment "/ietf-acl:acls/ietf-acl:acl/ietf-acl:aces"
+        + "/ietf-acl:ace/ietf-acl:matches/ietf-acl:l4/ietf-acl:udp" {
+    description
+      "Handle UDP port sets.";
+    leaf source-udp-port-set {
+      type leafref {
+        path "../../../../defined-sets/port-sets/port-set/name";
+      }
+      description
+        "A reference to a port set to match the source port.";
+    }
+    leaf destination-udp-port-set {
+      type leafref {
+        path "../../../../defined-sets/port-sets/port-set/name";
+      }
+      description
+        "A reference to a port set to match the destination port.";
+    }
+  }
+
+  augment "/ietf-acl:acls/ietf-acl:acl/ietf-acl:aces"
+        + "/ietf-acl:ace/ietf-acl:matches/ietf-acl:l4/ietf-acl:icmp" {
+    description
+      "Handle ICMP type sets.";
+    leaf icmp-set {
+      type leafref {
+        path "../../../../defined-sets/icmp-type-sets/icmp-type-set/name";
+      }
+      description
+        "A reference to an ICMP type set to match the ICMP type field.";
+    }
+  }
+
+  augment "/ietf-acl:acls/ietf-acl:acl/ietf-acl:aces"
+        + "/ietf-acl:ace/ietf-acl:actions" {
+    description
+      "Rate-limit action.";
+    leaf rate-limit {
+      when "../ietf-acl:forwarding = 'ietf-acl:accept'" {
+        description
+          "Rate-limit valid only when accept action is used.";
+      }
+      type decimal64 {
+        fraction-digits 2;
+      }
+      units "bytes per second";
+      description
+        "Indicates a rate-limit for the matched traffic.";
+    }
+  }
+}
