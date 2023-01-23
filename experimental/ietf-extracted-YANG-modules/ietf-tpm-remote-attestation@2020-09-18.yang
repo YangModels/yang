@@ -1,0 +1,1317 @@
+module ietf-tpm-remote-attestation {
+  namespace "urn:ietf:params:xml:ns:yang:ietf-tpm-remote-attestation";
+  prefix "tpm";
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ietf-hardware {
+    prefix ietfhw;
+  }
+  import ietf-keystore {
+    prefix ks;
+  }
+  import ietf-tcg-algs {
+    prefix taa;
+  }
+
+  organization
+   "IETF RATS (Remote ATtestation procedureS) Working Group";
+
+  contact
+   "WG Web  : <http://datatracker.ietf.org/wg/rats/>
+    WG List : <mailto:rats@ietf.org>
+    Author  : Eric Voit <evoit@cisco.com>
+    Author  : Henk Birkholz <henk.birkholz@sit.fraunhofer.de>
+    Author  : Michael Eckel <michael.eckel@sit.fraunhofer.de>
+    Author  : Shwetha Bhandari <shwethab@cisco.com>
+    Author  : Bill Sulzen <bsulzen@cisco.com>
+    Author  : Liang Xia (Frank) <frank.xialiang@huawei.com>
+    Author  : Tom Laffey <tom.laffey@hpe.com>
+    Author  : Guy Fedorkow <gfedorkow@juniper.net>";
+
+  description
+    "A YANG module to enable a TPM 1.2 and TPM 2.0 based
+     remote attestation procedure using a challenge-response
+     interaction model and the TPM 1.2 and TPM 2.0 Quote
+     primitive operations.
+
+     Copyright (c) 2020 IETF Trust and the persons identified
+     as authors of the code. All rights reserved.
+
+     Redistribution and use in source and binary forms, with
+     or without modification, is permitted pursuant to, and
+     subject to the license terms contained in, the Simplified
+     BSD License set forth in Section 4.c of the IETF Trust's
+     Legal Provisions Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Simplified BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC
+     itself for full legal notices.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this document
+     are to be interpreted as described in BCP 14 (RFC 2119)
+     (RFC 8174) when, and only when, they appear in all
+     capitals, as shown here.";
+
+  revision "2020-09-18" {
+    description
+      "Initial version";
+    reference
+      "draft-ietf-rats-yang-tpm-charra";
+  }
+
+  /*****************/
+  /*   Typedefs    */
+  /*****************/
+
+  typedef pcr {
+    type uint8 {
+      range "0..31";
+    }
+    description
+      "Valid index number for a PCR.  At this point 0-31 is viable.";
+  }
+
+  typedef compute-node-ref {
+    type leafref {
+      path "/tpm:rats-support-structures/tpm:compute-nodes" +
+           "/tpm:compute-node/tpm:node-name";
+    }
+    description
+      "This type is used to reference a hardware node.  It is quite
+      possible this leafref will eventually point to another YANG
+      module's node.";
+  }
+
+  typedef certificate-name-ref {
+    type leafref {
+      path "/tpm:rats-support-structures/tpm:tpms/tpm:tpm" +
+           "/tpm:certificates/tpm:certificate/tpm:certificate-name";
+    }
+    description
+      "A type which allows identification of a TPM based certificate.";
+  }
+
+  /******************/
+  /*   Identities   */
+  /******************/
+
+  identity attested_event_log_type {
+    description
+      "Base identity allowing categorization of the reasons why and
+      attested measurement has been taken on an Attester.";
+  }
+
+  identity ima {
+    base attested_event_log_type;
+    description
+      "An event type recorded in IMA.";
+  }
+
+  identity bios {
+    base attested_event_log_type;
+    description
+      "An event type associated with BIOS/UEFI.";
+  }
+
+  identity netequip_boot {
+    base attested_event_log_type;
+    description
+      "An event type associated with Network Equipment Boot.";
+  }
+
+  /*****************/
+  /*   Groupings   */
+  /*****************/
+
+  grouping TPM20-asymmetric-signing-algo {
+    description
+      "The signature scheme that is used to sign the TPM2 Quote
+      information response.";
+    leaf TPM20-asymmetric-signing-algo {
+      must "/tpm:rats-support-structures/tpm:attester-supported-algos"
+         + "/tpm:tpm20-asymmetric-signing" {
+         error-message "Not a platform supported " +
+                       "TPM20-asymmetric-signing-algo";
+      }
+      type identityref {
+        base taa:asymmetric;
+      }
+      description
+        "The signature scheme that is used to sign the TPM2.0
+         Quote information response. This must be one of those
+         supported by a platform.";
+    default taa:TPM_ALG_RSA;
+    }
+  }
+  grouping TPM12-asymmetric-signing-algo {
+    description
+      "The signature scheme that is used to sign the TPM12 Quote
+      information response.";
+    leaf TPM12-asymmetric-signing-algo {
+      must "/tpm:rats-support-structures/tpm:attester-supported-algos"
+         + "/tpm:tpm12-asymmetric-signing" {
+         error-message "Not a platform supported " +
+                       "TPM12-asymmetric-signing-algo";
+      }
+      type identityref {
+        base taa:asymmetric;
+      }
+      description
+        "The signature scheme that is used to sign the TPM1.2
+         Quote information response. This must be one of those
+         supported by a platform.";
+    default taa:TPM_ALG_RSA;
+    }
+  }
+
+  grouping TPM20-hash-algo {
+    description
+      "The cryptographic algorithm used to hash the TPM2 PCRs.  This
+      must be from the list of platform supported options.";
+    leaf TPM20-hash-algo {
+      must "/tpm:rats-support-structures/tpm:attester-supported-algos"
+         + "/tpm:tpm20-hash" {
+         error-message "Not a platform supported TPM20-hash-algo";
+      }
+      type identityref {
+        base taa:hash;
+      }
+      description
+        "The hash scheme that is used to hash a TPM1.2 PCR. This
+        must be one of those supported by a platform.";
+    default taa:TPM_ALG_SHA256;
+    }
+  }
+
+  grouping TPM12-hash-algo {
+    description
+      "The cryptographic algorithm used to hash the TPM1.2 PCRs.";
+    leaf TPM12-hash-algo {
+      must "/tpm:rats-support-structures/tpm:attester-supported-algos"
+         + "/tpm:tpm12-hash" {
+         error-message "Not a platform supported TPM12-hash-algo";
+      }
+      type identityref {
+        base taa:hash;
+      }
+      description
+        "The hash scheme that is used to hash a TPM1.2 PCR. This
+        must be one of those supported by a platform.  This assumes
+        that an algorithm other than SHA1 can be supported on some
+        TPM1.2 cryptoprocessor variant.";
+      default taa:TPM_ALG_SHA1;
+    }
+  }
+
+  grouping nonce {
+    description
+      "A nonce to show freshness and to allow the detection
+      of replay attacks.";
+    leaf nonce-value {
+      type binary;
+      mandatory true;
+      description
+        "This nonce SHOULD be generated via a registered
+         cryptographic-strength algorithm. In consequence,
+         the length of the nonce depends on the hash algorithm
+         used. The algorithm used in this case is independent
+         from the hash algorithm used to create the hash-value
+         in the response of the attestor.";
+    }
+  }
+
+  grouping tpm12-pcr-selection {
+    description
+      "A Verifier can request one or more PCR values using its
+       individually created Attestation Key Certificate (AC).
+       The corresponding selection filter is represented in this
+       grouping.
+       Requesting a PCR value that is not in scope of the AC used,
+       detailed exposure via error msg should be avoided.";
+    leaf-list pcr-index {
+      /*  the following XPATH must be updated to ensure that only
+            selectable PCRs are allowed in the RPC
+      must "/tpm:rats-support-structures/tpm:tpms" +
+           "/tpm:tpm[tpm-name = current()]" +
+           "/tpm:tpm[TPM12-pcrs = current()]" {
+        error-message "Acquiring this PCR index is not supported";
+      }
+      */
+      type pcr;
+      description
+        "The numbers/indexes of the PCRs. At the moment this is limited
+        to 32.";
+    }
+  }
+
+  grouping tpm20-pcr-selection {
+    description
+      "A Verifier can acquire one or more PCR values, which are hashed
+       together in a TPM2B_DIGEST coming from the TPM2.  The selection
+       list of desired PCRs and the Hash Algorithm is represented in
+       this grouping.";
+    list tpm20-pcr-selection {
+      unique "TPM20-hash-algo";
+      description
+        "Specifies the list of PCRs and Hash Algorithms that can be
+        returned within a TPM2B_DIGEST.";
+      reference
+        "https://www.trustedcomputinggroup.org/wp-content/uploads/
+         TPM-Rev-2.0-Part-2-Structures-01.38.pdf  Section 10.9.7";
+      uses TPM20-hash-algo;
+      leaf-list pcr-index {
+        /*  the following XPATH must be updated to ensure that only
+            selectable PCRs are allowed in the RPC
+        must "/tpm:rats-support-structures/tpm:tpms" +
+             "/tpm:tpm[tpm-name = current()]" +
+             "/tpm:tpm20-pcr-bank[pcr-index = current()]" {
+          error-message "Acquiring this PCR index is not supported";
+        }
+        */
+        type tpm:pcr;
+        description
+          "The numbers of the PCRs that which are being tracked
+          with a hash based on the TPM20-hash-algo.";
+      }
+    }
+  }
+
+  grouping certificate-name-ref {
+    description
+      "Identifies a certificate in a keystore.";
+    leaf certificate-name {
+      type certificate-name-ref;
+        description
+          "Identifies a certificate in a keystore.";
+    }
+  }
+
+  grouping tpm-name {
+    description
+      "A unique TPM on a device.";
+    leaf tpm-name {
+      type string;
+      description
+        "Unique system generated name for a TPM on a device.";
+    }
+  }
+
+  grouping tpm-name-selector {
+    description
+      "One or more TPM on a device.";
+    leaf-list tpm-name {
+      type string;
+      config false;
+      description
+        "Name of one or more unique TPMs on a device.  If this object
+        exists, a selection should pull only the objects related to
+        these TPM(s).  If it does not exist, all qualifying TPMs that
+        are 'hardware-based' equals true on the device are selected.";
+    }
+  }
+
+  grouping compute-node-identifier {
+    description
+      "In a distributed system with multiple compute nodes
+       this is the node identified by name and physical-index.";
+    leaf node-id {
+       type string;
+       description
+         "ID of the compute node, such as Board Serial Number.";
+    }
+    leaf node-physical-index {
+      if-feature ietfhw:entity-mib;
+      type int32 {
+        range "1..2147483647";
+      }
+      config false;
+       description
+         "The entPhysicalIndex for the compute node.";
+       reference
+         "RFC 6933: Entity MIB (Version 4) - entPhysicalIndex";
+    }
+  }
+
+  grouping tpm12-pcr-info-short {
+    description
+      "This structure is for defining a digest at release when the only
+       information that is necessary is the release configuration.";
+    uses tpm12-pcr-selection;
+    leaf locality-at-release {
+      type uint8;
+      description
+        "This SHALL be the locality modifier required to release the
+         information (TPM 1.2 type TPM_LOCALITY_SELECTION)";
+      reference
+        "TPM Main Part 2 TPM Structures v1.2 July 2007
+        Section 8.6";
+    }
+    leaf digest-at-release {
+      type binary;
+      description
+        "This SHALL be the digest of the PCR indices and PCR values
+         to verify when revealing auth data (TPM 1.2 type
+         TPM_COMPOSITE_HASH).";
+      reference
+        "TPM Main Part 2 TPM Structures v1.2 July 2007
+        Section 5.4.1.";
+    }
+  }
+
+  grouping tpm12-version {
+    description
+      "This structure provides information relative the version of
+      the TPM.";
+    list version {
+      description
+        "This indicates the version of the structure
+         (TPM 1.2 type TPM_STRUCT_VER). This MUST be 1.1.0.0.";
+      reference
+        "TPM Main Part 2 TPM Structures v1.2 July 2007
+        Section 5.1.";
+      leaf major {
+        type uint8;
+        description
+          "Indicates the major version of the structure.
+           MUST be 0x01.";
+      }
+      leaf minor {
+        type uint8;
+        description
+          "Indicates the minor version of the structure.
+           MUST be 0x01.";
+      }
+      leaf rev-Major {
+        type uint8;
+        description
+          "Indicates the rev major version of the structure.
+           MUST be 0x00.";
+      }
+      leaf rev-Minor {
+        type uint8;
+        description
+          "Indicates the rev minor version of the structure.
+           MUST be 0x00.";
+      }
+    }
+  }
+
+  grouping tpm12-quote-info-common {
+    description
+      "These statements are within both quote variants of the TPM 1.2";
+    reference
+      "TPM Main Part 2 TPM Structures v1.2 July 2007,
+      Section 11.3 & 11.4.";
+    leaf fixed {
+      type binary;
+      description
+        "This SHALL always be the string 'QUOT' or 'QUO2'
+         (length is 4 bytes).";
+    }
+    leaf external-data {
+      type binary;
+      description
+        "160 bits of externally supplied data, typically a nonce.";
+    }
+    leaf signature-size {
+      type uint32;
+      description
+       "The size of TPM 1.2 'signature' value.";
+    }
+    leaf signature {
+      type binary;
+      description
+        "Signature over hash of tpm12-quote-info2'.";
+    }
+  }
+
+  grouping tpm12-quote-info {
+    description
+      "This structure provides the mechanism for the TPM to quote the
+       current values of a list of PCRs (as used by the TPM_Quote2
+       command).";
+    uses tpm12-version;
+    leaf digest-value {
+      type binary;
+      description
+        "This SHALL be the result of the composite hash algorithm using
+         the current values of the requested PCR indices
+         (TPM 1.2 type TPM_COMPOSITE_HASH.)";
+    }
+  }
+
+  grouping tpm12-quote-info2 {
+    description
+      "This structure provides the mechanism for the TPM to quote the
+       current values of a list of PCRs
+       (as used by the TPM_Quote2 command).";
+    leaf tag {
+      type uint8;
+      description
+        "This SHALL be TPM_TAG_QUOTE_INFO2.";
+    }
+    uses tpm12-pcr-info-short;
+  }
+
+  grouping tpm12-cap-version-info {
+    description
+      "TPM returns the current version and revision of the TPM 1.2 .";
+    list TPM_PCR_COMPOSITE {
+      description
+        "The TPM 1.2 TPM_PCRVALUEs for the pcr-indices.";
+      reference
+        "TPM Main Part 2 TPM Structures v1.2 July 2007, Section 8.2";
+      uses tpm12-pcr-selection;
+      leaf value-size {
+        type uint32;
+        description
+          "This SHALL be the size of the 'tpm12-pcr-value' field
+           (not the number of PCRs).";
+      }
+      leaf-list tpm12-pcr-value {
+        type binary;
+        description
+          "The list of TPM_PCRVALUEs from each PCR selected in sequence
+           of tpm12-pcr-selection.";
+      }
+      list version-info {
+        description
+          "An optional output parameter from a TPM 1.2 TPM_Quote2.";
+        leaf tag {
+          type uint16;  /* This should be converted into an ENUM */
+          description
+            "The TPM 1.2 version and revision
+             (TPM 1.2 type TPM_STRUCTURE_TAG).
+             This MUST be TPM_CAP_VERSION_INFO (0x0030)";
+        }
+        uses tpm12-version;
+        leaf spec-level {
+          type uint16;
+          description
+            "A number indicating the level of ordinals supported.";
+        }
+        leaf errata-rev {
+          type uint8;
+          description
+            "A number indicating the errata version of the
+             specification.";
+        }
+        leaf tpm-vendor-id {
+          type binary;
+          description
+            "The vendor ID unique to each TPM manufacturer.";
+        }
+        leaf vendor-specific-size {
+          type uint16;
+          description
+            "The size of the vendor-specific area.";
+        }
+        leaf vendor-specific {
+          type binary;
+          description
+            "Vendor specific information.";
+        }
+      }
+    }
+  }
+
+  grouping tpm12-pcr-composite {
+    description
+      "The actual values of the selected PCRs (a list of TPM_PCRVALUEs
+       (binary) and associated metadata for TPM 1.2.";
+    list TPM_PCR_COMPOSITE {
+      description
+        "The TPM 1.2 TPM_PCRVALUEs for the pcr-indices.";
+      reference
+        "TPM Main Part 2 TPM Structures v1.2 July 2007, Section 8.2";
+      uses tpm12-pcr-selection;
+      leaf value-size {
+        type uint32;
+        description
+          "This SHALL be the size of the 'tpm12-pcr-value' field
+           (not the number of PCRs).";
+      }
+      leaf-list tpm12-pcr-value {
+        type binary;
+        description
+          "The list of TPM_PCRVALUEs from each PCR selected in sequence
+           of tpm12-pcr-selection.";
+      }
+    }
+  }
+
+  grouping node-uptime {
+    description
+      "Uptime in seconds of the node.";
+    leaf up-time {
+      type uint32;
+      description
+        "Uptime in seconds of this node reporting its data";
+    }
+  }
+
+  grouping tpm12-attestation {
+    description
+      "Contains an instance of TPM1.2 style signed cryptoprocessor
+      measurements.  It is supplemented by unsigned Attester
+      information.";
+    uses node-uptime;
+    uses compute-node-identifier;
+    uses tpm12-quote-info-common;
+    choice tpm12-quote {
+      mandatory true;
+      description
+        "Either a tpm12-quote-info or tpm12-quote-info2, depending
+         on whether TPM_Quote or TPM_Quote2 was used
+         (cf. input field add-verson).";
+      case tpm12-quote1 {
+        description
+          "BIOS/UEFI event logs";
+        uses tpm12-quote-info;
+        uses tpm12-pcr-composite;
+      }
+      case tpm12-quote2 {
+        description
+          "BIOS/UEFI event logs";
+        uses tpm12-quote-info2;
+      }
+    }
+  }
+
+  grouping tpm20-attestation {
+    description
+      "Contains an instance of TPM2 style signed cryptoprocessor
+      measurements.  It is supplemented by unsigned Attester
+      information.";
+    leaf TPMS_QUOTE_INFO {
+      mandatory true;
+      type binary;
+      description
+        "A hash of the latest PCR values (and the hash algorithm used)
+        which have been returned from a Verifier for the selected PCRs
+        and Hash Algorithms.";
+      reference
+        "https://www.trustedcomputinggroup.org/wp-content/uploads/
+        TPM-Rev-2.0-Part-2-Structures-01.38.pdf  Section 10.12.1";
+    }
+    leaf quote-signature {
+      type binary;
+      description
+        "Quote signature returned by TPM Quote.  The signature was
+        generated using the key associated with the
+        certificate-name.";
+    }
+    uses node-uptime;
+    uses compute-node-identifier;
+    list unsigned-pcr-values {
+      description
+        "PCR values in each PCR bank. This often should not be
+         necessary for TPM2, as the raw information needing
+         signature and hash validation will be coming from
+         the 'quote' leaf";
+      uses TPM20-hash-algo;
+      list pcr-values {
+        key pcr-index;
+        description
+          "List of one PCR bank.";
+        leaf pcr-index {
+          type pcr;
+          description
+            "PCR index number.";
+        }
+        leaf pcr-value {
+          type binary;
+          description
+            "PCR value.";
+        }
+      }
+    }
+  }
+
+  grouping log-identifier {
+    description
+      "Identifier for type of log to be retrieved.";
+    leaf log-type {
+      type identityref {
+        base attested_event_log_type;
+      }
+      mandatory true;
+      description
+        "The corresponding measurement log type identity.";
+    }
+  }
+
+  grouping boot-event-log {
+    description
+      "Defines an event log corresponding to the event that extended
+      the PCR";
+    leaf event-number {
+      type uint32;
+      description
+        "Unique event number of this event";
+    }
+    leaf event-type {
+        type uint32;
+        description
+          "log event type";
+    }
+    leaf pcr-index {
+      type pcr;
+      description
+        "Defines the PCR index that this event extended";
+    }
+    list digest-list {
+      description
+        "Hash of event data";
+      leaf hash-algo {
+        type identityref {
+          base taa:hash;
+        }
+        description
+          "The hash scheme that is used to compress the event data in
+          each of the leaf-list digest items.";
+      }
+      leaf-list digest {
+        type binary;
+        description
+          "The hash of the event data";
+      }
+    }
+    leaf event-size {
+      type uint32;
+      description
+        "Size of the event data";
+    }
+    leaf-list event-data {
+      type uint8;
+      description
+        "The event data size determined by event-size";
+    }
+  }
+
+  grouping bios-event-log {
+    description
+      "Measurement log created by the BIOS/UEFI.";
+    list bios-event-entry {
+      key event-number;
+        description
+          "Ordered list of TCG described event log
+           that extended the PCRs in the order they
+           were logged";
+      uses boot-event-log;
+    }
+  }
+
+  grouping ima-event {
+    description
+      "Defines an hash log extend event for IMA measurements";
+    leaf event-number {
+      type uint64;
+      description
+        "Unique number for this event for sequencing";
+    }
+    leaf ima-template {
+      type string;
+      description
+        "Name of the template used for event logs
+         for e.g. ima, ima-ng, ima-sig";
+    }
+    leaf filename-hint {
+      type string;
+      description
+        "File that was measured";
+    }
+    leaf filedata-hash {
+      type binary;
+      description
+        "Hash of filedata";
+    }
+    leaf filedata-hash-algorithm {
+      type string;
+      description
+        "Algorithm used for filedata-hash";
+    }
+    leaf template-hash-algorithm {
+      type string;
+      description
+        "Algorithm used for template-hash";
+    }
+    leaf template-hash {
+      type binary;
+      description
+        "hash(filedata-hash, filename-hint)";
+    }
+    leaf pcr-index {
+      type pcr;
+      description
+        "Defines the PCR index that this event extended";
+    }
+    leaf signature {
+      type binary;
+      description
+        "The file signature";
+    }
+  }
+
+  grouping ima-event-log {
+    description
+      "Measurement log created by IMA.";
+    list ima-event-entry {
+      key event-number;
+      description
+      "Ordered list of ima event logs by event-number";
+       uses ima-event;
+    }
+  }
+
+  grouping netequip-boot-event {
+    description
+      "Defines an hash log extend event for Network Equipment Boot.";
+    leaf event-number {
+      type uint64;
+      description
+        "Unique number for this event for sequencing";
+    }
+    leaf filename-hint {
+      type string;
+      description
+        "File that was measured";
+    }
+    leaf filedata-hash {
+      type binary;
+      description
+        "Hash of filedata";
+    }
+    leaf filedata-hash-algorithm {
+      type string;
+      description
+        "Algorithm used for filedata-hash.";
+      }
+    leaf file-version {
+      type string;
+      description
+        "File version information.";
+    }
+    leaf file-type {
+      type string;
+      description
+        "Indicating at which boot stage the file is loaded,
+         such as BIOS, BootLoader, etc.";
+    }
+    leaf pcr-index {
+      type pcr;
+      description
+        "Defines the PCR index that this event extended";
+    }
+  }
+
+  grouping network-equipment-boot-event-log {
+    description
+      "Measurement log created by Network Equipment Boot.";
+    list boot-event-entry {
+      key event-number;
+      description
+        "Ordered list of Network Equipment Boot event logs
+         by event-number.";
+      uses netequip-boot-event;
+    }
+  }
+
+  grouping event-logs {
+    description
+      "A selector for the log and its type.";
+    choice attested_event_log_type {
+      mandatory true;
+      description
+        "Event log type determines the event logs content.";
+      case bios {
+        description
+          "BIOS/UEFI event logs";
+        container bios-event-logs {
+          description
+            "BIOS/UEFI event logs";
+          uses bios-event-log;
+        }
+      }
+      case ima {
+        description
+          "IMA event logs.";
+        container ima-event-logs {
+          description
+            "IMA event logs.";
+          uses ima-event-log;
+        }
+      }
+      case netequip_boot {
+        description
+          "Network Equipment Boot event logs";
+        container boot-event-logs {
+          description
+            "Network equipment boot event logs.";
+          uses network-equipment-boot-event-log;
+        }
+      }
+    }
+  }
+
+  /**********************/
+  /*   RPC operations   */
+  /**********************/
+
+  rpc tpm12-challenge-response-attestation {
+    if-feature "taa:TPM12";
+    description
+      "This RPC accepts the input for TSS TPM 1.2 commands made to the
+       attesting device.";
+    input {
+      container tpm12-attestation-challenge {
+        description
+          "This container includes every information element defined
+           in the reference challenge-response interaction model for
+           remote attestation. Corresponding values are based on
+           TPM 1.2 structure definitions";
+        uses tpm12-pcr-selection;
+        uses nonce;
+        leaf add-version {
+          type boolean;
+          description
+            "Whether or not to include TPM_CAP_VERSION_INFO; if true,
+             then TPM_Quote2 must be used to create the response.";
+          reference
+            "TPM Main Part 2 TPM Structures v1.2 July 2007,
+            Section 21.6";
+        }
+        leaf-list certificate-name {
+          must "/tpm:rats-support-structures/tpm:tpms" +
+               "/tpm:tpm[tpm:tpm-firmware-version='taa:tpm12']" +
+               "/tpm:certificates/" +
+               "/tpm:certificate[certificate-name-ref=current()]" {
+            error-message "Not an available TPM1.2 AIK certificate.";
+          }
+          type certificate-name-ref;
+          description
+            "When populated, the RPC will only get a Quote for the
+            TPMs associated with these certificate(s).";
+        }
+      }
+    }
+    output {
+      list tpm12-attestation-response {
+        unique "certificate-name";
+        description
+          "The binary output of TPM 1.2 TPM_Quote/TPM_Quote2, including
+           the PCR selection and other associated attestation evidence
+           metadata";
+        uses certificate-name-ref {
+          description
+            "Certificate associated with this tpm12-attestation.";
+        }
+        uses tpm12-attestation;
+      }
+    }
+  }
+  rpc tpm20-challenge-response-attestation {
+    if-feature "taa:TPM20";
+    description
+      "This RPC accepts the input for TSS TPM 2.0 commands of the
+       managed device. ComponentIndex from the hardware manager YANG
+       module to refer to dedicated TPM in composite devices,
+       e.g. smart NICs, is still a TODO.";
+    input {
+      container tpm20-attestation-challenge {
+        description
+          "This container includes every information element defined
+           in the reference challenge-response interaction model for
+           remote attestation. Corresponding values are based on
+           TPM 2.0 structure definitions";
+        uses nonce;
+        uses tpm20-pcr-selection;
+        leaf-list certificate-name {
+          must "/tpm:rats-support-structures/tpm:tpms" +
+               "/tpm:tpm[tpm:tpm-firmware-version='taa:tpm20']" +
+               "/tpm:certificates/" +
+               "/tpm:certificate[certificate-name-ref=current()]" {
+            error-message "Not an available TPM2.0 AIK certificate.";
+          }
+          type certificate-name-ref;
+            description
+              "When populated, the RPC will only get a Quote for the
+              TPMs associated with the certificates.";
+        }
+      }
+    }
+    output {
+      list tpm20-attestation-response {
+        unique "certificate-name";
+        description
+          "The binary output of TPM2b_Quote in one TPM chip of the
+           node which identified by node-id. An TPMS_ATTEST structure
+           including a length, encapsulated in a signature";
+        uses certificate-name-ref {
+          description
+            "Certificate associated with this tpm20-attestation.";
+        }
+        uses tpm20-attestation;
+      }
+    }
+  }
+
+  rpc log-retrieval {
+    description
+      "Logs Entries are either identified via indices or via providing
+       the last line received. The number of lines returned can be
+       limited. The type of log is a choice that can be augmented.";
+    input {
+      list log-selector {
+        description
+          "Selection of log entries to be reported.";
+        uses tpm-name-selector;
+        choice index-type {
+          description
+            "Last log entry received, log index number, or timestamp.";
+          case last-entry {
+            description
+              "The last entry of the log already retrieved.";
+            leaf last-entry-value {
+              type binary;
+              description
+                "Content of an log event which matches 1:1 with a
+                 unique event record contained within the log.  Log
+                 entries subsequent to this will be passed to the
+                 requester.  Note: if log entry values are not unique,
+                 this MUST return an error.";
+            }
+          }
+          case index {
+            description
+              "Numeric index of the last log entry retrieved, or
+               zero.";
+            leaf last-index-number {
+              type uint64;
+              description
+                "The last numeric index number of a log entry.
+                 Zero means to start at the beginning of the log.
+                 Entries subsequent to this will be passed to the
+                 requester.";
+            }
+          }
+          case timestamp {
+            leaf timestamp {
+              type yang:date-and-time;
+              description
+                "Timestamp from which to start the extraction.  The
+                 next log entry subsequent to this timestamp is to
+                 be sent.";
+            }
+            description
+              "Timestamp from which to start the extraction.";
+          }
+        }
+        leaf log-entry-quantity {
+          type uint16;
+          description
+            "The number of log entries to be returned. If omitted, it
+             means all of them.";
+        }
+      }
+      uses log-identifier;
+    }
+
+    output {
+      container system-event-logs {
+        description
+          "The requested data of the measurement event logs";
+        list node-data {
+          unique "tpm-name";
+          description
+            "Event logs of a node in a distributed system
+             identified by the node name";
+          uses tpm-name;
+          uses node-uptime;
+          container log-result {
+            description
+              "The requested entries of the corresponding log.";
+            uses event-logs;
+          }
+        }
+      }
+    }
+  }
+
+  /**************************************/
+  /*   Config & Oper accessible nodes   */
+  /**************************************/
+
+  container rats-support-structures {
+    description
+      "The datastore definition enabling verifiers or relying
+       parties to discover the information necessary to use the
+       remote attestation RPCs appropriately.";
+    container compute-nodes {
+      presence
+        "Indicates that more than one TPM exists on a device.";
+      description
+        "Holds the set device subsystems/components in this composite
+         device that support TPM operations.";
+      list compute-node {
+        key node-id;
+        config false;
+        min-elements 2;
+        uses compute-node-identifier;
+        description
+          "A components in this composite device that RATS which
+          supports TPM operations.";
+        leaf node-name {
+          type string;
+          description
+            "Name of the compute node.";
+        }
+        leaf node-location {
+          type string;
+          description
+            "Location of the compute node, such as slot number.";
+        }
+      }
+    }
+    container tpms {
+      description
+        "Holds the set of TPMs within an Attester.";
+      list tpm {
+        key tpm-name;
+        unique "tpm-path";
+          description
+           "A list of TPMs in this composite device that RATS
+           can be conducted with.";
+        uses tpm-name;
+        leaf hardware-based {
+          type boolean;
+          config false;
+          description
+            "Answers the question: is this TPM is a hardware based
+            TPM?";
+        }
+        leaf tpm-physical-index {
+          if-feature ietfhw:entity-mib;
+          type int32 {
+            range "1..2147483647";
+          }
+          config false;
+          description
+            "The entPhysicalIndex for the TPM.";
+          reference
+            "RFC 6933: Entity MIB (Version 4) - entPhysicalIndex";
+        }
+        leaf tpm-path {
+          type string;
+          config false;
+          description
+            "Path to a unique TPM on a device.  This can change agross
+            reboots.";
+        }
+        leaf compute-node {
+          when "../../../compute-nodes";
+          type compute-node-ref;
+          config false;
+          mandatory true;
+          description
+            "When there is more that one TPM, this indicates for which
+            compute node this TPM services.";
+        }
+        leaf tpm-manufacturer {
+          type string;
+          config false;
+          description
+            "TPM manufacturer name.";
+        }
+        leaf tpm-firmware-version {
+          type identityref {
+            base taa:cryptoprocessor;
+          }
+          mandatory true;
+          description
+            "Identifies the cryptoprocessor API set supported.  This
+            cannot be configured.  However it is referenced via XPATH
+            as part of configuration, so is shown as 'rw'
+            to eliminate YANG warnings related NMDA.";
+        }
+        uses TPM12-hash-algo {
+          when "tpm-firmware-version = 'taa:tpm12'";
+          refine TPM12-hash-algo {
+            description
+              "The hash algorithm overwrites the default used for PCRs
+              on this TPM1.2 compliant cryptoprocessor.";
+          }
+        }
+        leaf-list TPM12-pcrs {
+          when "../tpm-firmware-version = 'taa:tpm12'";
+          type pcr;
+          description
+            "The PCRs which may be extracted from this TPM1.2
+            compliant cryptoprocessor.";
+        }
+        list tpm20-pcr-bank {
+          when "../tpm-firmware-version = 'taa:tpm20'";
+          key "TPM20-hash-algo";
+          description
+            "Specifies the list of PCRs that may be extracted for
+            a specific Hash Algorithm on this TPM2 compliant
+            cryptoprocessor.  A bank is a set of PCRs which are
+            extended using a particular hash algorithm.";
+          reference
+            "https://www.trustedcomputinggroup.org/wp-content/uploads/
+             TPM-Rev-2.0-Part-2-Structures-01.38.pdf  Section 10.9.7";
+          leaf TPM20-hash-algo {
+            must "/tpm:rats-support-structures"
+               + "/tpm:attester-supported-algos"
+               + "/tpm:tpm20-hash" {
+              error-message "Not a platform supported TPM20-hash-algo";
+            }
+            type identityref {
+              base taa:hash;
+            }
+            description
+              "The hash scheme actively being used to hash a
+              one or more TPM2.0 PCRs.";
+          }
+          leaf-list pcr-index {
+            type tpm:pcr;
+            description
+              "Defines what TPM2 PCRs are available to be extracted.";
+          }
+        }
+        leaf tpm-status {
+          type enumeration {
+            enum operational {
+              value 0;
+              description
+                "The TPM currently is currently running normally and
+                is ready to accept and process TPM quotes.";
+              reference
+                "TPM-Rev-2.0-Part-1-Architecture-01.07-2014-03-13.pdf
+                Section 12";
+            }
+            enum non-operational {
+              value 1;
+              description
+                "TPM is in a state such as startup or shutdown which
+                precludes the processing of TPM quotes.";
+            }
+          }
+          config false;
+          mandatory true;
+          description
+            "TPM chip self-test status.";
+        }
+        container certificates {
+          description
+            "The TPM's certificates, including EK certificates
+             and AK certificates.";
+          list certificate {
+            key "certificate-name";
+            description
+              "Three types of certificates can be accessed via
+               this statement, including Initial Attestation
+               Key Cert, Local Attestation Key Cert or
+               Endorsement Key Cert.";
+            leaf certificate-name {
+              type string;
+              description
+                "An arbitrary name uniquely identifying a certificate
+                 associated within key within a TPM.";
+            }
+            leaf certificate-keystore-ref {
+              type leafref {
+                path "/ks:keystore/ks:asymmetric-keys/ks:asymmetric-key"
+                   + "/ks:certificates/ks:certificate/ks:name";
+              }
+              description
+                "A reference to a specific certificate of an
+                 asymmetric key in the Keystore.";
+                 /* Note: It is also possible to import a grouping which
+                    allows local definition via an imported keystore
+                    schema. */
+            }
+            leaf certificate-type {
+              type enumeration {
+                enum endorsement-cert {
+                  value 0;
+                  description
+                    "Endorsement Key (EK) Certificate type.";
+                }
+                enum initial-attestation-cert {
+                  value 1;
+                  description
+                    "Initial Attestation key (IAK) Certificate type.";
+                }
+                enum local-attestation-cert {
+                  value 2;
+                  description
+                    "Local Attestation Key (LAK) Certificate type.";
+                }
+              }
+              description
+                "Type of this certificate";
+            }
+          }
+        }
+      }
+    }
+    container attester-supported-algos {
+      description
+        "Identifies which TPM algorithms are available for use on an
+        attesting platform.";
+      leaf-list tpm12-asymmetric-signing {
+        if-feature "taa:TPM12";
+        when "../../tpm:tpms" +
+             "/tpm:tpm[tpm:tpm-firmware-version='taa:tpm12']";
+        type identityref {
+          base taa:asymmetric;
+        }
+        description
+          "Platform Supported TPM12 asymmetric algorithms.";
+      }
+      leaf-list tpm12-hash {
+        if-feature "taa:TPM12";
+        when "../../tpm:tpms" +
+             "/tpm:tpm[tpm:tpm-firmware-version='taa:tpm12']";
+        type identityref {
+          base taa:hash;
+        }
+        description
+          "Platform supported TPM12 hash algorithms.";
+      }
+      leaf-list tpm20-asymmetric-signing {
+        if-feature "taa:TPM20";
+        when "../../tpm:tpms" +
+             "/tpm:tpm[tpm:tpm-firmware-version='taa:tpm20']";
+        type identityref {
+          base taa:asymmetric;
+        }
+        description
+          "Platform Supported TPM20 asymmetric algorithms.";
+      }
+      leaf-list tpm20-hash {
+        if-feature "taa:TPM20";
+        when "../../tpm:tpms" +
+             "/tpm:tpm[tpm:tpm-firmware-version='taa:tpm20']";
+        type identityref {
+          base taa:hash;
+        }
+        description
+          "Platform supported TPM20 hash algorithms.";
+      }
+    }
+  }
+}
