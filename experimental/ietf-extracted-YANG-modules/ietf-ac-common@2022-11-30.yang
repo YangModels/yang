@@ -1,0 +1,1275 @@
+module ietf-ac-common {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-ac-common";
+  prefix ac-common;
+
+  import ietf-vpn-common {
+    prefix vpn-common;
+    reference
+      "RFC 9181: A Common YANG Data Model for Layer 2 and Layer 3
+                 VPNs";
+  }
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types, Section 4";
+  }
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types, Section 3";
+  }
+  import ietf-key-chain {
+    prefix key-chain;
+    reference
+      "RFC 8177: YANG Data Model for Key Chains";
+  }
+
+  organization
+    "IETF OPSAWG (Operations and Management Area Working Group)";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/opsawg/>
+     WG List:  <mailto:opsawg@ietf.org>
+
+     Editor:   Mohamed Boucadair
+               <mailto:mohamed.boucadair@orange.com>
+     Author:   Richard Roberts
+               <mailto:rroberts@juniper.net>
+     Author:   Oscar Gonzalez de Dios
+               <mailto:oscar.gonzalezdedios@telefonica.com>
+     Author:   Samier Barguil
+               <mailto:ssamier.barguil_giraldo@nokia.com>
+     Author:   Bo Wu
+               <mailto:lana.wubo@huawei.com>";
+  description
+    "This YANG module defines a generic YANG model for exposing
+     attachment circuits as a service.
+
+     Copyright (c) 2023 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Revised BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC xxx; see the
+     RFC itself for full legal notices.";
+
+  revision 2022-11-30 {
+    description
+      "Initial revision.";
+    reference
+      "RFC xxxx: A YANG Service Data Model for Attachment Circuits";
+  }
+
+  /* Identities */
+
+  identity address-allocation-type {
+    description
+      "Base identity for address allocation type in the AC.";
+  }
+
+  identity provider-dhcp {
+    base address-allocation-type;
+    description
+      "The provider's network provides a DHCP service to the
+       customer.";
+  }
+
+  identity provider-dhcp-relay {
+    base address-allocation-type;
+    description
+      "The provider's network provides a DHCP relay service to the
+       customer.";
+  }
+
+  identity provider-dhcp-slaac {
+    if-feature "vpn-common:ipv6";
+    base address-allocation-type;
+    description
+      "The provider's network provides a DHCP service to the
+       customer as well as IPv6 Stateless Address
+       Autoconfiguration (SLAAC).";
+    reference
+      "RFC 4862: IPv6 Stateless Address Autoconfiguration";
+  }
+
+  identity static-address {
+    base address-allocation-type;
+    description
+      "The provider's network provides static IP addressing to the
+       customer.";
+  }
+
+  identity slaac {
+    if-feature "vpn-common:ipv6";
+    base address-allocation-type;
+    description
+      "The provider's network uses IPv6 SLAAC to provide
+       addressing to the customer.";
+    reference
+      "RFC 4862: IPv6 Stateless Address Autoconfiguration";
+  }
+
+  identity dynamic-infra {
+    base address-allocation-type;
+    description
+      "The IP address is dynamically allocated by the hosting
+       infrastrcture.";
+  }
+
+  identity local-defined-next-hop {
+    description
+      "Base identity of local defined next hops.";
+  }
+
+  identity discard {
+    base local-defined-next-hop;
+    description
+      "Indicates an action to discard traffic for the
+       corresponding destination.
+       For example, this can be used to black-hole traffic.";
+  }
+
+  identity local-link {
+    base local-defined-next-hop;
+    description
+      "Treat traffic towards addresses within the specified
+       next-hop prefix as though they are connected to a local
+       link.";
+  }
+  identity l2-tunnel-type {
+    description
+      "Base identity for Layer 2 tunnel selection under the VPN
+       network access.";
+  }
+
+  identity pseudowire {
+    base l2-tunnel-type;
+    description
+      "Pseudowire tunnel termination in the VPN network access.";
+  }
+
+  identity vpls {
+    base l2-tunnel-type;
+    description
+      "Virtual Private LAN Service (VPLS) tunnel termination in
+       the VPN network access.";
+  }
+
+  identity vxlan {
+    base l2-tunnel-type;
+    description
+      "Virtual eXtensible Local Area Network (VXLAN) tunnel
+       termination in the VPN network access.";
+  }
+
+  identity precedence-type {
+    description
+      "Redundancy type. The service can be created
+       with primary and secondary tagging.";
+  }
+
+  identity primary {
+    base precedence-type;
+    description
+      "Identifies the main attachment circuit.";
+  }
+
+  identity secondary {
+    base precedence-type;
+    description
+      "Identifies the secondary attachment circuit.";
+  }
+
+  /* Typedefs */
+
+  typedef predefined-next-hop {
+    type identityref {
+      base local-defined-next-hop;
+    }
+    description
+      "Predefined next-hop designation for locally generated
+       routes.";
+  }
+
+  typedef area-address {
+    type string {
+      pattern '[0-9A-Fa-f]{2}(\.[0-9A-Fa-f]{4}){0,6}';
+    }
+    description
+      "This type defines the area address format.";
+  }
+
+  /* Reusable groupings */
+  // Operational instructions
+
+  grouping op-instructions {
+    description
+      "Scheduling instructions.";
+    leaf requested-start {
+      type yang:date-and-time;
+      description
+        "Indicates the requested date and time when the service is
+         expected to be active.";
+    }
+    leaf requested-stop {
+      type yang:date-and-time;
+      description
+        "Indicates the requested date and time when the service is
+         expected to be disabled.";
+    }
+    leaf actual-start {
+      type yang:date-and-time;
+      config false;
+      description
+        "Indciates the actual date and time when the service
+         actually was enabled.";
+    }
+    leaf actual-stop {
+      type yang:date-and-time;
+      config false;
+      description
+        "Indciates the actual date and time when the service
+         actually was disabled.";
+    }
+  }
+  /**** Layer 2 encapsulations ****/
+  // Dot1q
+
+  grouping dot1q {
+    description
+      "Defines a grouping for tagged interfaces.";
+    leaf tag-type {
+      type identityref {
+        base vpn-common:tag-type;
+      }
+      default "vpn-common:c-vlan";
+      description
+        "Tag type.";
+    }
+    leaf cvlan-id {
+      type uint16 {
+        range "1..4094";
+      }
+      description
+        "VLAN identifier.";
+    }
+  }
+
+  // priority-tagged
+
+  grouping priority-tagged {
+    description
+      "Priority tagged.";
+    leaf tag-type {
+      type identityref {
+        base vpn-common:tag-type;
+      }
+      default "vpn-common:c-vlan";
+      description
+        "Tag type.  By default, the tag type is 'c-vlan'.";
+    }
+  }
+
+  // QinQ
+
+  grouping qinq {
+    description
+      "Includes QinQ parameters.";
+    leaf tag-type {
+      type identityref {
+        base vpn-common:tag-type;
+      }
+      default "vpn-common:s-c-vlan";
+      description
+        "Tag type.";
+    }
+    leaf svlan-id {
+      type uint16;
+      mandatory true;
+      description
+        "Service VLAN (S-VLAN) identifier.";
+    }
+    leaf cvlan-id {
+      type uint16;
+      mandatory true;
+      description
+        "Customer VLAN (C-VLAN) identifier.";
+    }
+  }
+
+  /**** Layer 2 tunnel services ****/
+  // pseudowire (PW)
+
+  grouping pseudowire {
+    description
+      "Includes pseudowire termination parameters.";
+    leaf vcid {
+      type uint32;
+      description
+        "Indicates a pseudowire (PW) or virtual circuit (VC)
+         identifier.";
+    }
+    leaf far-end {
+      type union {
+        type uint32;
+        type inet:ip-address;
+      }
+      description
+        "Neighbor reference.";
+      reference
+        "RFC 8077: Pseudowire Setup and Maintenance
+                   Using the Label Distribution Protocol
+                   (LDP), Section 6.1";
+    }
+  }
+
+  // VPLS
+
+  grouping vpls {
+    description
+      "VPLS termination parameters.";
+    leaf vcid {
+      type uint32;
+      description
+        "VC identifier.";
+    }
+    leaf-list far-end {
+      type union {
+        type uint32;
+        type inet:ip-address;
+      }
+      description
+        "Neighbor reference.";
+    }
+  }
+
+  // VXLAN
+
+  grouping vxlan {
+    description
+      "VXLAN termination parameters.";
+    leaf vni-id {
+      type uint32;
+      mandatory true;
+      description
+        "VXLAN Network Identifier (VNI).";
+    }
+    leaf peer-mode {
+      type identityref {
+        base vpn-common:vxlan-peer-mode;
+      }
+      default "vpn-common:static-mode";
+      description
+        "Specifies the VXLAN access mode.  By default,
+         the peer mode is set to 'static-mode'.";
+    }
+    leaf-list peer-ip-address {
+      type inet:ip-address;
+      description
+        "List of a peer's IP addresses.";
+    }
+  }
+
+  // 'pseudowire', 'vpls', and 'vxlan'
+
+  grouping l2-tunnel-service {
+    description
+      "Defines a Layer 2 tunnel termination.
+       The supported values are 'pseudowire', 'vpls', and 'vxlan'.
+       Other values may be defined, if needed.";
+    leaf type {
+      type identityref {
+        base l2-tunnel-type;
+      }
+      description
+        "Selects the tunnel termination option for each AC
+         Endpoint.";
+    }
+    container pseudowire {
+      when "derived-from-or-self(../type, 'pseudowire')" {
+        description
+          "Only applies when the Layer 2 service type is
+           'pseudowire'.";
+      }
+      description
+        "Includes pseudowire termination parameters.";
+      uses pseudowire;
+    }
+    container vpls {
+      when "derived-from-or-self(../type, 'vpls')" {
+        description
+          "Only applies when the Layer 2 service type is 'vpls'.";
+      }
+      description
+        "VPLS termination parameters.";
+      uses vpls;
+    }
+    container vxlan {
+      when "derived-from-or-self(../type, 'vxlan')" {
+        description
+          "Only applies when the Layer 2 service type is 'vxlan'.";
+      }
+      description
+        "VXLAN termination parameters.";
+      uses vxlan;
+    }
+  }
+
+  /**** Layer 3 connection *****/
+  // IPv4 allocation type
+
+  grouping ipv4-allocation-type {
+    description
+      "IPv4-specific parameters.";
+    leaf prefix-length {
+      type uint8 {
+        range "0..32";
+      }
+      description
+        "Subnet prefix length expressed in bits.
+         It is applied to both local and customer addresses.";
+    }
+    leaf address-allocation-type {
+      type identityref {
+        base address-allocation-type;
+      }
+      must "not(derived-from-or-self(current(), 'slaac') or "
+         + "derived-from-or-self(current(), "
+         + "'provider-dhcp-slaac'))" {
+        error-message "SLAAC is only applicable to IPv6.";
+      }
+      description
+        "Defines how IPv4 addresses are allocated to the peer site.";
+    }
+  }
+
+  // IPv6 allocation type
+
+  grouping ipv6-allocation-type {
+    description
+      "IPv6-specific parameters.";
+    leaf prefix-length {
+      type uint8 {
+        range "0..128";
+      }
+      description
+        "Subnet prefix length expressed in bits.
+         It is applied to both local and customer addresses.";
+    }
+    leaf address-allocation-type {
+      type identityref {
+        base address-allocation-type;
+      }
+      description
+        "Defines how IPv6 addresses are allocated to the peer site.";
+    }
+  }
+
+  // Basic IPv4 connection
+
+  grouping ipv4-connection-basic {
+    description
+      "Basic set fof IPv4-specific parameters for the connection.";
+    uses ipv4-allocation-type;
+    choice allocation-type {
+      description
+        "Choice of the IPv4 address allocation.";
+      case dynamic {
+        description
+          "When the addresses are allocated by DHCP or other
+           dynamic means local to the infrastructure.";
+        choice provider-dhcp {
+          description
+            "Parameters related to DHCP-allocated addresses. IP
+             addresses are allocated by DHCP, that is provided by
+             the operator.";
+          leaf dhcp-service-type {
+            type enumeration {
+              enum server {
+                description
+                  "Local DHCP server.";
+              }
+              enum relay {
+                description
+                  "Local DHCP relay.  DHCP requests are relayed to
+                   a provider's server.";
+              }
+            }
+            description
+              "Indicates the type of DHCP service to be enabled on
+               an AC.";
+          }
+        }
+        choice dhcp-relay {
+          description
+            "The DHCP relay is provided by the operator.";
+          container customer-dhcp-servers {
+            description
+              "Container for a list of the customer's DHCP servers.";
+            leaf-list server-ip-address {
+              type inet:ipv4-address;
+              description
+                "IPv4 addresses of the customer's DHCP server.";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Basic IPv6 connection
+
+  grouping ipv6-connection-basic {
+    description
+      "Basic set fof IPv6-specific parameters for the connection.";
+    uses ipv6-allocation-type;
+    choice allocation-type {
+      description
+        "Choice of the IPv6 address allocation.";
+      case dynamic {
+        description
+          "When the addresses are allocated by DHCP or other
+           dynamic means local to the infrastructure.";
+        choice provider-dhcp {
+          description
+            "Parameters related to DHCP-allocated addresses.
+             IP addresses are allocated by DHCP, that is provided
+             by the operator.";
+          leaf dhcp-service-type {
+            type enumeration {
+              enum server {
+                description
+                  "Local DHCP server.";
+              }
+              enum relay {
+                description
+                  "Local DHCP relay.  DHCP requests are relayed
+                   to a provider's server.";
+              }
+            }
+            description
+              "Indicates the type of DHCP service to be enabled
+               on this access.";
+          }
+        }
+        choice dhcp-relay {
+          description
+            "The DHCP relay is provided by the operator.";
+          container customer-dhcp-servers {
+            description
+              "Container for a list of the customer's DHCP servers.";
+            leaf-list server-ip-address {
+              type inet:ipv6-address;
+              description
+                "IPv6 addresses of the customer's DHCP server.";
+            }
+          }
+        }
+      }
+    }
+  }
+  // Full IPv4 connection
+
+  grouping ipv4-connection {
+    description
+      "IPv4-specific parameters.";
+    leaf local-address {
+      type inet:ipv4-address;
+      description
+        "The IP address used at the provider's interface.";
+    }
+    leaf virtual-address {
+      type inet:ipv4-address;
+      description
+        "This addresss may be used for redundancy purposes.";
+    }
+    uses ipv4-allocation-type;
+    choice allocation-type {
+      description
+        "Choice of the IPv4 address allocation.";
+      case dynamic {
+        description
+          "When the addresses are allocated by DHCP or other
+           dynamic means local to the infrastructure.";
+        choice address-assign {
+          default "number";
+          description
+            "A choice for how IPv4 addresses are assigned.";
+          case number {
+            leaf number-of-dynamic-address {
+              type uint16;
+              default "1";
+              description
+                "Specifies the number of IP addresses to be
+                 assigned to the customer on this access.";
+            }
+          }
+          case explicit {
+            container customer-addresses {
+              description
+                "Container for customer addresses to be allocated
+                 using DHCP.";
+              list address-pool {
+                key "pool-id";
+                description
+                  "Describes IP addresses to be dyncamically allocated.
+
+                   When only 'start-address' is present, it represents a
+                   single address.
+                   When both 'start-address' and 'end-address' are
+                   specified, it implies a range inclusive of both
+                   addresses.";
+                leaf pool-id {
+                  type string;
+                  description
+                    "A pool identifier for the address range from
+                     'start-address' to 'end-address'.";
+                }
+                leaf start-address {
+                  type inet:ipv4-address;
+                  mandatory true;
+                  description
+                    "Indicates the first address in the pool.";
+                }
+                leaf end-address {
+                  type inet:ipv4-address;
+                  description
+                    "Indicates the last address in the pool.";
+                }
+              }
+            }
+          }
+        }
+        choice provider-dhcp {
+          description
+            "Parameters related to DHCP-allocated addresses. IP
+             addresses are allocated by DHCP, which is provided by
+             the operator.";
+          leaf dhcp-service-type {
+            type enumeration {
+              enum server {
+                description
+                  "Local DHCP server.";
+              }
+              enum relay {
+                description
+                  "Local DHCP relay.  DHCP requests are relayed to
+                   a provider's server.";
+              }
+            }
+            description
+              "Indicates the type of DHCP service to be enabled on
+               this AC.";
+          }
+        }
+        choice dhcp-relay {
+          description
+            "The DHCP relay is provided by the operator.";
+          container customer-dhcp-servers {
+            description
+              "Container for a list of the customer's DHCP servers.";
+            leaf-list server-ip-address {
+              type inet:ipv4-address;
+              description
+                "IPv4 addresses of the customer's DHCP server.";
+            }
+          }
+        }
+      }
+      case static-addresses {
+        description
+          "Lists the IPv4 addresses that are used.";
+        list address {
+          key "address-id";
+          ordered-by user;
+          description
+            "Lists the IPv4 addresses that are used. The first address of
+             the list is the primary address of the connection.";
+          leaf address-id {
+            type string;
+            description
+              "An identifier of the static IPv4 address.";
+          }
+          leaf customer-address {
+            type inet:ipv4-address;
+            description
+              "An IPv4 address of the customer side.";
+          }
+        }
+      }
+    }
+  }
+
+  // Full IPv6 connection
+
+  grouping ipv6-connection {
+    description
+      "IPv6-specific parameters.";
+    leaf local-address {
+      type inet:ipv6-address;
+      description
+        "IPv6 address of the provider side.";
+    }
+    leaf virtual-address {
+      type inet:ipv6-address;
+      description
+        "This addresss may be used for redundancy purposes.";
+    }
+    uses ipv6-allocation-type;
+    choice allocation-type {
+      description
+        "Choice of the IPv6 address allocation.";
+      case dynamic {
+        description
+          "When the addresses are allocated by DHCP or other
+           dynamic means local to the infrastructure.";
+        choice address-assign {
+          default "number";
+          description
+            "A choice for how IPv6 addresses are assigned.";
+          case number {
+            leaf number-of-dynamic-address {
+              type uint16;
+              default "1";
+              description
+                "Specifies the number of IP addresses to be assigned to
+                 the customer on this access.";
+            }
+          }
+          case explicit {
+            container customer-addresses {
+              description
+                "Container for customer addresses to be allocated
+                 using DHCP.";
+              list address-pool {
+                key "pool-id";
+                description
+                  "Describes IP addresses to be dyncamically allocated.
+
+                   When only 'start-address' is present, it represents a
+                   single address.
+
+                   When both 'start-address' and 'end-address' are
+                   specified, it implies a range inclusive of both
+                   addresses.";
+                leaf pool-id {
+                  type string;
+                  description
+                    "A pool identifier for the address range from
+                     'start-address' to 'end-address'.";
+                }
+                leaf start-address {
+                  type inet:ipv6-address;
+                  mandatory true;
+                  description
+                    "Indicates the first address in the pool.";
+                }
+                leaf end-address {
+                  type inet:ipv6-address;
+                  description
+                    "Indicates the last address in the pool.";
+                }
+              }
+            }
+          }
+        }
+        choice provider-dhcp {
+          description
+            "Parameters related to DHCP-allocated addresses.
+             IP addresses are allocated by DHCP, which is provided
+             by the operator.";
+          leaf dhcp-service-type {
+            type enumeration {
+              enum server {
+                description
+                  "Local DHCP server.";
+              }
+              enum relay {
+                description
+                  "Local DHCP relay.  DHCP requests are relayed
+                   to a provider's server.";
+              }
+            }
+            description
+              "Indicates the type of DHCP service to
+               be enabled on this access.";
+          }
+        }
+        choice dhcp-relay {
+          description
+            "The DHCP relay is provided by the operator.";
+          container customer-dhcp-servers {
+            description
+              "Container for a list of the customer's DHCP servers.";
+            leaf-list server-ip-address {
+              type inet:ipv6-address;
+              description
+                "IPv6 addresses of the customer's DHCP server.";
+            }
+          }
+        }
+      }
+      case static-addresses {
+        description
+          "Lists the IPv6 addresses that are used.";
+        list address {
+          key "address-id";
+          ordered-by user;
+          description
+            "Lists the IPv6 addresses that are used. The first address
+             of the list is the primary IP address of the connection.";
+          leaf address-id {
+            type string;
+            description
+              "An identifier of the static IPv6 address.";
+          }
+          leaf customer-address {
+            type inet:ipv6-address;
+            description
+              "An IPv6 address of the customer side.";
+          }
+        }
+      }
+    }
+  }
+
+  /********* Routing *************/
+  // Routing Authentication
+
+  grouping bgp-authentication {
+    description
+      "Grouping for BGP authentication parameters.";
+    container authentication {
+      description
+        "Container for BGP authentication  parameters.";
+      leaf enable {
+        type boolean;
+        default "false";
+        description
+          "Enables or disables authentication.";
+      }
+      container keying-material {
+        when "../enable = 'true'";
+        description
+          "Container for describing how a BGP routing session is to
+           be secured on an AC.";
+        choice option {
+          description
+            "Choice of authentication options.";
+          case ao {
+            description
+              "Uses the TCP Authentication Option (TCP-AO).";
+            reference
+              "RFC 5925: The TCP Authentication Option";
+            leaf enable-ao {
+              type boolean;
+              description
+                "Enables the TCP-AO.";
+            }
+            leaf ao-keychain {
+              type key-chain:key-chain-ref;
+              description
+                "Reference to the TCP-AO key chain.";
+              reference
+                "RFC 8177: YANG Data Model for Key Chains";
+            }
+          }
+          case md5 {
+            description
+              "Uses MD5 to secure the session.";
+            reference
+              "RFC 4364: BGP/MPLS IP Virtual Private Networks
+                         (VPNs), Section 13.2";
+            leaf md5-keychain {
+              type key-chain:key-chain-ref;
+              description
+                "Reference to the MD5 key chain.";
+              reference
+                "RFC 8177: YANG Data Model for Key Chains";
+            }
+          }
+          case explicit {
+            leaf key-id {
+              type uint32;
+              description
+                "Key identifier.";
+            }
+            leaf key {
+              type string;
+              description
+                "BGP authentication key.
+
+                 This model only supports the subset of keys that
+                 are representable as ASCII strings.";
+            }
+            leaf crypto-algorithm {
+              type identityref {
+                base key-chain:crypto-algorithm;
+              }
+              description
+                "Indicates the cryptographic algorithm associated
+                 with the key.";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  grouping ospf-authentication {
+    description
+      "Authentication configuration.";
+    container authentication {
+      description
+        "Container for OSPF authentication  parameters.";
+      leaf enable {
+        type boolean;
+        default "false";
+        description
+          "Enables or disables authentication.";
+      }
+      container keying-material {
+        when "../enable = 'true'";
+        description
+          "Container for describing how an OSPF session is to be secured
+           for this AC.";
+        choice option {
+          description
+            "Options for OSPF authentication.";
+          case auth-key-chain {
+            leaf key-chain {
+              type key-chain:key-chain-ref;
+              description
+                "Name of the key chain.";
+            }
+          }
+          case auth-key-explicit {
+            leaf key-id {
+              type uint32;
+              description
+                "Key identifier.";
+            }
+            leaf key {
+              type string;
+              description
+                "OSPF authentication key.
+
+                 This model only supports the subset of keys that
+                 are representable as ASCII strings.";
+            }
+            leaf crypto-algorithm {
+              type identityref {
+                base key-chain:crypto-algorithm;
+              }
+              description
+                "Indicates the cryptographic algorithm associated with
+                 the key.";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  grouping isis-authentication {
+    description
+      "IS-IS authentication configuration.";
+    container authentication {
+      description
+        "Container for IS-IS authentication  parameters.";
+      leaf enable {
+        type boolean;
+        default "false";
+        description
+          "Enables or disables authentication.";
+      }
+      container keying-material {
+        when "../enable = 'true'";
+        description
+          "Container for describing how an IS-IS session for an AC.";
+        choice option {
+          description
+            "Options for IS-IS authentication.";
+          case auth-key-chain {
+            leaf key-chain {
+              type key-chain:key-chain-ref;
+              description
+                "Name of the key chain.";
+            }
+          }
+          case auth-key-explicit {
+            leaf key-id {
+              type uint32;
+              description
+                "Key identifier.";
+            }
+            leaf key {
+              type string;
+              description
+                "IS-IS authentication key.
+
+                 This model only supports the subset of keys that
+                 are representable as ASCII strings.";
+            }
+            leaf crypto-algorithm {
+              type identityref {
+                base key-chain:crypto-algorithm;
+              }
+              description
+                "Indicates the cryptographic algorithm associated with
+                 the key.";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  grouping rip-authentication {
+    description
+      "RIP authentication configuration.";
+    container authentication {
+      description
+        "Container for RIP authentication  parameters.";
+      leaf enable {
+        type boolean;
+        default "false";
+        description
+          "Enables or disables authentication.";
+      }
+      container keying-material {
+        when "../enable = 'true'";
+        description
+          "Container for describing how a RIP
+           session is to be secured between a CE
+           and a PE.";
+        choice option {
+          description
+            "Specifies the authentication
+             scheme.";
+          case auth-key-chain {
+            leaf key-chain {
+              type key-chain:key-chain-ref;
+              description
+                "Name of the key chain.";
+            }
+          }
+          case auth-key-explicit {
+            leaf key {
+              type string;
+              description
+                "RIP authentication key.
+
+                 This model only supports the subset of keys that
+                 are representable as ASCII strings.";
+            }
+            leaf crypto-algorithm {
+              type identityref {
+                base key-chain:crypto-algorithm;
+              }
+              description
+                "Indicates the cryptographic algorithm associated with
+                 the key.";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Basic routing parameters
+
+  grouping bgp-peer-group-without-name {
+    description
+      "Identifies a BGP peer-group configured on the local system.";
+    leaf local-as {
+      type inet:as-number;
+      config false;
+      description
+        "Indicates a local AS Number (ASN). This ASN is exposed
+         to a customer so that it knows which ASN to use
+         to set up a BGP session.";
+    }
+    leaf peer-as {
+      type inet:as-number;
+      description
+        "Indicates the customer's ASN when the customer
+         requests BGP routing.";
+    }
+    leaf address-family {
+      type identityref {
+        base vpn-common:address-family;
+      }
+      description
+        "This node contains the address families to be
+         activated. 'dual-stack' means that both IPv4 and IPv6e
+         will b activated.";
+    }
+  }
+
+  grouping bgp-peer-group-with-name {
+    description
+      "Identifies a BGP peer-group configured on the local system -
+       identified by a peer-group name";
+    leaf name {
+      type string;
+      description
+        "Name of the BGP peer-group";
+    }
+    uses bgp-peer-group-without-name;
+  }
+
+  grouping ospf-basic {
+    description
+      "Configuration specific to OSPF.";
+    leaf address-family {
+      type identityref {
+        base vpn-common:address-family;
+      }
+      description
+        "Indicates whether IPv4, IPv6, or both are to be
+         activated.";
+    }
+    leaf area-id {
+      type yang:dotted-quad;
+      mandatory true;
+      description
+        "Area ID.";
+      reference
+        "RFC 4577: OSPF as the Provider/Customer Edge Protocol
+                   for BGP/MPLS IP Virtual Private Networks
+                   (VPNs), Section 4.2.3
+         RFC 6565: OSPFv3 as a Provider Edge to Customer Edge
+                   (PE-CE) Routing Protocol, Section 4.2";
+    }
+    leaf metric {
+      type uint16;
+      default "1";
+      description
+        "Metric of the AC.  It is used in the routing state
+         calculation and path selection.";
+    }
+  }
+
+  grouping isis-basic {
+    description
+      "Basic configuration specific to IS-IS.";
+    leaf address-family {
+      type identityref {
+        base vpn-common:address-family;
+      }
+      description
+        "Indicates whether IPv4, IPv6, or both
+         are to be activated.";
+    }
+    leaf area-address {
+      type area-address;
+      mandatory true;
+      description
+        "Area address.";
+    }
+  }
+
+  //Static routing
+
+  grouping ipv4-static-rtg {
+    description
+      "Configuration specific to IPv4 static routing.";
+    list ipv4-lan-prefixes {
+      if-feature "vpn-common:ipv4";
+      key "lan next-hop";
+      description
+        "List of LAN prefixes for the site.";
+      leaf lan {
+        type inet:ipv4-prefix;
+        description
+          "LAN prefixes.";
+      }
+      leaf lan-tag {
+        type string;
+        description
+          "Internal tag to be used in VPN policies.";
+      }
+      leaf next-hop {
+        type union {
+          type inet:ip-address;
+          type predefined-next-hop;
+        }
+        description
+          "The next hop that is to be used for the static route.
+           This may be specified as an IP address or a
+           predefined next-hop type (e.g., 'discard' or
+           'local-link').";
+      }
+      leaf metric {
+        type uint32;
+        description
+          "Indicates the metric associated with the static route.";
+      }
+      uses vpn-common:service-status;
+    }
+  }
+
+  grouping ipv6-static-rtg {
+    description
+      "Configuration specific to IPv6 static routing.";
+    list ipv6-lan-prefixes {
+      if-feature "vpn-common:ipv6";
+      key "lan next-hop";
+      description
+        "List of LAN prefixes for the site.";
+      leaf lan {
+        type inet:ipv6-prefix;
+        description
+          "LAN prefixes.";
+      }
+      leaf lan-tag {
+        type string;
+        description
+          "Internal tag to be used in VPN policies.";
+      }
+      leaf next-hop {
+        type union {
+          type inet:ip-address;
+          type predefined-next-hop;
+        }
+        description
+          "The next hop that is to be used for the static route.
+           This may be specified as an IP address or a predefined
+           next-hop type (e.g., 'discard' or 'local-link').";
+      }
+      leaf metric {
+        type uint32;
+        description
+          "Indicates the metric associated with the static route.";
+      }
+      uses vpn-common:service-status;
+    }
+  }
+
+  // OAM: maintain or remove
+
+  grouping bfd {
+    description
+      "Container for BFD.";
+    leaf holdtime {
+      type uint32;
+      units "milliseconds";
+      description
+        "Expected BFD holdtime.
+         The customer may impose some fixed values
+         for the holdtime period if the provider allows
+         the customer to use this function.
+         If the provider doesn't allow the customer to
+         use this function, fixed values will not be set.";
+      reference
+        "RFC 5880: Bidirectional Forwarding
+                   Detection (BFD), Section 6.8.18";
+    }
+  }
+}
