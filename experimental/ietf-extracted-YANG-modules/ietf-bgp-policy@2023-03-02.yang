@@ -18,11 +18,8 @@ module ietf-bgp-policy {
   import iana-bgp-types {
     prefix bt;
   }
-  import ietf-routing-types {
-    prefix rt-types;
-    reference
-      "RFC 8294 - Common YANG Data Types for the
-       Routing Area";
+  import iana-bgp-community-types {
+    prefix bct;
   }
 
   organization
@@ -41,7 +38,7 @@ module ietf-bgp-policy {
      It augments the base routing-policy module with BGP-specific
      options for conditions and actions.
 
-     Copyright (c) 2022 IETF Trust and the persons identified as
+     Copyright (c) 2023 IETF Trust and the persons identified as
      authors of the code. All rights reserved.
 
      Redistribution and use in source and binary forms, with or
@@ -61,12 +58,13 @@ module ietf-bgp-policy {
      described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
      they appear in all capitals, as shown here.";
 
-  revision 2022-10-13 {
+  revision 2023-03-02 {
     description
       "Initial Version";
     reference
-      "RFC XXX, BGP Model for Service Provider Network.";
+      "RFC XXXX: YANG Model for Border Gateway Protocol (BGP-4).";
   }
+
   /*
    * typedef statements
    */
@@ -153,6 +151,39 @@ module ietf-bgp-policy {
        and setting it to the IGP cost (predefined value).";
   }
 
+  grouping equality-operator {
+    description
+      "Grouping used for common equality operations in BGP policy.";
+    choice operation {
+      case eq {
+        leaf eq {
+          type empty;
+          description
+            "Check to see if the value is equal.";
+        }
+      }
+
+      case lt-or-eq {
+        leaf lt-or-eq {
+          type empty;
+          description
+            "Check to see if the value is less than or equal.";
+        }
+      }
+
+      case gt-or-eq {
+        leaf gt-or-eq {
+          type empty;
+          description
+            "Check to see if the value is greater than or
+             equal.";
+        }
+      }
+      description
+        "Choice of operations on the value";
+    }
+  }
+
   // Identities
 
   // augment statements
@@ -163,6 +194,33 @@ module ietf-bgp-policy {
     container bgp-defined-sets {
       description
         "BGP-related set definitions for policy match conditions.";
+      container as-path-sets {
+        description
+          "Enclosing container for list of define AS path sets.";
+        list as-path-set {
+          key "name";
+          description
+            "List of defined AS path sets.";
+          leaf name {
+            type string;
+            description
+              "Name of the AS path set -- this is used to reference
+               the set in match conditions.";
+          }
+          leaf-list member {
+            type string;
+            description
+              "AS path regular expression using BGP YANG AS_PATH
+               regular expression syntax.  If any of the regular
+               expressions in the lists are matched, the as-path-set
+               is considered matched.";
+            reference
+              "RFC XXXX: YANG Model for Border Gateway Protocol
+               (BGP-4), Appendix F.3.";
+          }
+        }
+      }
+
       container community-sets {
         description
           "Enclosing container for list of defined BGP community
@@ -179,9 +237,9 @@ module ietf-bgp-policy {
           }
           leaf-list member {
             type union {
-              type bt:bgp-well-known-community-type;
-              type bt:bgp-std-community-type;
-              type bt:bgp-community-regexp-type;
+              type bct:bgp-well-known-community-type;
+              type bct:bgp-std-community-type;
+              type bct:bgp-community-regexp-type;
             }
             description
               "Members of the community set";
@@ -205,11 +263,37 @@ module ietf-bgp-policy {
           }
           leaf-list member {
             type union {
-              type rt-types:route-target;
-              type bt:bgp-community-regexp-type;
+              type bct:bgp-ext-community-type;
+              type bct:bgp-community-regexp-type;
             }
             description
               "Members of the extended community set.";
+          }
+        }
+      }
+
+      container ipv6-ext-community-sets {
+        description
+          "Enclosing container for list of extended IPv6 BGP
+           community sets";
+        list ipv6-ext-community-set {
+          key "name";
+          description
+            "List of defined IPv6 extended BGP community sets";
+          leaf name {
+            type string;
+            description
+              "Name / label of the IPv6 extended community set --
+               this is used to reference the set in match
+               conditions";
+          }
+          leaf-list member {
+            type union {
+              type bct:bgp-ipv6-ext-community-type;
+              type bct:bgp-community-regexp-type;
+            }
+            description
+              "Members of the IPv6 extended community set.";
           }
         }
       }
@@ -230,34 +314,11 @@ module ietf-bgp-policy {
           }
           leaf-list member {
             type union {
-              type bt:bgp-large-community-type;
-              type bt:bgp-community-regexp-type;
+              type bct:bgp-large-community-type;
+              type bct:bgp-community-regexp-type;
             }
             description
               "Members of the large community set.";
-          }
-        }
-      }
-
-      container as-path-sets {
-        description
-          "Enclosing container for list of define AS path sets.";
-        list as-path-set {
-          key "name";
-          description
-            "List of defined AS path sets.";
-          leaf name {
-            type string;
-            description
-              "Name of the AS path set -- this is used to reference
-               the set in match conditions.";
-          }
-          leaf-list member {
-            type string;
-            description
-              "AS path regular expression -- list of ASes in the
-               set. If any of the regualr expression in the lists
-               is matched, the as-path-set is considered matched.";
           }
         }
       }
@@ -297,11 +358,40 @@ module ietf-bgp-policy {
       description
         "Top-level container for BGP specific policy conditions.";
 
-      leaf med-eq {
-        type uint32;
+      container local-pref {
         description
-          "Condition to check if the received MED value is equal to
-           the specified value.";
+          "Value and comparison operations for conditions based on
+           the value of the BGP LOCAL_PREF.";
+        reference
+          "RFC 4271: A Border Gateway Protocol 4 (BGP-4), Section
+           5.1.5.";
+
+        leaf value {
+          type uint32;
+          description
+            "BGP LOCAL_PREF value for comparison to the entry in the
+             BGP route.";
+        }
+
+        uses equality-operator;
+      }
+
+      container med {
+        description
+          "Value and comparison operations for conditions based on
+           the value of the BGP MULTI_EXIT_DISC (MED)";
+        reference
+          "RFC 4271: A Border Gateway Protocol 4 (BGP-4), Section
+           5.1.4.";
+
+        leaf value {
+          type uint32;
+          description
+            "BGP MED value for comparison to the entry in the BGP
+             route.";
+        }
+
+        uses equality-operator;
       }
 
       leaf origin-eq {
@@ -323,13 +413,6 @@ module ietf-bgp-policy {
             "List of address families which the NLRI may be within.";
         }
         uses rt-pol:match-set-options-restricted-group;
-      }
-
-      leaf local-pref-eq {
-        type uint32;
-        description
-          "Condition to check if the local pref attribute is equal to
-           the specified value.";
       }
 
       container match-neighbor {
@@ -373,34 +456,7 @@ module ietf-bgp-policy {
              update.";
         }
 
-        choice operation {
-          case eq {
-            leaf eq {
-              type empty;
-              description
-                "Check to see if the value is equal.";
-            }
-          }
-
-          case lt-or-eq {
-            leaf lt-or-eq {
-              type empty;
-              description
-                "Check to see if the value is less than or equal.";
-            }
-          }
-
-          case gt-or-eq {
-            leaf gt-or-eq {
-              type empty;
-              description
-                "Check to see if the value is greater than or
-                 equal.";
-            }
-          }
-          description
-            "Choice of operations on the value of community-count.";
-        }
+        uses equality-operator;
       }
 
       container as-path-length {
@@ -411,7 +467,7 @@ module ietf-bgp-policy {
            The as-path-length SHALL be calculated and SHALL follow
            RFC 4271 rules.";
         reference
-          "RFC 4271: BGP-4.";
+          "RFC 4271: A Border Gateway Protocol 4 (BGP-4).";
 
         leaf as-path-length {
           type uint32;
@@ -419,34 +475,7 @@ module ietf-bgp-policy {
             "Value of the AS path length in the route update.";
         }
 
-        choice operation {
-          case eq {
-            leaf eq {
-              type empty;
-              description
-                "Check to see if the value is equal.";
-            }
-          }
-
-          case lt-or-eq {
-            leaf lt-or-eq {
-              type empty;
-              description
-                "Check to see if the value is less than or equal.";
-            }
-          }
-
-          case gt-or-eq {
-            leaf gt-or-eq {
-              type empty;
-              description
-                "Check to see if the value is greater than or
-                 equal.";
-            }
-          }
-          description
-            "Choice of operations on the value of as-path-len.";
-        }
+        uses equality-operator;
       }
 
       container match-community-set {
@@ -478,6 +507,62 @@ module ietf-bgp-policy {
           }
           description
             "References a defined extended community set.";
+        }
+        leaf ext-community-match-kind {
+          type enumeration {
+            enum ext-community {
+              description
+                "Perform the match against the ext-community RIB
+                 attribute.";
+            }
+            enum ext-community-raw {
+              description
+                "Perform the match against the ext-community-raw RIB
+                 attribute.";
+            }
+          }
+          default ext-community;
+          description
+            "Extended communities may be matched by the ext-community
+             RIB attribute, or the ext-community-raw RIB attribute.
+             This leaf selects which leaf to perform the match
+             operation against.";
+        }
+        uses rt-pol:match-set-options-group;
+      }
+
+      container match-ipv6-ext-community-set {
+        description
+          "Match a referenced IPv6 extended community-set according
+           to the logic defined in the match-set-options leaf.";
+        leaf ipv6-ext-community-set {
+          type leafref {
+            path "/rt-pol:routing-policy/rt-pol:defined-sets/"
+               + "bgp-defined-sets/ipv6-ext-community-sets/"
+               + "ipv6-ext-community-set/name";
+          }
+          description
+            "References a defined IPv6 extended community set.";
+        }
+        leaf ipv6-ext-community-match-kind {
+          type enumeration {
+            enum ipv6-ext-community {
+              description
+                "Perform the match against the IPv6 ext-community RIB
+                 attribute.";
+            }
+            enum ipv6-ext-community-raw {
+              description
+                "Perform the match against the IPv6 ext-community-raw
+                 RIB attribute.";
+            }
+          }
+          default ipv6-ext-community;
+          description
+            "IPv6 Extended communities may be matched by the
+             ipv6-ext-community RIB attribute, or the
+             ipv6-ext-community-raw RIB attribute.  This leaf selects
+             which leaf to perform the match operation against.";
         }
         uses rt-pol:match-set-options-group;
       }
@@ -604,15 +689,14 @@ module ietf-bgp-policy {
           case inline {
             leaf-list communities {
               type union {
-                type bt:bgp-well-known-community-type;
-                type bt:bgp-std-community-type;
+                type bct:bgp-well-known-community-type;
+                type bct:bgp-std-community-type;
               }
               description
                 "Set the community values for the update inline with
                  a list.";
             }
           }
-
           case reference {
             leaf community-set-ref {
               type leafref {
@@ -649,7 +733,7 @@ module ietf-bgp-policy {
              communities for the set-ext-community action";
           case inline {
             leaf-list communities {
-              type rt-types:route-target;
+              type bct:bgp-ext-community-type;
               description
                 "Set the extended community values for the update
                  inline with a list.";
@@ -664,6 +748,49 @@ module ietf-bgp-policy {
               }
               description
                 "References a defined extended community set by
+                 name.";
+            }
+          }
+        }
+      }
+
+      container set-ipv6-ext-community {
+        description
+          "Action to set the IPv6 extended community attributes of
+           the route, along with options to modify how the community
+           is modified. IPv6 extended communities may be set using an
+           inline list OR a reference to an existing defined set (but
+           not both).";
+
+        leaf options {
+          type bgp-set-community-option-type;
+          description
+            "Options for modifying the community attribute with
+             the specified values.  These options apply to both
+             methods of setting the community attribute.";
+        }
+
+        choice method {
+          description
+            "Indicates the method used to specify the IPv6 extended
+             communities for the set-ipv6-ext-community action";
+          case inline {
+            leaf-list communities {
+              type bct:bgp-ipv6-ext-community-type;
+              description
+                "Set the IPv6 extended community values for the
+                 update inline with a list.";
+            }
+          }
+          case reference {
+            leaf ipv6-ext-community-set-ref {
+              type leafref {
+                path "/rt-pol:routing-policy/rt-pol:defined-sets/"
+                   + "bgp-defined-sets/ipv6-ext-community-sets/"
+                   + "ipv6-ext-community-set/name";
+              }
+              description
+                "References a defined IPv6 extended community set by
                  name.";
             }
           }
@@ -692,7 +819,7 @@ module ietf-bgp-policy {
              communities for the set-large-community action";
           case inline {
             leaf-list communities {
-              type bt:bgp-large-community-type;
+              type bct:bgp-large-community-type;
               description
                 "Set the large community values for the update
                  inline with a list.";
