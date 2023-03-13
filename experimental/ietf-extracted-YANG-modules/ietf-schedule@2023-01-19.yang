@@ -16,8 +16,12 @@ module ietf-schedule {
     "WG Web: <https://datatracker.ietf.org/wg/opsawg/>
      WG List: <mailto:opsawg@ietf.org>";
   description
-    "This YANG module defines two properties of an iSchedule
-     object:period of time and recurrence rule.
+    "This YANG module defines two groupings for iCalendar (Internet
+     Calendaring and Scheduling Core Object Specification) data
+     types:period of time and recurrence rule, for representing and
+     exchanging calendaring and scheduling information. The YANG
+     module complies with sections 3.3.9 and 3.3.10 in RFC 5545.
+     Future extensions may define more as needed.
 
      Copyright (c) 2023 IETF Trust and the persons identified
      as authors of the code. All rights reserved.
@@ -43,30 +47,37 @@ module ietf-schedule {
   typedef weekday {
     type enumeration {
       enum sunday {
+        value 0;
         description
           "Sunday of the week.";
       }
       enum monday {
+        value 1;
         description
           "Monday of the week.";
       }
       enum tuesday {
+        value 2;
         description
           "Tuesday of the week.";
       }
       enum wednesday {
+        value 3;
         description
           "Wednesday of the week.";
       }
       enum thursday {
+        value 4;
         description
           "Thursday of the week.";
       }
       enum friday {
+        value 5;
         description
           "Friday of the week.";
       }
       enum saturday {
+        value 6;
         description
           "Saturday of the week.";
       }
@@ -75,9 +86,30 @@ module ietf-schedule {
       "Seven days of the week.";
   }
 
+  typedef duration {
+    type string {
+      pattern '((\+)?|\-)P((([0-9]+)D)?(T(0[0-9]|1[0-9]|2[0-3])'
+            + ':[0-5][0-9]:[0-5][0-9]))|P([0-9]+)W';
+    }
+    description
+      "Duration of the time. The format can represent nominal
+       durations (weeks and days) and accurate durations (hours,
+       minutes, and seconds). Note that this value type doesn't
+       support the 'Y' and 'M' designators to specify durations in
+       terms of years and months. Negative durations are typically
+       used to schedule an alarm to trigger before an associated time.";
+    reference
+      "RFC 5545: Internet Calendaring and Scheduling Core Object
+       Specification (iCalendar)";
+
+  }
+
   grouping period {
     description
       "This grouping is defined for period of time property.";
+    reference
+      "RFC 5545: Internet Calendaring and Scheduling Core Object
+       Specification (iCalendar)";
     container period-of-time {
       description
         "This container is defined to identify period values that
@@ -110,9 +142,12 @@ module ietf-schedule {
               "Period start time.";
           }
           leaf duration {
-            type yang:time-no-zone;
+            type duration {
+              pattern 'P((([0-9]+)D)?(T(0[0-9]|1[0-9]|2[0-3])'
+                    + ':[0-5][0-9]:[0-5][0-9]))|P([0-9]+)W';
+            }
             description
-              "Duration of the time.";
+              "A positive duration of the time.";
           }
         }
       }
@@ -123,6 +158,9 @@ module ietf-schedule {
     description
       "This grouping is defined to identify properties that
        contain a recurrence rule specification";
+    reference
+      "RFC 5545: Internet Calendaring and Scheduling Core Object
+       Specification (iCalendar)";
     container recurrence {
       description
         "Recurrence rule definition.";
@@ -176,13 +214,15 @@ module ietf-schedule {
           "This parameter is defined to identify the type of
            recurrence rule.";
       }
-      choice until-or-count {
+      choice recurrence-bound {
         description
-          "Modes to bound the recurrence rule.";
+          "Modes to bound the recurrence rule. If no choice is
+           indicated, the recurrence rule is considered to repeat
+           forever.";
         case until {
           description
             "This case defines a way that bounds the recurrence
-             rule in a inclusive manner.";
+             rule in an inclusive manner.";
           leaf until {
             type union {
               type yang:date-no-zone;
@@ -190,7 +230,9 @@ module ietf-schedule {
             }
             description
               "This parameter specifies a date-no-zone or
-               date-time value to bounds the recurrence.";
+               date-time value to bounds the recurrence. The
+               specified value becomes the last instance of the
+               recurrence.";
           }
         }
         case count {
@@ -210,7 +252,12 @@ module ietf-schedule {
         default "1";
         description
           "A positive integer representing at which intervals the
-           recurrence rule repeats.";
+           recurrence rule repeats. The default value is '1',
+           meaning every second for a secondly rule, every minute
+           for a minutely rule, every hour for an hourly rule, every
+           day for a daily rule, every week for a weekly rule, every
+           month for a monthly rule, and every year for a yearly
+           rule.";
       }
       leaf-list bysecond {
         type uint32 {
@@ -237,15 +284,18 @@ module ietf-schedule {
         key "weekday";
         description
           "Specify a list of days of the week.";
-        leaf direction {
-          when '(enum-value(../../freq) >= 6) and ' +
+        leaf-list direction {
+          when '(enum-value(../../freq) = 6) or ' +
             '(enum-value(../../freq) = 7) and not(../../byyearweek)';
           type int32 {
             range "-53..-1|1..53";
           }
           description
             "When specified, it indicates the nth occurrence of a
-             specific day within the MONTHLY or YEARLY 'RRULE'.";
+             specific day within the MONTHLY or YEARLY 'RRULE'. For
+             example, within a MONTHLY rule, +1 monday represents the
+             first monday within the month, whereas -1 monday
+             represents the last monday of the month.";
         }
         leaf weekday {
           type schedule:weekday;
@@ -253,6 +303,7 @@ module ietf-schedule {
             "Corresponding to seven days of the week.";
         }
       }
+
       leaf-list bymonthday {
         type int32 {
           range "-31..-1|1..31";
@@ -289,9 +340,10 @@ module ietf-schedule {
         description
           "Specifies a list of values that corresponds to the nth
            occurrence within the set of recurrence instances
-           specified by the rule.";
+           specified by the rule. It must only be used in conjunction
+           with another byXXX rule part.";
       }
-      leaf-list wkst {
+      leaf wkst {
         type schedule:weekday;
         default "monday";
         description
