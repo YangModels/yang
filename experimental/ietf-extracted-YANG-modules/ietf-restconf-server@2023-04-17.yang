@@ -57,7 +57,7 @@ module ietf-restconf-server {
     "This module contains a collection of YANG definitions
      for configuring RESTCONF servers.
 
-     Copyright (c) 2022 IETF Trust and the persons identified
+     Copyright (c) 2023 IETF Trust and the persons identified
      as authors of the code. All rights reserved.
 
      Redistribution and use in source and binary forms, with
@@ -78,7 +78,7 @@ module ietf-restconf-server {
      (RFC 8174) when, and only when, they appear in all
      capitals, as shown here.";
 
-  revision 2022-12-12 {
+  revision 2023-04-17 {
     description
       "Initial version";
     reference
@@ -91,7 +91,7 @@ module ietf-restconf-server {
     description
       "The 'http-listen' feature indicates that the RESTCONF server
        supports opening a port to listen for incoming RESTCONF over
-       TPC client connections, whereby the TLS connections are
+       TCP client connections, whereby the TLS connections are
        terminated by an external system.";
     reference
       "RFC 8040: RESTCONF Protocol";
@@ -199,7 +199,7 @@ module ietf-restconf-server {
                but may be used by the application when needing to
                inform other systems how to contact this server.";
             leaf address {
-              type inet:ip-address;
+              type inet:host;
               mandatory true;
               description
                 "The IP address or hostname of the external system
@@ -251,7 +251,9 @@ module ietf-restconf-server {
         container https {
           description
             "Configures RESTCONF server stack assuming that
-             TLS-termination is handled internally.";
+             TLS-termination is handled internally (i.e.,
+             not by a TLS-terminator in front of the RESTCONF
+             server).";
           container tcp-server-parameters {
             description
               "A wrapper around the TCP server parameters
@@ -446,7 +448,7 @@ module ietf-restconf-server {
 
                    This connection type decreases resource
                    utilization, albeit with increased delay in
-                   RESTCONF client to RESTCONF client interactions.
+                   RESTCONF client to RESTCONF server interactions.
 
                    The RESTCONF client SHOULD gracefully close
                    the underlying TLS connection upon completing
@@ -454,6 +456,10 @@ module ietf-restconf-server {
                    connection is not closed gracefully, the
                    RESTCONF server MUST immediately attempt
                    to reestablish the connection.
+
+                   Connections are established at the same start
+                   time regardless how long the previous connection
+                   stayed open.
 
                    In the case that the previous connection is
                    still active (i.e., the RESTCONF client has not
@@ -470,23 +476,30 @@ module ietf-restconf-server {
                 leaf anchor-time {
                   type yang:date-and-time {
                     // constrained to minute-level granularity
-                    pattern '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}'
-                          + '(Z|[\+\-]\d{2}:\d{2})';
+                    pattern '[0-9]{4}-(1[0-2]|0[1-9])-(0[1-9]|[1-2]'
+                          + '[0-9]|3[0-1])T(0[0-9]|1[0-9]|2[0-3]):['
+                          + '0-5][0-9]:00(Z|[\+\-]((1[0-3]|0[0-9]):'
+                          + '([0-5][0-9])|14:00))?';
                   }
                   description
                     "Designates a timestamp before or after which a
                      series of periodic connections are determined.
                      The periodic connections occur at a whole
-                     multiple interval from the anchor time.  For
-                     example, for an anchor time is 15 minutes past
-                     midnight and a period interval of 24 hours, then
-                     a periodic connection will occur 15 minutes past
-                     midnight everyday.";
+                     multiple interval from the anchor time.
+
+                     If an 'anchor-time' is not provided, then the
+                     server may implicitly set it to the time when
+                     this configuraton is applied (e.g., on boot).
+
+                     For example, for an anchor time is 15 minutes
+                     past midnight and a period interval of 24 hours,
+                     then a periodic connection will occur 15 minutes
+                     past midnight everyday.";
                 }
                 leaf idle-timeout {
                   type uint16;
                   units "seconds";
-                  default "120"; // two minutes
+                  default "180"; // three minutes
                   description
                     "Specifies the maximum number of seconds that
                      the underlying TCP session may remain idle.
@@ -561,7 +574,6 @@ module ietf-restconf-server {
       } // restconf-client
     } // call-home
   } // restconf-server-app-grouping
-
   // Protocol accessible node for servers that implement this module.
   container restconf-server {
     if-feature central-restconf-server-supported;
