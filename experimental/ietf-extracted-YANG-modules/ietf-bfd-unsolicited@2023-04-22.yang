@@ -5,7 +5,6 @@ module ietf-bfd-unsolicited {
   namespace "urn:ietf:params:xml:ns:yang:ietf-bfd-unsolicited";
 
   prefix "bfd-unsol";
-
   // RFC Ed.: replace occurences of YYYY with actual RFC numbers
   // and remove this note
 
@@ -54,7 +53,6 @@ module ietf-bfd-unsolicited {
 
      Copyright (c) 2023 IETF Trust and the persons
      identified as authors of the code.  All rights reserved.
-
      Redistribution and use in source and binary forms, with or
      without modification, is permitted pursuant to, and subject
      to the license terms contained in, the Revised BSD License
@@ -67,7 +65,7 @@ module ietf-bfd-unsolicited {
 
   reference "RFC YYYY";
 
-  revision 2023-03-26 {
+  revision 2023-04-22 {
     description
       "Initial revision.";
     reference
@@ -77,14 +75,6 @@ module ietf-bfd-unsolicited {
   /*
    * Feature definitions
    */
-  feature unsolicited-params-global {
-    description
-      "This feature indicates that the server supports global
-       parameters for unsolicited sessions.";
-    reference
-      "RFC YYYY: Unsolicited BFD for Sessionless Applications.";
-  }
-
   feature unsolicited-params-per-interface {
     description
       "This feature indicates that the server supports per-interface
@@ -96,17 +86,21 @@ module ietf-bfd-unsolicited {
   /*
    * Type Definitions
    */
-  typedef role {
-    type enumeration {
-      enum active {
-        description "Active role";
-      }
-      enum passive {
-        description "Passive role";
-      }
-    }
+  identity role {
     description
-      "Role of local system during BFD session initialization.";
+      "Base identity from which all roles are derived.
+       Role of local system during BFD session initialization.";
+  }
+  identity active {
+    base "bfd-unsol:role";
+    description "Active role";
+    reference
+      "RFC5880: Bidirectional Forwarding Detection (BFD),
+       Section 6.1";
+  }
+  identity passive {
+    base "bfd-unsol:role";
+    description "Passive role";
     reference
       "RFC5880: Bidirectional Forwarding Detection (BFD),
        Section 6.1";
@@ -117,18 +111,11 @@ module ietf-bfd-unsolicited {
    */
    augment "/rt:routing/rt:control-plane-protocols/"
          + "rt:control-plane-protocol/bfd:bfd/bfd-ip-sh:ip-sh" {
-     if-feature bfd-unsol:unsolicited-params-global;
      description
        "Augmentation for BFD unsolicited parameters";
      container unsolicited {
        description
          "BFD IP single-hop unsolicited top level container";
-       leaf enabled {
-         type boolean;
-         default false;
-         description
-           "BFD unsolicited enabled globally for IP single-hop.";
-       }
        uses bfd-types:base-cfg-parms;
      }
    }
@@ -136,23 +123,9 @@ module ietf-bfd-unsolicited {
    augment "/rt:routing/rt:control-plane-protocols/"
          + "rt:control-plane-protocol/bfd:bfd/bfd-ip-sh:ip-sh/"
          + "bfd-ip-sh:interfaces" {
-     if-feature bfd-unsol:unsolicited-params-per-interface;
      description
        "Augmentation for BFD unsolicited on IP single-hop interface";
      container unsolicited {
-       must "local-multiplier or ../../unsolicited/local-multiplier" {
-         error-message
-           "The local-multiplier must be specified either under the interface
-            or globally.";
-       }
-       must "(min-interval or ../../unsolicited/min-interval) or
-             (desired-min-tx-interval and required-min-rx-interval) or
-             (../../unsolicited/desired-min-tx-interval and
-              ../../unsolicited/required-min-rx-interval)" {
-         error-message
-           "The interval(s) must be specified either under the interface
-            or globally.";
-       }
        description
          "BFD IP single-hop interface unsolicited top level
           container";
@@ -167,16 +140,22 @@ module ietf-bfd-unsolicited {
         * without default values (for inheritance)
         */
        leaf local-multiplier {
+         if-feature bfd-unsol:unsolicited-params-per-interface;
          type bfd-types:multiplier;
          description
            "Multiplier transmitted by the local system. Defaults to
-            ../../unsolicited/local-multiplier.";
+            ../../unsolicited/local-multiplier.
+            A multiplier configured under an interface takes precedence
+            over the mulitiplier configured at the global level.";
        }
 
        choice interval-config-type {
+         if-feature bfd-unsol:unsolicited-params-per-interface;
          description
            "Two interval values or one value used for both transmit and
-            receive. Defaults to ../../unsolicited/interval-config-type.";
+            receive. Defaults to ../../unsolicited/interval-config-type.
+            An interval configured under an interface takes precedence
+            over any interval configured at the global level.";
          case tx-rx-intervals {
            leaf desired-min-tx-interval {
              type uint32;
@@ -211,7 +190,9 @@ module ietf-bfd-unsolicited {
     description
       "Augmentation for BFD unsolicited on IP single-hop session";
       leaf role {
-        type bfd-unsol:role;
+        type identityref {
+          base "bfd-unsol:role";
+        }
         config false;
         description "Role.";
       }
