@@ -24,6 +24,16 @@ module ietf-te {
       "RFC6991: Common YANG Data Types.";
   }
 
+  import ietf-network {
+    prefix "nw";
+    reference "RFC 8345: A YANG Data Model for Network Topologies";
+  }
+
+  import ietf-network-topology {
+    prefix "nt";
+    reference "RFC 8345: A YANG Data Model for Network Topologies";
+  }
+
   organization
     "IETF Traffic Engineering Architecture and Signaling (TEAS)
      Working Group.";
@@ -33,6 +43,7 @@ module ietf-te {
 
      Editor:   Tarek Saad
                <mailto:tsaad.net@gmail.com>
+
      Editor:   Rakesh Gandhi
                <mailto:rgandhi@cisco.com>
 
@@ -46,7 +57,11 @@ module ietf-te {
                <mailto: xufeng.liu.ietf@gmail.com>
 
      Editor:   Igor Bryskin
-               <mailto:i_bryskin@yahoo.com>";
+               <mailto:i_bryskin@yahoo.com>
+
+     Editor:   Oscar Gonzalez de Dios
+               <mailto: oscar.gonzalezdedios@telefonica.com>";
+
   description
     "YANG data module for TE configuration, state, and RPCs.
      The model fully conforms to the Network Management
@@ -71,7 +86,7 @@ module ietf-te {
   // RFC Ed.: update the date below with the date of RFC publication
   // and remove this note.
 
-  revision 2023-03-11 {
+  revision 2023-06-16 {
     description
       "Initial revision for the TE generic YANG module.";
     reference
@@ -92,6 +107,7 @@ module ietf-te {
     type union {
       type te-types:te-node-id;
       type inet:ip-address;
+      type nw:node-id;
     }
     description
       "Generic type that identifies a node in a TE topology.";
@@ -108,7 +124,7 @@ module ietf-te {
       type te-gen-node-id;
       description
         "The identifier of the node. Can be represented as IP
-         address or dotted quad address.";
+         address or dotted quad address or as an URI.";
     }
     leaf type {
       type enumeration {
@@ -120,6 +136,10 @@ module ietf-te {
           description
             "Dotted quad address representation of the node
              identifier.";
+        }
+        enum node-id {
+          description
+            "URI representation of the node identifier.";
         }
       }
       description
@@ -380,8 +400,8 @@ module ietf-te {
         leaf error-description {
           type string;
           description
-            "Textual representation of the error occurred during
-             path computation.";
+            "Textual representation of the error that occurred
+             during path computation.";
         }
         leaf error-timestamp {
           type yang:date-and-time;
@@ -450,7 +470,7 @@ module ietf-te {
            server, if and only if, the server controls both
             endpoints.";
         reference
-          "RFC4427";
+          "ITU_G.808.1";
       }
     }
     container restoration {
@@ -605,36 +625,52 @@ module ietf-te {
     }
   }
 
+  grouping tunnel-end-point {
+    description
+      "Common grouping used to specify the tunnel source and
+      destination end-points.";
+    leaf node-id {
+      type nw:node-id;
+      description
+        "The TE tunnel end-point node identifier";
+    }
+    leaf te-node-id {
+      type te-types:te-node-id;
+      description
+        "The TE tunnel end-point TE node identifier";
+    }
+    leaf tunnel-tp-id {
+      when "../node-id or ../te-node-id" {
+        description
+          "The TE tunnel termination point identifier is local to
+          a node";
+      }
+      type binary;
+      description
+        "The TE tunnel end-point TE tunnel termination point
+        identifier";
+    }
+  }
+
   /* This grouping is re-used in path-computation rpc */
   grouping tunnel-common-attributes {
     description
       "Common grouping to define the TE tunnel parameters";
-    leaf source {
-      type te-types:te-node-id;
+    container source {
       description
-        "TE tunnel source node ID.";
+        "TE tunnel source end-point.";
+      uses tunnel-end-point;
     }
-    leaf destination {
-      type te-types:te-node-id;
+    container destination {
       description
-        "TE tunnel destination node identifier.";
-    }
-    leaf src-tunnel-tp-id {
-      type binary;
-      description
-        "TE tunnel source termination point identifier.";
-    }
-    leaf dst-tunnel-tp-id {
-      type binary;
-      description
-        "TE tunnel destination termination point identifier.";
+        "TE tunnel destination end-point.";
+      uses tunnel-end-point;
     }
     leaf bidirectional {
       type boolean;
       default "false";
       description
-        "Indicates a bidirectional co-routed LSP (non-associated
-         LSP case).";
+        "Indicates a bidirectional tunnel";
     }
   }
 
@@ -676,28 +712,50 @@ module ietf-te {
           "RFC4206";
         leaf enable {
           type boolean;
+          default "false";
           description
             "Enables the hierarchical link properties supported by
              this tunnel";
+        }
+        leaf local-node-id {
+          type nw:node-id;
+          description
+            "The local node identifier.";
         }
         leaf local-te-node-id {
           type te-types:te-node-id;
           description
             "The local TE node identifier.";
         }
+        leaf local-link-tp-id {
+          type nt:tp-id;
+          description
+            "The local link termination point identifier.";
+        }
         leaf local-te-link-tp-id {
           type te-types:te-tp-id;
           description
             "The local TE link termination point identifier.";
+        }
+        leaf remote-link-tp-id {
+          type nt:tp-id;
+          description
+            "The remote link termination point identifier.";
         }
         leaf remote-te-node-id {
           type te-types:te-node-id;
           description
             "Remote TE node identifier.";
         }
+        leaf network-id {
+          type nw:network-id;
+          description
+            "The network topology identifier where the hierarchical
+            link supported by this TE tunnel is instantiated.";
+        }
         uses te-types:te-topology-identifier {
           description
-            "The topology identifier where the hierarchical link
+            "The TE topology identifier where the hierarchical link
              supported by this TE tunnel is instantiated.";
         }
       }
@@ -722,7 +780,6 @@ module ietf-te {
            in RFC7471 for OSPF, and RFC8570 for ISIS.
          - path affinity constraints
          - path SRLG constraints";
-
     }
     uses te-types:generic-path-disjointness;
     uses te-types:path-constraints-route-objects;
@@ -760,7 +817,6 @@ module ietf-te {
       "TE global container.";
     leaf enable {
       type boolean;
-      default "false";
       description
         "Enables the TE component features.";
     }
@@ -936,39 +992,52 @@ module ietf-te {
             key "name";
             description
               "List of primary paths for this tunnel.";
+            leaf active {
+              type boolean;
+              config false;
+              description
+                "Indicates an active path that
+                 has been selected from the primary paths list.";
+            }
             uses path-common-properties;
             uses path-forward-properties;
             uses k-requested-paths;
             uses path-compute-info;
             uses path-state;
             container primary-reverse-path {
-              when "../../../te:bidirectional = 'false'";
+              when "../../../te:bidirectional = 'true'";
               description
                 "The reverse primary path properties.";
               uses path-common-properties;
               uses path-compute-info;
               uses path-state;
               container candidate-secondary-reverse-paths {
-                when "../../../../te:bidirectional = 'false'";
                 description
                   "The set of referenced candidate reverse secondary
                    paths from the full set of secondary reverse paths
                    which may be used for this primary path.";
                 list candidate-secondary-reverse-path {
-                  key "secondary-path";
+                  key "secondary-reverse-path";
                   ordered-by user;
                   description
                     "List of candidate secondary reverse path(s)";
-                  leaf secondary-path {
+                  leaf secondary-reverse-path {
                     type leafref {
                       path "../../../../../../"
                          + "te:secondary-reverse-paths/"
                          + "te:secondary-reverse-path/te:name";
                     }
                     description
-                      "A reference to the secondary reverse path that
-                       should be utilised when the containing primary
-                       reverse path option is in use.";
+                      "A reference to the reverse secondary path when
+                       co-routed with the secondary path.";
+                  }
+                  leaf active {
+                    type boolean;
+                    config false;
+                    description
+                      "Indicates an active path that has been
+                       selected from the secondary reverse paths
+                       list.";
                   }
                 }
               }
@@ -978,13 +1047,13 @@ module ietf-te {
                 "The set of candidate secondary paths which may be
                  used for this primary path. When secondary paths are
                  specified in the list the path of the secondary LSP
-                 in use must be restricted to those path options
+                 in use must be restricted to those paths
                  referenced.
                  The priority of the secondary paths is specified
                  within the list. Higher priority values are less
                  preferred - that is to say that a path with priority
                  0 is the most preferred path. In the case that the
-                 list is empty, any secondary path option may be
+                 list is empty, any secondary path may be
                  utilised when the current primary path is in use.";
               list candidate-secondary-path {
                 key "secondary-path";
@@ -998,18 +1067,16 @@ module ietf-te {
                        + "te:secondary-path/te:name";
                   }
                   description
-                    "A reference to the secondary path that should be
-                     utilised when the containing primary path option
-                     is
+                    "A reference to the secondary path that may be
+                     utilised when the containing primary path is
                      in use.";
                 }
                 leaf active {
                   type boolean;
                   config false;
                   description
-                    "Indicates the current active path option that
-                     has been selected of the candidate secondary
-                     paths.";
+                    "Indicates an active path that has been selected
+                     from the candidate secondary paths.";
                 }
               }
             }
@@ -1032,6 +1099,16 @@ module ietf-te {
               description
                 "Specifies a preference for this path. The lower the
                  number higher the preference.";
+            }
+            leaf secondary-reverse-path {
+              type leafref {
+                path "../../../"
+                   + "te:secondary-reverse-paths/"
+                   + "te:secondary-reverse-path/te:name";
+              }
+              description
+                "A reference to the secondary reverse path that
+                 may be utilised when the secondary path is in use.";
             }
             uses path-compute-info;
             uses protection-restoration-properties;
@@ -1322,11 +1399,10 @@ module ietf-te {
           type identityref {
             base te-types:lsp-protection-state;
           }
+          config false;
           description
-            "The APS state machine controlling which
-             tunnels are using the resources of the protecting LSP.";
-          reference
-            "ITU_G.808.1, RFC7271, and RFC8234";
+            "The reported protection state controlling which
+             tunnel is using the resources of the protecting LSP.";
         }
         leaf protection-group-ingress-node-id {
           type te-types:te-node-id;
