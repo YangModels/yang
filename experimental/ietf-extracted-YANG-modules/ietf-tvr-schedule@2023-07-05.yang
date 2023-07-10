@@ -1,0 +1,294 @@
+module ietf-tvr-schedule {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-tvr-schedule";
+  prefix tvr-schedule;
+
+  import ietf-yang-types {
+    prefix "yang";
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+
+  import ietf-interfaces {
+    prefix "if";
+    reference
+      "RFC 8343: A YANG Data Model for Interface
+               Management (NMDA Version)";
+  }
+
+  import ietf-logical-network-element {
+    prefix "lne";
+    reference
+      "RFC 8530: YANG Model for Logical Network Elements";
+  }
+
+  organization
+    "IETF TVR - Time Variant Routing Working Group";
+  contact
+    "WG Web:   <http://datatracker.ietf.org/wg/tvr>
+     WG List:  <mailto:tvr@ietf.org>
+
+     Author:    Yingzhen Qu
+               <mailto:yingzhen.ietf@gmail.com>
+     Author:   Acee Lindem
+               <mailto:acee.ietf@gmail.com>
+     Author:   Marc Blanchet
+               <mailto:marc.blanchet@viagenie.ca>";
+
+  description
+    "The YANG module defines a schedule for changing
+     attributes. It can be used to augment existing models.
+
+     This YANG model conforms to the Network Management
+     Datastore Architecture (NMDA) as described in RFC 8342.
+
+     Copyright (c) 2023 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+     for full legal notices.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.";
+  reference
+    "RFC XXXX: YANG Data Model for Scheduled Attributes";
+
+  revision 2023-07-05 {
+    description
+      "Initial Version";
+    reference
+      "RFC XXXX: YANG Data Model for Scheduled Attributes.";
+  }
+
+  typedef recurrence-type {
+    type enumeration {
+      enum once {
+        description
+           "Repeat the scheduled action or attribute modificaton
+           only once";
+      }
+      enum hourly {
+        description
+          "Repeat the scheduled action or attribute modificaiton
+          once per hour.";
+      }
+      enum daily {
+        description
+          "Repeat the scheduled action or attribute modificaiton
+           once per day.";
+      }
+      enum weekly {
+        description
+          "Repeat the scheduled action or attribute modificaiton
+           once per week.";
+      }
+      enum monthly {
+        description
+          "Repeat the scheduled action or attribute modificaiton
+           once per week.";
+      }
+      enum yearly {
+        description
+          "Repeat the scheduled action or attribute modificaiton
+           once per year.";
+      }
+    }
+    description
+      "Types of recurrence";
+  }
+
+  grouping schedule-lifetime {
+    description
+      "Schedule lifetime specification.";
+    choice schedule-lifetime {
+      default "always";
+      description
+        "Options for specifying schedule lifetimes";
+      case always {
+        leaf always {
+          type empty;
+          description
+            "Indicates schedule is always valid, and the schedule
+             will be effective right away after the configuration.";
+        }
+      }
+      case start-end-time {
+        leaf start-date-time {
+          type yang:date-and-time;
+          description
+            "Start time of the schedule.";
+        }
+        choice end-time {
+          default "infinite";
+          description
+            "End-time setting.";
+          case infinite {
+            leaf no-end-time {
+              type empty;
+              description
+                "Indicates schedule lifetime end-time is infinite.";
+            }
+          }
+          case duration {
+            leaf duration {
+              type uint32 {
+                range "1..2147483646";
+              }
+              units "seconds";
+              description
+                "Schedule lifetime duration, in seconds";
+            }
+          }
+          case end-date-time {
+            leaf end-date-time {
+              type yang:date-and-time;
+              description
+                "End time.";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  grouping schedule {
+    uses schedule-lifetime;
+    leaf recurrence {
+      type recurrence-type;
+      must "(current() != 'once') or ../start-date-time" {
+        error-message "A single occurrence requires a start-time";
+        description
+          "With single recurrence of a schedule, a start-time
+           is required.";
+       }
+      description
+        "Type of recurrence";
+    }
+
+    leaf value-default {
+      type union {
+        type boolean;
+        type string;
+      }
+      description
+        "Attribute default value. This value is used when the value
+         is not covered by the intervals, as well as when the
+         schedule ends.";
+    }
+
+    container base-schedule {
+      list intervals {
+        key "start-time";
+        leaf start-time {
+          type yang:timeticks;
+          must "((../../../recurrence != 'hourly') or "
+            +      "(current() < 360000)) and "
+            +  "((../../../recurrence != 'daily') or "
+            +      "(current() < 8640000)) and "
+            +  "((../../../recurrence != 'monthly') or "
+            +      "(current() < 267840000)) and "
+            +   "((../../../recurrence != 'yearly') or "
+            +      "(current() < 3162240000))"  {
+            error-message
+              "The start-time must not exceed the recurrence
+               interval";
+            description
+              "The start-time must not exceed the recurrrence
+               interval. For example, for a 'monthy' recurrence, the
+               start-time must not exceed 31 days.";
+          }
+          description
+            "Start time of the scheduled value within one recurrence.
+             The calculation of the real start time is to use the
+             basestarting time defined by schedule-lifetime, recurrence,
+             and the timeticks. For example, if a schedule starts at
+             2001/1/1 8:00AM with an hourly recurrence, and the
+             timeticks is 180,000 (30 mins), the start-time will be
+             every 30 mins pass an hour after 2001/1/1.";
+        }
+        leaf end-time {
+          type yang:timeticks;
+          must "(current() > ../start-time) and "
+            +  "((../../../recurrence != 'hourly') or "
+            +      "(current() < 360000)) and "
+            +  "((../../../recurrence != 'daily') or "
+            +      "(current() < 8640000)) and "
+            +  "((../../../recurrence != 'monthly') or "
+            +      "(current() < 267840000)) and "
+            +   "((../../../recurrence != 'yearly') or "
+            +      "(current() < 3162240000))"  {
+            error-message
+              "The end-time must be greater than the end time and
+               must not exceed the recurrrence interval.";
+            description
+              "The end-time must be greater than the end time and
+               must not exceed the recurrrence interval. For example,
+               for a 'daily' recurrence, the time-tick offset must
+               not exceed 24 hours.";
+          }
+          description
+            "End time of the scheduled change. The calculation of the
+             end-time is the same as the start-time.";
+        }
+        leaf value {
+          type union {
+            type boolean;
+            type string;
+          }
+          description
+            "Value for the scheduled attribute during the
+             specified time period.
+             When type string is used, it can be a simple value such
+             as an int, or a string representing a value that changes
+             its value based on a function.";
+        }
+        description
+          "List of intervals for action or attribute modification.
+           The intervals should be contained within each recurrence.
+           For example, when the recurrence is set to daily, the list
+           of intervals should be within this daily range, e.g., the
+           last end-time can't be larger than 8640000 (24hours).";
+      }
+      description
+        "The recurring base-schedule of the action or attribute
+         modification";
+    }
+    description
+      "Complete schedule for a action or attribute modification.";
+  }
+
+  augment "/if:interfaces/if:interface" {
+    description
+      "Augments interface with scheduled attribute.";
+    container scheduled-up-down {
+      description
+        "Scheduled interface up and down. This is to work with the
+         leaf 'enabled' for the configured state of the interface.";
+
+      uses schedule;
+    }
+  }
+
+  augment "/lne:logical-network-elements"
+        + "/lne:logical-network-element" {
+    description
+      "Augments logical network elements with scheduled power
+       shutdown.";
+    container scheduled-power {
+      description
+        "Scheduled power up and down.";
+      uses schedule;
+    }
+  }
+}
