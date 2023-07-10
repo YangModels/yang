@@ -93,8 +93,7 @@ module ietf-te-path-computation {
   // this note
   // replace the revision date with the module publication date
   // the format is (year-month-day)
-
-  revision 2023-01-12 {
+  revision 2023-06-27 {
     description
       "Initial revision";
     reference
@@ -105,11 +104,33 @@ module ietf-te-path-computation {
   // this note
 
   /*
+   * Features
+   */
+
+  feature svec {
+    description
+      "This feature indicates that the server supports synchronized
+      path computation requests.";
+    reference
+      "Section 7.13 of RFC5440: Path Computation Element (PCE)
+      Communication Protocol (PCEP).";
+  }
+
+  feature compute-priority {
+    description
+      "This feature indicates that the server supports path
+      computation request's priority";
+    reference
+      "Section 7.4.1 of RFC5440: Path Computation Element (PCE)
+      Communication Protocol (PCEP).";
+  }
+
+  /*
    * Identities
    */
 
   identity tunnel-action-path-compute-delete {
-    base te-types:tunnel-actions-type;
+    base te-types:tunnel-action-type;
     description
       "Action type to delete the transient states
       of computed paths, as described in section 3.3.1 of
@@ -489,6 +510,25 @@ module ietf-te-path-computation {
           "Each path computation request is uniquely identified
            within the RPC request by the request-id.";
       }
+      leaf compute-priority {
+        if-feature compute-priority;
+        type uint8;
+        default 0;
+        description
+          "The path computation request's priority (from 1 to 7)
+          which can be used to constraint the order by which the
+          path computation server processes the path computation
+          requests.
+
+          A higher numerical value of the priority field reflects a
+          higher priority.
+
+          It MUST be set to the default value (i.e., 0) when
+          unused.";
+        reference
+          "Section 7.4.1 of RFC5440: Path Computation Element (PCE)
+          Communication Protocol (PCEP).";
+      }
       choice tunnel-attributes {
         default "value";
         description
@@ -554,7 +594,25 @@ module ietf-te-path-computation {
                 container secondary-path {
                   description
                     "TE secondary path";
-                  uses te:path-forward-properties;
+                  leaf secondary-reverse-path {
+                    type leafref {
+                      path "/te:tunnels-path-compute/"
+                        + "te:path-compute-info/te-pc:path-request/"
+                        + "te-pc:request-id";
+                    }
+                    description
+                      "A reference to the reverse secondary path
+                      when co-routed with the secondary path.";
+                  }
+                  leaf preference {
+                    type uint8 {
+                      range "1..255";
+                    }
+                    default "1";
+                    description
+                      "Specifies a preference for this path. The
+                      lower the number higher the preference.";
+                  }
                   uses protection-restoration-properties;
                   list primary-path-ref {
                     min-elements 1;
@@ -651,6 +709,15 @@ module ietf-te-path-computation {
                   description
                     "TE secondary reverse path";
                   // uses te:path-preference;
+                  leaf preference {
+                    type uint8 {
+                      range "1..255";
+                    }
+                    default "1";
+                    description
+                      "Specifies a preference for this path. The
+                      lower the number higher the preference.";
+                  }
                   uses protection-restoration-properties;
                   list primary-reverse-path {
                     min-elements 1;
@@ -714,19 +781,16 @@ module ietf-te-path-computation {
               "TE path name.";
           }
           choice path-role {
-            when 'not (./source) and not (./destination) and
-                  not (./src-tunnel-tp-id) and
-                  not (./dst-tunnel-tp-id)' {
+            when 'not (./source) and not (./destination)' {
               description
                 "When the tunnel attributes are specified by value
                 within this path computation, it is assumed that the
                 requested path will be the only path of a tunnel.
 
                 If the requested path is a transit segment path
-                (i.e., the source, src-tp-id, destination and
-                dst-tp-id attributes are empty), it
-                could be of any type. Otherwise it could only be a
-                primary path.";
+                (i.e., the source and destination containers are
+                not present), it could be of any type. Otherwise it
+                could only be a primary path.";
             }
             default primary-path;
             description
@@ -830,7 +894,9 @@ module ietf-te-path-computation {
         }
       }
     }
-    uses synchronization-info;
+    uses synchronization-info {
+      if-feature svec;
+    }
   } // path-compute rpc input
 
   augment "/te:tunnels-path-compute/te:output/"
