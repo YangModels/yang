@@ -1,0 +1,1538 @@
+module ietf-te {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-te";
+
+  /* Replace with IANA when assigned */
+
+  prefix te;
+
+  /* Import TE generic types */
+
+  import ietf-te-types {
+    prefix te-types;
+    reference
+      "RFC8776: Common YANG Data Types for Traffic Engineering.";
+  }
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC6991: Common YANG Data Types.";
+  }
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC6991: Common YANG Data Types.";
+  }
+
+  import ietf-network {
+    prefix "nw";
+    reference "RFC 8345: A YANG Data Model for Network Topologies";
+  }
+
+  import ietf-network-topology {
+    prefix "nt";
+    reference "RFC 8345: A YANG Data Model for Network Topologies";
+  }
+
+  organization
+    "IETF Traffic Engineering Architecture and Signaling (TEAS)
+     Working Group.";
+  contact
+    "WG Web:   <https://tools.ietf.org/wg/teas/>
+     WG List:  <mailto:teas@ietf.org>
+
+     Editor:   Tarek Saad
+               <mailto:tsaad.net@gmail.com>
+
+     Editor:   Rakesh Gandhi
+               <mailto:rgandhi@cisco.com>
+
+     Editor:   Vishnu Pavan Beeram
+               <mailto:vbeeram@juniper.net>
+
+     Editor:   Himanshu Shah
+               <mailto:hshah@ciena.com>
+
+     Editor:   Xufeng Liu
+               <mailto: xufeng.liu.ietf@gmail.com>
+
+     Editor:   Igor Bryskin
+               <mailto:i_bryskin@yahoo.com>
+
+     Editor:   Oscar Gonzalez de Dios
+               <mailto: oscar.gonzalezdedios@telefonica.com>";
+
+  description
+    "YANG data module for TE configuration, state, and RPCs.
+     The model fully conforms to the Network Management
+     Datastore Architecture (NMDA).
+
+     Copyright (c) 2023 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+     for full legal notices.";
+
+  // RFC Ed.: replace XXXX with actual RFC number and remove this
+  // note.
+  // RFC Ed.: update the date below with the date of RFC publication
+  // and remove this note.
+
+  revision 2023-06-16 {
+    description
+      "Initial revision for the TE generic YANG module.";
+    reference
+      "RFCXXXX: A YANG Data Model for Traffic Engineering Tunnels
+       and Interfaces.";
+  }
+
+  typedef tunnel-ref {
+    type leafref {
+      path "/te:te/te:tunnels/te:tunnel/te:name";
+    }
+    description
+      "This type is used by data models that need to reference
+       configured TE tunnel.";
+  }
+
+  typedef te-gen-node-id {
+    type union {
+      type te-types:te-node-id;
+      type inet:ip-address;
+      type nw:node-id;
+    }
+    description
+      "Generic type that identifies a node in a TE topology.";
+  }
+
+  /**
+   * TE tunnel generic groupings
+   */
+
+  grouping te-generic-node-id {
+    description
+      "A reusable grouping for a TE generic node identifier.";
+    leaf id {
+      type te-gen-node-id;
+      description
+        "The identifier of the node. Can be represented as IP
+         address or dotted quad address or as an URI.";
+    }
+    leaf type {
+      type enumeration {
+        enum ip {
+          description
+            "IP address representation of the node identifier.";
+        }
+        enum dotted-quad {
+          description
+            "Dotted quad address representation of the node
+             identifier.";
+        }
+        enum node-id {
+          description
+            "URI representation of the node identifier.";
+        }
+      }
+      description
+        "Type of node identifier representation.";
+    }
+  }
+
+  grouping path-common-properties {
+    description
+      "Common path attributes.";
+    leaf name {
+      type string;
+      description
+        "TE path name.";
+    }
+    leaf path-computation-method {
+      type identityref {
+        base te-types:path-computation-method;
+      }
+      default "te-types:path-locally-computed";
+      description
+        "The method used for computing the path, either
+         locally computed, queried from a server or not
+         computed at all (explicitly configured).";
+    }
+    container path-computation-server {
+      when "derived-from-or-self(../path-computation-method, "
+         + "'te-types:path-externally-queried')" {
+        description
+          "The path-computation server when the path is
+           externally queried.";
+      }
+      uses te-generic-node-id;
+      description
+        "Address of the external path computation
+         server.";
+    }
+    leaf compute-only {
+      type empty;
+      description
+        "When present, the path is computed and updated whenever
+         the topology is updated. No resources are committed
+         or reserved in the network.";
+    }
+    leaf use-path-computation {
+      when "derived-from-or-self(../path-computation-method, "
+         + "'te-types:path-locally-computed')";
+      type boolean;
+      default "true";
+      description
+        "When 'true' indicates the path is dynamically computed
+         and/or validated against the Traffic-Engineering Database
+         (TED), and when 'false' indicates no path expansion or
+         validation against the TED is required.";
+    }
+    leaf lockdown {
+      type empty;
+      description
+        "When present, indicates no reoptimization to be attempted
+         for this path.";
+    }
+    leaf path-scope {
+      type identityref {
+        base te-types:path-scope-type;
+      }
+      default "te-types:path-scope-end-to-end";
+      config false;
+      description
+        "Indicates whether the path is a segment or portion of
+         of the full path., or is the an end-to-end path for
+         the TE Tunnel.";
+    }
+  }
+
+  /* This grouping is re-used in path-computation rpc */
+  grouping path-compute-info {
+    description
+      "Attributes used for path computation request.";
+    uses tunnel-associations-properties;
+    uses te-types:generic-path-optimization;
+    leaf named-path-constraint {
+      if-feature "te-types:named-path-constraints";
+      type leafref {
+        path "/te:te/te:globals/te:named-path-constraints/"
+           + "te:named-path-constraint/te:name";
+      }
+      description
+        "Reference to a globally defined named path constraint set.";
+    }
+    uses path-constraints-common;
+  }
+
+  /* This grouping is re-used in path-computation rpc */
+  grouping path-forward-properties {
+    description
+      "The path preference.";
+    leaf preference {
+      type uint8 {
+        range "1..255";
+      }
+      default "1";
+      description
+        "Specifies a preference for this path. The lower the number
+         higher the preference.";
+    }
+    leaf co-routed {
+      when "/te:te/te:tunnels/te:tunnel/te:bidirectional = 'true'" {
+        description
+          "Applicable to bidirectional tunnels only.";
+      }
+      type boolean;
+      default "false";
+      description
+        "Indicates whether the reverse path must to be co-routed
+         with the primary.";
+    }
+  }
+
+  /* This grouping is re-used in path-computation rpc */
+  grouping k-requested-paths {
+    description
+      "The k-shortest paths requests.";
+    leaf k-requested-paths {
+      type uint8;
+      default "1";
+      description
+        "The number of k-shortest-paths requested from the path
+         computation server and returned sorted by its optimization
+         objective.";
+    }
+  }
+
+  grouping path-state {
+    description
+      "TE per path state parameters.";
+    uses path-computation-response;
+    container lsp-provisioning-error-infos {
+      config false;
+      description
+        "LSP provisioning error information.";
+      list lsp-provisioning-error-info {
+        description
+          "List of LSP provisioning error info entries.";
+        leaf error-reason {
+          type identityref {
+            base te-types:lsp-provisioning-error-reason;
+          }
+          description
+            "LSP provision error type.";
+        }
+        leaf error-description {
+          type string;
+          description
+            "The textual representation of the error occurred during
+             path computation.";
+        }
+        leaf error-timestamp {
+          type yang:date-and-time;
+          description
+            "Timestamp of when the reported error occurred.";
+        }
+        leaf error-node-id {
+          type te-types:te-node-id;
+          description
+            "Node identifier of node where error occurred.";
+        }
+        leaf error-link-id {
+          type te-types:te-tp-id;
+          description
+            "Link ID where the error occurred.";
+        }
+        leaf lsp-id {
+          type uint16;
+          description
+            "The LSP-ID for which path computation was performed.";
+        }
+      }
+    }
+    container lsps {
+      config false;
+      description
+        "The TE LSPs container.";
+      list lsp {
+        key "node lsp-id";
+        description
+          "List of LSPs associated with the tunnel.";
+        leaf tunnel-name {
+          type leafref {
+            path "/te:te/te:lsps/te:lsp/te:tunnel-name";
+          }
+          description "TE tunnel name.";
+        }
+        leaf node {
+          type leafref {
+            path "/te:te/te:lsps/te:lsp[tunnel-name="
+               + "current()/../te:tunnel-name][lsp-id="
+               + "current()/../te:lsp-id]/te:node";
+          }
+          description "The node where the LSP state resides on.";
+        }
+        leaf lsp-id {
+          type leafref {
+            path "/te:te/te:lsps/te:lsp[tunnel-name="
+                           + "current()/../tunnel-name]/te:lsp-id";
+          }
+          description "The TE LSP identifier.";
+        }
+      }
+    }
+  }
+
+  /* This grouping is re-used in path-computation rpc */
+  grouping path-computation-response {
+    description
+      "Attributes reported by path computation response.";
+    container computed-paths-properties {
+      config false;
+      description
+        "Computed path properties container.";
+      list computed-path-properties {
+        key "k-index";
+        description
+          "List of computed paths.";
+        leaf k-index {
+          type uint8;
+          description
+            "The k-th path returned from the computation server.
+             A lower k value path is more optimal than higher k
+             value path(s)";
+        }
+        uses te-types:generic-path-properties {
+          augment "path-properties" {
+            description
+              "additional path properties returned by path
+               computation.";
+            uses te-types:te-bandwidth;
+            leaf disjointness-type {
+              type te-types:te-path-disjointness;
+              config false;
+              description
+                "The type of resource disjointness.
+                 When reported for a primary path, it represents the
+                 minimum level of disjointness of all the secondary
+                 paths. When reported for a secondary path, it
+                 represents the disjointness of the secondary path.";
+            }
+          }
+        }
+      }
+    }
+    container computed-path-error-infos {
+      config false;
+      description
+        "Path computation information container.";
+      list computed-path-error-info {
+        description
+          "List of path computation info entries.";
+        leaf error-description {
+          type string;
+          description
+            "Textual representation of the error that occurred
+             during path computation.";
+        }
+        leaf error-timestamp {
+          type yang:date-and-time;
+          description
+            "Timestamp of last path computation attempt.";
+        }
+        leaf error-reason {
+          type identityref {
+            base te-types:path-computation-error-reason;
+          }
+          description
+            "Reason for the path computation error.";
+        }
+      }
+    }
+  }
+
+  grouping protection-restoration-properties {
+    description
+      "Protection and restoration parameters.";
+    container protection {
+      description
+        "Protection parameters.";
+      leaf protection-type {
+        type identityref {
+          base te-types:lsp-protection-type;
+        }
+        default "te-types:lsp-protection-unprotected";
+        description
+          "LSP protection type.";
+      }
+      leaf protection-reversion-disable {
+        type boolean;
+        default "false";
+        description
+          "Disable protection reversion to working path.";
+      }
+      leaf hold-off-time {
+        type uint32;
+        units "milli-seconds";
+        description
+          "The time between the declaration of an SF or SD condition
+           and the initialization of the protection switching
+           algorithm.";
+        reference
+          "RFC4427";
+      }
+      leaf wait-to-revert {
+        type uint16;
+        units "seconds";
+        description
+          "Time to wait before attempting LSP reversion.";
+        reference
+          "RFC4427";
+      }
+      leaf aps-signal-id {
+        type uint8 {
+          range "1..255";
+        }
+        default "1";
+        description
+          "The APS signal number used to reference the traffic of
+           this tunnel. The default value for normal traffic is 1.
+           The default value for extra-traffic is 255. If not
+           specified, non-default values can be assigned by the
+           server, if and only if, the server controls both
+            endpoints.";
+        reference
+          "ITU_G.808.1";
+      }
+    }
+    container restoration {
+      description
+        "Restoration parameters.";
+      leaf restoration-type {
+        type identityref {
+          base te-types:lsp-restoration-type;
+        }
+        default "te-types:lsp-restoration-restore-none";
+        description
+          "LSP restoration type.";
+      }
+      leaf restoration-scheme {
+        type identityref {
+          base te-types:restoration-scheme-type;
+        }
+        default "te-types:restoration-scheme-preconfigured";
+        description
+          "LSP restoration scheme.";
+      }
+      leaf restoration-reversion-disable {
+        type boolean;
+        default "false";
+        description
+          "Disable restoration reversion to working path.";
+      }
+      leaf hold-off-time {
+        type uint32;
+        units "milli-seconds";
+        description
+          "The time between the declaration of an SF or SD condition
+           and the initialization of the protection switching
+           algorithm.";
+        reference
+          "RFC4427";
+      }
+      leaf wait-to-restore {
+        type uint16;
+        units "seconds";
+        description
+          "Time to wait before attempting LSP restoration.";
+        reference
+          "RFC4427";
+      }
+      leaf wait-to-revert {
+        type uint16;
+        units "seconds";
+        description
+          "Time to wait before attempting LSP reversion.";
+        reference
+          "RFC4427";
+      }
+    }
+  }
+
+  grouping tunnel-associations-properties {
+    description
+      "TE tunnel association grouping.";
+    container association-objects {
+      description
+        "TE tunnel associations.";
+      list association-object {
+        key "association-key";
+        unique "type id source/id source/type";
+        description
+          "List of association base objects.";
+        reference
+          "RFC4872";
+        leaf association-key {
+          type string;
+          description
+            "Association key used to identify a specific
+             association in the list";
+        }
+        leaf type {
+          type identityref {
+            base te-types:association-type;
+          }
+          description
+            "Association type.";
+          reference
+            "RFC4872";
+        }
+        leaf id {
+          type uint16;
+          description
+            "Association identifier.";
+          reference
+            "RFC4872";
+        }
+        container source {
+          uses te-generic-node-id;
+          description
+            "Association source.";
+          reference
+            "RFC4872";
+        }
+      }
+      list association-object-extended {
+        key "association-key";
+        unique
+          "type id source/id source/type global-source extended-id";
+        description
+          "List of extended association objects.";
+        reference
+          "RFC6780";
+        leaf association-key {
+          type string;
+          description
+            "Association key used to identify a specific
+             association in the list";
+        }
+        leaf type {
+          type identityref {
+            base te-types:association-type;
+          }
+          description
+            "Association type.";
+          reference
+            "RFC4872, RFC6780";
+        }
+        leaf id {
+          type uint16;
+          description
+            "Association identifier.";
+          reference
+            "RFC4872, RFC6780";
+        }
+        container source {
+          uses te-generic-node-id;
+          description
+            "Association source.";
+          reference
+            "RFC4872, RFC6780";
+        }
+        leaf global-source {
+          type uint32;
+          description
+            "Association global source.";
+          reference
+            "RFC6780";
+        }
+        leaf extended-id {
+          type yang:hex-string;
+          description
+            "Association extended identifier.";
+          reference
+            "RFC6780";
+        }
+      }
+    }
+  }
+
+  grouping tunnel-end-point {
+    description
+      "Common grouping used to specify the tunnel source and
+      destination end-points.";
+    leaf node-id {
+      type nw:node-id;
+      description
+        "The TE tunnel end-point node identifier";
+    }
+    leaf te-node-id {
+      type te-types:te-node-id;
+      description
+        "The TE tunnel end-point TE node identifier";
+    }
+    leaf tunnel-tp-id {
+      when "../node-id or ../te-node-id" {
+        description
+          "The TE tunnel termination point identifier is local to
+          a node";
+      }
+      type binary;
+      description
+        "The TE tunnel end-point TE tunnel termination point
+        identifier";
+    }
+  }
+
+  /* This grouping is re-used in path-computation rpc */
+  grouping tunnel-common-attributes {
+    description
+      "Common grouping to define the TE tunnel parameters";
+    container source {
+      description
+        "TE tunnel source end-point.";
+      uses tunnel-end-point;
+    }
+    container destination {
+      description
+        "TE tunnel destination end-point.";
+      uses tunnel-end-point;
+    }
+    leaf bidirectional {
+      type boolean;
+      default "false";
+      description
+        "Indicates a bidirectional tunnel";
+    }
+  }
+
+  /* This grouping is re-used in path-computation rpc */
+  grouping tunnel-hierarchy-properties {
+    description
+      "A grouping for TE tunnel hierarchy information.";
+    container hierarchy {
+      description
+        "Container for TE hierarchy related information.";
+      container dependency-tunnels {
+        description
+          "List of tunnels that this tunnel can be potentially
+           dependent on.";
+        list dependency-tunnel {
+          key "name";
+          description
+            "A tunnel entry that this tunnel can potentially depend
+             on.";
+          leaf name {
+            type leafref {
+              path "/te:te/te:tunnels/te:tunnel/te:name";
+              require-instance false;
+            }
+            description
+              "Dependency tunnel name. The tunnel may not have been
+               instantiated yet.";
+          }
+          uses te-types:encoding-and-switching-type;
+        }
+      }
+      container hierarchical-link {
+        description
+          "Identifies a hierarchical link (in client layer)
+           that this tunnel is associated with. By default, the
+           topology of the hierarchical link is the same topology of
+           the tunnel;";
+        reference
+          "RFC4206";
+        leaf enable {
+          type boolean;
+          default "false";
+          description
+            "Enables the hierarchical link properties supported by
+             this tunnel";
+        }
+        leaf local-node-id {
+          type nw:node-id;
+          description
+            "The local node identifier.";
+        }
+        leaf local-te-node-id {
+          type te-types:te-node-id;
+          description
+            "The local TE node identifier.";
+        }
+        leaf local-link-tp-id {
+          type nt:tp-id;
+          description
+            "The local link termination point identifier.";
+        }
+        leaf local-te-link-tp-id {
+          type te-types:te-tp-id;
+          description
+            "The local TE link termination point identifier.";
+        }
+        leaf remote-link-tp-id {
+          type nt:tp-id;
+          description
+            "The remote link termination point identifier.";
+        }
+        leaf remote-te-node-id {
+          type te-types:te-node-id;
+          description
+            "Remote TE node identifier.";
+        }
+        leaf network-id {
+          type nw:network-id;
+          description
+            "The network topology identifier where the hierarchical
+            link supported by this TE tunnel is instantiated.";
+        }
+        uses te-types:te-topology-identifier {
+          description
+            "The TE topology identifier where the hierarchical link
+             supported by this TE tunnel is instantiated.";
+        }
+      }
+    }
+  }
+
+  grouping path-constraints-common {
+    description
+      "Global named path constraints configuration
+       grouping.";
+    uses te-types:common-path-constraints-attributes {
+      description
+        "The constraints applicable to the path. This includes:
+         - The path bandwidth constraint
+         - The path link protection type constraint
+         - The path setup/hold priority constraint
+         - path signaling type constraint
+         - path metric bounds constraint. The unit of path metric
+           bound is interpreted in the context of the metric-type.
+           For example for metric-type 'path-metric-loss', the bound
+           is multiples of the basic unit 0.000003% as described
+           in RFC7471 for OSPF, and RFC8570 for ISIS.
+         - path affinity constraints
+         - path SRLG constraints";
+    }
+    uses te-types:generic-path-disjointness;
+    uses te-types:path-constraints-route-objects;
+    container path-in-segment {
+      presence "The end-to-end tunnel starts in a previous domain;
+                this tunnel is a segment in the current domain.";
+      description
+        "If an end-to-end tunnel crosses multiple domains using
+         the same technology, some additional constraints have to be
+         taken in consideration in each domain.
+         This TE tunnel segment is stitched to the upstream TE tunnel
+         segment.";
+      uses te-types:label-set-info;
+    }
+    container path-out-segment {
+      presence
+        "The end-to-end tunnel is not terminated in this domain;
+         this tunnel is a segment in the current domain.";
+      description
+        "If an end-to-end tunnel crosses multiple domains using
+         the same technology, some additional constraints have to be
+         taken in consideration in each domain.
+         This TE tunnel segment is stitched to the downstream TE
+         tunnel segment.";
+      uses te-types:label-set-info;
+    }
+  }
+
+  /**
+   * TE container
+   */
+
+  container te {
+    description
+      "TE global container.";
+    leaf enable {
+      type boolean;
+      description
+        "Enables the TE component features.";
+    }
+
+    /* TE Global Data */
+    container globals {
+      description
+        "Globals TE system-wide configuration data container.";
+      container named-admin-groups {
+        description
+          "TE named admin groups container.";
+        list named-admin-group {
+          if-feature "te-types:extended-admin-groups";
+          if-feature "te-types:named-extended-admin-groups";
+          key "name";
+          description
+            "List of named TE admin-groups.";
+          leaf name {
+            type string;
+            description
+              "A string name that uniquely identifies a TE
+               interface named admin-group.";
+          }
+          leaf bit-position {
+            type uint32;
+            description
+              "Bit position representing the administrative group.";
+            reference
+              "RFC3209 and RFC7308";
+          }
+
+        }
+      }
+      container named-srlgs {
+        description
+          "TE named SRLGs container.";
+        list named-srlg {
+          if-feature "te-types:named-srlg-groups";
+          key "name";
+          description
+            "A list of named SRLG groups.";
+          leaf name {
+            type string;
+            description
+              "A string name that uniquely identifies a TE
+               interface named SRLG.";
+          }
+          leaf value {
+            type te-types:srlg;
+            description
+              "An SRLG value.";
+          }
+          leaf cost {
+            type uint32;
+            description
+              "SRLG associated cost. Used during path to append
+               the path cost when traversing a link with this SRLG.";
+          }
+        }
+      }
+      container named-path-constraints {
+        description
+          "TE named path constraints container.";
+        list named-path-constraint {
+          if-feature "te-types:named-path-constraints";
+          key "name";
+          leaf name {
+            type string;
+            description
+              "A string name that uniquely identifies a
+               path constraint set.";
+          }
+          uses path-constraints-common;
+          description
+            "A list of named path constraints.";
+        }
+      }
+    }
+
+    /* TE Tunnel Data */
+    container tunnels {
+      description
+        "Tunnels TE configuration data container.";
+      list tunnel {
+        key "name";
+        description
+          "The list of TE tunnels.";
+        leaf name {
+          type string;
+          description
+            "TE tunnel name.";
+        }
+        leaf alias {
+          type string;
+          description
+            "An alternate name of the TE tunnel that can be modified
+             anytime during its lifetime.";
+        }
+        leaf identifier {
+          type uint32;
+          description
+            "TE tunnel Identifier.";
+          reference
+            "RFC3209";
+        }
+        leaf color {
+          type uint32;
+          description "The color associated with the TE tunnel.";
+          reference "RFC9012";
+        }
+        leaf description {
+          type string;
+          default "None";
+          description
+            "Textual description for this TE tunnel.";
+        }
+        leaf admin-state {
+          type identityref {
+            base te-types:tunnel-admin-state-type;
+          }
+          default "te-types:tunnel-admin-state-up";
+          description
+            "TE tunnel administrative state.";
+        }
+        leaf operational-state {
+          type identityref {
+            base te-types:tunnel-state-type;
+          }
+          config false;
+          description
+            "TE tunnel operational state.";
+        }
+        uses te-types:encoding-and-switching-type;
+        uses tunnel-common-attributes;
+        container controller {
+          description
+            "Contains tunnel data relevant to external controller(s).
+             This target node may be augmented by external module(s),
+             for example, to add data for PCEP initiated and/or
+             delegated tunnels.";
+          leaf protocol-origin {
+            type identityref {
+              base te-types:protocol-origin-type;
+            }
+            description
+              "The protocol origin for instantiating the tunnel.";
+          }
+          leaf controller-entity-id {
+            type string;
+            description
+              "An identifier unique within the scope of visibility
+               that associated with the entity that controls the
+               tunnel.";
+            reference "RFC8232";
+          }
+        }
+        leaf reoptimize-timer {
+          type uint16;
+          units "seconds";
+          description
+            "Frequency of reoptimization of a traffic engineered
+             LSP.";
+        }
+        uses tunnel-associations-properties;
+        uses protection-restoration-properties;
+        uses te-types:tunnel-constraints;
+        uses tunnel-hierarchy-properties;
+        container primary-paths {
+          description
+            "The set of primary paths.";
+          reference "RFC4872";
+          list primary-path {
+            key "name";
+            description
+              "List of primary paths for this tunnel.";
+            leaf active {
+              type boolean;
+              config false;
+              description
+                "Indicates an active path that
+                 has been selected from the primary paths list.";
+            }
+            uses path-common-properties;
+            uses path-forward-properties;
+            uses k-requested-paths;
+            uses path-compute-info;
+            uses path-state;
+            container primary-reverse-path {
+              when "../../../te:bidirectional = 'true'";
+              description
+                "The reverse primary path properties.";
+              uses path-common-properties;
+              uses path-compute-info;
+              uses path-state;
+              container candidate-secondary-reverse-paths {
+                description
+                  "The set of referenced candidate reverse secondary
+                   paths from the full set of secondary reverse paths
+                   which may be used for this primary path.";
+                list candidate-secondary-reverse-path {
+                  key "secondary-reverse-path";
+                  ordered-by user;
+                  description
+                    "List of candidate secondary reverse path(s)";
+                  leaf secondary-reverse-path {
+                    type leafref {
+                      path "../../../../../../"
+                         + "te:secondary-reverse-paths/"
+                         + "te:secondary-reverse-path/te:name";
+                    }
+                    description
+                      "A reference to the reverse secondary path when
+                       co-routed with the secondary path.";
+                  }
+                  leaf active {
+                    type boolean;
+                    config false;
+                    description
+                      "Indicates an active path that has been
+                       selected from the secondary reverse paths
+                       list.";
+                  }
+                }
+              }
+            }
+            container candidate-secondary-paths {
+              description
+                "The set of candidate secondary paths which may be
+                 used for this primary path. When secondary paths are
+                 specified in the list the path of the secondary LSP
+                 in use must be restricted to those paths
+                 referenced.
+                 The priority of the secondary paths is specified
+                 within the list. Higher priority values are less
+                 preferred - that is to say that a path with priority
+                 0 is the most preferred path. In the case that the
+                 list is empty, any secondary path may be
+                 utilised when the current primary path is in use.";
+              list candidate-secondary-path {
+                key "secondary-path";
+                ordered-by user;
+                description
+                  "List of candidate secondary paths for this
+                   tunnel.";
+                leaf secondary-path {
+                  type leafref {
+                    path "../../../../../te:secondary-paths/"
+                       + "te:secondary-path/te:name";
+                  }
+                  description
+                    "A reference to the secondary path that may be
+                     utilised when the containing primary path is
+                     in use.";
+                }
+                leaf active {
+                  type boolean;
+                  config false;
+                  description
+                    "Indicates an active path that has been selected
+                     from the candidate secondary paths.";
+                }
+              }
+            }
+          }
+        }
+        container secondary-paths {
+          description
+            "The set of secondary paths.";
+          reference "RFC4872";
+          list secondary-path {
+            key "name";
+            description
+              "List of secondary paths for this tunnel.";
+            uses path-common-properties;
+            leaf preference {
+              type uint8 {
+                range "1..255";
+              }
+              default "1";
+              description
+                "Specifies a preference for this path. The lower the
+                 number higher the preference.";
+            }
+            leaf secondary-reverse-path {
+              type leafref {
+                path "../../../"
+                   + "te:secondary-reverse-paths/"
+                   + "te:secondary-reverse-path/te:name";
+              }
+              description
+                "A reference to the secondary reverse path that
+                 may be utilised when the secondary path is in use.";
+            }
+            uses path-compute-info;
+            uses protection-restoration-properties;
+            uses path-state;
+          }
+        }
+        container secondary-reverse-paths {
+          description
+            "The set of secondary reverse paths.";
+          list secondary-reverse-path {
+            key "name";
+            description
+              "List of secondary paths for this tunnel.";
+            uses path-common-properties;
+            leaf preference {
+              type uint8 {
+                range "1..255";
+              }
+              default "1";
+              description
+                "Specifies a preference for this path. The lower the
+                 number higher the preference. Paths that have the
+                 same preference will be activated together.";
+            }
+            uses path-compute-info;
+            uses protection-restoration-properties;
+            uses path-state;
+          }
+        }
+        action tunnel-action {
+          description
+            "Tunnel action.";
+          input {
+            leaf action-type {
+              type identityref {
+                base te-types:tunnel-action-type;
+              }
+              description
+                "Tunnel action type.";
+            }
+          }
+          output {
+            leaf action-result {
+              type identityref {
+                base te-types:te-action-result;
+              }
+              description
+                "The result of the tunnel action operation.";
+            }
+          }
+        }
+        action protection-external-commands {
+          input {
+            leaf protection-external-command {
+              type identityref {
+                base te-types:protection-external-commands;
+              }
+              description
+                "Protection external command.";
+            }
+            leaf protection-group-ingress-node {
+              type boolean;
+              default "true";
+              description
+                "When 'true', indicates that the action is
+                 applied on ingress node.
+                 By default, the action applies to the ingress node
+                 only.";
+            }
+            leaf protection-group-egress-node {
+              type boolean;
+              default "false";
+              description
+                "When set to 'true', indicates that the action is
+                 applied on egress node.
+                 By default, the action applies to the ingress node
+                 only.";
+            }
+            leaf path-name {
+              type string;
+              description
+                "The name of the path that the external command
+                applies to.";
+            }
+            leaf path-type {
+              type te-types:path-type;
+              description
+                "The type of the path that the external command
+                applies to.";
+            }
+            leaf traffic-type {
+              type enumeration {
+                enum normal-traffic {
+                  description
+                    "The manual-switch or forced-switch command
+                     applies to the normal traffic (this Tunnel).";
+                }
+                enum null-traffic {
+                  description
+                    "The manual-switch or forced-switch command
+                     applies to the null traffic.";
+                }
+                enum extra-traffic {
+                  description
+                    "The manual-switch or forced-switch command
+                     applies to the extra traffic (the extra-traffic
+                     Tunnel sharing protection bandwidth with this
+                     Tunnel).";
+                }
+              }
+              description
+                "Indicates whether the manual-switch or forced-switch
+                 commands applies to the normal traffic, the null
+                 traffic or the extra-traffic.";
+              reference
+                "RFC4427";
+            }
+            leaf extra-traffic-tunnel-ref {
+              type tunnel-ref;
+              description
+                "In case there are multiple extra-traffic tunnels
+                 sharing protection bandwidth with this Tunnel
+                 (m:n protection), represents which extra-traffic
+                 Tunnel the manual-switch or forced-switch to
+                 extra-traffic command applies to.";
+            }
+          }
+        }
+      }
+    }
+
+    /* TE LSPs Data */
+    container lsps {
+      config false;
+      description
+        "TE LSPs state container.";
+      list lsp {
+        key "tunnel-name lsp-id node";
+        unique "source destination tunnel-id lsp-id "
+          + "extended-tunnel-id";
+        description
+          "List of LSPs associated with the tunnel.";
+        leaf tunnel-name {
+          type string;
+          description "The TE tunnel name.";
+        }
+        leaf lsp-id {
+          type uint16;
+          description
+            "Identifier used in the SENDER_TEMPLATE and the
+             FILTER_SPEC that can be changed to allow a sender to
+             share resources with itself.";
+          reference
+            "RFC3209";
+        }
+        leaf node {
+          type te-types:te-node-id;
+          description
+            "The node where the TE LSP state resides on.";
+        }
+        leaf source {
+          type te-types:te-node-id;
+          description
+            "Tunnel sender address extracted from
+             SENDER_TEMPLATE  object.";
+          reference
+            "RFC3209";
+        }
+        leaf destination {
+          type te-types:te-node-id;
+          description
+            "The tunnel endpoint address.";
+          reference
+            "RFC3209";
+        }
+        leaf tunnel-id {
+          type uint16;
+          description
+            "The tunnel identifier that remains
+             constant over the life of the tunnel.";
+          reference
+            "RFC3209";
+        }
+        leaf extended-tunnel-id {
+          type yang:dotted-quad;
+          description
+            "The LSP Extended Tunnel ID.";
+          reference
+            "RFC3209";
+        }
+        leaf operational-state {
+          type identityref {
+            base te-types:lsp-state-type;
+          }
+          description
+            "The LSP operational state.";
+        }
+        leaf signaling-type {
+          type identityref {
+            base te-types:path-signaling-type;
+          }
+          description
+            "The signaling protocol used to set up this LSP.";
+        }
+        leaf origin-type {
+          type enumeration {
+            enum ingress {
+              description
+                "Origin ingress.";
+            }
+            enum egress {
+              description
+                "Origin egress.";
+            }
+            enum transit {
+              description
+                "Origin transit.";
+            }
+          }
+          description
+            "The origin of the LSP relative to the location of the
+             local switch in the path.";
+        }
+        leaf lsp-resource-status {
+          type enumeration {
+            enum primary {
+              description
+                "A primary LSP is a fully established LSP for which
+                 the resource allocation has been committed at the
+                 data plane.";
+            }
+            enum secondary {
+              description
+                "A secondary LSP is an LSP that has been provisioned
+                 in the control plane only; e.g. resource allocation
+                 has not been committed at the data plane.";
+            }
+          }
+          description
+            "LSP resource allocation state.";
+          reference
+            "RFC4872, section 4.2.1";
+        }
+        leaf lockout-of-normal {
+          type boolean;
+          description
+            "When set to 'true', it represents a lockout of normal
+             traffic external command. When set to 'false', it
+             represents a clear lockout of normal traffic external
+             command. The lockout of normal traffic command applies
+             to this Tunnel.";
+          reference
+            "RFC4427";
+        }
+        leaf freeze {
+          type boolean;
+          description
+            "When set to 'true', it represents a freeze external
+             command.  When set to 'false', it represents a clear
+             freeze external command. The freeze command applies to
+             all the Tunnels which are sharing the protection
+             resources with this Tunnel.";
+          reference
+            "RFC4427";
+        }
+        leaf lsp-protection-role {
+          type enumeration {
+            enum working {
+              description
+                "A working LSP must be a primary LSP whilst a
+                 protecting LSP can be either a primary or a
+                 secondary LSP. Also, known as protected LSPs when
+                 working LSPs are associated with protecting LSPs.";
+            }
+            enum protecting {
+              description
+                "A secondary LSP is an LSP that has been provisioned
+                 in the control plane only; e.g. resource allocation
+                 has not been committed at the data plane.";
+            }
+          }
+          description
+            "LSP role type.";
+          reference
+            "RFC4872, section 4.2.1";
+        }
+        leaf lsp-protection-state {
+          type identityref {
+            base te-types:lsp-protection-state;
+          }
+          config false;
+          description
+            "The reported protection state controlling which
+             tunnel is using the resources of the protecting LSP.";
+        }
+        leaf protection-group-ingress-node-id {
+          type te-types:te-node-id;
+          description
+            "Indicates the te-node-id of the protection group
+             ingress node when the APS state represents an external
+             command (LoP, SF, MS) applied to it or a WTR timer
+             running on it. If the external command is not applied to
+             the ingress node or the WTR timer is not running on it,
+             this attribute is not specified. A value 0.0.0.0 is used
+             when the te-node-id of the protection group ingress node
+             is unknown (e.g., because the ingress node is outside
+             the scope of control of the server)";
+        }
+        leaf protection-group-egress-node-id {
+          type te-types:te-node-id;
+          description
+            "Indicates the te-node-id of the protection group egress
+             node when the APS state represents an external command
+             (LoP, SF, MS) applied to it or a WTR timer running on
+             it. If the external command is not applied to the
+             ingress node or the WTR timer is not running on it, this
+             attribute is not specified. A value 0.0.0.0 is used when
+             the te-node-id of the protection group ingress node is
+             unknown (e.g., because the ingress node is outside the
+             scope of control of the server)";
+        }
+        container lsp-actual-route-information {
+          description
+            "RSVP recorded route object information.";
+          list lsp-actual-route-information {
+            when "../../origin-type = 'ingress'" {
+              description
+                "Applicable on ingress LSPs only.";
+            }
+            key "index";
+            description
+              "Record route list entry.";
+            uses te-types:record-route-state;
+          }
+        }
+      }
+    }
+  }
+
+  /* TE Tunnel RPCs/execution Data */
+
+  rpc tunnels-path-compute {
+    description
+      "TE tunnels RPC nodes.";
+    input {
+      container path-compute-info {
+        /*
+         * An external path compute module may augment this
+         * target.
+         */
+        description
+          "RPC input information.";
+      }
+    }
+    output {
+      container path-compute-result {
+        /*
+         * An external path compute module may augment this
+         * target.
+         */
+        description
+          "RPC output information.";
+      }
+    }
+  }
+
+  rpc tunnels-actions {
+    description
+      "TE tunnels actions RPC";
+    input {
+      container tunnel-info {
+        description
+          "TE tunnel information.";
+        choice filter-type {
+          mandatory true;
+          description
+            "Filter choice.";
+          case all-tunnels {
+            leaf all {
+              type empty;
+              mandatory true;
+              description
+                "When present, applies the action on all TE
+                 tunnels.";
+            }
+          }
+          case one-tunnel {
+            leaf tunnel {
+              type tunnel-ref;
+              description
+                "Apply action on the specific TE tunnel.";
+            }
+          }
+        }
+      }
+      container action-info {
+        description
+          "TE tunnel action information.";
+        leaf action {
+          type identityref {
+            base te-types:tunnel-action-type;
+          }
+          description
+            "The action type.";
+        }
+        leaf disruptive {
+          when "derived-from-or-self(../action, "
+             + "'te-types:tunnel-action-reoptimize')";
+          type empty;
+          description
+            "When present, specifies whether or not the
+             reoptimization
+             action is allowed to be disruptive.";
+        }
+      }
+    }
+    output {
+      leaf action-result {
+        type identityref {
+          base te-types:te-action-result;
+        }
+        description
+          "The result of the tunnel action operation.";
+      }
+    }
+  }
+}

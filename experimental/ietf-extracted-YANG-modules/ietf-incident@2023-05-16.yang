@@ -1,0 +1,423 @@
+module ietf-incident {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-incident";
+  prefix inc;
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+
+  import ietf-alarms {
+    prefix al;
+    reference
+      "RFC 8632: A YANG Data Model for Alarm Management";
+  }
+
+  import ietf-incident-types {
+    prefix int;
+    reference
+      "draft-feng-opsawg-incident-management: Incident
+       Management for Network Services";
+  }
+  organization
+    "IETF OPSAWG Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/opsawg/>;
+     WG List:  <mailto:opsawg@ietf.org>
+     Author:   Chong Feng  <mailto:frank.fengchong@huawei.com>
+     Author:   Tong Hu  <mailto:hutong@cmhi.chinamobile.com>
+     Author:   Luis Miguel Contreras Murillo <mailto:
+               luismiguel.contrerasmurillo@telefonica.com>
+     Author :  Qin Wu   <mailto:bill.wu@huawei.com>
+     Author:   Chaode Yu   <mailto:yuchaode@huawei.com>
+     Author:   Nigel Davis   <mailto:ndavis@ciena.com>";
+
+ description
+    "This module defines the interfaces for incident management
+     lifecycle.
+
+     This module is intended for the following use cases:
+     * incident lifecycle management:
+       - incident report: report incident instance to client
+                          when an incident instance is detected.
+       - incident acknowledge: acknowledge an incident instance.
+       - incident diagnose: diagnose an incident instance.
+       - incident resolve: resolve an incident instance.
+
+     Copyright (c) 2022 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Revised BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+     This version of this YANG module is part of RFC XXXX; see the
+     RFC itself for full legal notices.  ";
+  revision 2023-05-16 {
+    description "remove identies and typedefs to independent yang
+                 module. update some definitions of data model.";
+    reference "RFC XXX: Yang module for incident management.";
+  }
+  revision 2023-03-13 {
+    description "initial version";
+    reference "RFC XXX: Yang module for incident management.";
+  }
+
+  //groupings
+  grouping resources-info {
+    description "the grouping which defines the network
+                 resources of a node.";
+    leaf node {
+      type int:node-ref;
+      description "reference to a network node.";
+    }
+    list resource {
+      key name;
+      description "the resources of a network node.";
+      leaf name {
+         type al:resource;
+         description "network resource name.";
+      }
+    }
+  }
+
+  grouping incident-time-info {
+    description "the grouping defines incident time information.";
+    leaf raise-time {
+      type yang:date-and-time;
+      description "the time when an incident instance is raised.";
+    }
+    leaf occur-time {
+      type yang:date-and-time;
+      description "the time when an incident instance is occured.
+                   It's the occur time of the first event during
+                   incident detection.";
+    }
+    leaf clear-time {
+      type yang:date-and-time;
+      description "the time when an incident instance is
+                   resolved.";
+    }
+    leaf ack-time {
+      type yang:date-and-time;
+      description "the time when an incident instance is
+                   acknowledged.";
+    }
+    leaf last-updated {
+      type yang:date-and-time;
+      description "the latest time when an incident instance is
+                   updated";
+    }
+  }
+
+  grouping incident-info {
+    description "the grouping defines the information of an
+                 incident.";
+    leaf csn {
+      type uint64;
+      mandatory true;
+      description "The sequence number of the incident instance.";
+    }
+    leaf-list service-instance {
+      type string;
+      description "the related network service instances of
+                   the incident instance.";
+    }
+    leaf name {
+      type string;
+      mandatory true;
+      description "the name of an incident.";
+    }
+    leaf type {
+      type enumeration {
+        enum fault {
+          description "It indicates the type of the incident
+                       is a fault, for example an interface
+                       fails to work.";
+        }
+        enum potential-risk {
+          description "It indicates the type of the incident
+                       is a potential risk, for example high
+                       CPU rate may cause a fault in the
+                       future.";
+        }
+      }
+      mandatory true;
+      description "The type of an incident.";
+    }
+    leaf domain {
+      type identityref {
+        base int:incident-domain;
+      }
+      mandatory true;
+      description "the domain of an incident.";
+    }
+    leaf priority {
+      type int:incident-priority;
+      mandatory true;
+      description "the priority of an incident instance.";
+    }
+
+    leaf status {
+      type enumeration {
+        enum raised {
+          description "an incident instance is raised.";
+        }
+        enum updated {
+          description "the information of an incident instance
+                       is updated.";
+        }
+        enum cleared {
+          description "an incident is cleared.";
+        }
+      }
+      default raised;
+      description "The status of an incident instance.";
+    }
+    leaf ack-status {
+      type enumeration {
+        enum acknowledged {
+          description "The incident has been acknowledged by user.";
+        }
+        enum unacknowledged {
+          description "The incident hasn't been acknowledged.";
+        }
+      }
+      default unacknowledged;
+      description "the acknowledge status of an incident.";
+    }
+    leaf category {
+      type identityref {
+        base int:incident-category;
+      }
+      mandatory true;
+      description "The category of an incident.";
+    }
+    leaf detail {
+      type string;
+      description "detail information of this incident.";
+    }
+    leaf resolve-advice {
+      type string;
+      description "The advice to resolve this incident.";
+    }
+    container sources {
+      description "The source components.";
+      list source {
+        key node;
+        uses resources-info;
+        min-elements 1;
+        description "The source components of incident.";
+      }
+    }
+
+    container root-causes{
+      description "The root cause objects.";
+      list root-cause {
+        key node;
+        description "the root causes of incident.";
+        grouping root-cause-info {
+          description "The information of root cause.";
+          leaf cause-name {
+            type string;
+            description "the name of cause";
+          }
+          leaf detail {
+            type string;
+            description "the detail information of the cause.";
+          }
+        }
+        uses resources-info {
+          augment resource {
+            description "augment root cause information.";
+            //if root cause object is a resource of a node
+            uses root-cause-info;
+          }
+        }
+        //if root cause object is a node
+        uses root-cause-info;
+      }
+    }
+    container root-events {
+      description "the root events of the incident.";
+      list root-event {
+        key "type event-id";
+        description "the root event of the incident.";
+        leaf type {
+          type leafref {
+            path "../../../events/event/type";
+          }
+          description "the event type.";
+        }
+        leaf event-id {
+          type leafref {
+            path "../../../events/event[type = current()/../type]"
+                +"/event-id";
+          }
+          description "the event identifier, such as uuid,
+                       sequence number, etc.";
+        }
+      }
+    }
+    container events {
+      description "related events.";
+      list event {
+        key "type event-id";
+        description "related events.";
+        leaf type {
+          type enumeration {
+            enum alarm {
+              description "alarm type";
+            }
+            enum inform {
+              description "inform type";
+            }
+            enum KPI {
+              description "KPI type";
+            }
+            enum unknown {
+              description "unknown type";
+            }
+          }
+          description "event type.";
+        }
+        leaf event-id {
+          type string;
+          description "the event identifier, such as uuid,
+                       sequence number, etc.";
+        }
+        choice event-type-info {
+          description "event type information.";
+          case alarm {
+            when "type = 'alarm'";
+            container alarm {
+              description "alarm type event.";
+              leaf resource {
+                type leafref {
+                  path "/al:alarms/al:alarm-list/al:alarm"
+                      +"/al:resource";
+                }
+                description "network resource.";
+                reference "RFC 8632: A YANG Data Model for Alarm
+                           Management";
+              }
+              leaf alarm-type-id {
+                type leafref {
+                  path "/al:alarms/al:alarm-list/al:alarm"
+                      +"[al:resource = current()/../resource]"
+                      +"/al:alarm-type-id";
+                }
+                description "alarm type id";
+                reference "RFC 8632: A YANG Data Model for Alarm
+                            Management";
+              }
+              leaf alarm-type-qualifier {
+                type leafref {
+                  path "/al:alarms/al:alarm-list/al:alarm"
+                      +"[al:resource = current()/../resource]"
+                      +"[al:alarm-type-id = current()/.."
+                      +"/alarm-type-id]/al:alarm-type-qualifier";
+                }
+                description "alarm type qualitifier";
+                reference "RFC 8632: A YANG Data Model for Alarm
+                           Management";
+              }
+            }
+          }
+          case notification {
+            //TODO
+          }
+          case log {
+          //TODO
+          }
+          case KPI {
+          //TODO
+          }
+          case unknown {
+          //TODO
+          }
+        }
+      }
+
+    }
+
+  }
+
+  //data definitions
+  container incidents {
+    config false;
+    description "the information of incidents.";
+    list incident {
+      key incident-id;
+      description "the information of incident.";
+      leaf incident-id {
+        type string;
+        description "the identifier of an incident instance.";
+      }
+      uses incident-info;
+      uses incident-time-info;
+    }
+  }
+
+  // notifications
+  notification incident-notification {
+    description "incident notification. It will be triggered when
+                 the incident is raised, updated or cleared.";
+    leaf incident-id {
+      type leafref {
+        path "/inc:incidents/inc:incident/inc:incident-id";
+      }
+      description "the identifier of an incident instance.";
+    }
+    uses incident-info;
+    leaf time {
+      type yang:date-and-time;
+      description "occur time of an incident instance.";
+    }
+  }
+  // rpcs
+  rpc incident-acknowledge {
+    description "This rpc can be used to acknowledge the specified
+                 incidents.";
+    input {
+      leaf-list incident-id {
+        type leafref {
+          path "/inc:incidents/inc:incident/inc:incident-id";
+        }
+        description "the identifier of an incident instance.";
+      }
+    }
+  }
+  rpc incident-diagnose {
+    description "This rpc can be used to diagnose the specified
+                 incidents. The result of diagnosis will be reported
+                 by incident notification.";
+    input {
+      leaf-list incident-id {
+        type leafref {
+          path "/inc:incidents/inc:incident/inc:incident-id";
+        }
+        description
+          "the identifier of an incident instance.";
+      }
+    }
+  }
+
+  rpc incident-resolve {
+    description "This rpc can be used to resolve the specified
+                 incidents. The result of resolution will be reported
+                 by incident notification.";
+    input {
+      leaf-list incident-id {
+        type leafref {
+          path "/inc:incidents/inc:incident/inc:incident-id";
+        }
+        description
+          "the identifier of an incident instance.";
+      }
+    }
+  }
+}
