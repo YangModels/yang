@@ -1,0 +1,376 @@
+module ietf-dtnma-agent {
+  namespace "ari:/ietf-dtnma-agent";
+  prefix "da";
+
+ import "ietf-amm" {
+    prefix amm;
+  }
+
+  organization
+    "IETF Delay Tolerant Networking Working Group";
+  contact
+    "WG Web: <http://tools.ietf.org/wg/dtn/>
+    WG List: <mailto:dtn@ietf.org>
+    WG Chairs: Brian Haberman
+               <mailto:brian@innovationslab.net>
+               Marc Blanchet
+               <mailto:Marc.Blanchet@viagenie.ca>
+
+    Editor: Brian Sipos
+            <mailto:brian.sipos@jhuapl.edu>";
+
+  description
+    "This module implements the DTN Management Architecture (DTNMA)
+    Agent core functionality.";
+  reference
+    "draft-birrane-dtn-adm";
+
+  revision "2023-06-08" {
+    description "Updated for latest AMM contents.";
+    reference "draft-birrane-dtn-adm";
+  }
+  amm:enum "0";
+
+  feature rules {
+    description
+      "Conforming to this feature enables time-based and
+      state-based autonomy rules.";
+  }
+
+  amm:edd amp_version {
+    leaf _ {
+      type amm:TEXTSTR;
+    }
+    description "The version of AMP which this agent supports.";
+  }
+  amm:edd capability {
+    list columns {
+      key adm_name;
+
+      leaf adm_name {
+        type amm:LABEL;
+        description "The module name of the ADM";
+      }
+      leaf revision {
+        type amm:TEXTSTR;
+        description "The specific revision the agent supports.";
+      }
+      container features {
+        leaf-list _ {
+          type amm:LABEL;
+        }
+        description
+          "The features of the ADM which the agent supports.";
+      }
+    }
+    description
+      "A table to indicate the ADM capability of the sending agent.";
+  }
+  amm:const hello {
+    uses amm:RPTT;
+    amm:value "(../EDD/amp_version,../EDD/capability)";
+    description
+      "A report template to indicate the presence of an agent
+      on a network.";
+  }
+
+  // MAC helper controls
+  amm:ctrl if_then_else {
+    amm:parameters {
+      container condition {
+        uses amm:EXPR;
+        description "The condition to evaluate.";
+      }
+      leaf on_truthy {
+        type amm:EXEC-REF;
+        description "The object to execute when the condition is truthy.";
+      }
+      leaf on_falsy {
+        type union {
+          type amm:NULL;
+          type amm:EXEC-REF;
+        }
+        default "null";
+        description "An optional execution when the condition is falsey.";
+      }
+    }
+    description
+      "Evaluate an expression and follow one of two branches of
+      further evaluation.";
+  }
+  amm:ctrl catch {
+    amm:parameters {
+      leaf try {
+        type amm:EXEC-REF;
+        description "The object to execute.";
+      }
+      leaf on_failure {
+        type union {
+          type amm:NULL;
+          type amm:EXEC-REF;
+        }
+        default "null";
+        description "An optional execution after failure.";
+      }
+    }
+    description
+      "Attempt to execute an object, and if there is some failure catch it
+      and execute an alternative object.";
+  }
+
+  amm:ctrl inspect {
+    amm:parameters {
+      leaf ref {
+        type amm:VALUE-REF;
+        description "An object to produce a value from.";
+      }
+    }
+    amm:result {
+      leaf val {
+        type amm:ANY;
+        description "The produced value.";
+      }
+    }
+    description
+      "Produce a result value to inspect the agent state.
+      This does not perform any EXPR evaluation or RPTT handling.";
+  }
+
+  amm:ctrl report_on {
+    amm:parameters {
+      uses amm:RPTT-item;
+    }
+    description
+      "Generate a report on an object without needing to define a RPTT.
+      The parameter is a single item that would be in a RPTT.
+      If used for more than one-shot diagnostics, defining a RPTT
+      (e.g. in a VAR) is more efficient because the RPTT item would not
+      be present in the report.";
+  }
+
+  grouping obj-list-params {
+    leaf include_adm {
+      type amm:BOOL;
+      default "false";
+      description "If true, listings will include objects from ADMs";
+    }
+    description "Common parameters for object listing";
+  }
+
+  amm:edd typedef_list {
+    amm:parameters {
+      uses obj-list-params;
+    }
+    list _ {
+      key obj;
+      leaf obj {
+        type amm:TYPEDEF-REF;
+      }
+    }
+    description
+      "A table of TYPEDEF within the agent.";
+  }
+
+  // Objects related to VAR handling
+  amm:edd var_list {
+    amm:parameters {
+      uses obj-list-params;
+    }
+    list _ {
+      key obj;
+      leaf obj {
+        type amm:VAR-REF;
+      }
+      leaf type {
+        type amm:TYPE-REF;
+      }
+    }
+    description
+      "A table of VAR within the agent.";
+  }
+  amm:ctrl var_present {
+    amm:parameters {
+      leaf obj {
+        type amm:VAR-REF;
+        description
+          "A reference to a VAR within an ODM only.";
+      }
+      leaf type {
+        type amm:TYPE-REF;
+        description
+          "The type for the VAR object.";
+      }
+      choice init {
+        case without {
+          leaf _ {
+            type amm:NULL;
+          }
+        }
+        case with {
+          container expr {
+            uses amm:EXPR;
+          }
+        }
+        default "null";
+        description "An optional initializer expression.";
+      }
+    }
+    description
+      "Ensure a specific VAR is present.";
+  }
+  amm:ctrl var_absent {
+    amm:parameters {
+      leaf obj {
+        type amm:VAR-REF;
+        description
+          "A reference to a VAR within an ODM only.";
+      }
+    }
+    description
+      "Ensure a specific VAR is not present.";
+  }
+
+  // Objects related to SBR handling
+  grouping sbr-fields {
+    container action {
+      uses amm:MAC;
+      description
+        "The execution when this rule triggers.";
+    }
+    leaf start_time {
+      type amm:TIME;
+    }
+    container condition {
+      uses amm:EXPR;
+    }
+    leaf min_interval {
+      type amm:TD;
+    }
+    leaf max_count {
+      type amm:UVAST;
+    }
+  }
+  amm:edd sbr_list {
+    if-feature rules;
+    list _ {
+      key obj;
+
+      leaf obj {
+        type amm:SBR-REF;
+      }
+      uses sbr-fields;
+    }
+  }
+
+  amm:edd tbr_list {
+    if-feature rules;
+    list _ {
+      key obj;
+
+      leaf obj {
+        type amm:OBJ-REF;
+      }
+      container action {
+        uses amm:MAC;
+        description
+          "The execution when this rule triggers.";
+      }
+      leaf start_time {
+        type amm:TIME;
+      }
+      leaf period {
+        type amm:TD;
+      }
+      leaf max_count {
+        type amm:UVAST;
+      }
+    }
+  }
+
+  grouping numeric-unary {
+    leaf val {
+      type amm:NUMERIC;
+      description "The single value.";
+    }
+  }
+  grouping numeric-binary {
+    leaf left {
+      type amm:NUMERIC;
+      description "The left-side operand.";
+    }
+    leaf right {
+      type amm:NUMERIC;
+      description "The left-side operand.";
+    }
+  }
+  amm:oper negate {
+    amm:operands {
+      uses numeric-unary;
+    }
+    amm:result {
+      uses numeric-unary;
+    }
+    description
+      "Negate a value.
+      This is equivalent to multiplying by -1 but a shorter
+      expression.";
+  }
+  amm:oper add {
+    amm:operands {
+      uses numeric-binary;
+    }
+    amm:result {
+      uses numeric-unary;
+    }
+    description
+      "Add two numeric values.
+      The operands are cast to the least compatible numeric type
+      before the arithmetic.";
+  }
+  // amm:oper sub
+  // amm:oper multiply
+  // amm:oper divide
+  // amm:oper add
+
+  // amm:oper bit_not
+  // amm:oper bit_and
+  // amm:oper bit_or
+  // amm:oper bit_xor
+
+  // amm:oper bool_not
+  // amm:oper bool_and
+  // amm:oper bool_or
+  // amm:oper bool_xor
+
+  // amm:oper compare_eq
+  // amm:oper compare_ne
+  // amm:oper compare_gt
+  // amm:oper compare_ge
+  amm:oper compare_lt {
+    amm:operands {
+      uses numeric-binary;
+    }
+    amm:result {
+      uses numeric-unary;
+    }
+    description
+      "Compare two operands by value.
+      The result is true if the left value is less than the right.
+      The operands are cast to the least compatible numeric type
+      before the comparison.";
+  }
+  amm:oper compare_le {
+    amm:operands {
+      uses numeric-binary;
+    }
+    amm:result {
+      uses numeric-unary;
+    }
+    description
+      "Compare two operands by value.
+      The result is true if the left value is less than or
+      equal to the right.
+      The operands are cast to the least compatible numeric type
+      before the comparison.";
+  }
+}

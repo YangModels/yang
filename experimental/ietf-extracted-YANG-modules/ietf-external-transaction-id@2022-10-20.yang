@@ -3,17 +3,10 @@ module ietf-external-transaction-id {
   namespace
     "urn:ietf:params:xml:ns:yang:ietf-external-transaction-id";
   prefix ext-txid;
-
   import ietf-yang-types {
     prefix yang;
     reference
       "RFC 6991: Common YANG Data Types, Section 3";
-  }
-  import ietf-netconf-txid {
-    prefix ietf-netconf-txid;
-    reference
-      "draft-lindblad-netconf-transaction-id:
-                      Transaction ID Mechanism for NETCONF";
   }
 
   organization
@@ -29,10 +22,11 @@ module ietf-external-transaction-id {
      configuration changes and the external request that triggered
      that change.
 
-     The module stores the identifier of the parent transaction
-     that triggered the change in a device, and the child
-     transaction ID when the local device originates in its turn a
-     transaction.
+     The module stores the identifier of the trace, if any, that
+     triggered the change in a device. If that trace-id was provided
+     by a client, (i.e. not created locally by the server), the id
+     of that client is stored as well to indicated which client
+     triggered the configuration change.
 
      Copyright (c) 2022 IETF Trust and the persons identified as
      authors of the code.  All rights reserved.
@@ -45,11 +39,66 @@ module ietf-external-transaction-id {
      (https://trustee.ietf.org/license-info).
      This version of this YANG module is part of RFC XXXX; see the
      RFC itself for full legal notices.  ";
+
   revision 2022-10-20 {
     description
       "Initial revision";
     reference
       "RFC xxxx: Title to be completed";
+  }
+
+  typedef hex-digits {
+    type string {
+      pattern '[0-9a-f]*';
+    }
+    description
+      "A string composed of hexadecimal digits. Digits represented by
+       letters are restricted to lowercase so that a single
+       representation of a given value is allowed. This enables using
+       the string equality to check equality of the represented
+       values.";
+  }
+
+  grouping trace-parent-g {
+    description
+      "Trace parent frow the W3C trace-context recommandation.
+       Follows the format version 00.";
+    leaf version {
+      type hex-digits {
+        length "2";
+      }
+      must "../version = '00'";
+      description
+        "Version of the trace context. Must be 00 to match the
+         format described in this module.";
+    }
+    leaf trace-id {
+      type hex-digits {
+        length "32";
+      }
+      must "../trace-id != '00000000000000000000000000000000'";
+      description
+        "Trace ID that is common for every transaction that is
+         part of the configuration chain. This value can be used
+         to match a local commit id to a commit local to another
+         system.";
+    }
+    leaf parent-id {
+      type hex-digits {
+        length "16";
+      }
+      description
+        "ID of the request (client-side) that lead to configuring
+         the server hosting this module.";
+    }
+    leaf trace-flags {
+      type hex-digits {
+        length "2";
+      }
+      description
+        "Flags enabled for this trace. See W3C reference for the
+         details about flags.";
+    }
   }
 
   container external-transactions-id {
@@ -75,34 +124,29 @@ module ietf-external-transaction-id {
           "A timestamp that can be used to further filter change
            events.";
       }
-      leaf parent-transaction-id {
-        type ietf-netconf-txid:etag-t;
+      container trace-parent {
         description
-          "External transaction ID, sent by the client, corresponding
-           to a change initiated by an external entity (e.g.,
-           controller, orchestrator). There should be a corresponding
-           entry on that external entity as a child-transaction-id
-           that maps to the actual configuration commit that
-           triggered the configuration of this server.
+          "Trace parent associated to the local-commit-id. If a
+           client ID is present as well, the trace context was
+           transmitted by that client. If not, the trace context was
+           created locally.
 
-           This data node is present only when the configuration was
-           pushed by a compatible system.";
+           This trace-parent must come from the trace context of the
+           request actually modifying the running configuration
+           datastore. This request might be an edit-config or a
+           commit depending on whether the candidate datastore is
+           used.";
+        uses trace-parent-g;
       }
       leaf client-id {
-        when '../parent-transaction-id';
         type string;
-        mandatory true;
         description
           "ID of the client that originated the modification, to
            further query information about the corresponding
-           change.";
-      }
-      leaf-list child-transaction-id {
-        type ietf-netconf-txid:etag-t;
-        description
-          "Transaction ID transmitted to other devices
-           configured following the configuration change
-           corresponding to local-commit-id.";
+           change.
+
+           This data node is present only when the configuration was
+           pushed by a compatible system.";
       }
     }
   }
