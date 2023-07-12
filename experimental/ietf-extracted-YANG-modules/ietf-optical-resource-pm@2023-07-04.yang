@@ -19,7 +19,22 @@ module ietf-optical-resource-pm {
      WG List:  <mailto:ccamp@ietf.org>
 
      Editor:   Chaode Yu
-               <yuchaode@huawei.com>";
+               <yuchaode@huawei.com>
+
+     Editor:   Fabio Peruzzini
+               <fabio.peruzzini@telecomitalia.it>
+
+     Editor:   Yanlei Zheng
+               <zhengyanlei@chinaunicom.cn>
+
+     Editor:   Victor Lopez
+               <victor.lopez@nokia.com>
+
+     Editor:   Italo Busi
+               <italo.busi@huawei.com>
+
+     Editor:   Aihua Guo
+               <aihuaguo.ietf@gmail.com>";
 
   description
     "This module defines a model for optical performance
@@ -47,7 +62,7 @@ module ietf-optical-resource-pm {
     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
     they appear in all capitals, as shown here.";
 
-  revision 2023-03-01 {
+  revision 2023-07-04 {
     description  "Initial revision.";
   }
 
@@ -68,12 +83,12 @@ module ietf-optical-resource-pm {
       description
         "resources' PM capabilities related information";
 
-      list resource {
+      list resource-list {
         description
           "list of resource instances";
-        key resource-id;
+        key resource;
 
-        leaf resource-id {
+        leaf resource {
           type union {
             type instance-identifier {
               require-instance false;
@@ -94,7 +109,47 @@ module ietf-optical-resource-pm {
           }
         }
 
-        //TO BE ADDED: holding-time, capabilities etc.
+        leaf holding-time {
+          description
+            "Contains the time period in hours within which 24h PM
+            data records and 15min PM data records may be retrieved.
+            If the domain controller does not store PM data it is the
+            time supported in the NE";
+
+          type uint8;
+          units "hour";
+        }
+
+        list pm-parameter-list {
+          must "../optrpm:resource-type=optrpm-types:network-element";
+          key "layer-rate";
+
+          leaf layer-rate {
+            description
+              "Layer rate of ME";
+
+            type identityref {
+              base optrpm-types:layer-rate-type;
+            }
+          }
+
+          leaf-list indicator-name {
+            type string;
+          }
+        }
+
+        leaf-list sub-resources {
+          description
+            "the identifier of the performace monitoring point of this
+            resource. If the resource is a NE, the sub-resource should
+            be termination point. If the resource is a termination
+            point contained in this NE, the sub-resource should be the
+            logic channel on this TP";
+
+          type leafref {
+            path "../optrpm:resource";
+          }
+        }
       }
     }
   }
@@ -129,14 +184,14 @@ module ietf-optical-resource-pm {
       type yang:uuid;
     }
 
-    leaf resource-id {
+    leaf resource {
       description
         "the identifier of network resource on which the performance
         monitoring task is running";
 
       type leafref {
         path "/optrpm:performance-monitoring/optrpm:resources" +
-        "/optrpm:resource/optrpm:resource-id";
+        "/optrpm:resource-list/optrpm:resource";
       }
     }
 
@@ -269,20 +324,21 @@ module ietf-optical-resource-pm {
       container tcas {
         description
           "TCA configuration on the network resources.";
+
         list tca {
           description
             "List of TCA configuration instances";
 
-          key "resource-id";
+          key "resource";
 
-          leaf resource-id {
+          leaf resource {
             description
               "the identifier of network resource on which threshold
               is configured for TCA purpose";
 
             type leafref {
               path "/optrpm:performance-monitoring/optrpm:resources" +
-              "/optrpm:resource/optrpm:resource-id";
+              "/optrpm:resource-list/optrpm:resource";
             }
           }
 
@@ -477,7 +533,7 @@ module ietf-optical-resource-pm {
 
         type leafref {
           path "/optrpm:performance-monitoring/optrpm:resources" +
-          "/optrpm:resource/optrpm:resource-id";
+          "/optrpm:resource-list/optrpm:resource";
         }
       }
     }
@@ -509,7 +565,7 @@ module ietf-optical-resource-pm {
 
         type leafref {
           path "/optrpm:performance-monitoring/optrpm:resources" +
-          "/optrpm:resource/optrpm:resource-id";
+          "/optrpm:resource-list/optrpm:resource";
         }
       }
 
@@ -543,6 +599,72 @@ module ietf-optical-resource-pm {
     }
   }
 
+  rpc clear-performance-monitoring-data {
+    input {
+      description
+        "This operation clears (reset) the PM registers for a list of
+        Measurement Points. Within the request for each Measurement
+        Point, it is possible to specify the granularity (15min, 24hr,
+        NA) and location (nearEnd and/or farEnd and/or bidirectional)
+        for the PM registers that are to be reset.";
+
+      leaf-list resources {
+        description
+          "the identifier of measurement points to clear PM data";
+
+        type leafref {
+          path "/optrpm:performance-monitoring/optrpm:resources" +
+          "/optrpm:resource-list/optrpm:resource";
+        }
+      }
+    }
+    output {
+      leaf-list failed-resources {
+        description
+          "the identifier of measurement points which are failed to
+          clear PM data. An empty list indicates that the total
+          request was successful.";
+
+        type leafref {
+          path "/optrpm:performance-monitoring/optrpm:resources" +
+          "/optrpm:resource-list/optrpm:resource";
+        }
+      }
+    }
+  }
+
+  rpc get-profile-associated-termination-points {
+    input {
+      description
+        "This operation gets the set of TPs that are associated with
+        a TCA parameter profile.";
+
+      leaf profile-id {
+        description
+          "the identifier of profile which the client want to
+          retrieve";
+
+        type leafref {
+          path "/optrpm:performance-monitoring/optrpm:tca-management"
+          + "/optrpm:profiles/optrpm:profile/optrpm:profile-id";
+        }
+      }
+
+    }
+    output {
+      leaf-list resource-list {
+        description
+          "Provides the set of Resources associated with the profile
+          provided.";
+
+        type leafref {
+          path "/optrpm:performance-monitoring/optrpm:resources" +
+          "/optrpm:resource-list/optrpm:resource";
+        }
+      }
+    }
+  }
+
   grouping pm-data-instance-grouping {
     description
       "grouping for common attributes of performance data";
@@ -553,9 +675,10 @@ module ietf-optical-resource-pm {
 
       type leafref {
         path "/optrpm:performance-monitoring/optrpm:resources" +
-        "/optrpm:resource/optrpm:resource-id";
+        "/optrpm:resource-list/optrpm:resource";
       }
     }
+
     leaf collect-time {
       description
         "the time of this data is collected";
