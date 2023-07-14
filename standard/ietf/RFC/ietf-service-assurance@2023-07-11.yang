@@ -1,0 +1,423 @@
+module ietf-service-assurance {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-service-assurance";
+  prefix sain;
+
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+
+  organization
+    "IETF OPSAWG Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/opsawg/>
+     WG List:  <mailto:opsawg@ietf.org>
+     Author:   Benoit Claise  <mailto:benoit.claise@huawei.com>
+     Author:   Jean Quilbeuf   <mailto:jean.quilbeu@huawei.com>";
+  description
+    "This module defines objects for assuring services based on their
+     decomposition into so-called subservices, according to the
+     Service Assurance for Intent-based Networking (SAIN)
+     architecture.
+
+     The subservices hierarchically organized by dependencies
+     constitute an assurance graph.  This module should be supported
+     by an assurance agent that is able to interact with the devices
+     in order to produce the health status and symptoms for each
+     subservice in the assurance graph.
+
+     This module is intended for the following use cases:
+     * Assurance graph configuration:
+       - Subservices: Configure a set of subservices to assure by
+         specifying their types and parameters.
+       - Dependencies: Configure the dependencies between the
+         subservices, along with their type.
+     * Assurance telemetry: Export the health statuses of the
+       subservices, along with the observed symptoms.
+
+     Copyright (c) 2023 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Revised BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 9418; see the
+     RFC itself for full legal notices.  ";
+
+  revision 2023-07-11 {
+    description
+      "Initial version.";
+    reference
+      "RFC 9418: YANG Modules for Service Assurance";
+  }
+
+  identity subservice-base {
+    description
+      "Base identity for subservice types.";
+  }
+
+  identity service-instance-type {
+    base subservice-base;
+    description
+      "Specific type of subservice that represents a service
+       instance.  Instance of this type will depend on other
+       subservices to build the top of the assurance graph.";
+  }
+
+  identity dependency-type {
+    description
+      "Base identity for representing dependency types.";
+  }
+
+  identity informational {
+    base dependency-type;
+    description
+      "Indicates that symptoms of the dependency might be of interest
+       for the dependent, but the status of the dependency should not
+       have any impact on the dependent.";
+  }
+
+  identity impacting {
+    base dependency-type;
+    description
+      "Indicates that the status of the dependency directly impacts
+       the status of the dependent.";
+  }
+
+  grouping subservice-reference {
+    description
+      "Reference to a specific subservice identified by its type and
+       identifier.  This grouping is only for internal use in this
+       module.";
+    leaf type {
+      type leafref {
+        path "/subservices/subservice/type";
+      }
+      description
+        "The type of the subservice to refer to (e.g., device).";
+    }
+    leaf id {
+      type leafref {
+        path "/subservices/subservice[type=current()/../type]/id";
+      }
+      description
+        "The identifier of the subservice to refer to.";
+    }
+  }
+
+  grouping subservice-dependency {
+    description
+      "Represents a dependency to another subservice.  This grouping
+       is only for internal use in this module";
+    uses subservice-reference;
+    leaf dependency-type {
+      type identityref {
+        base dependency-type;
+      }
+      description
+        "Represents the type of dependency (e.g., informational or
+         impacting).";
+    }
+  }
+
+  leaf assurance-graph-last-change {
+    type yang:date-and-time;
+    config false;
+    mandatory true;
+    description
+      "Time and date at which the assurance graph last changed after
+       any structural changes (dependencies and/or maintenance
+       windows parameters) are applied to the subservice(s).  The
+       time and date must be the same or more recent than the most
+       recent value of any changed subservices last-change time and
+       date.";
+  }
+  container subservices {
+    description
+      "Root container for the subservices.";
+    list subservice {
+      key "type id";
+      description
+        "List of configured subservices.";
+      leaf type {
+        type identityref {
+          base subservice-base;
+        }
+        description
+          "Type of the subservice identifying the type of the part
+           or functionality that is being assured by this list
+           entry, for instance, interface, device, or
+           ip-connectivity.";
+      }
+      leaf id {
+        type string;
+        description
+          "Identifier of the subservice instance.  Must be unique
+           among subservices of the same type.";
+      }
+      leaf last-change {
+        type yang:date-and-time;
+        config false;
+        description
+          "Date and time at which the structure for this
+           subservice instance last changed, i.e., dependencies
+           and/or maintenance windows parameters.";
+      }
+      leaf label {
+        type string;
+        config false;
+        description
+          "Label of the subservice, i.e., text describing what the
+           subservice is to be displayed on a human interface.
+
+           It is not intended for random end users but for
+           network/system/software engineers that are able to
+           interpret it.  Therefore, no mechanism for language
+           tagging is needed.";
+      }
+      container under-maintenance {
+        presence "true";
+        description
+          "The presence of this container indicates that the current
+           subservice is under maintenance.";
+        leaf contact {
+          type string;
+          mandatory true;
+          description
+            "A string used to model an administratively assigned name
+             of the resource that is performing maintenance.
+
+             It is suggested that this freeform field, which could be
+             a URI, contains one or more of the following: IP
+             address, management station name, network manager's
+             name, location, and/or phone number.  It might even
+             contain the expected maintenance time.
+
+             In some cases, the agent itself will be the owner of an
+             entry.  In these cases, this string shall be set to a
+             string starting with 'monitor'.";
+        }
+      }
+      choice parameter {
+        mandatory true;
+        description
+          "Specify the required parameters per subservice type.  Each
+           module augmenting this module with a new subservice type
+           that is a new identity based on subservice-base should
+           augment this choice as well by adding a container
+           available only if the current subservice type is
+           the newly added identity.";
+        container service-instance-parameter {
+          when "derived-from-or-self(../type,
+                'sain:service-instance-type')";
+          description
+            "Specify the parameters of a service instance.";
+          leaf service {
+            type string;
+            mandatory true;
+            description
+              "Name of the service.";
+          }
+          leaf instance-name {
+            type string;
+            mandatory true;
+            description
+              "Name of the instance for that service.";
+          }
+        }
+        // Other modules can augment their own cases into here.
+      }
+      leaf health-score {
+        type int8 {
+          range "-1 .. 100";
+        }
+        config false;
+        mandatory true;
+        description
+          "Score value of the subservice health.  A value of 100
+           means that the subservice is healthy.  A value of 0 means
+           that the subservice is broken.  A value between 0 and 100
+           means that the subservice is degraded. The special value
+           -1 means that the health score could not be computed.";
+      }
+      leaf symptoms-history-start {
+        type yang:date-and-time;
+        config false;
+        description
+          "Date and time at which the symptom's history starts for
+           this subservice instance, either because the subservice
+           instance started at that date and time or because the
+           symptoms before that were removed due to a garbage
+           collection process.";
+      }
+      container symptoms {
+        config false;
+        description
+          "Symptoms for the subservice.";
+        list symptom {
+          key "start-date-time agent-id symptom-id";
+          unique "agent-id symptom-id";
+          description
+            "List of symptoms of the subservice.  While the
+             start-date-time key is not necessary per se, this would
+             get the entries sorted by start-date-time for easy
+             consumption.";
+          leaf symptom-id {
+            type leafref {
+              path "/agents/agent[id=current()/../agent-id]"
+                 + "/symptoms/id";
+            }
+            description
+              "Identifier of the symptom to be interpreted according
+               to the agent identified by the agent-id.";
+          }
+          leaf agent-id {
+            type leafref {
+              path "/agents/agent/id";
+            }
+            description
+              "Identifier of the agent raising the current symptom.";
+          }
+          leaf health-score-weight {
+            type uint8 {
+              range "0 .. 100";
+            }
+            description
+              "The weight to the health score incurred by this
+               symptom.  The higher the value, the more of an impact
+               this symptom has.  If a subservice health score is not
+               100, there must be at least one symptom with a
+               health-score-weight larger than 0.";
+          }
+          leaf start-date-time {
+            type yang:date-and-time;
+            description
+              "Date and time at which the symptom was detected.";
+          }
+          leaf stop-date-time {
+            type yang:date-and-time;
+            description
+              "Date and time at which the symptom stopped being
+               detected.  Must be after the start-date-time.  If the
+               symptom is ongoing, this field should not be
+               populated.";
+          }
+        }
+      }
+      container dependencies {
+        description
+          "Indicates the set of dependencies of the current
+           subservice, along with their types.";
+        list dependency {
+          key "type id";
+          description
+            "List of dependencies of the subservice.";
+          uses subservice-dependency;
+        }
+      }
+    }
+  }
+  container agents {
+    config false;
+    description
+      "Container for the list of agents' symptoms.";
+    list agent {
+      key "id";
+      description
+        "Contains symptoms of each agent involved in computing the
+         health status of the current graph.  This list acts as a
+         glossary for understanding the symptom ids returned by each
+         agent.";
+      leaf id {
+        type string;
+        description
+          "Id of the agent for which we are defining the symptoms.
+           This identifier must be unique among all agents.";
+      }
+      list symptoms {
+        key "id";
+        description
+          "List of symptoms raised by the current agent that is
+           identified by the symptom-id.";
+        leaf id {
+          type string;
+          description
+            "Id of the symptom for the current agent.  The agent must
+             guarantee the unicity of this identifier.";
+        }
+        leaf description {
+          type string;
+          mandatory true;
+          description
+            "Description of the symptom, i.e., text describing what
+             the symptom is, is to be computer consumable and
+             displayed on a human interface.
+
+             It is not intended for random end users but for
+             network/system/software engineers that are able to
+             interpret it.  Therefore, no mechanism for language
+             tagging is needed.";
+        }
+      }
+    }
+  }
+  container assured-services {
+    config false;
+    description
+      "Container for the index of assured services.";
+    list assured-service {
+      key "service";
+      description
+        "Service instances that are currently part of the assurance
+         graph.  The list must contain an entry for every service
+         that is currently present in the assurance graph.  This list
+         presents an alternate access to the graph stored in
+         subservices that optimizes querying the assurance graph of
+         a specific service instance.";
+      leaf service {
+        type leafref {
+          path "/subservices/subservice/service-instance-parameter/"
+             + "service";
+        }
+        description
+          "Name of the service.";
+      }
+      list instances {
+        key "name";
+        description
+          "Instances of the service. The list must contain
+           an entry for every instance of the parent service.";
+        leaf name {
+          type leafref {
+            path "/subservices/subservice/service-instance-parameter"
+               + "/instance-name";
+          }
+          description
+            "Name of the service instance.  The leafref must point to
+             a service-instance-parameter whose service leaf matches
+             the parent service.";
+        }
+        list subservices {
+          key "type id";
+          description
+            "Subservices that appear in the assurance graph of the
+             current service instance.
+
+             The list must contain the subservice corresponding to
+             the service instance, i.e., the subservice that
+             matches the service and instance-name keys.
+
+             For every subservice in the list, all subservices listed
+             as dependencies must also appear in the list.";
+          uses subservice-reference;
+        }
+      }
+    }
+  }
+}
