@@ -1,0 +1,364 @@
+module tailf-kicker {
+  namespace "http://tail-f.com/ns/kicker";
+  prefix kicker;
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+
+  organization "Tail-f Systems";
+  description
+    "This module defines a data model for DP-generic notification mechanism.
+
+     Copyright 2015-2020 Cisco Systems, Inc.
+     All rights reserved.
+     Permission is hereby granted to redistribute this file without
+     modification.";
+
+  revision 2020-11-26 {
+   description
+     "Release as part of ConfD-7.5 / NCS-5.5.
+
+      Added filters to data kickers.";
+  }
+
+  revision 2017-09-28 {
+    description
+      "Released as part of NCS-4.5.
+
+       Added priority for data kickers.
+
+       Added serializer for data kickers.
+
+       Added kicker validation.";
+  }
+  revision 2017-03-16 {
+    description
+      "Released as part of ConfD-6.4.
+
+       Added kicker-triggered netconf notification.
+
+       Added sent-kicker-triggered action.
+
+       Added notification-kicker definition.";
+  }
+  revision 2016-11-24 {
+    description
+      "Released as part of ConfD-6.3.
+
+       Added variables.";
+  }
+  revision 2016-05-03 {
+    description
+      "Released as part of NCS-4.2.
+
+       Reintroduced hidden statement.
+
+       Removed notification-kicker";
+  }
+  revision 2015-10-13 {
+    description
+      "Initial release.";
+  }
+
+  grouping notification-params {
+    description
+      "";
+    leaf kicker-id {
+      type string;
+      description
+        "Id of the triggered kicker.";
+    }
+    leaf path {
+      type tailf:node-instance-identifier;
+      description
+        "The path to the subtree that triggered the change.";
+    }
+  }
+
+  grouping action-input-params {
+    description
+      "A kicker action can choose to implement this grouping as it input
+       parameters. If so the action will be invoked with:
+         * kicker-id - The id of the triggering kicker
+         * path      - The path to the subtree containing the change
+         * tid       - The transaction id to a synthetic transaction
+                       containing the change.
+
+       The transaction is synthetic in the sense that it contains the
+       same change-set as the triggering transaction (which has been committed).
+       However the synthetic transaction is started over an empty datastore
+       and is therefore only suitable for diff-iteration over the changes.
+
+       Kicker actions that does not implement this grouping as its input
+       parameters will be invoked with an empty parameter list.";
+    uses notification-params;
+    leaf tid {
+      type uint32;
+      description
+        "Synthetic read transaction containing the triggering changes";
+    }
+  }
+
+  container kickers {
+    tailf:info
+      "Kicker specific configuration";
+    tailf:hidden "debug";
+    list data-kicker {
+      key "id";
+      description
+        "Examples:
+
+           Trigger if the interface 'eth0' is changed:
+
+             monitor: /interfaces/interface[name='eth0']
+
+           Trigger if the oper-state of interface 'eth0' is changed:
+
+             monitor: /interfaces/interface[name='eth0']/oper-state
+
+           Trigger if the oper-state of interface 'eth0' is set to 'up':
+
+             monitor: /interfaces/interface[name='eth0']
+             trigger-expr: oper-state = 'up'
+
+             OR
+
+             monitor: /interfaces/interface[name='eth0']/oper-state
+             trigger-expr: . = 'up'
+
+           Trigger if any interface's oper-state is set to 'up', or
+           admin-state is set to 'enable'
+
+             monitor: /interfaces/interface
+             trigger-expr: oper-state = 'up' or admin-state = 'enable'
+
+           Trigger cfs if rfs changes:
+
+             monitor:   /cpvn-oper/cvpn/cpe-ready
+             kick-node: ../cfs
+
+        ";
+      leaf id {
+        type string;
+        description
+          "A unique identifier for this subscription.";
+      }
+      leaf monitor {
+        type tailf:node-instance-identifier;
+        mandatory true;
+        tailf:validate data-kicker {
+          tailf:internal;
+          tailf:dependency ".";
+          tailf:dependency "../variable";
+        }
+        description
+          "If a node that matches the value of this leaf is changed,
+           the 'trigger-expr' expression is evaluated, and the
+           'trigger-type' is used to determine if the kicker triggers
+           or not.
+
+           The value of this leaf is like an instance-identifier, but
+           a list may be specified without any keys.  This is treated like
+           a wildcard that matches all entries in the list.";
+      }
+      leaf trigger-expr {
+        type "yang:xpath1.0";
+        tailf:validate data-kicker {
+          tailf:internal;
+          tailf:dependency ".";
+          tailf:dependency "../variable";
+        }
+        description
+          "An XPath 1.0 expression that is evaluated when any node matching
+           'monitor' is changed.  The 'trigger-type' is used to
+           determine if the kicker triggers or not.
+
+           If no trigger-expr has been defined, the kicker is always triggered
+           when any node matching 'monitor' is changed.
+
+           This XPath is evaluated with the node that matched 'monitor'
+           as the context node.";
+      }
+      leaf trigger-type {
+        type enumeration {
+          enum "enter-and-leave" {
+            description
+              "Trigger the kicker whenever the 'trigger-expr' changes from
+               false to true, or from true to false.  This is the default
+               behavior.";
+          }
+          enum "enter" {
+            description
+              "Trigger the kicker only when the 'trigger-expr' changes from
+               false to true.";
+          }
+        }
+        default "enter-and-leave";
+      }
+      list variable {
+        key "name";
+        tailf:validate data-kicker {
+          tailf:internal;
+          tailf:dependency ".";
+        }
+        description
+          "A list of variable bindings that will be part of the
+           context when the monitor path expression is installed, and when
+           the trigger expression is evaluated.";
+        leaf name {
+          type string;
+          description
+            "The name of the variable.";
+        }
+        leaf value {
+          type "yang:xpath1.0";
+          mandatory true;
+          description
+            "An XPath expression that will be the value of variable
+             'name'. The expression is only evaluated when used in the
+             monitor or trigger expression, and then it will have the
+             same context as that expression.
+
+             Note that both expressions and path expressions are
+             allowed, which implies that literals must be quoted.";
+        }
+      }
+      leaf kick-node {
+        type union {
+          type instance-identifier;
+          type "yang:xpath1.0";
+        }
+        mandatory true;
+        tailf:validate data-kicker {
+          tailf:internal;
+          tailf:dependency ".";
+        }
+        description
+          "When the kicker is triggered, the 'action-name' action is invoked
+           on the 'kick-node' instance.
+
+           If the 'kick-node' is given as an XPath 1.0 expression, the
+           expression is evaluated with the node that matched
+           'monitor' as the context node, and the expression must
+           return a node set.  The 'action-name' action is invoked on
+           the nodes in this node set.
+
+           For example, suppose a service /bar creates an entry in
+           /bar-data, with the same id as /bar, and the service needs
+           to be re-deployed with the bar-data state changes.
+
+             list bar-data {
+               key id;
+               leaf id { type string; }
+               leaf state { type ... }
+             }
+
+           Then a single kicker with:
+              monitor: '/bar-data/state'
+              kick-node: '/bar[name=current()/../id]'
+              action-name: 'reactive-re-deploy'
+           can be created.
+
+           Alternatively, every service instance can create its own kicker
+           with:
+              monitor: '/bar-data[name=<id>]/state'
+              kick-node: '/bar[name=<id>]
+              action-name: 'reactive-re-deploy'
+          ";
+      }
+      leaf action-name {
+        type yang:yang-identifier;
+        mandatory true;
+      }
+      leaf priority {
+        type uint8;
+        description
+          "The priority value is used to order execution of kickers that
+           triggers at the same time. First kickers with priority 0 are handled,
+           then priority 1, priority 2 etc.
+           If a kicker has a serializer value configured, only other kickers
+           with the same serializer value is priority ordered relative to each
+           other.";
+      }
+      leaf serializer {
+        type uint8;
+        description
+          "A serializer value is used to ensure chronological order of
+           execution of kickers that trigger at different times. If no
+           serializer value is given, a kicker that is triggered at a later time
+           might execute before a kicker triggered at an earlier time.
+           Use the same serializer value for kickers that you want to execute
+           in chronological order relative to each other.";
+      }
+      container filter {
+        description
+          "Filter that controls when the kicker will be triggered, e.g., the
+           type of changes done underneath the monitored node. The filter will
+           have to match for the kicker to kick for the given node.";
+
+        container exclude {
+          choice config {
+            leaf config-true {
+              type empty;
+              description
+                "Exclude changes to configuration data (config true) from
+                 triggering the kicker.";
+            }
+            leaf config-false {
+              type empty;
+              description
+                "Exclude changes to state data (config false) from triggering
+                 the kicker.";
+            }
+          }
+        }
+      }
+    }
+    tailf:action send-kicker-triggered {
+      tailf:info
+        "Kicker action to Send a kicker-triggered notification";
+      tailf:hidden debug;
+      description
+        "This action is only expected to be defined as action-name for
+         a data-kicker and will then when triggered send a 'kicker-triggered'
+         notification with current 'kicker-id' and 'path'.
+
+         This action require a notification stream named 'kicker-events' to
+         be defined to be able to send the notification.
+
+         The usage is as follows:
+         For instance if the following kicker is defined:
+
+         'set kickers data-kicker my-notif-kick
+                      monitor /mypath
+                      kick-node /kicker:kickers
+                      action-name send-kicker-triggered'
+
+         Then when a change is made under the node /mypath a notification
+         of type 'kicker-triggered' will be sent on the
+         'kicker-events' stream.";
+      tailf:actionpoint kicker {
+        tailf:internal;
+      }
+      input {
+        uses action-input-params;
+      }
+      output;
+    }
+  }
+  notification kicker-triggered {
+    description
+      "This notification is sent by the 'send-kicker-triggered' action.
+       The action is supposed to be used by a defined kicker.
+
+       One usage of both the above named action and this notification is
+       when a data-kicker is used to monitor a threshold value on a leaf.
+       When the 'send-kicker-triggered' is invoked a generic 'kicker-triggered'
+       notification is send over the 'kicker-event' stream.";
+    uses notification-params;
+  }
+}
