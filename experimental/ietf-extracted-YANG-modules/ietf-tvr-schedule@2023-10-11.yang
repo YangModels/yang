@@ -1,25 +1,12 @@
 module ietf-tvr-schedule {
   yang-version 1.1;
   namespace "urn:ietf:params:xml:ns:yang:ietf-tvr-schedule";
-  prefix tvr-schedule;
+  prefix tvr-schd;
 
   import ietf-yang-types {
     prefix "yang";
     reference
       "RFC 6991: Common YANG Data Types";
-  }
-
-  import ietf-interfaces {
-    prefix "if";
-    reference
-      "RFC 8343: A YANG Data Model for Interface
-               Management (NMDA Version)";
-  }
-
-  import ietf-logical-network-element {
-    prefix "lne";
-    reference
-      "RFC 8530: YANG Model for Logical Network Elements";
   }
 
   organization
@@ -28,16 +15,20 @@ module ietf-tvr-schedule {
     "WG Web:   <http://datatracker.ietf.org/wg/tvr>
      WG List:  <mailto:tvr@ietf.org>
 
-     Author:    Yingzhen Qu
+     Author:   Yingzhen Qu
                <mailto:yingzhen.ietf@gmail.com>
      Author:   Acee Lindem
                <mailto:acee.ietf@gmail.com>
      Author:   Marc Blanchet
-               <mailto:marc.blanchet@viagenie.ca>";
+               <mailto:marc.blanchet@viagenie.ca>
+     Author:   Eric Kinzie
+               <mailto:ekinzie@labn.net>
+     Author:   Don Fedyk
+               <mailto:dfedyk@labn.net>";
 
   description
-    "The YANG module defines a schedule for changing
-     attributes. It can be used to augment existing models.
+    "The YANG module contains common YANG definitions for
+     time-variant schedule.
 
      This YANG model conforms to the Network Management
      Datastore Architecture (NMDA) as described in RFC 8342.
@@ -64,7 +55,7 @@ module ietf-tvr-schedule {
   reference
     "RFC XXXX: YANG Data Model for Scheduled Attributes";
 
-  revision 2023-07-05 {
+  revision 2023-10-11 {
     description
       "Initial Version";
     reference
@@ -111,80 +102,56 @@ module ietf-tvr-schedule {
   grouping schedule-lifetime {
     description
       "Schedule lifetime specification.";
-    choice schedule-lifetime {
-      default "always";
+    leaf start-date-time {
+      type yang:date-and-time;
       description
-        "Options for specifying schedule lifetimes";
-      case always {
-        leaf always {
+        "Start time of the schedule.";
+    }
+    choice end-time {
+      default "infinite";
+      description
+        "End-time setting.";
+      case infinite {
+        leaf no-end-time {
           type empty;
           description
-            "Indicates schedule is always valid, and the schedule
-             will be effective right away after the configuration.";
+            "Indicates schedule lifetime end-time is infinite.";
         }
       }
-      case start-end-time {
-        leaf start-date-time {
+      case duration {
+        leaf duration {
+          type uint32 {
+            range "1..2147483646";
+          }
+          units "seconds";
+          description
+            "Schedule lifetime duration, in seconds";
+        }
+      }
+      case end-date-time {
+        leaf end-date-time {
           type yang:date-and-time;
           description
-            "Start time of the schedule.";
-        }
-        choice end-time {
-          default "infinite";
-          description
-            "End-time setting.";
-          case infinite {
-            leaf no-end-time {
-              type empty;
-              description
-                "Indicates schedule lifetime end-time is infinite.";
-            }
-          }
-          case duration {
-            leaf duration {
-              type uint32 {
-                range "1..2147483646";
-              }
-              units "seconds";
-              description
-                "Schedule lifetime duration, in seconds";
-            }
-          }
-          case end-date-time {
-            leaf end-date-time {
-              type yang:date-and-time;
-              description
-                "End time.";
-            }
-          }
+            "End time.";
         }
       }
     }
   }
 
-  grouping schedule {
-    uses schedule-lifetime;
+  grouping base-schedule {
     leaf recurrence {
       type recurrence-type;
-      must "(current() != 'once') or ../start-date-time" {
-        error-message "A single occurrence requires a start-time";
-        description
-          "With single recurrence of a schedule, a start-time
-           is required.";
-       }
+      default "once";
       description
         "Type of recurrence";
     }
 
-    leaf value-default {
-      type union {
-        type boolean;
-        type string;
-      }
+    container value-default {
       description
-        "Attribute default value. This value is used when the value
-         is not covered by the intervals, as well as when the
-         schedule ends.";
+        "Attributes default values. This container should be
+        augmented with one or more leafs, each of which is used
+        when the value is not covered by a base-schedule interval,
+        as well as when the schedule ends.";
     }
 
     container base-schedule {
@@ -210,24 +177,25 @@ module ietf-tvr-schedule {
           }
           description
             "Start time of the scheduled value within one recurrence.
-             The calculation of the real start time is to use the
-             basestarting time defined by schedule-lifetime, recurrence,
-             and the timeticks. For example, if a schedule starts at
-             2001/1/1 8:00AM with an hourly recurrence, and the
-             timeticks is 180,000 (30 mins), the start-time will be
-             every 30 mins pass an hour after 2001/1/1.";
+             The calculation of the real start time is to use
+             the basestarting time defined by schedule-lifetime,
+             recurrence, and the timeticks. For example, if a
+             schedule starts at 2001/1/1 8:00AM with an hourly
+             recurrence, and the timeticks is 180,000 (30 mins),
+             the start-time will be every 30 mins pass an hour
+             after 2001/1/1.";
         }
         leaf end-time {
           type yang:timeticks;
           must "(current() > ../start-time) and "
             +  "((../../../recurrence != 'hourly') or "
-            +      "(current() < 360000)) and "
+            +      "(current() < (../start-time + 360000))) and "
             +  "((../../../recurrence != 'daily') or "
-            +      "(current() < 8640000)) and "
+            +      "(current() < (../start-time + 8640000))) and "
             +  "((../../../recurrence != 'monthly') or "
-            +      "(current() < 267840000)) and "
+            +      "(current() < (../start-time + 267840000))) and "
             +   "((../../../recurrence != 'yearly') or "
-            +      "(current() < 3162240000))"  {
+            +      "(current() < (../start-time + 3162240000)))"  {
             error-message
               "The end-time must be greater than the end time and
                must not exceed the recurrrence interval.";
@@ -235,23 +203,16 @@ module ietf-tvr-schedule {
               "The end-time must be greater than the end time and
                must not exceed the recurrrence interval. For example,
                for a 'daily' recurrence, the time-tick offset must
-               not exceed 24 hours.";
+               not exceed the start-time + 24 hours.";
           }
           description
             "End time of the scheduled change. The calculation of the
              end-time is the same as the start-time.";
         }
-        leaf value {
-          type union {
-            type boolean;
-            type string;
-          }
+        container value {
           description
-            "Value for the scheduled attribute during the
-             specified time period.
-             When type string is used, it can be a simple value such
-             as an int, or a string representing a value that changes
-             its value based on a function.";
+           "Attribute value(s). This container should be augmented
+           with attributes that apply to the current interval.";
         }
         description
           "List of intervals for action or attribute modification.
@@ -265,30 +226,13 @@ module ietf-tvr-schedule {
          modification";
     }
     description
+      "Grouping definition of base-schedule.";
+  }
+
+  grouping schedule {
+    uses schedule-lifetime;
+    uses base-schedule;
+    description
       "Complete schedule for a action or attribute modification.";
-  }
-
-  augment "/if:interfaces/if:interface" {
-    description
-      "Augments interface with scheduled attribute.";
-    container scheduled-up-down {
-      description
-        "Scheduled interface up and down. This is to work with the
-         leaf 'enabled' for the configured state of the interface.";
-
-      uses schedule;
-    }
-  }
-
-  augment "/lne:logical-network-elements"
-        + "/lne:logical-network-element" {
-    description
-      "Augments logical network elements with scheduled power
-       shutdown.";
-    container scheduled-power {
-      description
-        "Scheduled power up and down.";
-      uses schedule;
-    }
   }
 }
