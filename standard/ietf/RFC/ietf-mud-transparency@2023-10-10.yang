@@ -1,0 +1,190 @@
+module ietf-mud-transparency {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-mud-transparency";
+  prefix mudtx;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-mud {
+    prefix mud;
+    reference
+      "RFC 8520: Manufacturer Usage Description Specification";
+  }
+
+  organization
+    "IETF OPSAWG (Ops Area) Working Group";
+  contact
+    "WG Web: <https://datatracker.ietf.org/wg/opsawg/>
+     WG List: <opsawg@ietf.org>
+
+     Editor: Eliot Lear <lear@cisco.com>
+     Editor: Scott Rose <scott.rose@nist.gov>";
+  description
+    "This YANG module augments the ietf-mud model to provide for
+     reporting of SBOMs and vulnerability information.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.
+
+     Copyright (c) 2023 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 9472
+     (https://www.rfc-editor.org/info/rfc9472);
+     see the RFC itself for full legal notices.";
+
+  revision 2023-10-10 {
+    description
+      "Initial proposed standard.";
+    reference
+      "RFC 9472: A YANG Data Model for Reporting Software Bills
+       of Materials (SBOMs) and Vulnerability Information";
+  }
+
+  identity local-type {
+    description
+      "Base identity for local well-known choices.";
+  }
+
+  identity http {
+    base mudtx:local-type;
+    description
+      "Use http (RFC 7231) (insecure) to retrieve SBOM information.
+        This method is NOT RECOMMENDED but may be unavoidable for
+        certain classes of deployment where TLS has not or
+        cannot be implemented.";
+      reference
+        "RFC 7231: Hypertext Transfer Protocol (HTTP/1.1):
+         Semantics and Content";
+  }
+
+  identity https {
+    base mudtx:local-type;
+    description
+      "Use https (secure) to retrieve SBOM information.  See
+       RFC 9110.";
+      reference
+        "RFC 9110: HTTP Semantics";
+  }
+
+  identity coap {
+    base mudtx:local-type;
+    description
+      "Use COAP (RFC 7252) (insecure) to retrieve SBOM.  This method
+       is NOT RECOMMENDED, although it may be unavoidable
+       for certain classes of implementations/deployments.";
+      reference
+        "RFC 7252: The Constrained Application Protocol (CoAP)";
+  }
+
+  identity coaps {
+    base mudtx:local-type;
+    description
+      "Use COAPS (secure) to retrieve SBOM (RFC 7252).";
+  }
+
+  grouping transparency-extension {
+    description
+      "This grouping provides a means to describe the location of
+       software bills of material and vulnerability descriptions.";
+    container transparency {
+      description
+        "Container of methods to get SBOMs and vulnerability
+         information.";
+      choice sbom-retrieval-method {
+        description
+          "How to find SBOM information.";
+        case cloud {
+          list sboms {
+            key "version-info";
+            description
+              "A list of SBOMs tied to different software
+               or hardware versions.";
+            leaf version-info {
+              type string;
+              description
+                "The version to which this SBOM refers.";
+            }
+            leaf sbom-url {
+              type inet:uri {
+                pattern '((coaps?)|(https?)):.*';
+              }
+              description
+                "A statically located URL.";
+            }
+          }
+        }
+        case local-well-known {
+          leaf sbom-local-well-known {
+            type identityref {
+              base mudtx:local-type;
+            }
+            description
+              "Which communication protocol to choose.";
+          }
+        }
+        case sbom-contact-info {
+          leaf sbom-contact-uri {
+            type inet:uri {
+              pattern '((mailto)|(https?)|(tel)):.*';
+            }
+            description
+              "This MUST be a tel, an http, an https, or
+               a mailto uri schema that customers can use to
+               contact someone for SBOM information.";
+          }
+        }
+      }
+      leaf sbom-archive-list {
+        type inet:uri;
+        description
+          "This URI returns a JSON list of URLs that consist of
+           SBOMs that were previously published for this
+           device.  Publication dates can be found inside
+           the SBOMs.";
+      }
+      choice vuln-retrieval-method {
+        description
+          "How to find vulnerability information.";
+        case cloud {
+          leaf-list vuln-url {
+            type inet:uri;
+            description
+              "List of statically located URLs that reference
+               vulnerability information.";
+          }
+        }
+        case vuln-contact-info {
+          leaf vuln-contact-uri {
+            type inet:uri {
+              pattern '((mailto)|(https?)|(tel)):.*';
+            }
+            description
+              "This MUST be a tel, an http, an https, or
+               a mailto uri schema that customers can use to
+               contact someone for vulnerability information.";
+          }
+        }
+      }
+    }
+  }
+
+  augment "/mud:mud" {
+    description
+      "Add extension for software transparency.";
+    uses transparency-extension;
+  }
+}
