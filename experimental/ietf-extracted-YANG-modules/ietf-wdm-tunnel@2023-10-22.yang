@@ -1,0 +1,1244 @@
+module ietf-wdm-tunnel {
+  yang-version 1.1;
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-wdm-tunnel";
+  prefix "wdm-tnl";
+
+  import ietf-te {
+    prefix "te";
+    revision-date "2023-06-16";
+    reference
+      "I-D.ietf-teas-yang-te-34: A YANG Data Model for Traffic
+      Engineering Tunnels, Label Switched Paths and Interfaces.";
+  }
+
+  import ietf-layer0-types {
+    prefix "l0-types";
+  }
+
+  organization
+    "IETF CCAMP Working Group";
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/ccamp/>
+     WG List:  <mailto:ccamp@ietf.org>
+
+     Editor:   Jorge E. Lopez de Vergara
+               <jorge.lopez_vergara@uam.es>
+
+     Editor:   Daniel Perdices
+               <daniel.perdices@naudit.es>
+
+     Editor:   Victor Lopez
+               <victor.lopez@nokia.com>
+
+     Editor:   Italo Busi
+               <italo.busi@nokia.com>
+
+     Editor:   Aihua Guo
+               <aihuaguo.ietf@gmail.com>";
+
+  description
+    "This module defines a YANG data model for configuring
+     and managing Wavelength-Division Multiplexing (WDM) switched
+     optical tunnels.
+
+    The model fully conforms to the Network Management
+    Datastore Architecture (NMDA).
+
+    Copyright (c) 2021 IETF Trust and the persons
+    identified as authors of the code.  All rights reserved.
+
+    Redistribution and use in source and binary forms, with or
+    without modification, is permitted pursuant to, and subject
+    to the license terms contained in, the Simplified BSD License
+    set forth in Section 4.c of the IETF Trust's Legal Provisions
+    Relating to IETF Documents
+    (https://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC XXXX; see
+    the RFC itself for full legal notices.";
+
+  revision "2023-10-22" {
+    description
+      "Updated revision with combined WSON and Flexi-grid tunnel
+       YANG model";
+
+    reference
+      "RFC XXXX: YANG data model for WDM tunnels";
+    // RFC Ed.: replace XXXX with actual RFC number, update date
+    // information and remove this note
+  }
+
+  /*
+   * Identities
+   */
+  identity lower-first-wavelength-assignment {
+    base l0-types:wavelength-assignment;
+    description
+      "Assign first available wavelength starting from the
+       lowest frequency towards the highest frequency in
+       the allowable frequency range.";
+  }
+
+  identity upper-first-wavelength-assignment {
+    base l0-types:wavelength-assignment;
+    description
+      "Assign first available wavelength starting from the
+       highest frequency towards the lowest frequency in
+       the allowable frequency range.";
+  }
+
+  /*
+   * Groupings
+   */
+  grouping tx-tune-constraints {
+    description
+      "This grouping defines the transmitter's allowed tuning
+       frequency range.";
+
+    container tx-tune-constraints {
+      description
+        "Transmitter's allowed tuning frequency range.";
+
+      uses l0-types:transmitter-tuning-range;
+    }
+  }
+
+  grouping transceiver-constraints-grp {
+    description
+      "This grouping defines constraints for transceiver
+       configurations";
+
+    leaf-list operational-modes {
+      type string {
+        length "1..255";
+      }
+      description
+        "List of operational mode ids of the transceiver.";
+    }
+
+    uses tx-tune-constraints;
+  }
+
+  grouping path-transceiver-config-grp {
+    description
+      "This grouping defines explicit transceiver configurations
+       on an end-to-end path.";
+
+    leaf transponder-id {
+      type uint32;
+      description "transponder identifier";
+    }
+
+    list transceivers {
+      key "lane-id";
+      description
+        "List of transceivers for all lanes.";
+
+      leaf lane-id {
+        type uint8;
+        must '. >= 1' {
+          error-message
+            "Lane identifier must be greater than or equal to 1.";
+        }
+        description
+          "Lane identifier starting from 1.";
+      }
+      leaf transceiver-id {
+        type uint32;
+        description
+        "transceiver identifier";
+      }
+    }
+
+    uses transceiver-constraints-grp;
+  }
+
+  grouping path-transceiver-grp {
+    description
+      "This grouping defines group of transceivers on a node
+       functioning as starting, terminating transceivers, or
+       regenerators.";
+
+    container path-in-transceiver {
+      description
+        "Constraints for incoming direction transceiver
+         configurations";
+
+      uses path-transceiver-config-grp;
+    }
+
+    container path-out-transceiver {
+      description
+        "Constraints for outgoing direction transceiver
+         configurations";
+
+      uses path-transceiver-config-grp;
+    }
+  }
+
+  grouping global-transceiver-constraint {
+    description
+      "This grouping defines the constraints for transceiver
+       configurations.";
+
+    container transceiver-constraint {
+      description
+        "Constraints for transceiver configurations";
+
+      uses transceiver-constraints-grp;
+    }
+  }
+
+  grouping wdm-constraint {
+    description
+      "Grouping for WDM tunnel constraints";
+
+    container wdm-constraint {
+      description
+        "WDM tunnel constraints.";
+
+      uses global-transceiver-constraint;
+      uses l0-types:l0-path-constraints;
+
+      leaf use-regen {
+        type boolean;
+        default false;
+        description
+          "Indicate whether or not regenerators (e.g. 3R) should be
+           considered. When this parameter is set to true, the
+           tunnel path may include a regen when the path is not
+           feasible for direct optical reach.";
+      }
+
+      leaf wavelength-conversion {
+        when '../use-regen = "true"' {
+          description
+            "Regenerator must be enabled for wavelength conversion
+             to be considered.";
+        }
+        type boolean;
+        default false;
+        description
+          "Indicate whether or not wavelength conversion is allowed
+           along the tunnel path. Applicable only when 3R
+           regeneration is enabled.";
+      }
+
+      uses l0-types:l0-tunnel-attributes;
+
+      leaf guard-band-size {
+        type l0-types:frequency-thz;
+        description
+          "Guard band size in THz.";
+      }
+
+      leaf matching-fwd-rev-wavelength {
+        type boolean;
+        default true;
+        description
+          "Indicate whether or not the assigned channels for
+           forward and reverse wavelength path must be the same.";
+      }
+
+      leaf allow-retuning {
+        type boolean;
+        default false;
+        description
+          "Indicate whether or not re-tuning is allowed when one or
+           more paths of a WDM tunnel is being restored. Typically,
+           wavelength retuning is not preferred for wavelength
+           planning considerations.";
+      }
+      leaf delta-power {
+        type l0-types:gain-in-db-or-null;
+        units "dB";
+        description
+          "Delta power in dB indicating the per-channel power
+           deviation from the nominal power per channel at the
+           output of an OMS.";
+      }
+    }
+  }
+
+  grouping wdm-path-state {
+    description
+      "Grouping for WDM path state.";
+
+    container wdm-path-state {
+      config false;
+      description
+        "WDM path state.";
+
+      leaf gsnr {
+        type l0-types:snr;
+        description
+          "Actual received GSNR for the WDM path.";
+      }
+    }
+  }
+
+  /*
+   * Data nodes
+   */
+
+  /*
+   * Global constraints for WDM tunnel
+   */
+  augment "/te:te/te:tunnels/te:tunnel" {
+    description
+      "Augment with additional parameters required for WDM
+       tunnel configurations.";
+    uses wdm-constraint;
+  }
+
+  /*
+   * Transceiver constraints for primary path
+   * Applicable to starting, terminating and regenerator
+   * transceivers.
+   */
+  augment "/te:te/te:tunnels/te:tunnel/te:primary-paths/"
+        + "te:primary-path/te:explicit-route-objects-always/"
+        + "te:route-object-exclude-always/te:type/"
+        + "te:numbered-node-hop/te:numbered-node-hop" {
+    description
+      "Augment TE primary path with transceiver configurations.";
+
+    uses path-transceiver-grp;
+  }
+
+  /*
+   * Transceiver constraints for primary reverse path
+   * Applicable to starting, terminating and regenerator
+   * transceivers.
+   */
+  augment "/te:te/te:tunnels/te:tunnel/te:primary-paths/"
+        + "te:primary-path/te:primary-reverse-path/"
+        + "te:explicit-route-objects-always/"
+        + "te:route-object-exclude-always/te:type/"
+        + "te:numbered-node-hop/te:numbered-node-hop" {
+    description
+      "Augment TE primary reverse path with transceiver
+       configurations.";
+
+    uses path-transceiver-grp;
+  }
+
+  /*
+   * Computed path properties for primary path.
+   */
+  augment "/te:te/te:tunnels/te:tunnel/te:primary-paths/"
+        + "te:primary-path/te:computed-paths-properties/"
+        + "te:computed-path-properties/te:path-properties" {
+    description
+      "Augment TE computed primary path with WDM properties.";
+
+    uses l0-types:l0-path-properties;
+  }
+
+  /*
+   * Computed path properties for primary reverse path.
+   */
+  augment "/te:te/te:tunnels/te:tunnel/te:primary-paths/"
+        + "te:primary-path/te:primary-reverse-path/"
+        + "te:computed-paths-properties/"
+        + "te:computed-path-properties/te:path-properties" {
+    description
+      "Augment TE computed primary reverse path with WDM
+       properties.";
+
+    uses l0-types:l0-path-properties;
+  }
+
+  /*
+   * Transceiver constraints for secondary path
+   * Applicable to starting, terminating and regenerator
+   * transceivers.
+   */
+  augment "/te:te/te:tunnels/te:tunnel/te:secondary-paths/"
+        + "te:secondary-path/te:explicit-route-objects-always/"
+        + "te:route-object-exclude-always/te:type/"
+        + "te:numbered-node-hop/te:numbered-node-hop" {
+    description
+      "Augment TE secondary path with transceiver configurations.";
+
+    uses path-transceiver-grp;
+  }
+
+  /*
+   * Transceiver constraints for secondary reverse path
+   * Applicable to starting, terminating and regenerator
+   * transceivers.
+   */
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-reverse-paths/"
+        + "te:secondary-reverse-path/"
+        + "te:explicit-route-objects-always/"
+        + "te:route-object-exclude-always/te:type/"
+        + "te:numbered-node-hop/te:numbered-node-hop" {
+    description
+      "Augment TE secondary reverse path with transceiver
+       configurations.";
+
+    uses path-transceiver-grp;
+  }
+
+  /*
+   * Computed path properties for secondary path.
+   */
+  augment "/te:te/te:tunnels/te:tunnel/te:secondary-paths/"
+        + "te:secondary-path/te:computed-paths-properties/"
+        + "te:computed-path-properties/te:path-properties" {
+    description
+      "Augment TE computed secondary path with WDM properties.";
+
+    uses l0-types:l0-path-properties;
+  }
+
+  /*
+   * Computed path properties for secondary reverse path.
+   */
+  augment "/te:te/te:tunnels/te:tunnel/te:secondary-reverse-paths/"
+        + "te:secondary-reverse-path/te:computed-paths-properties/"
+        + "te:computed-path-properties/te:path-properties" {
+    description
+      "Augment TE computed secondary reverse path with WDM
+       properties.";
+
+    uses l0-types:l0-path-properties;
+  }
+
+  /*
+   * WDM path state
+   */
+  augment "/te:te/te:lsps/te:lsp/"
+        + "te:lsp-actual-route-information" {
+    description
+      "Augment TE LSP to with WDM path state.";
+
+    uses wdm-path-state;
+  }
+
+  /*
+   * Augment TE label range information
+   */
+
+  augment "/te:te/te:globals/te:named-path-constraints/"
+        + "te:named-path-constraint/te:path-in-segment/"
+        + "te:label-restrictions/te:label-restriction" {
+    description
+      "Augment TE label range information for the ingress segment
+      of the named path constraint.";
+    uses l0-types:wdm-label-range-info;
+  }
+
+  augment "/te:te/te:globals/te:named-path-constraints/"
+        + "te:named-path-constraint/te:path-out-segment/"
+        + "te:label-restrictions/"
+        + "te:label-restriction" {
+    description
+      "Augment TE label range information for the egress segment
+      of the named path constraint.";
+    uses l0-types:wdm-label-range-info;
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:path-in-segment/te:label-restrictions/"
+        + "te:label-restriction" {
+    description
+      "Augment TE label range information for the ingress segment
+      of the primay path.";
+    uses l0-types:wdm-label-range-info;
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:path-out-segment/te:label-restrictions/"
+        + "te:label-restriction" {
+    description
+      "Augment TE label range information for the egress segment
+      of the primay path.";
+    uses l0-types:wdm-label-range-info;
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:primary-reverse-path/"
+        + "te:path-in-segment/te:label-restrictions/"
+        + "te:label-restriction" {
+    description
+      "Augment TE label range information for the ingress segment
+      of the primay reverse path.";
+    uses l0-types:wdm-label-range-info;
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:primary-reverse-path/"
+        + "te:path-out-segment/te:label-restrictions/"
+        + "te:label-restriction" {
+    description
+      "Augment TE label range information for the egress segment
+      of the primay reverse path.";
+    uses l0-types:wdm-label-range-info;
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-paths/te:secondary-path/"
+        + "te:path-in-segment/te:label-restrictions/"
+        + "te:label-restriction" {
+    description
+      "Augment TE label range information for the ingress segment
+      of the secondary path.";
+    uses l0-types:wdm-label-range-info;
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-paths/te:secondary-path/"
+        + "te:path-out-segment/te:label-restrictions/"
+        + "te:label-restriction" {
+    description
+      "Augment TE label range information for the egress segment
+      of the secondary path.";
+    uses l0-types:wdm-label-range-info;
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-reverse-paths/te:secondary-reverse-path/"
+        + "te:path-in-segment/te:label-restrictions/"
+        + "te:label-restriction" {
+    description
+      "Augment TE label range information for the ingress segment
+      of the secondary reverse path.";
+    uses l0-types:wdm-label-range-info;
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-reverse-paths/te:secondary-reverse-path/"
+        + "te:path-out-segment/te:label-restrictions/"
+        + "te:label-restriction" {
+    description
+      "Augment TE label range information for the egress segment
+      of the secondary reverse path.";
+    uses l0-types:wdm-label-range-info;
+  }
+
+  /*
+   * Augment TE label.
+   */
+  augment "/te:te/te:globals/te:named-path-constraints/"
+        + "te:named-path-constraint/"
+        + "te:explicit-route-objects-always/"
+        + "te:route-object-exclude-always/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the explicit route objects always
+      excluded by the path computation with the named path
+      constraint.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:globals/te:named-path-constraints/"
+        + "te:named-path-constraint/"
+        + "te:explicit-route-objects-always/"
+        + "te:route-object-include-exclude/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the explicit route objects included
+      or excluded by the path computation with the named path
+      constraint.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+  augment "/te:te/te:globals/te:named-path-constraints/"
+        + "te:named-path-constraint/te:path-in-segment/"
+        + "te:label-restrictions/"
+        + "te:label-restriction/te:label-start/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range start for the ingress segment
+      of the named path constraint.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:globals/te:named-path-constraints/"
+        + "te:named-path-constraint/te:path-in-segment/"
+        + "te:label-restrictions/"
+        + "te:label-restriction/te:label-end/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range end for the ingress segment
+      of the named path constraint.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:globals/te:named-path-constraints/"
+        + "te:named-path-constraint/te:path-in-segment/"
+        + "te:label-restrictions/te:label-restriction/"
+        + "te:label-step/te:technology" {
+    description
+      "Augment TE label range step for the ingress segment
+      of the named path constraint.";
+    case wdm {
+      uses l0-types:wdm-label-step;
+    }
+  }
+
+  augment "/te:te/te:globals/te:named-path-constraints/"
+        + "te:named-path-constraint/te:path-out-segment/"
+        + "te:label-restrictions/"
+        + "te:label-restriction/te:label-start/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range start for the egress segment
+      of the named path constraint.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:globals/te:named-path-constraints/"
+        + "te:named-path-constraint/te:path-out-segment/"
+        + "te:label-restrictions/"
+        + "te:label-restriction/te:label-end/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range end for the egress segment
+      of the named path constraint.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:globals/te:named-path-constraints/"
+        + "te:named-path-constraint/te:path-out-segment/"
+        + "te:label-restrictions/te:label-restriction/"
+        + "te:label-step/te:technology" {
+    description
+      "Augment TE label range step for the egress segment
+      of the named path constraint.";
+    case wdm {
+      uses l0-types:wdm-label-step;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:optimizations/te:algorithm/te:metric/"
+        + "te:optimization-metric/te:explicit-route-exclude-objects/"
+        + "te:route-object-exclude-object/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the optimization of the explicit
+      route objects excluded by the path computation of the primary
+      path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:optimizations/te:algorithm/te:metric/"
+        + "te:optimization-metric/te:explicit-route-include-objects/"
+        + "te:route-object-include-object/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the optimization of the explicit
+      route objects included by the path computation of the primary
+      path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:explicit-route-objects-always/"
+        + "te:route-object-exclude-always/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the explicit route objects always
+      excluded by the path computation of the primary path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:explicit-route-objects-always/"
+        + "te:route-object-include-exclude/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the explicit route objects included
+      or excluded by the path computation of the primary path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:path-in-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-start/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range start for the ingress segment
+      of the primay path.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:path-in-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-end/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range end for the ingress segment
+      of the primay path.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:path-in-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-step/te:technology" {
+    description
+      "Augment TE label range step for the ingress segment
+      of the primay path.";
+    case wdm {
+      uses l0-types:wdm-label-step;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:path-out-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-start/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range start for the egress segment
+      of the primay path.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:path-out-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-end/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range end for the egress segment
+      of the primay path.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:path-out-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-step/te:technology" {
+    description
+      "Augment TE label range end for the egress segment
+      of the primay path.";
+    case wdm {
+      uses l0-types:wdm-label-step;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:computed-paths-properties/"
+        + "te:computed-path-properties/te:path-properties/"
+        + "te:path-route-objects/te:path-route-object/"
+        + "te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the route object of the computed
+      primary path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:primary-reverse-path/"
+        + "te:optimizations/te:algorithm/te:metric/"
+        + "te:optimization-metric/te:explicit-route-exclude-objects/"
+        + "te:route-object-exclude-object/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the optimization of the explicit
+      route objects excluded by the path computation of the primary
+      reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:primary-reverse-path/"
+        + "te:optimizations/te:algorithm/te:metric/"
+        + "te:optimization-metric/te:explicit-route-include-objects/"
+        + "te:route-object-include-object/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the optimization of the explicit
+      route objects included by the path computation of the primary
+      reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:primary-reverse-path/"
+        + "te:explicit-route-objects-always/"
+        + "te:route-object-exclude-always/"
+        + "te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the explicit route objects always
+      excluded by the path computation of the primary reverse
+      path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:primary-reverse-path/"
+        + "te:explicit-route-objects-always/"
+        + "te:route-object-include-exclude/"
+        + "te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the explicit route objects included
+      or excluded by the path computation of the primary reverse
+      path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:primary-reverse-path/"
+        + "te:path-in-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-start/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range start for the ingress segment
+      of the primay reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:primary-reverse-path/"
+        + "te:path-in-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-end/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range end for the ingress segment
+      of the primay reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:primary-reverse-path/"
+        + "te:path-in-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-step/te:technology" {
+    description
+      "Augment TE label range step for the ingress segment
+      of the primay reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-step;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:primary-reverse-path/"
+        + "te:path-out-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-start/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range start for the egress segment
+      of the primay reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:primary-reverse-path/"
+        + "te:path-out-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-end/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range end for the egress segment
+      of the primay reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:primary-reverse-path/"
+        + "te:path-out-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-step/te:technology" {
+    description
+      "Augment TE label range step for the egress segment
+      of the primay reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-step;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:primary-paths/te:primary-path/"
+        + "te:primary-reverse-path/"
+        + "te:computed-paths-properties/te:computed-path-properties/"
+        + "te:path-properties/te:path-route-objects/"
+        + "te:path-route-object/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the route object of the computed
+      primary reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-paths/te:secondary-path/"
+        + "te:optimizations/te:algorithm/te:metric/"
+        + "te:optimization-metric/te:explicit-route-exclude-objects/"
+        + "te:route-object-exclude-object/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the optimization of the explicit
+      route objects excluded by the path computation of the
+      secondary path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-paths/te:secondary-path/"
+        + "te:optimizations/te:algorithm/te:metric/"
+        + "te:optimization-metric/te:explicit-route-include-objects/"
+        + "te:route-object-include-object/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the optimization of the explicit
+      route objects included by the path computation of the
+      secondary path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-paths/te:secondary-path/"
+        + "te:explicit-route-objects-always/"
+        + "te:route-object-exclude-always/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the explicit route objects always
+      excluded by the path computation of the secondary path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-paths/te:secondary-path/"
+        + "te:explicit-route-objects-always/"
+        + "te:route-object-include-exclude/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the explicit route objects included
+      or excluded by the path computation of the secondary path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-paths/te:secondary-path/"
+        + "te:path-in-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-start/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range start for the ingress segment
+      of the secondary path.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-paths/te:secondary-path/"
+        + "te:path-in-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-end/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range end for the ingress segment
+      of the secondary path.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-paths/te:secondary-path/"
+        + "te:path-in-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-step/te:technology" {
+    description
+      "Augment TE label range step for the ingress segment
+      of the secondary path.";
+    case wdm {
+      uses l0-types:wdm-label-step;
+    }
+  }
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-paths/te:secondary-path/"
+        + "te:path-out-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-start/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range start for the egress segment
+      of the secondary path.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-paths/te:secondary-path/"
+        + "te:path-out-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-end/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range end for the egress segment
+      of the secondary path.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-paths/te:secondary-path/"
+        + "te:path-out-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-step/te:technology" {
+    description
+      "Augment TE label range step for the egress segment
+      of the secondary path.";
+    case wdm {
+      uses l0-types:wdm-label-step;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-paths/te:secondary-path/"
+        + "te:computed-paths-properties/"
+        + "te:computed-path-properties/"
+        + "te:path-properties/te:path-route-objects/"
+        + "te:path-route-object/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the route object of the computed
+      secondary path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-reverse-paths/te:secondary-reverse-path/"
+        + "te:optimizations/te:algorithm/te:metric/"
+        + "te:optimization-metric/te:explicit-route-exclude-objects/"
+        + "te:route-object-exclude-object/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the optimization of the explicit
+      route objects excluded by the path computation of the
+      secondary reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-reverse-paths/te:secondary-reverse-path/"
+        + "te:optimizations/te:algorithm/te:metric/"
+        + "te:optimization-metric/te:explicit-route-include-objects/"
+        + "te:route-object-include-object/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the optimization of the explicit
+      route objects included by the path computation of the
+      secondary reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-reverse-paths/te:secondary-reverse-path/"
+        + "te:explicit-route-objects-always/"
+        + "te:route-object-exclude-always/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the explicit route objects always
+      excluded by the path computation of the secondary reverse
+      path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-reverse-paths/te:secondary-reverse-path/"
+        + "te:explicit-route-objects-always/"
+        + "te:route-object-include-exclude/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the explicit route objects included
+      or excluded by the path computation of the secondary reverse
+      path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-reverse-paths/te:secondary-reverse-path/"
+        + "te:path-in-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-start/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range start for the ingress segment
+      of the secondary reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-reverse-paths/te:secondary-reverse-path/"
+        + "te:path-in-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-end/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range end for the ingress segment
+      of the secondary reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-reverse-paths/te:secondary-reverse-path/"
+        + "te:path-in-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-step/te:technology" {
+    description
+      "Augment TE label range step for the ingress segment
+      of the secondary reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-step;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-reverse-paths/te:secondary-reverse-path/"
+        + "te:path-out-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-start/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range start for the egress segment
+      of the secondary reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-reverse-paths/te:secondary-reverse-path/"
+        + "te:path-out-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-end/"
+        + "te:te-label/te:technology" {
+    description
+      "Augment TE label range end for the egress segment
+      of the secondary reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-start-end;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-reverse-paths/te:secondary-reverse-path/"
+        + "te:path-out-segment/te:label-restrictions/"
+        + "te:label-restriction/te:label-step/te:technology" {
+    description
+      "Augment TE label range step for the egress segment
+      of the secondary reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-step;
+    }
+  }
+
+  augment "/te:te/te:tunnels/te:tunnel/"
+        + "te:secondary-reverse-paths/te:secondary-reverse-path/"
+        + "te:computed-paths-properties/"
+        + "te:computed-path-properties/"
+        + "te:path-properties/te:path-route-objects/"
+        + "te:path-route-object/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the route object of the computed
+      secondary reverse path.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+
+  augment "/te:te/te:lsps/"
+        + "te:lsp/te:lsp-actual-route-information/"
+        + "te:lsp-actual-route-information/te:type/te:label/"
+        + "te:label-hop/te:te-label/te:technology" {
+    description
+      "Augment TE label hop for the actual route of the LSP.";
+    case wdm {
+      uses l0-types:wdm-label-hop;
+    }
+  }
+}

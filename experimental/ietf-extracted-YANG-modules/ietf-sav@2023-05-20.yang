@@ -11,6 +11,10 @@ module ietf-sav {
     prefix "if";
   }
 
+  import ietf-inet-types {
+    prefix "inet";
+  }
+
   organization
     "IETF SAVNET Working Group";
 
@@ -38,8 +42,10 @@ module ietf-sav {
      forth in Section 4.c of the IETF Trust's Legal Provisions
      Relating to IETF Documents
      (https://trustee.ietf.org/license-info).
-     This version of this YANG module is part of RFC XXXX; see the
-     RFC itself for full legal notices.";
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+     for full legal notices.";
 
   reference
     "RFC XXXX: A YANG Data Model For SAV Management.";
@@ -115,6 +121,24 @@ module ietf-sav {
       "This identity represents an SAV complete mode.";
   }
 
+  identity sav-check-type {
+    description
+      "Base identity from which identities describing SAV
+       check types of the specified interface are derived.";
+  }
+
+  identity sav-allow-list {
+    base sav-check-type;
+    description
+      "This identity represents an SAV allow list type.";
+  }
+
+  identity sav-block-list {
+    base sav-check-type;
+    description
+      "This identity represents an SAV block list type.";
+  }
+
   /* Type Definitions */
 
   typedef rule-preference {
@@ -178,6 +202,16 @@ module ietf-sav {
          rule was never modified, it is the time when the SAV
          rule was inserted into the SAV table.";
     }
+    leaf total-packets {
+      type uint64;
+      description
+        "Number of the total packets checked by a SAV rule.";
+    }
+    leaf total-bytes {
+      type uint64;
+      description
+        "Number of the total bytes checked by a SAV rule.";
+    }
     leaf drop-packets {
       type uint64;
       description
@@ -218,17 +252,24 @@ module ietf-sav {
       description
         "This attribute allows for controlling number limit.";
     }
-    leaf percent {
+    leaf threshold-percent {
       type uint8 {
         range "0..100";
       }
       description
-        "This attribute allows for controlling percentage
+        "This attribute allows for controlling threshold percentage
+         limit.";
+    }
+    leaf threshold-number {
+      type uint32;
+      description
+        "This attribute allows for controlling threshold number
          limit.";
     }
   }
 
   /* Augments */
+
   augment "/if:interfaces/if:interface" {
     description
       "SAV configuration of incoming interfaces.";
@@ -261,6 +302,39 @@ module ietf-sav {
           }
         }
       }
+      container sav-spoof-top {
+        description
+          "Support for reporting the top few SAV rules with the
+           highest number of filtered counterfeit packets under
+           specified interface.";
+        leaf enabled {
+          type boolean;
+          description
+            "This attribute allows for controlling the function of
+             reporting the top few SAV rules with the highest
+             number of filtered counterfeit packets under specified
+             interface.";
+        }
+        leaf top-number {
+          type uint32;
+          description
+            "This attribute allows for setting the top number of
+             the SAV rules with the highest number of filtered
+             counterfeit packets under specified interface.";
+        }
+      }
+      container sav-block-flow-report {
+        description
+          "Support for viewing the information of data flow blocked
+           by SAVNET under specified interface.";
+        leaf enabled {
+          type boolean;
+          description
+            "This attribute allows for controlling the function of
+             viewing the information of data flow blocked by
+             SAVNET under specified interface.";
+        }
+      }
     }
   }
 
@@ -288,6 +362,17 @@ module ietf-sav {
           type if:interface-ref;
           description
             "The name of an interface.";
+        }
+        leaf total-packets {
+          type uint64;
+          description
+            "The number of total packets for specified interface.";
+        }
+        leaf total-bytes {
+          type uint64;
+          description
+            "The byte number of total packets for specified
+             interface.";
         }
         leaf drop-packets {
           type uint64;
@@ -388,6 +473,37 @@ module ietf-sav {
           }
         }
       }
+      container sav-spoof-top {
+        description
+          "Support for reporting the top few SAV rules with the
+           highest number of filtered counterfeit packets.";
+        leaf enabled {
+          type boolean;
+          description
+            "This attribute allows for globally controlling the
+             function of reporting the top few SAV rules with the
+             highest number of filtered counterfeit packets.";
+        }
+        leaf top-number {
+          type uint32;
+          description
+            "This attribute allows for globally setting the top
+             number of the SAV rules with the highest number of
+             filtered counterfeit packets.";
+        }
+      }
+      container sav-block-flow-report {
+        description
+          "Support for viewing the information of data flow blocked
+           by SAVNET.";
+        leaf enabled {
+          type boolean;
+          description
+            "This attribute allows for globally controlling the
+             function of viewing the information of data flow
+             blocked by SAVNET.";
+        }
+      }
     }
     container static-savs {
       description
@@ -482,6 +598,42 @@ module ietf-sav {
         }
       }
     }
+    container sav-block-flow-infos {
+      config false;
+      description
+        "The information of data flow blocked by SAVNET.";
+      list sav-block-flow-info {
+        description
+          "The information of a data stream blocked by SAVNET.";
+        leaf source-ip-address {
+          type inet:ip-address;
+          description
+            "Source address of the data stream blocked by SAVNET.";
+        }
+        leaf source-port {
+          type uint16;
+          description
+            "Source port of the data stream blocked by SAVNET.";
+        }
+        leaf destination-ip-address {
+          type inet:ip-address;
+          description
+            "Destination address of the data stream blocked by
+             SAVNET.";
+        }
+        leaf destination-port {
+          type uint16;
+          description
+            "Destination port of the data stream blocked by
+             SAVNET.";
+        }
+        leaf arrival-time {
+          type yang:date-and-time;
+          description
+            "Arrival time of the data stream blocked by SAVNET.";
+        }
+      }
+    }
   }
   notification sav-event {
     description
@@ -502,6 +654,35 @@ module ietf-sav {
       description
         "Indicates that the number of SAV table entries reached
          the upper limit.";
+    }
+    container top-spoof-sav-rules {
+      description
+        "The top few SAV rules with the highest number of filtered
+         counterfeit packets.";
+      list sav-rule {
+        description
+          "A SAV rule entry. This data node MUST be augmented with
+           information specific to SAV-rule of each address
+           family.";
+        leaf rule-preference {
+          type rule-preference;
+          description
+            "This attribute allows for selecting the preferred
+             SAV-rule among SAV-rules with the same source prefix.
+             A smaller value indicates a SAV-rule that is more
+             preferred.";
+        }
+        container incoming-interfaces {
+          description
+            "Network-layer incoming interfaces of a SAV rule.";
+          leaf-list incoming-interface {
+            type if:interface-ref;
+            description
+              "Each entry is the name of a SAV incoming interface";
+          }
+        }
+        uses rule-metadata;
+      }
     }
   }
 }
