@@ -1,7 +1,7 @@
 module ietf-isis-sr {
   yang-version 1.1;
-  namespace "urn:ietf:params:xml:ns:"
-          + "yang:ietf-isis-sr";
+  namespace "urn:ietf:params:xml:ns:yang:ietf-isis-sr";
+
   prefix isis-sr;
 
   import ietf-routing {
@@ -41,28 +41,35 @@ module ietf-isis-sr {
       "RFC 8294 - Common YANG Data Types for the Routing Area";
   }
 
+  import ietf-routing-types {
+    prefix rt-types;
+    reference
+      "RFC 8294 - Common YANG Data Types for the Routing Area";
+  }
+
   organization
-    "IETF LSR - LSR Working Group";
+    "IETF LSR - Link State Routing Working Group";
   contact
-    "WG List:  <mailto:lsr@ietf.org>
+    "WG Web:   <https://datatracker.ietf.org/wg/lsr/>
+     WG List:  <mailto:lsr@ietf.org>
 
      Author:    Stephane Litkowski
-               <mailto:stephane.litkowski@orange.com>
-     Author:    Acee Lindem
-               <mailto:acee@cisco.com>
+                <mailto:slitkows.ietf@gmail.com>
      Author:    Yingzhen Qu
-               <mailto:yingzhen.qu@futurewei.com>
+                <mailto:yingzhen.ietf@gmail.com.com>
+     Author:    Acee Lindem
+                <mailto:acee.ietf@gmail.com>
      Author:    Pushpasis Sarkar
-               <mailto:pushpasis.ietf@gmail.com>
+                <mailto:pushpasis.ietf@gmail.com>
      Author:    Ing-Wher Chen
-               <mailto:ingwherchen@mitre.org>
+                <mailto:ingwherchen@mitre.org>
      Author:    Jeff Tantsura
-               <mailto:jefftant.ietf@gmail.com>
+                <mailto:jefftant.ietf@gmail.com>
     ";
   description
-    "The YANG module defines a generic configuration model for
-     Segment routing ISIS extensions common across all of the vendor
-     implementations.
+    "The YANG module defines the generic configuration and
+     operational state for Segment Routing ISIS extensions, which is
+     common across all of the vendor implementations.
 
      This YANG model conforms to the Network Management
      Datastore Architecture (NMDA) as described in RFC 8342.
@@ -92,11 +99,11 @@ module ietf-isis-sr {
   reference
     "RFC XXXX";
 
-  revision 2023-07-09 {
+  revision 2023-11-19 {
     description
       "Initial revision.";
     reference
-      "RFC XXXX";
+      "RFC XXXX: A YANG Data Model for IS-IS Segment Routing";
   }
 
   /* Identities */
@@ -113,7 +120,6 @@ module ietf-isis-sr {
        processing SR MPLS encapsulated IPv4 packets
        on all interfaces.";
   }
-
   identity mpls-ipv6 {
     base sr-capability;
     description
@@ -162,7 +168,6 @@ module ietf-isis-sr {
     description
       "Local Flag.";
   }
-
   identity adj-sid-bit {
     description
       "Base identity for adj sid sub-tlv bits.";
@@ -197,6 +202,7 @@ module ietf-isis-sr {
     description
       "Group flag.";
   }
+
   identity pe-bit {
     base adj-sid-bit;
     description
@@ -244,11 +250,14 @@ module ietf-isis-sr {
   feature remote-lfa-sr {
     description
       "Enhance rLFA to use SR path.";
+    reference
+      "RFC 8102: Remote-LFA Node Protection and Manageability";
   }
+
   feature ti-lfa {
     description
-      "Enhance IPFRR with ti-lfa
-       support";
+      "Topology-Independent Loop-Free Alternate (TI-LFA)
+       computation using segment routing.";
   }
 
   /* Groupings */
@@ -310,7 +319,9 @@ module ietf-isis-sr {
       description
         "All SR algorithms.";
       leaf-list sr-algorithm {
-        type uint8;
+        type identityref {
+          base sr-cmn:prefix-sid-algorithm;
+        }
         description
           "The Segment Routing (SR) algorithms that the router is
            currently using.";
@@ -328,7 +339,7 @@ module ietf-isis-sr {
         description
           "Segment Routing Local Block.";
         leaf range-size {
-          type uint32;
+          type rt-types:uint24;
           description
             "The SID range.";
         }
@@ -413,7 +424,9 @@ module ietf-isis-sr {
            segment ID.";
       }
       leaf algorithm {
-        type uint8;
+        type identityref {
+          base sr-cmn:prefix-sid-algorithm;
+        }
         description
           "Algorithm to be used for path computation.";
       }
@@ -505,7 +518,7 @@ module ietf-isis-sr {
       "Defines binding TLV for database.";
   }
 
-  /* Cfg */
+  /* Configuration */
 
   augment "/rt:routing/"
         + "rt:control-plane-protocols/rt:control-plane-protocol"
@@ -542,13 +555,101 @@ module ietf-isis-sr {
   augment "/rt:routing/"
         + "rt:control-plane-protocols/rt:control-plane-protocol"
         + "/isis:isis/isis:interfaces/isis:interface"
-        + "/isis:fast-reroute" {
-    when "derived-from-or-self(../../../../rt:type, 'isis:isis')" {
+        + "/isis:fast-reroute/isis:lfa" {
+    when "derived-from-or-self(../../../../../rt:type,"
+        + "'isis:isis')" {
       description
         "This augment ISIS routing protocol when used";
     }
     description
-      "This augments ISIS IP FRR with TILFA.";
+      "This augments ISIS interface IP FRR with TILFA.";
+    container ti-lfa {
+      if-feature "ti-lfa";
+      leaf enable {
+        type boolean;
+        default false;
+        description
+          "Enables TI-LFA computation.";
+      }
+      container selection-tie-breakers {
+        container node-protection {
+          presence "Presence of container enables the node
+                    protection tie-breaker";
+          leaf priority {
+            type uint8;
+            default 128;
+            description
+              "Priority for node protection tie-breaker with
+               a lower priority being more preferred.";
+          }
+          description
+            "Enable node protection as a TI-LFA path
+             selection tie-breaker. A path providing node
+             protection will be selected over one that
+             doesn't provide node protection.";
+        }
+        container srlg-disjoint {
+          presence "Presence of container enables the SRLG
+                    disjoint tie-breaker";
+          leaf priority {
+            type uint8;
+            default 128;
+            description
+              "Priority for SRLG disjoint tie-breaker with
+               a lower priority being more preferred.";
+          }
+          description
+            "Enable SRLG (Shared Resource Link Group)
+             disjoint  as a TI-LFA path selection tie-breaker.
+             A path providing node a disjoint path for SRLG
+             links from the primary path will be selected over
+             one that doesn't provide an SRLG disjoint path.";
+        }
+        description
+          "Configure path selection tie-breakers and their
+           respective priorities for the TI-LFA computation.";
+      }
+      description
+        "Topology Independent Loop Free Alternate
+         (TI-LFA) support.";
+    }
+  }
+
+  augment "/rt:routing/"
+        + "rt:control-plane-protocols/rt:control-plane-protocol"
+        + "/isis:isis/isis:interfaces/isis:interface"
+        + "/isis:fast-reroute/isis:lfa/isis:level-1" {
+    when "derived-from-or-self(../../../../../../rt:type,"
+        + "'isis:isis')" {
+      description
+        "This augment ISIS routing protocol when used";
+    }
+    description
+      "This augments ISIS interface level-1 IP FRR with TILFA.";
+    container ti-lfa {
+      if-feature "ti-lfa";
+      leaf enable {
+        type boolean;
+        default false;
+        description
+          "Enables TI-LFA computation.";
+      }
+      description
+        "TI-LFA configuration.";
+    }
+  }
+
+  augment "/rt:routing/"
+        + "rt:control-plane-protocols/rt:control-plane-protocol"
+        + "/isis:isis/isis:interfaces/isis:interface"
+        + "/isis:fast-reroute/isis:lfa/isis:level-2" {
+    when "derived-from-or-self(../../../../../../rt:type,"
+        + "'isis:isis')" {
+      description
+        "This augment ISIS routing protocol when used";
+    }
+    description
+      "This augments ISIS IP interface level-2 FRR with TILFA.";
     container ti-lfa {
       if-feature "ti-lfa";
       leaf enable {
