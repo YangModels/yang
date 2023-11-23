@@ -1,0 +1,351 @@
+module ietf-rib-extension {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-rib-extension";
+  prefix rib-ext;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-interfaces {
+    prefix if;
+    reference
+      "RFC 8343: A YANG Data Model for Interface
+                 Management";
+  }
+  import ietf-routing {
+    prefix rt;
+    reference
+      "RFC 8349: A YANG Data Model for Routing
+                 Management (NMDA Version)";
+  }
+  import ietf-ipv4-unicast-routing {
+    prefix v4ur;
+    reference
+      "RFC 8349: A YANG Data Model for Routing
+                 Management (NMDA Version)";
+  }
+  import ietf-ipv6-unicast-routing {
+    prefix v6ur;
+    reference
+      "RFC 8349: A YANG Data Model for Routing
+                 Management (NMDA Version)";
+  }
+
+  import ietf-ospf {
+    prefix ospf;
+    reference "RFC 9129: YANG Data Model for the OSPF Protocol";
+  }
+
+  import ietf-isis {
+    prefix isis;
+    reference "RFC 9130: YANG Data Model for the IS-IS Protocol";
+  }
+
+  organization
+    "IETF RTGWG (Routing Area Working Group)";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/rtgwg/>
+     WG List:  <mailto:rtgwg@ietf.org>
+
+     Author:   Acee Lindem
+               <mailto:acee.ietf@gmail.com>
+     Author:   Yingzhen Qu
+               <mailto:yingzhen.qu@futurewei.com>";
+  description
+    "This YANG module extends the RIB defined in the ietf-routing
+     YANG module with additional route attributes.
+
+     This YANG module conforms to the Network Management
+     Datastore Architecture (NMDA) as described in RFC 8342.
+
+     Copyright (c) 2023 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 9403; see the
+     RFC itself for full legal notices.";
+
+  revision 2023-11-20 {
+    description
+      "Initial version.";
+    reference
+      "RFC 9403: A YANG Data Model for RIB Extensions";
+  }
+
+  /* Groupings */
+
+  grouping rib-statistics {
+    description
+      "Statistics grouping used for RIB augmentation.";
+    container statistics {
+      config false;
+      description
+        "Container for RIB statistics.";
+      leaf total-routes {
+        type uint32;
+        description
+          "Total number of routes in the RIB.";
+      }
+      leaf total-active-routes {
+        type uint32;
+        description
+          "Total number of active routes in the RIB.  An active
+           route is the route that is preferred over other routes
+           to the same destination prefix.";
+      }
+      leaf total-route-memory {
+        type uint64;
+        units "bytes";
+        description
+          "Total memory for all routes in the RIB.";
+      }
+      list protocol-statistics {
+        description
+          "RIB statistics for routing protocols installing
+           routes in the RIB.";
+        leaf protocol {
+          type identityref {
+            base rt:routing-protocol;
+          }
+          description
+            "Routing protocol installing routes in the RIB.";
+        }
+        leaf routes {
+          type uint32;
+          description
+            "Total number of routes in the RIB for the routing
+             protocol identified by the 'protocol' entry.";
+        }
+        leaf active-routes {
+          type uint32;
+          description
+            "Total number of active routes in the RIB for the
+             routing protocol identified by the 'protocol' entry.
+             An active route is preferred over other routes to the
+             same destination prefix.";
+        }
+        leaf route-memory {
+          type uint64;
+          units "bytes";
+          description
+            "Total memory for all routes in the RIB for the
+             routing protocol identified by the 'protocol'
+             entry.";
+        }
+      }
+    }
+  }
+
+  grouping repair-path {
+    description
+      "Grouping for the IP Fast Reroute (IPFRR) repair path.";
+    container repair-path {
+      description
+        "IPFRR next-hop repair path.";
+      leaf outgoing-interface {
+        type if:interface-state-ref;
+        description
+          "Name of the outgoing interface.";
+      }
+      leaf next-hop-address {
+        type inet:ip-address-no-zone;
+        description
+          "IP address of the next hop.";
+      }
+      leaf metric {
+        type uint32;
+        description
+          "The metric for the repair path.  While the reroute
+           repair is local and the metric is not advertised
+           externally, the metric for the repair path is useful
+           for troubleshooting purposes.";
+      }
+      reference
+        "RFC 5714: IP Fast Reroute Framework";
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols/"
+        + "rt:control-plane-protocol/rt:static-routes/v4ur:ipv4/"
+        + "v4ur:route/v4ur:next-hop/v4ur:next-hop-options/"
+        + "v4ur:simple-next-hop" {
+    description
+      "Augment 'simple-next-hop' case in IPv4 unicast route.";
+    leaf preference {
+      type uint32;
+      default "1";
+      description
+        "The preference is used to select among multiple static
+         routes.  Routes with a lower next-hop preference value
+         are preferred, and equal-preference routes result in
+         Equal-Cost Multipath (ECMP) static routes.";
+    }
+    leaf tag {
+      type uint32;
+      default "0";
+      description
+        "The tag is a 32-bit opaque value associated with the
+         route that can be used for policy decisions such as
+         advertisement and filtering of the route.";
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols/"
+        + "rt:control-plane-protocol/rt:static-routes/v4ur:ipv4/"
+        + "v4ur:route/v4ur:next-hop/v4ur:next-hop-options/"
+        + "v4ur:next-hop-list/v4ur:next-hop-list/v4ur:next-hop" {
+    description
+      "Augment static route configuration 'next-hop-list'.";
+    leaf preference {
+      type uint32;
+      default "1";
+      description
+        "The preference is used to select among multiple static
+         routes.  Routes with a lower next-hop preference value
+         are preferred, and equal-preference routes result in
+         ECMP static routes.";
+    }
+    leaf tag {
+      type uint32;
+      default "0";
+      description
+        "The tag is a 32-bit opaque value associated with the
+         route that can be used for policy decisions such as
+         advertisement and filtering of the route.";
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols/"
+        + "rt:control-plane-protocol/rt:static-routes/v6ur:ipv6/"
+        + "v6ur:route/v6ur:next-hop/v6ur:next-hop-options/"
+        + "v6ur:simple-next-hop" {
+    description
+      "Augment 'simple-next-hop' case in IPv6 unicast route.";
+    leaf preference {
+      type uint32;
+      default "1";
+      description
+        "The preference is used to select among multiple static
+         routes.  Routes with a lower next-hop preference value
+         are preferred, and equal-preference routes result in
+         ECMP static routes.";
+    }
+    leaf tag {
+      type uint32;
+      default "0";
+      description
+        "The tag is a 32-bit opaque value associated with the
+         route that can be used for policy decisions such as
+         advertisement and filtering of the route.";
+    }
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols/"
+        + "rt:control-plane-protocol/rt:static-routes/v6ur:ipv6/"
+        + "v6ur:route/v6ur:next-hop/v6ur:next-hop-options/"
+        + "v6ur:next-hop-list/v6ur:next-hop-list/v6ur:next-hop" {
+    description
+      "Augment static route configuration 'next-hop-list'.";
+    leaf preference {
+      type uint32;
+      default "1";
+      description
+        "The preference is used to select among multiple static
+         routes.  Routes with a lower next-hop preference value
+         are preferred, and equal-preference routes result in
+         ECMP static routes.";
+    }
+    leaf tag {
+      type uint32;
+      default "0";
+      description
+        "The tag is a 32-bit opaque value associated with the
+         route that can be used for policy decisions such as
+         advertisement and filtering of the route.";
+    }
+  }
+
+  augment "/rt:routing/rt:ribs/rt:rib" {
+    description
+      "Augment a RIB with statistics.";
+    uses rib-statistics;
+  }
+
+  augment "/rt:routing/rt:ribs/rt:rib/"
+        + "rt:routes/rt:route" {
+    description
+      "Augment a route in the RIB with common attributes.";
+    leaf metric {
+      when "not(derived-from("
+        + "../rt:source-protocol, 'ospf:ospf')) "
+        + "and not(derived-from( "
+        + "../rt:source-protocol, 'isis:isis'))" {
+        description
+          "This augmentation is only valid for routes that don't
+           have OSPF or IS-IS as the source protocol.  The YANG
+           data models for OSPF and IS-IS already include a
+           'metric' augmentation for routes.";
+      }
+      type uint32;
+      description
+        "The metric is a numeric value indicating the cost
+         of the route from the perspective of the routing
+         protocol installing the route.  In general, routes with
+         a lower metric installed by the same routing protocol
+         are lower cost to reach and are preferable to routes
+         with a higher metric.  However, metrics from different
+         routing protocols are not comparable.";
+    }
+    leaf-list tag {
+      when "not(derived-from("
+        + "../rt:source-protocol, 'ospf:ospf')) "
+        + "and not(derived-from( "
+        + "../rt:source-protocol, 'isis:isis'))" {
+        description
+          "This augmentation is only valid for routes that don't
+           have OSPF or IS-IS as the source protocol.  The YANG
+           data models for OSPF and IS-IS already include a 'tag'
+           augmentation for routes.";
+      }
+      type uint32;
+      description
+        "A tag is a 32-bit opaque value associated with the
+         route that can be used for policy decisions such as
+         advertisement and filtering of the route.";
+    }
+    leaf application-tag {
+      type uint32;
+      description
+        "The application-specific tag is an additional tag that
+         can be used by applications that require semantics and/or
+         policy different from that of the tag.  For example,
+         the tag is usually automatically advertised in OSPF
+         AS-External Link State Advertisements (LSAs) while this
+         application-specific tag is not advertised implicitly.";
+    }
+  }
+
+  augment "/rt:routing/rt:ribs/rt:rib/"
+        + "rt:routes/rt:route/rt:next-hop/rt:next-hop-options/"
+        + "rt:simple-next-hop" {
+    description
+      "Augment 'simple-next-hop' with 'repair-path'.";
+    uses repair-path;
+  }
+
+  augment "/rt:routing/rt:ribs/rt:rib/"
+        + "rt:routes/rt:route/rt:next-hop/rt:next-hop-options/"
+        + "rt:next-hop-list/rt:next-hop-list/rt:next-hop" {
+    description
+      "Augment the next hop with a repair path.";
+    uses repair-path;
+  }
+}
