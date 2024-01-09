@@ -2,8 +2,8 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents** 
 
-- [YANG Models and Platform Capabilities for Cisco IOS XE 17.13.1](#yang-models-and-platform-capabilities-for-cisco-ios-xe-1771)
-  - [Major Model Changes In 17.13.1](#major-model-changes-in-1771)
+- [YANG Models and Platform Capabilities for Cisco IOS XE 17.13.1](#yang-models-and-platform-capabilities-for-cisco-ios-xe-17131)
+  - [Major Model Changes In 17.13.1](#major-model-changes-in-17131)
     - [Native Models Added](#native-models-added)
     - [Native Models Modified](#native-models-modified)
     - [Other Models Modified](#other-models-modified)
@@ -62,7 +62,6 @@ listed below. As model content may differ based on platform capabilities, sample
  * Cisco-IOS-XE-line-common-deviation.yang
  * Cisco-IOS-XE-line-nonquake-deviation.yang
  * Cisco-IOS-XE-meraki-connect-oper.yang
- * Cisco-IOS-XE-service-chain.yang
  * Cisco-IOS-XE-sse-actions-rpc.yang
  * Cisco-IOS-XE-sse-events.yang
  * Cisco-IOS-XE-sse-oper.yang
@@ -205,7 +204,7 @@ Revision statements embedded in the YANG files **should** accurately reflect whe
 
 ### YANG Model Version 1.1
 
-All native models will be in YANG version 1.1 from 17.13.1 release onwards. 
+All native models are in YANG version 1.1 from 17.10.1 release.
 
 YANG version 1.1 is described by the RFC 7950, The YANG 1.1 Data Modeling Language. YANG version 1.1 is a maintenance release of the YANG language that addresses ambiguities and defects in the YANG version 1.0 specification. Per RFC 7950, the YANG module in YANG version 1.1 is advertised through the ietf-yang-library instead of the NETCONF hello messages. As model content may differ based on platform support, samples of the platform 'ietf-yang-library' <rpc-reply> messages listing all implemented modules in the "/modules-state/module" list are also provided in the files listed against platforms:
 
