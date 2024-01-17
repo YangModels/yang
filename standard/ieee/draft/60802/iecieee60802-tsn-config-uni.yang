@@ -1,0 +1,186 @@
+module iecieee60802-tsn-config-uni {
+  yang-version 1.1;
+  namespace "urn:ieee:std:60802:yang:iecieee60802-tsn-config-uni";
+  prefix ia-tsn;
+
+  import ieee802-dot1q-tsn-config-uni {
+    prefix tsn;
+  }
+  import ieee802-dot1q-tsn-types {
+    prefix tsn-types;
+  }
+
+  organization
+    "IEEE 802.1 Working Group";
+  contact
+    "WG-URL: http://ieee802.org/1/
+     WG-EMail: stds-802-1-l@ieee.org
+
+     Contact: IEEE 802.1 Working Group Chair
+              Postal: C/O IEEE 802.1 Working Group
+              IEEE Standards Association
+              445 Hoes Lane
+              Piscataway, NJ 08854
+              USA
+
+     E-mail: stds-802-1-chairs@ieee.org";
+  description
+    "Management objects that provide information about IEC/IEEE 60802 IA-Stations as specified in IEC/IEEE 60802.
+
+     Copyright (C) IEC/IEEE (2023).
+     This version of this YANG module is part of IEC/IEEE Std 60802;
+     see the standard itself for full legal notices.";
+
+  revision 2023-09-08 {
+    description
+      "Initial version.";
+    reference
+      "IEC/IEEE 60802 - YANG Data Model";
+  }
+
+  augment "/tsn:tsn-uni" {
+    description
+      "Augment main container in tsc-config-uni.";
+    leaf max-config-domains {
+      type uint8;
+      config false;
+      description
+        "The value is the maximum number of supported configuration domains.";
+      reference
+        "6.4.10.2.9.1 of IEC/IEEE 60802";
+    }
+    leaf max-cucs {
+      type uint8;
+      config false;
+      description
+        "The value is the maximum number of supported CUC entities.";
+      reference
+        "6.4.10.2.9.2 of IEC/IEEE 60802";
+    }
+    leaf max-ia-stations {
+      type uint16;
+      config false;
+      description
+        "The value is the maximum number of supported IA-stations.";
+      reference
+        "6.4.10.2.9.3 of IEC/IEEE 60802";
+    }
+    leaf max-network-diameter {
+      type uint8;
+      config false;
+      description
+        "The value is the maximum supported network diameter.";
+      reference
+        "6.4.10.2.9.4 of IEC/IEEE 60802";
+    }
+    leaf max-streams {
+      type uint16;
+      config false;
+      description
+        "The value is the maximum number of supported streams.";
+      reference
+        "6.4.10.2.9.5 of IEC/IEEE 60802";
+    }
+    leaf num-seamless-trees {
+      type uint8;
+      config false;
+      description
+        "The value is the maximum number of trees supported for seamless redundancy of a stream.";
+      reference
+        "6.4.10.2.9.6 of IEC/IEEE 60802";
+    }
+    leaf hot-standby-supported {
+      type uint8;
+      config false;
+      description
+        "The Boolean value indicates if PTP hot standby is supported.";
+      reference
+        "6.4.10.2.9.7 of IEC/IEEE 60802";
+    }
+    action add_streams {
+      description
+        "This Action requests a CNC to add a list of streams.";
+      input {
+        leaf cuc-id {
+          type string;
+          description
+            "The CUC ID where the streams are to be added";
+        }
+        list stream-list {
+          key "stream-id";
+          description
+            "List of Streams that should be added.";
+          leaf stream-id {
+            type tsn-types:stream-id-type;
+            description
+              "The Stream ID is a unique identifier of a Stream request
+               and corresponding configuration. It is used to associate a
+               CUC’s Stream request with a CNC’s corresponding response.";
+          }
+          container talker {
+            description
+              "The Talker container contains: - Talker’s behavior for
+               Stream (how/when transmitted) - Talker’s requirements from
+               the network - TSN capabilities of the Talker’s
+               interface(s).";
+            uses tsn-types:group-talker;
+          }
+          list listener {
+            key "index";
+            description
+              "Each Listener list entry contains: - Listener’s
+               requirements from the network - TSN capabilities of the
+               Listener’s interface(s).";
+            leaf index {
+              type uint32;
+              description
+                "This index is provided in order to provide a unique key
+                 per list entry.";
+            }
+            uses tsn-types:group-listener;
+          }
+        }
+      }
+      output {
+        leaf result {
+          type boolean;
+          description
+            "Returns status information indicating if Stream addition
+             has been successful.";
+        }
+      }
+    }
+  }
+
+  augment "/tsn:tsn-uni/tsn:domain/tsn:cuc/tsn:stream" {
+    description
+      "Augment stream list in tsc-config-uni.";
+    action remove_listener {
+      description
+        "This Action removes listeners from a stream.";
+      input {
+        list listener {
+          key "index";
+          description
+            "Each Listener list entry contains: - Listener’s
+             requirements from the network - TSN capabilities of the
+             Listener’s interface(s).";
+          leaf index {
+            type uint32;
+            description
+              "This index is provided in order to provide a unique key
+               per list entry.";
+          }
+        }
+      }
+      output {
+        leaf result {
+          type boolean;
+          description
+            "Returns status information indicating if listene removal
+             has been successful.";
+        }
+      }
+    }
+  }
+}
