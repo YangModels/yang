@@ -62,9 +62,6 @@ listed below. As model content may differ based on platform capabilities, sample
  * Cisco-IOS-XE-line-common-deviation.yang
  * Cisco-IOS-XE-line-nonquake-deviation.yang
  * Cisco-IOS-XE-meraki-connect-oper.yang
- * Cisco-IOS-XE-sse-actions-rpc.yang
- * Cisco-IOS-XE-sse-events.yang
- * Cisco-IOS-XE-sse-oper.yang
  * Cisco-IOS-XE-stack-power-rpc.yang
  * Cisco-IOS-XE-tech-support-events.yang
  * Cisco-IOS-XE-tech-support-rpc.yang
