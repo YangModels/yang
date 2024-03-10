@@ -1,0 +1,664 @@
+module ieee802-dot1q-psfp {
+  yang-version "1.1";
+  namespace urn:ieee:std:802.1Q:yang:ieee802-dot1q-psfp;
+  prefix psfp;
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ieee802-types {
+    prefix ieee802;
+  }
+  import ieee802-dot1q-types {
+    prefix dot1q-types;
+  }
+  import ieee802-dot1q-stream-filters-gates {
+    prefix sfsg;
+  }
+  organization
+    "IEEE 802.1 Working Group";
+  contact
+    "WG-URL: http://www.ieee802.org/1/
+    WG-EMail: stds-802-1-l@ieee.org
+    
+    Contact: IEEE 802.1 Working Group Chair
+    Postal: C/O IEEE 802.1 Working Group
+    IEEE Standards Association
+    445 Hoes Lane
+    Piscataway, NJ 08854
+    USA
+    
+    E-mail: STDS-802-1-CHAIRS@IEEE.ORG";
+  description
+    "This module provides management of IEEE Std 802.1Q Bridge
+    components that support Per-Stream Filtering and Policing (PSFP).
+    
+    Copyright (C) IEEE (2023).
+    
+    This version of this YANG module is part of IEEE Std 802.1Q; see the
+    standard itself for full legal notices.";
+  revision 2023-10-26 {
+    description
+      "Published as part of IEEE Std 802.1Qcw-2023.
+      
+      The following reference statement identifies each referenced IEEE
+      Standard as updated by applicable amendments.";
+    reference
+      "IEEE Std 802.1Q Bridges and Bridged Networks: 
+      IEEE Std 802.1Q-2022, IEEE Std 802.1Qcz-2023, IEEE Std 802.1Qcw-2023."; 
+  }
+  feature psfp {
+    description
+      "Per-Stream Filtering and Policing supported.";
+    reference
+      "IEEE Std 802.1Q";
+  }
+  identity set-gate-and-ipv {
+    base dot1q-types:type-of-operation;
+    description
+      "The StreamGateState parameter specifies a desired state, open or
+      closed, for the stream gate, and the IPV parameter specifies a desired
+      value of the IPV associated with the stream. On execution, the
+      StreamGateState and IPV parameter values are used to set the
+      operational values of the stream gate state and internal priority
+      specification parameters for the stream. After TimeInterval ticks have
+      elapsed since the completion of the previous stream gate control
+      operation in the stream gate control list, control passes to the next
+      stream gate control operation. The optional IntervalOctetMax parameter
+      specifies the maximum number of MSDU octets that are permitted to pass
+      the gate during the specified TimeInterval. If the IntervalOctetMax
+      parameter is omitted, there is no limit on the number of octets that
+      can pass the gate.";
+    reference
+      "8.6.5.4 of IEEE Std 802.1Q";
+  }
+  grouping stream-gate-control-entries {
+    description
+      "A GateControlEntry consists of an operation name, followed by three
+      mandatory parameters and one optional parameter associated with the
+      operation. The first parameter is a gateStatesValue; the second
+      parameter is an IPV value; the third parameter is a timeIntervalValue;
+      and the fourth parameter is an IntervalOctetMaxValue.
+      IntervalOctetMaxValue is optional.";
+    uses dot1q-types:base-gate-control-entries {
+      refine "gate-control-entry/operation-name" {
+        must
+          ". = 'psfp:set-gate-and-ipv'";
+      }
+      refine "gate-control-entry/time-interval-value" {
+        must
+          "(. <= ../../../../supported-interval-max )";
+      }
+      augment "gate-control-entry" {
+        description
+          "Augment gate-control-entry from base-gate-control-entries with
+          parameters gate-state-value, ipv-spec and interval-octet-max.";
+        leaf gate-state-value {
+          type sfsg:gate-state-value-type;
+          mandatory true;
+          description
+            "The PSFPgateStatesValue indicates the desired gate state, open
+            or closed, for the stream gate.";
+          reference
+            "12.31.3.2.1 of IEEE Std 802.1Q";
+        }
+        leaf ipv-spec {
+          type sfsg:ipv-spec-type;
+          mandatory true;
+          description
+            "The IPV value indicates the IPV to be associated with frames
+            that pass the gate.";
+          reference
+            "12.31.3.2.3 of IEEE Std 802.1Q";
+        }
+        leaf interval-octet-max {
+          type uint32;
+          description
+            "An unsigned integer, denoting a IntervalOctetMax in MSDU
+            octets. If this parameter is omitted, there is no maximum.";
+          reference
+            "12.31.3.2.5 of IEEE Std 802.1Q";
+        }
+      }
+    }
+  }
+  grouping psfp-parameters {
+    description
+      "psfp-parameters comprises all of the parameters associated with
+      Per-Stream Filtering and Policing configuration.";
+    container flow-meters {
+      description
+        "This container comprises all flow meter related nodes.";
+      list flow-meter-instance-table {
+        must
+          "(count(.) <= ../max-flow-meter-instances)" {
+          error-message
+            "Number of elements in flow-meter-instance-table must not be"+
+            "greater than max-flow-meter-instances.";
+        }
+        key "flow-meter-instance-id";
+        description
+          "There is one Flow Meter Instance Table per Bridge component. Each
+          table row contains a set of parameters that defines a single Flow
+          Meter Instance. Tables can be created or removed dynamically in
+          implementations that support dynamic configuration of Bridge
+          components. Rows in the table can be created or removed
+          dynamically in implementations that support dynamic configuration
+          of flow meters.";
+        reference
+          "12.31.4 of IEEE Std 802.1Q";
+        leaf flow-meter-instance-id {
+          type uint32;
+          mandatory true;
+          description
+            "An integer table index that allows the Flow Meter to be
+            referenced from Stream Filter Instance Table entries.";
+          reference
+            "8.6.5.5 of IEEE Std 802.1Q";
+        }
+        leaf committed-information-rate {
+          type uint64;
+          units "bits/second";
+          mandatory true;
+          description
+            "Committed information rate (CIR), in bits per second.";
+          reference
+            "8.6.5.5 of IEEE Std 802.1Q";
+        }
+        leaf committed-burst-size {
+          type uint32;
+          units "octets";
+          mandatory true;
+          description
+            "Committed burst size (CBS), in octets.";
+          reference
+            "8.6.5.5 of IEEE Std 802.1Q";
+        }
+        leaf excess-information-rate {
+          type uint64;
+          units "bits/second";
+          mandatory true;
+          description
+            "Excess Information Rate (EIR), in bits per second.";
+          reference
+            "8.6.5.5 of IEEE Std 802.1Q";
+        }
+        leaf excess-burst-size {
+          type uint32;
+          units "octets";
+          mandatory true;
+          description
+            "Excess burst size (EBS) per bandwidth profile flow, in octets.";
+          reference
+            "8.6.5.5 of IEEE Std 802.1Q";
+        }
+        leaf coupling-flag {
+          type enumeration {
+            enum zero {
+              value 0;
+              description
+                "Uncoupled";
+            }
+            enum one {
+              value 1;
+              description
+                "Coupled";
+            }
+          }
+          mandatory true;
+          description
+            "Coupling flag (CF), which takes the value 0 or 1.";
+          reference
+            "8.6.5.5 of IEEE Std 802.1Q";
+        }
+        leaf color-mode {
+          type enumeration {
+            enum color-blind {
+              description
+                "Color-blind (i.e., the color of a frame is ignored by the
+                bandwidth profile algorithm).";
+            }
+            enum color-aware {
+              description
+                "Color-aware (i.e., the color of a frame is considered by
+                the bandwidth profile algorithm).";
+            }
+          }
+          mandatory true;
+          description
+            "Color mode (CM), which takes the value color-blind or
+            color-aware, as specified in Bandwidth Profile Parameters and
+            Algorithm in MEF 10.3.";
+          reference
+            "8.6.5.5 of IEEE Std 802.1Q";
+        }
+        leaf drop-on-yellow {
+          type boolean;
+          mandatory true;
+          description
+            "DropOnYellow, which takes the value TRUE or FALSE. A value of
+            TRUE indicates that yellow frames are dropped (i.e., discarded);
+            a value of FALSE indicates that yellow frames will have the
+            drop_eligible parameter set to TRUE.";
+          reference
+            "8.6.5.5 of IEEE Std 802.1Q";
+        }
+        leaf mark-all-frames-red-enable {
+          type boolean;
+          default "false";
+          description
+            "MarkAllFramesRedEnable, which takes the value TRUE or FALSE. A
+            value of TRUE indicates that the MarkAllFramesRed function is
+            enabled; a value of FALSE indicates that the MarkAllFramesRed
+            function is disabled. The default value of MarkAllFramesRedEnable 
+            is FALSE.";
+          reference
+            "8.6.5.5 of IEEE Std 802.1Q";
+        }
+        leaf mark-all-frames-red {
+          type boolean;
+          default "false";
+          description
+            "MarkAllFramesRed, which takes the value TRUE or FALSE. If
+            MarkAllFramesRedEnable is TRUE, a value of TRUE in
+            MarkAllFramesRed indicates that all frames are dropped (i.e.,
+            discarded). If MarkAllFramesRed is FALSE, it has no effect. The
+            default value of MarkAllFramesRed is FALSE; if the operation of
+            the flow meter causes any frame to be discarded, then
+            MarkAllFramesRed is set TRUE.";
+          reference
+            "8.6.5.5 of IEEE Std 802.1Q";
+        }
+      }
+      leaf max-flow-meter-instances {
+        type uint32;
+        description
+          "The maximum number of Flow Meter instances supported by this
+          Bridge component. The object may optionally be read-only.";
+        reference
+          "12.31.1.3 of IEEE Std 802.1Q";
+      }
+    }
+    uses sfsg:sfsg-parameters {
+      augment "stream-filters/stream-filter-instance-table" {
+        description
+          "Augment the Bridge component Stream filter by frame counters.";
+        leaf matching-frames-count {
+          type yang:counter64;
+          config false;
+          description
+            "A count of frames matching both the stream_handle and priority
+            specifications.";
+          reference
+            "8.6.5.3 of IEEE Std 802.1Q";
+        }
+        leaf passing-frames-count {
+          type yang:counter64;
+          config false;
+          description
+            "A count of frames that passed the stream gate.";
+          reference
+            "8.6.5.3 of IEEE Std 802.1Q";
+        }
+        leaf not-passing-frames-count {
+          type yang:counter64;
+          config false;
+          description
+            "A count of frames that did not pass the stream gate.";
+          reference
+            "8.6.5.3 of IEEE Std 802.1Q";
+        }
+        leaf red-frames-count {
+          type yang:counter64;
+          config false;
+          description
+            "A count of frames that were discarded as a result of the
+            operation of the flow meter.";
+          reference
+            "8.6.5.3 of IEEE Std 802.1Q";
+        }
+        leaf passing-sdu-count {
+          type yang:counter64;
+          config false;
+          description
+            "A count of frames that passed the Maximum SDU size filter.";
+          reference
+            "8.6.5.3 of IEEE Std 802.1Q";
+        }
+        leaf not-passing-sdu-count {
+          type yang:counter64;
+          config false;
+          description
+            "A count of frames that did not pass the Maximum SDU size
+            filter.";
+          reference
+            "8.6.5.3 of IEEE Std 802.1Q";
+        }
+        leaf flow-meter-ref {
+          type leafref {
+            path
+              '..'+
+              '/..'+
+              '/..'+
+              '/flow-meters'+
+              '/flow-meter-instance-table'+
+              '/flow-meter-instance-id';
+          }
+          description
+            "Flow meter instance that is associated with the stream filter.";
+          reference
+            "8.6.5.5 and 12.31.2.6 of IEEE Std 802.1Q.";
+        }
+        leaf flow-meter-enable {
+          type boolean;
+          description
+            "If it is set to TRUE, flow-meter-instance-id identifies the
+            flow meter instance associated with the stream filter. If it is
+            set to FALSE, no flow meter instance is associated with the
+            stream filter.";
+          reference
+            "8.6.5.5 and 12.31.2.6 of IEEE Std 802.1Q.";
+        }
+      }
+      augment "stream-gates" {
+        description
+          "Augment the Bridge component Stream Gates by maximum control list
+          limits, as used for PTP-controlled open and close transitions";
+        leaf supported-list-max {
+          type uint32;
+          description
+            "The maximum value supported by this Bridge component of the
+            AdminControlListLength and OperControlListLength parameters. It
+            is available for use by schedule computation software to
+            determine the Bridge component’s control list capacity prior to
+            computation. The object may optionally be read-only.";
+          reference
+            "12.31.1.4 of IEEE Std 802.1Q";
+        }
+        container supported-cycle-max {
+          description
+            "The maximum value supported by this Bridge component of the
+            AdminCycleTime and OperCycleTime parameters. The object may
+            optionally be read-only.";
+          reference
+            "12.31.1.7 of IEEE Std 802.1Q";
+          uses ieee802:rational-grouping;
+        }
+        leaf supported-interval-max {
+          type uint32;
+          description
+            "The maximum value supported by this Bridge component of the
+            TimeIntervalValue parameter. The object may optionally be
+            read-only.";
+          reference
+            "12.31.1.8 of IEEE Std 802.1Q";
+        }
+      }
+      augment "stream-gates/stream-gate-instance-table" {
+        description
+          "Augment the Bridge component Stream Gate instances by
+           a) Operational gate states
+           b) Operational IPV values
+           c) PTP controlled open and close transitions
+           d) Management for PTP controlled open and close transitions";
+        leaf oper-gate-state {
+          type sfsg:gate-state-value-type;
+          config false;
+          description
+            "The current operational state of the gate. The operational
+            state of the gate is set by the List Execute state machine, and
+            its initial value is determined by the value of the
+            administrative state of the gate.";
+          reference
+            "12.31.3.2.1 and 8.6.10.5 of IEEE Std 802.1Q";
+        }
+        leaf oper-ipv {
+          type sfsg:ipv-spec-type;
+          description
+            "The operational internal priority value specification.";
+          reference
+            "12.31.3.3, 8.6.10.7, and 8.6.5.4 of IEEE Std 802.1Q";
+        }
+        container admin-control-list {
+          must
+            "(count(./gate-control-entry) <= ../../supported-list-max)" {
+            error-message
+              "Number of elements in admin-control-list must not be"+
+              "greater than supported-list-max";
+          }
+          description
+            "The AdminControlList and OperControlList are ordered lists
+            containing AdminControlListLength or OperControlListLength
+            entries, respectively. Each entry represents a gate operation.
+            Each entry in the list is structured as a GateControlEntry.";
+          reference
+            "12.31.3.2, 12.31.3.2.2, and 8.6.9.4.2 of IEEE Std 802.1Q";
+          uses stream-gate-control-entries;
+        }
+        container oper-control-list {
+          must
+            "(count(./gate-control-entry) <= ../../supported-list-max)" {
+            error-message
+              "Number of elements in oper-control-list must not be greater"+
+              "than supported-list-max";
+          }
+          config false;
+          description
+            "The AdminControlList and OperControlList are ordered lists
+            containing AdminControlListLength or OperControlListLength
+            entries, respectively. Each entry represents a gate operation.
+            Each entry in the list is structured as a GateControlEntry.";
+          reference
+            "12.31.3.2, 12.31.3.2.2 and 8.6.9.4.18 of IEEE Std 802.1Q";
+          uses stream-gate-control-entries;
+        }
+        container admin-cycle-time {
+          must
+            "(./numerator div ./denominator <= "+
+            "../../supported-cycle-max/numerator div "+
+            "../../supported-cycle-max/denominator)" {
+            error-message
+              "admin-cycle-time must not be greater than"+
+              "supported-cycle-max";
+          }
+          description
+            "The administrative value of the gating cycle for the Port. This
+            value can be changed by management, and is used by the List
+            Config state machine to set the value of OperCycleTime. The
+            AdminCycleTime variable is a rational number of seconds, defined
+            by an integer numerator and an integer denominator.";
+          reference
+            "12.29.1.3 and 8.6.9.4.3 of IEEE Std 802.1Q";
+          uses ieee802:rational-grouping;
+        }
+        container oper-cycle-time {
+          must
+            "(./numerator div ./denominator <= "+
+            "../../supported-cycle-max/numerator div "+
+            "../../supported-cycle-max/denominator)" {
+            error-message
+              "oper-cycle-time must not be greater than"+
+              "supported-cycle-max";
+          }
+          config false;
+          description
+            "The operational value of the gating cycle for the Port. This
+            variable is set dynamically from the AdminCycleTime variable
+            under the control of the List Config state machine OperCycleTime
+            is used by the Cycle Timer state machine to enforce the cycle
+            time for the Port. The OperCycleTime variable is a rational
+            number of seconds, defined by an integer numerator and an
+            integer denominator.";
+          reference
+            "12.29.1.3 and 8.6.9.4.19 of IEEE Std 802.1Q";
+          uses ieee802:rational-grouping;
+        }
+        leaf admin-cycle-time-extension {
+          type uint32;
+          units "nanoseconds";
+          description
+            "An integer number of nanoseconds, defining the maximum amount
+            of time by which the gating cycle for the Port is permitted to
+            be extended when a new cycle configuration is being installed.
+            This administrative value can be changed by management, and is
+            used by the List Config state machine to set the value of
+            OperCycleTimeExtension.";
+          reference
+            "8.6.9.4.4 of IEEE Std 802.1Q";
+        }
+        leaf oper-cycle-time-extension {
+          type uint32;
+          units "nanoseconds";
+          config false;
+          description
+            "An integer number of nanoseconds, defining the maximum amount
+            of time by which the gating cycle for the Port is permitted to
+            be extended when a new cycle configuration is installed. This
+            operational value is set by the List Config state machine to the
+            value of AdminCycleTimeExtension. The value of
+            OperCycleTimeExtension is used by the SetCycleStartTime()
+            procedure.";
+          reference
+            "8.6.9.4.20 of IEEE Std 802.1Q";
+        }
+        container admin-base-time {
+          description
+            "The administrative value of base time, expressed as an IEEE
+            1588 precision time protocol (PTP) timescale (see IEEE Std
+            802.1AS-2011). This value can be changed by management, and is
+            used by the List Config state machine to set the value of
+            OperBaseTime.";
+          reference
+            "12.29.1.4 and 8.6.9.4.1 of IEEE Std 802.1Q";
+          uses ieee802:ptp-time-grouping;
+        }
+        container oper-base-time {
+          config false;
+          description
+            "The operational value of base time, expressed as a PTP
+            timescale (see IEEE Std 802.1AS-2011). This variable is used by
+            the List Config state machine.";
+          reference
+            "12.29.1.4 and 8.6.9.4.17 of IEEE Std 802.1Q";
+          uses ieee802:ptp-time-grouping;
+        }
+        leaf config-change {
+          type boolean;
+          description
+            "A Boolean variable that acts as a start signal to the List
+            Config state machine that the administrative variable values for
+            the Port are ready to be copied into their corresponding
+            operational variables. This variable is set TRUE by management
+            and is set FALSE by the List Config state machine.";
+          reference
+            "8.6.9.4.7 of IEEE Std 802.1Q";
+        }
+        container config-change-time {
+          config false;
+          description
+            "The time at which the administrative variables that determine
+            the cycle are to be copied across to the corresponding
+            operational variables, expressed as a PTP timescale. The value
+            of this variable is set by the SetConfigChangeTime() procedure
+            in the List Config state machine.";
+          reference
+            "12.29.1.4 and 8.6.9.4.9 of IEEE Std 802.1Q";
+          uses ieee802:ptp-time-grouping;
+        }
+        leaf tick-granularity {
+          type uint32;
+          config false;
+          description
+            "Characteristics of an implementation’s cycle timer clock
+            (TickGranularity).";
+          reference
+            "8.6.9.4.16 of IEEE Std 802.1Q";
+        }
+        container current-time {
+          config false;
+          description
+            "The current time maintained by the local system, expressed as a
+            PTP timescale (see IEEE Std 802.1AS-2011).";
+          reference
+            "12.29.1.4 and 8.6.9.4.10 of IEEE Std 802.1Q";
+          uses ieee802:ptp-time-grouping;
+        }
+        leaf config-pending {
+          type boolean;
+          config false;
+          description
+            "A Boolean variable, set TRUE by the List Config state machine
+            to signal that there is a new cycle configuration awaiting
+            installation. The variable is set FALSE when the List Config
+            state machine has installed the new configuration. The variable
+            is used by the SetCycleStartTime() procedure to control the
+            length of the cycle that immediately precedes the first cycle
+            that uses the new configuration values. This value can be read
+            by management.";
+          reference
+            "8.6.9.3 and 8.6.9.4.8 of IEEE Std 802.1Q";
+        }
+        leaf config-change-error {
+          type yang:counter64;
+          config false;
+          description
+            "An error counter that is incremented if AdminBaseTime specifies
+            a time in the past, and the current schedule is running.";
+          reference
+            "8.6.9.3.1 of IEEE Std 802.1Q";
+        }
+        leaf gate-closed-due-to-invalid-rx-enable {
+          type boolean;
+          default "false";
+          description
+            "A value of TRUE indicates that the GateClosedDueToInvalidRx
+            function is enabled; a value of FALSE indicates that the
+            GateClosedDueToInvalidRx function is disabled. The default value
+            of GateClosedDueToInvalidRxEnable is FALSE.";
+          reference
+            "8.6.5.4 of IEEE Std 802.1Q";
+        }
+        leaf gate-closed-due-to-invalid-rx {
+          type boolean;
+          default "false";
+          description
+            "If GateClosedDueToInvalidRxEnable is TRUE, a value of TRUE in
+            GateClosedDueToInvalidRx indicates that all frames are dropped
+            (i.e., the gate behaves as if the operational stream gate state
+            is Closed). If GateClosedDueToInvalidRx is FALSE, it has no
+            effect. The default value of GateClosedDueToInvalidRx is FALSE;
+            if any frame is discarded because the gate is in the Closed
+            state, then GateClosedDueToInvalidRx is set TRUE.";
+          reference
+            "8.6.5.4 of IEEE Std 802.1Q";
+        }
+        leaf gate-closed-due-octets-exceeded-enable {
+          type boolean;
+          default "false";
+          description
+            "A value of TRUE indicates that the
+            GateClosedDueToOctetsExceeded function is enabled; a value of
+            FALSE indicates that the GateClosedDueToOctetsExceeded function
+            is disabled. The default value of GateClosedDueToOctetsExceed is
+            FALSE.";
+          reference
+            "8.6.5.4 of IEEE Std 802.1Q";
+        }
+        leaf gate-closed-due-octets-exceeded {
+          type boolean;
+          default "false";
+          description
+            "If GateClosedDueToOctetsExceededEnable is TRUE, a value of TRUE
+            in GateClosedDueToOctetsExceeded indicates that all frames are
+            dropped (i.e., the gate behaves as if the operational stream
+            gate state is Closed). If GateClosedDueToOctetsExceeded is
+            FALSE, it has no effect. The default value of
+            GateClosedDueToOctetsExceeded is FALSE; if any frame is
+            discarded because there are insufficient IntervalOctetsLeft,
+            then GateClosedDueToOctetsExceeded is set TRUE.";
+          reference
+            "8.6.5.4 of IEEE Std 802.1Q";
+        }
+      }
+    }
+  }
+}
