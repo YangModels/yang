@@ -1,0 +1,1317 @@
+module ieee802-dot1q-cfm {
+  yang-version "1.1";
+  namespace urn:ieee:std:802.1Q:yang:ieee802-dot1q-cfm;
+  prefix dot1q-cfm;
+  import ieee802-dot1q-cfm-types {
+    prefix cfm-types;
+  }
+  import ieee802-dot1q-types {
+    prefix dot1q-types;
+  }
+  import ieee802-types {
+    prefix ieee;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  organization
+    "IEEE 802.1 Working Group";
+  contact
+    "WG-URL: http://ieee802.org/1/
+    WG-EMail: stds-802-1-l@ieee.org
+    
+    Contact: IEEE 802.1 Working Group Chair
+    Postal: C/O IEEE 802.1 Working Group
+           IEEE Standards Association
+           445 Hoes Lane
+           Piscataway, NJ 08854
+           USA
+    
+    E-mail: stds-802-1-chairs@ieee.org";
+  description
+    "Connectivity Fault Management (CFM) comprises capabilities for
+    detecting, verifying, and isolating connectivity failures in Virtual
+    Bridged Local Area Networks. These capabilities can be used in
+    networks operated by multiple independent organizations, each with
+    restricted management access to each other's equipment.
+    
+    Copyright (C) IEEE (2022).
+    
+    This version of this YANG module is part of IEEE Std 802.1Q; see the
+    standard itself for full legal notices.";
+  revision 2022-01-19 {
+    description
+      "Published as part of IEEE Std 802.1Q-2022.";
+    reference
+      "IEEE Std 802.1Q-2022, Bridges and Bridged Networks.";
+  }
+  revision 2020-06-04 {
+    description
+      "Published as part of IEEE Std 802.1Qcx-2020. Initial version.";
+    reference
+      "IEEE Std 802.1Qcx-2020, Bridges and Bridged Networks - YANG Data
+      Model for Connectivity Fault Management.";
+  }
+  
+  /* -------------------------------------------------
+   * Grouping definitions used by 802.1Qcx YANG module
+   * -------------------------------------------------
+   */
+  grouping mac-address-and-uint-type-grouping {
+    description
+      "The MAC address and uint type grouping.";
+    container mac-address-and-uint-type {
+      description
+        "The MAC address and uint type definition.";
+      leaf address {
+        type ieee:mac-address;
+        mandatory true;
+        description
+          "The MAC address.";
+      }
+      leaf int {
+        type uint16;
+        mandatory true;
+        description
+          "The additional 2-octet (unsigned) integer.";
+      }
+    }
+  }
+  grouping md-name-choice-grouping {
+    description
+      "The Maintenance Domain name and name format choice.";
+    choice md-name {
+      default "char-string";
+      description
+        "The Maintenance Domain name type.";
+      case none {
+        leaf none {
+          type empty;
+          description
+            "No format specified, usually because there is not a
+            Maintenance Domain Name. The Maintenance Domain name
+            inserted in CFM protocol messages will be a zero length
+            OCTET string.";
+        }
+      }
+      case dns-like-name {
+        leaf dns-like-name {
+          type string {
+            length "1..43";
+          }
+          description
+            "Domain name like string, globally unique text string
+            derived from a DNS name.";
+        }
+      }
+      case mac-address-and-uint {
+        description
+          "MAC address plus 2-octet (unsigned) integer.";
+        uses mac-address-and-uint-type-grouping;
+      }
+      case char-string {
+        leaf char-string {
+          type string {
+            length "1..43";
+            pattern "[ -~]*";
+          }
+          default "DEFAULT";
+          description
+            "RFC2579 DisplayString, except that the character codes 0-31
+            (decimal) are not used.";
+        }
+      }
+    }
+  }
+  grouping ma-name-choice-grouping {
+    description
+      "The Maintenance Association name and name format choice.";
+    choice ma-name {
+      mandatory true;
+      description
+        "The Maintenance Association name type.";
+      case primary-vid {
+        leaf primary-vid {
+          type dot1q-types:vlanid;
+          description
+            "Primary VLAN ID. 12 bits represented in a 2-octet integer.";
+        }
+      }
+      case char-string {
+        leaf char-string {
+          type string {
+            length "1..45";
+            pattern "[ -~]*";
+          }
+          description
+            "RFC2579 DisplayString, except that the character codes 0-31
+            (decimal) are not used.";
+        }
+      }
+      case unsigned-int16 {
+        leaf unsigned-int16 {
+          type uint16;
+          description
+            "2-octet integer.";
+        }
+      }
+      case rfc2865-vpn-id {
+        container vpn-id {
+          description
+            "RFC2685 VPN ID. 3 octet VPN authority Organizationally
+            Unique Identifier followed by 4 octet VPN index identifying
+            VPN according to the OUI.";
+          leaf vpn-oui {
+            type uint32 {
+              range "0..16777215";
+            }
+            mandatory true;
+            description
+              "3 octet VPN authority Organizationally Unique Identifier.";
+          }
+          leaf vpn-index {
+            type uint32;
+            mandatory true;
+            description
+              "4 octet VPN index identifying VPN according to OUI.";
+          }
+        }
+      }
+    }
+  }
+  grouping management-address-grouping {
+    description
+      "Defines the Management Address.";
+    reference
+      "21.5.3.5 of IEEE Std 802.1Q-2022";
+    leaf domain {
+      type yang:object-identifier-128;
+      description
+        "The domain type.";
+    }
+    choice management-address {
+      when
+        "./domain";
+      mandatory true;
+      description
+        "Selects the management address";
+      case ip {
+        description
+          "Represents an IP TCP, UDP, or SCTP transport address
+          consisting of an IPv4/v6 address, and a port number,
+          associated with the domain type defined by the domain leaf
+          node.";
+        leaf ip-address {
+          type inet:ip-address;
+          mandatory true;
+          description
+            "IPv4 or IPv6 address.";
+        }
+        leaf ip-port {
+          type inet:port-number;
+          mandatory true;
+          description
+            "IP port.";
+        }
+      }
+      case local {
+        leaf local-address {
+          type string {
+            length "1..255";
+          }
+          mandatory true;
+          description
+            "Represents a POSIX Local IPC transport address, associated
+            with the domain type defined by the domain leaf node.";
+        }
+      }
+      case dns {
+        leaf dns-address {
+          type string {
+            length "1..255";
+          }
+          mandatory true;
+          description
+            "The transport domain using fully qualified domain names,
+            associated with the domain type defined by the domain leaf
+            node. Represents a DNS domain name followed by a colon ':'
+            (ASCII character 0x3A) and a port number in ASCII. The name
+            SHOULD be fully qualified whenever possible.";
+        }
+      }
+      case other {
+        leaf unknown-address {
+          type binary {
+            length "1..255";
+          }
+          description
+            "This represents an undefined address, for the case when the
+            domain type provided is an unrecognizable value.";
+        }
+      }
+    }
+  }
+  grouping loopback-input-grouping {
+    description
+      "Defines the group of loopback input parameters.";
+    choice lbm-destination {
+      mandatory true;
+      description
+        "Selects the destination type (which is either MEP identifier or
+        MAC address) used for the Loopback transmissions.";
+      case dest-ucast-mac-address {
+        description
+          "The target unicast MAC Address field to be transmitted. A
+          unicast destination MAC address.";
+        leaf lbm-dest-ucast-mac-address {
+          type cfm-types:unicast-mac-address-type;
+          description
+            "The target MAC Address field to be transmitted. A unicast
+            destination MAC address.";
+          reference
+            "Item b) in 12.14.7.3.2 of IEEE Std 802.1Q-2022";
+        }
+      }
+      case dest-mcast-class1-mac-address {
+        description
+          "The target multicast Class 1 MAC address field to be
+          transmitted.";
+        leaf lbm-dest-mcast-class1-mac-address {
+          type cfm-types:multicast-class1-mac-address-type;
+          description
+            "The target multicast Class 1 MAC address field to be
+            transmitted";
+        }
+      }
+      case dest-mep-id {
+        description
+          "The identifier of a remote MEP in the same MA to which the
+          LBM is to be sent.";
+        leaf lbm-dest-mep-id {
+          type cfm-types:mep-id-type;
+          description
+            "The identifier of a remote MEP in the same MA to which the
+            LBM is to be sent.";
+          reference
+            "Item b) in 12.14.7.3.2 of IEEE Std 802.1Q-2022";
+        }
+      }
+    }
+    leaf lbm-messages {
+      type uint16 {
+        range "1..1024";
+      }
+      default "1";
+      description
+        "The number of Loopback messages to be transmitted.";
+      reference
+        "Item c) in 12.14.7.3.2 of IEEE Std 802.1Q-2022";
+    }
+    leaf lbm-priority {
+      type dot1q-types:priority-type;
+      default "7";
+      description
+        "Priority. 3 bit value to be used in the VLAN tag, if present in
+        the transmitted frame. The default value should be priority 7,
+        which is the default CCM priority (ccm-ltm-priority).";
+      reference
+        "Item e) in 12.14.7.3.2 of IEEE Std 802.1Q-2022";
+    }
+    leaf lbm-drop-eligible {
+      type boolean;
+      default "false";
+      description
+        "Drop eligible bit value to be used in the VLAN tag, if present
+        in the transmitted frame. A value 'true' means inserting value
+        '1' in the DEI field, while a value 'false' means inserting
+        value '0' in the DEI field.";
+      reference
+        "Item e) in 12.14.7.3.2 of IEEE Std 802.1Q-2022";
+    }
+    leaf lbm-data-tlv {
+      type cfm-types:lbm-data-tlv-type;
+      description
+        "An arbitrary amount of data to be included in the Data TLV, if
+        the Data TLV is selected to be sent.";
+      reference
+        "Item d) in 12.14.7.3.2 of IEEE Std 802.1Q-2022";
+    }
+  }
+  grouping linktrace-input-grouping {
+    description
+      "Defines the group of linktrace input parameters. By default, the
+      priority used is that of the CCMs (ccm-ltm-priority) and the drop
+      eligibility is false.";
+    choice ltr-target {
+      mandatory true;
+      description
+        "Selects the target address type (which is either MEP identifier
+        or MAC address) used for the Linktrace transmissions.";
+      case target-ucast-mac-address {
+        description
+          "The target MAC address field to be transmitted. A unicast MAC
+          address.";
+        leaf ltm-target-mac-address {
+          type cfm-types:unicast-mac-address-type;
+          description
+            "The target MAC address field to be transmitted. A unicast
+            MAC address.";
+          reference
+            "Item c) in 12.14.7.4.2 of IEEE Std 802.1Q-2022";
+        }
+      }
+      case target-mep-id {
+        description
+          "The MEP identifier of another MEP in the same MA.";
+        leaf ltm-target-mep-id {
+          type cfm-types:mep-id-type;
+          description
+            "The MEP identifier of another MEP in the same MA.";
+          reference
+            "Item c) in 12.14.7.4.2 of IEEE Std 802.1Q-2022";
+        }
+      }
+    }
+    leaf ltm-ttl {
+      type uint8 {
+        range "0..255";
+      }
+      default "64";
+      description
+        "The LTM TTL field. Indicates the number of hops remaining to
+        the LTM. Decremented by 1 by each Linktrace Responder that
+        handles the LTM. The value returned in the LTR is one less than
+        that received in the LTM. If the LTM TTL is 0 or 1, the LTM is
+        not forwarded to the next hop, and if 0, no LTR is generated.";
+      reference
+        "Item d) in 12.14.7.4.2, 21.8.4 of IEEE Std 802.1Q-2022";
+    }
+    leaf ltm-flags {
+      type cfm-types:mep-tx-ltm-flags-type;
+      default "";
+      description
+        "The flags field for the LTMs transmitted by the MEP.";
+      reference
+        "Item b) in 12.14.7.4.2, 20.42.1 of IEEE Std 802.1Q-2022";
+    }
+  }
+  grouping ltm-egress-identifier-grouping {
+    description
+      "The grouping used to identify the MEP Linktrace initiator that is
+      originating the LTM. It defines the MAC address and uint type
+      definition.";
+    leaf int {
+      type uint16;
+      mandatory true;
+      description
+        "A value used to uniquely identify the MEP Linktrace Initiator
+        or Linktrace Responder within that system.";
+    }
+    leaf address {
+      type ieee:mac-address;
+      mandatory true;
+      description
+        "A 48-bit IEEE MAC address unique to the system in which the MEP
+        Linktrace Initiator or Linktrace Responder resides.";
+    }
+  }
+  
+  /* ---------------------------------------------------
+   * Configuration objects used by 802.1Qcx YANG module
+   * ---------------------------------------------------
+   */
+  container cfm {
+    description
+      "Connectivity Fault Management configuration and operational
+      information.";
+    list maintenance-domain {
+      key "md-id";
+      description
+        "Contains the Maintenance Domain configuration and operational
+        data. A Maintenance Domain is the network or the part of the
+        network for which faults in connectivity can be managed. The
+        boundary of a Maintenance Domain is defined by a set of Domain
+        Service Access Points (DoSAPs), each of which can become a point
+        of connectivity to a service instance.";
+      leaf md-id {
+        type cfm-types:name-key-type;
+        description
+          "The index to the Maintenance Domain list.";
+      }
+      uses md-name-choice-grouping;
+      leaf md-level {
+        type cfm-types:md-level-type;
+        default "0";
+        description
+          "The Maintenance Domain level.";
+        reference
+          "3.123, Item b) in 12.14.5.1.3 of IEEE Std 802.1Q-2022";
+      }
+      leaf mhf-creation {
+        type cfm-types:mhf-creation-type;
+        must
+          ". != 'mhf-defer'" {
+          description
+            "The value mhf-defer is not allowed";
+        }
+        default "mhf-none";
+        description
+          "Value indicating whether the management entity can create
+          MHFs (MIP Half Function) for this Maintenance Domain. Since
+          there is no encompassing Maintenance Domain, the value
+          mhf-defer is not allowed.";
+        reference
+          "3.123, Item c) in 12.14.5.1.3 of IEEE Std 802.1Q-2022";
+      }
+      leaf id-permission {
+        type cfm-types:sender-id-permission-type;
+        must
+          ". != 'send-id-defer'" {
+          description
+            "The value send-id-defer is not allowed";
+        }
+        default "send-id-none";
+        description
+          "Value indicating what, if anything, is to be included in the
+          Sender ID TLV transmitted by Maintenance Points configured in
+          this Maintenance Domain. Since there is no encompassing
+          Maintenance Domain, the value send-id-defer is not allowed.";
+        reference
+          "3.123, item d) in 12.14.5.1.3 of IEEE Std 802.1Q-2022";
+      }
+      leaf fault-alarm-transmission {
+        type cfm-types:fault-alarm-type;
+        default "not-transmitted";
+        description
+          "A value indicating whether Fault Alarms are to be transmitted
+          or not. The default is not transmit.";
+        reference
+          "3.123, item e) in 12.14.5.1.3 of IEEE Std 802.1Q-2022";
+      }
+      list maintenance-association {
+        key "ma-id";
+        description
+          "Provides configuration and operational data for the
+          Maintenance Associations. A Maintenance Association is a set
+          of MEPs, each configured with the same MAID and MD level,
+          established to verify the integrity of a single service
+          instance. A Maintenance Association can be thought of as a
+          full mesh of Maintenance Entities among a set of MEPs so
+          configured.";
+        leaf ma-id {
+          type cfm-types:name-key-type;
+          description
+            "Key of the Maintenance Association list of entries.";
+        }
+        uses ma-name-choice-grouping;
+        leaf ccm-interval {
+          type cfm-types:ccm-interval-type;
+          default "1sec";
+          description
+            "The interval between CCM transmissions to be used by all
+            MEPs in the Maintenance Association.";
+          reference
+            "Item e) in 12.14.6.1.3 of IEEE Std 802.1Q-2022";
+        }
+        leaf fault-alarm-transmission {
+          type cfm-types:fault-alarm-type;
+          description
+            "A value indicating whether Fault Alarms are to be
+            transmitted or not. If this leaf node is not present then
+            the disposition of the fault-alarm used by the MD should be
+            used.";
+          reference
+            "3.123, Item e) in 12.14.5.1.3 of IEEE Std 802.1Q-2022";
+        }
+        leaf mhf-creation {
+          type cfm-types:mhf-creation-type;
+          default "mhf-defer";
+          description
+            "Value indicating whether the management entity can create
+            MHFs (MIP Half Function) for this Maintenance Association.";
+          reference
+            "3.123, Item c) in 12.14.5.1.3 of IEEE Std 802.1Q-2022";
+        }
+        leaf id-permission {
+          type cfm-types:sender-id-permission-type;
+          default "send-id-defer";
+          description
+            "Enumerated value indicating what, if anything, is to be
+            included in the Sender ID TLV (21.5.3) transmitted by MPs
+            configured in this MA.";
+          reference
+            "Item d) in 12.14.3.1.3 of IEEE Std 802.1Q-2022";
+        }
+        list maintenance-association-mep {
+          key "mep-id";
+          description
+            "The list of all MEPs that belong to this Maintenance
+            Association.";
+          leaf mep-id {
+            type cfm-types:mep-id-type;
+            description
+              "Integer that is unique among all the MEPs in the same
+              Maintenance Association.";
+            reference
+              "Item g) in 12.14.6.1.3 of IEEE Std 802.1Q-2022";
+          }
+        }
+      }
+    }
+    
+    // maintenance-domain
+    list maintenance-group {
+      key "maintenance-group-id";
+      description
+        "The list of maintenance association groups, which are uniquely
+        associated with a maintenance domain, maintenance association,
+        for which the MEPs belong.";
+      leaf maintenance-group-id {
+        type cfm-types:name-key-type;
+        description
+          "The maintenance group provides a handle for the MD and MA
+          combination.";
+      }
+      leaf md-id {
+        type leafref {
+          path '/cfm/maintenance-domain/md-id';
+        }
+        mandatory true;
+        description
+          "A reference to the maintenance domain that this maintenance
+          group is associated with.";
+      }
+      leaf ma-id {
+        type leafref {
+          path
+            '/cfm'+
+            '/maintenance-domain[md-id = current()'+
+            '/..'+
+            '/md-id]'+
+            '/maintenance-association'+
+            '/ma-id';
+        }
+        mandatory true;
+        description
+          "A reference to the maintenance association in the specified
+          maintenance domain, that this maintenance group is associated
+          with.";
+      }
+      list mep {
+        key "mep-id";
+        description
+          "A list of local Maintenance association End Points (MEPs). A
+          MEP is an actively managed CFM entity, associated with a
+          specific DoSAP of a service instance, which can generate and
+          receive CFM PDUs and track any responses. It is an end point
+          of a single Maintenance Association (MA) and is an end point
+          of a separate Maintenance Entity for each of the other MEPs in
+          the same MA.";
+        leaf mep-id {
+          type leafref {
+            path
+              '/cfm'+
+              '/maintenance-domain[md-id = current()'+
+              '/..'+
+              '/..'+
+              '/md-id]'+
+              '/maintenance-association[ma-id = current()'+
+              '/..'+
+              '/..'+
+              '/ma-id]'+
+              '/maintenance-association-mep'+
+              '/mep-id';
+          }
+          description
+            "Integer that is unique among all the MEPs in the same
+            Maintenance Association.";
+          reference
+            "12.14.7, 19.2 of IEEE Std 802.1Q-2022";
+        }
+        leaf direction {
+          type cfm-types:mp-direction-type;
+          mandatory true;
+          description
+            "The direction in which the MEP faces on the Bridge Port.
+            Example, up or down.";
+          reference
+            "Item c) in 12.14.7.1.3, 19.2 of IEEE Std 802.1Q-2022";
+        }
+        leaf enabled {
+          type boolean;
+          default "false";
+          description
+            "The administrative state of the MEP. TRUE indicates that
+            the MEP is to functional normally, and FALSE indicates that
+            it is to cease functioning.";
+          reference
+            "Item e) in 12.14.7.1.3, 20.9.1 of IEEE Std 802.1Q-2022";
+        }
+        leaf ccm-ltm-priority {
+          type dot1q-types:priority-type;
+          default "7";
+          description
+            "The priority value for CCMs and LTMs transmitted by the
+            MEP. The default value is the highest priority allowed to
+            pass through the Bridge Port for any of the MEPs VID(s).";
+          reference
+            "Item h) in 12.14.7.1.3 of IEEE Std 802.1Q-2022";
+        }
+        leaf mac-address {
+          type ieee:mac-address;
+          config false;
+          mandatory true;
+          description
+            "The MAC address of the MEP.";
+          reference
+            "Item i) in 12.14.7.1.3, 19.4 of IEEE Std 802.1Q-2022";
+        }
+        list inactive-remote-mep {
+          key "inactive-rmep-id";
+          description
+            "A list indicating which of the remote MEPs in the same MA
+            are inactive. The Remote MEP state machines (20.20) are
+            instantiated only for the remote MEPs which are present in
+            the maintenance-association-mep-list, but not in this list.
+            By default, all configured remote MEPs in the same MA are
+            active";
+          leaf inactive-rmep-id {
+            type leafref {
+              path
+                '/cfm'+
+                '/maintenance-domain[md-id = current()'+
+                '/..'+
+                '/..'+
+                '/..'+
+                '/md-id]'+
+                '/maintenance-association[ma-id = current()'+
+                '/..'+
+                '/..'+
+                '/..'+
+                '/ma-id]'+
+                '/maintenance-association-mep'+
+                '/mep-id';
+            }
+            description
+              "Maintenance association Endpoint Identifier of a remote
+              MEP for which the Remote MEP state machine should not be
+              instantiated.";
+            reference
+              "Item ae) in 12.14.7.1.3 of IEEE Std 802.1Q-2022";
+          }
+        }
+        
+        //inactive-remote-mep
+        list mep-db {
+          key "rmep-id";
+          config false;
+          description
+            "The MEP CCM Database. A database, maintained by every MEP,
+            that maintains received information about other MEPs in the
+            Maintenance Association.";
+          leaf rmep-id {
+            type cfm-types:mep-id-type;
+            description
+              "Maintenance association Endpoint Identifier of a remote
+              MEP whose information from the MEP Database is to be
+              returned.";
+            reference
+              "Item b) in 12.14.7.6.2 of IEEE Std 802.1Q-2022";
+          }
+          leaf rmep-state {
+            type cfm-types:remote-mep-state-type;
+            mandatory true;
+            description
+              "The operational state of the remote MEP state machine";
+            reference
+              "Item b) in 12.14.7.6.3, 20.20 of IEEE Std 802.1Q-2022";
+          }
+          leaf rmep-failed-ok-time {
+            type yang:timeticks;
+            mandatory true;
+            description
+              "The time (SysUpTime) at which the Remote MEP state
+              machine last entered either the RMEP_FAILED or RMEP_OK
+              state";
+            reference
+              "Item c) in 12.14.7.6.3 of IEEE Std 802.1Q-2022";
+          }
+          leaf mac-address {
+            type ieee:mac-address;
+            mandatory true;
+            description
+              "The MAC address of the remote MEP.";
+            reference
+              "Item d) in 12.14.7.6.3, 20.19.7 of IEEE Std 802.1Q-2022";
+          }
+          leaf rdi {
+            type boolean;
+            mandatory true;
+            description
+              "State of the RDI bit in the last received CCM (true for
+              RDI=1), or false if none has been received.";
+            reference
+              "Item e) in 12.14.7.6.3, 20.19.2 of IEEE Std 802.1Q-2022";
+          }
+          leaf port-status-tlv {
+            type cfm-types:port-status-tlv-value-type;
+            description
+              "An enumerated value of the Port status TLV received in
+              the last CCM from the remote MEP or the default value
+              no-port-state-tlv indicating either no CCM has been
+              received, or that no port status TLV was received in the
+              last CCM.";
+            reference
+              "Item f) in 12.14.7.6.3, 20.19.3 of IEEE Std 802.1Q-2022";
+          }
+          leaf interface-status-tlv {
+            type cfm-types:interface-status-tlv-value-type;
+            description
+              "An enumerated value of the Interface status TLV received
+              in the last CCM from the remote MEP or the default value
+              is-no-interface-status-tlv indicating either no CCM has
+              been received, or that no interface status TLV was
+              received in the last CCM.";
+            reference
+              "Item g) in 12.14.7.6.3, 20.19.4 of IEEE Std 802.1Q-2022";
+          }
+          leaf chassis-id-subtype {
+            type ieee:chassis-id-subtype-type;
+            description
+              "This object specifies the format of the Chassis ID
+              received in the last CCM.";
+            reference
+              "Item h) in 12.14.7.6.3, 21.5.3.2 of IEEE Std 802.1Q-2022";
+          }
+          leaf chassis-id {
+            type ieee:chassis-id-type;
+            description
+              "The Chassis ID. The format of this object is determined
+              by the value of the ltr-chassis-id-subtype object.";
+            reference
+              "Item h) in 12.14.7.6.3, 21.5.3.3 of IEEE Std 802.1Q-2022";
+          }
+          container transport-service-domain {
+            description
+              "The transport management domain and address.";
+            reference
+              "Item h) in 12.14.7.6.3 of IEEE Std 802.1Q-2022";
+            uses management-address-grouping;
+          }
+          leaf rmep-is-active {
+            type boolean;
+            default "true";
+            description
+              "A Boolean value stating if the remote MEP is active.";
+            reference
+              "Item ae) in 12.14.7.1.3 of IEEE Std 802.1Q-2022";
+          }
+        }
+        
+        // mep-db
+        container continuity-check {
+          description
+            "Continuity check protocol";
+          leaf ccm-enabled {
+            type boolean;
+            default "false";
+            description
+              "Indicates whether the MEP can generate CCMs. If TRUE, the
+              MEP will generate CCM PDUs.";
+            reference
+              "Item g) in 12.14.7.1.3, 20.10.1 of IEEE Std 802.1Q-2022";
+          }
+          leaf fng-state {
+            type cfm-types:fng-state-type;
+            default "fng-reset";
+            config false;
+            description
+              "The current state of the MEP Fault Notification Generator
+              state machine.";
+            reference
+              "Item f) in 12.14.7.1.3, 20.35 of IEEE Std 802.1Q-2022";
+          }
+          leaf fault-alarm-transmission {
+            type cfm-types:fault-alarm-type;
+            description
+              "A value indicating whether Fault Alarms are to be
+              transmitted or not. If this leaf is not specified, the
+              disposition of the fault-alarm used by the MD should be
+              used.";
+            reference
+              "3.124, Item j) in 12.14.7.1.3 of IEEE Std 802.1Q-2022";
+          }
+          leaf lowest-priority-defect {
+            type cfm-types:lowest-alarm-priority-type;
+            default "mac-remote-error-xcon";
+            description
+              "The lowest priority defect that is allowed to generate
+              fault alarms.";
+            reference
+              "Item k) in 12.14.7.1.3, 20.9.5 of IEEE Std 802.1Q-2022";
+          }
+          leaf fng-alarm-time {
+            type uint16 {
+              range "2500..10000";
+            }
+            units "milliseconds";
+            default "2500";
+            description
+              "The time that defect must be present before a Fault Alarm
+              is issued.";
+            reference
+              "Item l) in 12.14.7.1.3, 20.35.3 of IEEE Std 802.1Q-2022";
+          }
+          leaf fng-reset-time {
+            type uint16 {
+              range "2500..10000";
+            }
+            units "milliseconds";
+            default "10000";
+            description
+              "The time that defects must be absent before resetting a
+              Fault Alarm.";
+            reference
+              "Item m) in 12.14.7.1.3, 20.35.4 of IEEE Std 802.1Q-2022";
+          }
+          leaf highest-priority-defect {
+            type cfm-types:highest-defect-priority-type;
+            config false;
+            mandatory true;
+            description
+              "The highest priority defect that has been present since
+              the MEPs Fault Notification Generator state machine was
+              last in the FNG_RESET state.";
+            reference
+              "Item n) in 12.14.7.1.3, 20.35.9 of IEEE Std 802.1Q-2022";
+          }
+          leaf defects {
+            type cfm-types:mep-defects-type;
+            config false;
+            mandatory true;
+            description
+              "Vector of boolean error conditions";
+            reference
+              "12.14.7.1.3 of IEEE Std 802.1Q-2022";
+          }
+          leaf error-ccm-last-failure {
+            type binary {
+              length "1..128";
+            }
+            config false;
+            description
+              "The last received CCM that triggered a def-error-ccm
+              fault.";
+            reference
+              "Item t) in 12.14.7.1.3, 20.21.2 of IEEE Std 802.1Q-2022";
+          }
+          leaf xcon-ccm-last-failure {
+            type binary {
+              length "1..128";
+            }
+            config false;
+            description
+              "The last received CCM that triggered a def-xcon-ccm
+              fault.";
+            reference
+              "Item u) in 12.14.7.1.3, 20.23.2 of IEEE Std 802.1Q-2022";
+          }
+        }
+        
+        // continuity-check
+        container stats {
+          config false;
+          description
+            "Contains the counters associated with the MEP.";
+          leaf mep-ccm-sequence-errors {
+            type yang:counter64;
+            mandatory true;
+            description
+              "The total number of out-of-sequence CCMs received from
+              all remote MEPs.";
+            reference
+              "Item v) in 12.14.7.1.3, 20.16.12 of IEEE Std 802.1Q-2022";
+          }
+          leaf mep-ccms-sent {
+            type yang:counter64;
+            mandatory true;
+            description
+              "Total number of CCMs transmitted";
+            reference
+              "Item w) in 12.14.7.1.3, 20.10.2 of IEEE Std 802.1Q-2022";
+          }
+          leaf mep-lbr-in {
+            type yang:counter64;
+            mandatory true;
+            description
+              "Total number of valid, in-order Loopback Replies
+              received.";
+            reference
+              "Item y) in 12.14.7.1.3, 20.31.1 of IEEE Std 802.1Q-2022";
+          }
+          leaf mep-lbr-in-out-of-order {
+            type yang:counter64;
+            mandatory true;
+            description
+              "The total number of valid, out-of-order Loopback Replies
+              received";
+            reference
+              "Item z) in 12.14.7.1.3, 20.31.1 of IEEE Std 802.1Q-2022";
+          }
+          leaf mep-lbr-bad-msdu {
+            type yang:counter64;
+            mandatory true;
+            description
+              "The total number of LBRs received whose
+              mac_service_data_unit did not match (except for the
+              OpCode) that of the corresponding LBM.";
+            reference
+              "Item aa) in 12.14.7.1.3, 20.2.3 of IEEE Std 802.1Q-2022";
+          }
+          leaf mep-unexpected-ltr-in {
+            type yang:counter64;
+            mandatory true;
+            description
+              "The total number of unexpected LTRs received.";
+            reference
+              "Item ac) in 12.14.7.1.3, 20.44.1 of IEEE Std 802.1Q-2022";
+          }
+          leaf mep-lbr-out {
+            type yang:counter64;
+            mandatory true;
+            description
+              "Total number of Loopback Replies transmitted.";
+            reference
+              "Item ad) in 12.14.7.1.3, 20.28.2 of IEEE Std 802.1Q-2022";
+          }
+        }
+        
+        // transmit-linktrace
+        list linktrace-reply {
+          key "ltr-transaction-id";
+          config false;
+          description
+            "This list extends the MEP table and reports on accepted
+            transmit-linktrace actions. In case linktrace replies are
+            received it also reports with data from the received
+            Linktrace reply messages.";
+          leaf ltr-transaction-id {
+            type cfm-types:seq-number-type;
+            description
+              "Transaction identifier returned by a previous transmit
+              linktrace message command, indicating which LTMs response
+              is going to be returned.";
+            reference
+              "Item b) in 12.14.7.5.2 of IEEE Std 802.1Q-2022";
+          }
+          container linktrace-input {
+            description
+              "The linktrace parameter input. By default, the priority
+              used is that of the CCMs (ccm-ltm-priority) and the drop
+              elibility is false.";
+            uses linktrace-input-grouping;
+          }
+          list responses {
+            key "ltr-receive-order";
+            description
+              "The responses associated with the request.";
+            leaf ltr-receive-order {
+              type uint32 {
+                range "1..4294967295";
+              }
+              description
+                "An index to distinguish among multiple LTRs with the
+                same LTR Transaction Identifier field value. Assigned
+                sequentially from 1, in the order that the Linktrace
+                Initiator received the LTRs.";
+            }
+            leaf ltr-ttl {
+              type uint8 {
+                range "0..255";
+              }
+              mandatory true;
+              description
+                "TTL field value for a returned LTR.";
+              reference
+                "12.14.7.5, 20.41.2.2 of IEEE Std 802.1Q-2022";
+            }
+            leaf ltr-forwarded {
+              type boolean;
+              mandatory true;
+              description
+                "Indicates if an LTM was forwarded by the responding MP,
+                as returned in the FwdYes flag of the flags field.";
+              reference
+                "Item c) in 12.14.7.5.3, 20.41.2.1 of IEEE Std 802.1Q-2022";
+            }
+            leaf ltr-terminal-mep {
+              type boolean;
+              mandatory true;
+              description
+                "A Boolean value stating whether the forwarded LTM
+                reached a MEP enclosing its MA, as returned in the
+                Terminal MEP flag of the Flags field";
+              reference
+                "Item d) in 12.14.7.5.3, 20.41.2.1 of IEEE Std 802.1Q-2022";
+            }
+            container ltr-last-egress-identifier {
+              description
+                "An octet field holding the Last Egress Identifier
+                returned in the LTR Egress Identifier TLV of the LTR.
+                The Last Egress Identifier identifies the MEP Linktrace
+                Initiator that originated, or the Linktrace Responder
+                that forwarded, the LTM to which this LTR is the
+                response. This is the same value as the Egress
+                Identifier TLV of that LTM.";
+              reference
+                "Item e) in 12.14.7.5.3, 20.41.2.3 of IEEE Std 802.1Q-2022";
+              uses ltm-egress-identifier-grouping;
+            }
+            container ltr-next-egress-identifier {
+              description
+                "An octet field holding the Next Egress Identifier
+                returned in the LTR Egress Identifier TLV of the LTR.
+                The Next Egress Identifier Identifies the Linktrace
+                Responder that transmitted this LTR, and can forward the
+                LTM to the next hop. This is the same value as the
+                Egress Identifier TLV of the forwarded LTM, if any. If
+                the FwdYes bit of the Flags field is false, the contents
+                of this field are undefined, i.e., any value can be
+                transmitted, and the field is ignored by the receiver.";
+              reference
+                "Item f) in 12.14.7.5.3, 20.41.2.4 of IEEE Std 802.1Q-2022";
+              uses ltm-egress-identifier-grouping;
+            }
+            leaf ltr-relay {
+              type cfm-types:relay-action-field-value-type;
+              mandatory true;
+              description
+                "Value returned in the Relay Action field.";
+              reference
+                "Item g) in 12.14.7.5.3, 20.41.2.5 of IEEE Std 802.1Q-2022";
+            }
+            leaf ltr-chassis-id-subtype {
+              type ieee:chassis-id-subtype-type;
+              description
+                "Specifies the format of the Chassis ID returned in the
+                Sender ID TLV of the LTR, if any. This leaf is not
+                present if the LTR did not contain a Sender ID TLV or if
+                the Sender ID TLV did not contain a Chassis ID.";
+              reference
+                "Item h) in 12.14.7.5.3, 21.5.3.2 of IEEE Std 802.1Q-2022";
+            }
+            leaf ltr-chassis-id {
+              when
+                "../ltr-chassis-id-subtype";
+              type ieee:chassis-id-type;
+              mandatory true;
+              description
+                "The Chassis ID returned in the Sender ID TLV of the
+                LTR, if any. The format of this object is determined by
+                the value of the ltr-chassis-id-subtype object. This
+                leaf is not present if the LTR did not contain a Sender
+                ID TLV or if the Sender ID TLV did not contain a Chassis
+                ID.";
+              reference
+                "Item i) in 12.14.7.5.3, 21.5.3.2 of IEEE Std 802.1Q-2022";
+            }
+            container ltr-transport-service-domain {
+              description
+                "The transport management domain and address. This
+                container is empty if the LTR did not contain a Sender
+                ID TLV or if the Sender ID TLV did not contain a
+                Management Address.";
+              reference
+                "Item j) in 12.14.7.5.3 of IEEE Std 802.1Q-2022";
+              uses management-address-grouping;
+            }
+            leaf ltr-ingress {
+              type cfm-types:ingress-action-field-value-type;
+              description
+                "The value returned in the Ingress Action Field of the
+                LTM. This leaf is not present if no Reply Ingress TLV
+                was returned in the LTM.";
+              reference
+                "Item k) in 12.14.7.5.3, 20.41.2.6 of IEEE Std 802.1Q-2022";
+            }
+            leaf ltr-ingress-mac {
+              when
+                "../ltr-ingress";
+              type ieee:mac-address;
+              mandatory true;
+              description
+                "MAC address returned in the ingress MAC address field.
+                This leaf is not present if the ltr-ingress leaf is not
+                present.";
+              reference
+                "Item l) in 12.14.7.5.3, 20.41.2.7 of IEEE Std 802.1Q-2022";
+            }
+            leaf ltr-ingress-port-id-subtype {
+              when
+                "../ltr-ingress";
+              type ieee:port-id-subtype-type;
+              description
+                "Format of the ingress Port ID. This leaf is not present
+                if the ltr-ingress leaf is not present, or if the Reply
+                Ingress TLV did not contain a Port ID.";
+              reference
+                "Item m) in 12.14.7.5.3, 20.41.2.8 of IEEE Std 802.1Q-2022";
+            }
+            leaf ltr-ingress-port-id {
+              when
+                "../ltr-ingress and ../ltr-ingress-port-id-subtype";
+              type ieee:port-id-type;
+              mandatory true;
+              description
+                "Ingress Port ID. The format of this object is
+                determined by the value of the
+                ltr-ingress-port-id-subtype object. This leaf is not
+                present if the ltr-ingress leaf or the
+                ltr-ingress-port-id-subtype leaf are not present.";
+              reference
+                "Item n) in 12.14.7.5.3, 20.41.2.9 of IEEE Std 802.1Q-2022";
+            }
+            leaf ltr-egress {
+              type cfm-types:egress-action-field-value-type;
+              description
+                "The value returned in the Egress Action Field of the
+                LTM. The node is not present if no Reply Egress TLV was
+                returned in the LTM.";
+              reference
+                "Item o) in 12.14.7.5.3, 20.41.2.10 of IEEE Std 802.1Q-2022";
+            }
+            leaf ltr-egress-mac {
+              when
+                "../ltr-egress";
+              type ieee:mac-address;
+              mandatory true;
+              description
+                "MAC address returned in the egress MAC address field.
+                This leaf is not present if the ltr-egress leaf is not
+                present.";
+              reference
+                "Item p) in 12.14.7.5.3, 20.41.2.11 of IEEE Std 802.1Q-2022";
+            }
+            leaf ltr-egress-port-id-subtype {
+              when
+                "../ltr-egress";
+              type ieee:port-id-subtype-type;
+              description
+                "Format of the egress Port ID. This leaf is not present
+                if the ltr-egress leaf is not present, or if the Reply
+                Egress TLV did not contain a Port ID.";
+              reference
+                "Item q) in 12.14.7.5.3, 20.41.2.12 of IEEE Std 802.1Q-2022";
+            }
+            leaf ltr-egress-port-id {
+              when
+                "../ltr-egress and ../ltr-egress-port-id-subtype";
+              type ieee:port-id-type;
+              mandatory true;
+              description
+                "Egress Port ID. The format of this object is determined
+                by the value of the ltr-egress-port-id-subtype object.
+                This leaf is not present if the ltr-egress leaf or the
+                ltr-egress-port-id-subtype leaf are not present.";
+              reference
+                "Item r) in 12.14.7.5.3, 20.41.2.13 of IEEE Std 802.1Q-2022";
+            }
+            leaf ltr-organization-specific-tlv {
+              type binary {
+                length "0 | 4..1500";
+              }
+              description
+                "All Organization specific TLVs returned in the LTR, if
+                any. Includes all octets including and following the TLV
+                Length field of each TLV, concatenated together.";
+              reference
+                "Item s) in 12.14.7.5.3, 21.5.2 of IEEE Std 802.1Q-2022";
+            }
+          }
+        }
+        
+        // stats
+        action transmit-loopback {
+          description
+            "To signal to the MEP to transmit some number of LBMs.
+            Accepting the action means the device will transmit LBM
+            messages according the input leaf nodes.";
+          input {
+            uses loopback-input-grouping;
+          }
+          
+          // input
+          output {
+            leaf lbm-request-id {
+              type cfm-types:seq-number-type;
+              mandatory true;
+              description
+                "The Loopback transaction identifier of the first LBM
+                (to
+                be) sent.";
+              reference
+                "Item b) in 12.14.7.3.3 of IEEE Std 802.1Q-2022";
+            }
+          }
+        }
+        
+        // transmit-loopback
+        action transmit-linktrace {
+          description
+            "To signal to the MEP to transmit an LTM and to create an
+            LTM entry in the MEPs Linktrace Database. Accepting the
+            action means the device will transmit LTM messages according
+            to the input leafs. The outcome of sending these LTM
+            messages will be reported through the list
+            'linktrace-reply'.";
+          input {
+            uses linktrace-input-grouping;
+          }
+          
+          // input
+          output {
+            leaf ltm-transaction-id {
+              type cfm-types:seq-number-type;
+              mandatory true;
+              description
+                "The LTM transaction identifier of the LTM sent. The
+                value returned is undefined if and RPC error is
+                returned.";
+              reference
+                "Item b) in 12.14.7.4.3 of IEEE Std 802.1Q-2022";
+            }
+            container ltm-egress-identifier {
+              description
+                "Identifies the MEP Linktrace Initiator that is
+                originating this LTM.
+                
+                The low-order six octets contain a 48-bit IEEE MAC
+                address unique to the system in which the MEP Linktrace
+                Initiator or Linktrace Responder resides. The high-order
+                two octets contain a value sufficient to uniquely
+                identify the MEP Linktrace Initiator or Linktrace
+                Responder within that system.
+                
+                For most Bridges, the address of any MAC attached to the
+                Bridge will suffice for the low-order six octets, and 0
+                for the high-order octets. In some situations, e.g., if
+                multiple virtual Bridges utilizing emulated LANs are
+                implemented in a single physical system, the high-order
+                two octets can be used to differentiate among the
+                transmitting entities.
+                
+                The value returned is undefined if the
+                transmit-linktrace input action was not accepted.";
+              reference
+                "Item c) in 12.14.7.4.3 of IEEE Std 802.1Q-2022";
+              uses ltm-egress-identifier-grouping;
+            }
+          }
+        }
+      }
+    }
+  }
+}

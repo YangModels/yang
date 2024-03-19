@@ -1,0 +1,385 @@
+module ieee802-dot1q-sched {
+  yang-version "1.1";
+  namespace urn:ieee:std:802.1Q:yang:ieee802-dot1q-sched;
+  prefix sched;
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ieee802-types {
+    prefix ieee802;
+  }
+  import ieee802-dot1q-types {
+    prefix dot1q-types;
+  }
+  organization
+    "IEEE 802.1 Working Group";
+  contact
+    "WG-URL: http://www.ieee802.org/1/
+    WG-EMail: stds-802-1-l@ieee.org
+    
+    Contact: IEEE 802.1 Working Group Chair
+    Postal: C/O IEEE 802.1 Working Group
+    IEEE Standards Association
+    445 Hoes Lane
+    Piscataway, NJ 08854
+    USA
+    
+    E-mail: STDS-802-1-CHAIRS@IEEE.ORG";
+  description
+    "This module provides for management of IEEE Std 802.1Q Bridges that
+    support Scheduled Traffic Enhancements.
+    
+    Copyright (C) IEEE (2023).
+    
+    This version of this YANG module is part of IEEE Std 802.1Q; see the
+    standard itself for full legal notices.";
+  revision 2023-10-22 {
+    description
+      "Published as part of IEEE Std 802.1Qcw-2023.
+      
+      The following reference statement identifies each referenced IEEE
+      Standard as updated by applicable amendments.";
+    reference
+      "IEEE Std 802.1Q Bridges and Bridged Networks: 
+      IEEE Std 802.1Q-2022, IEEE Std 802.1Qcz-2023, IEEE Std 802.1Qcw-2023."; 
+  }
+  feature scheduled-traffic {
+    description
+      "Enhancements for Scheduled Traffic supported.";
+    reference
+      "IEEE Std 802.1Q";
+  }
+  identity set-gate-states {
+    base dot1q-types:type-of-operation;
+    description
+      "Operation to set the gate states.";
+  }
+  identity set-and-hold-mac {
+    base dot1q-types:type-of-operation;
+    description
+      "Operation to set and hold MAC.";
+  }
+  identity set-and-release-mac {
+    base dot1q-types:type-of-operation;
+    description
+      "Operation to set and release MAC.";
+  }
+  grouping sched-gate-control-entries {
+    description
+      "A GateControlEntry consists of an operation name, followed by up to 2
+      parameters associated with the operation. The first parameter is a
+      gateStatesValue; the second parameter is a timeIntervalValue";
+    uses dot1q-types:base-gate-control-entries {
+      refine "gate-control-entry/operation-name" {
+        must
+          "(. = 'sched:set-gate-states') or (. = "+
+          "'sched:set-and-hold-mac') or (. = 'sched:set-and-release-mac')";
+      }
+      refine "gate-control-entry/time-interval-value" {
+        must
+          "(. <= ../../../supported-interval-max )";
+      }
+      augment "gate-control-entry" {
+        description
+          "Augment gate-control-entry from base-gate-control-entries with
+          parameter gate-states-value.";
+        leaf gate-states-value {
+          type uint8;
+          mandatory true;
+          description
+            "gateStatesValue is the gate states for this entry for the Port.
+            The gates are immediately set to the states in gateStatesValue
+            when this entry executes. The bits of the octet represent the
+            gate states for the corresponding traffic classes; the
+            most-significant bit corresponds to traffic class 7, the
+            least-significant bit to traffic class 0. A bit value of 0
+            indicates closed; a bit value of 1 indicates open.";
+          reference
+            "12.29.1.2.2 and 8.6.8.4 of IEEE Std 802.1Q.";
+        }
+      }
+    }
+  }
+  grouping sched-parameters {
+    description
+      "sched-parameters comprises all of the parameters associated with
+      Scheduled Traffic configuration.";
+    container gate-parameter-table {
+      description
+        "A table that contains the per-port manageable parameters for
+        traffic scheduling. For a given Port, an entry in the table exists.
+        All writable objects in this table must be persistent over power up
+        restart/reboot.";
+      reference
+        "12.29.1, 8.6.8.4 and 8.6.9 of IEEE Std 802.1Q";
+      list queue-max-sdu-table {
+        key "traffic-class";
+        description
+          "A list containing a set of max SDU parameters, one for each
+          traffic class. All writable objects in this table must be
+          persistent over power up restart/reboot.";
+        reference
+          "12.29.1.1, 8.6.8.4 and 8.6.9 of IEEE Std 802.1Q";
+        leaf traffic-class {
+          type dot1q-types:traffic-class-type;
+          description
+            "Traffic class";
+        }
+        leaf queue-max-sdu {
+          type uint32;
+          default "0";
+          description
+            "The value of the queueMaxSDU parameter for the traffic class. A
+            value of 0 is interpreted as the max SDU size supported by the
+            underlying MAC. The value must be retained across
+            reinitializations of the management system.";
+          reference
+            "12.29.1.1.1, 8.6.8.4 and 8.6.9 of IEEE Std 802.1Q.";
+        }
+        leaf transmission-overrun {
+          type yang:counter64;
+          default "0";
+          config false;
+          description
+            "A counter of transmission overrun events, where a PDU is still
+            being transmitted by a MAC at the time when the transmission
+            gate for the queue closed.";
+          reference
+            "12.29.1.1.2, 8.6.8.4 and 8.6.9 of IEEE Std 802.1Q.";
+        }
+      }
+      leaf gate-enabled {
+        type boolean;
+        default "false";
+        description
+          "The GateEnabled parameter determines whether traffic scheduling
+          is active (true) or inactive (false). The value must be retained
+          across reinitializations of the management system.";
+        reference
+          "12.29.1, 8.6.8.2 and 8.6.9.4.14 of IEEE Std 802.1Q.";
+      }
+      leaf admin-gate-states {
+        type uint8;
+        default "255";
+        description
+          "AdminGateStates is the administrative value of the initial gate
+          states for the Port. The bits of the octet represent the gate
+          states for the corresponding traffic classes; the most-significant
+          bit corresponds to traffic class 7, the least-significant bit to
+          traffic class 0. A bit value of 0 indicates closed; a bit value of
+          1 indicates open. The value must be retained across
+          reinitializations of the management system.";
+        reference
+          "12.29.1 and 8.6.9.4.5 of IEEE Std 802.1Q.";
+      }
+      leaf oper-gate-states {
+        type uint8;
+        config false;
+        description
+          "OperGateStates is the operational value of the current gate
+          states for the Port. The bits of the octet represent the gate
+          states for the corresponding traffic classes; the most-significant
+          bit corresponds to traffic class 7, the least-significant bit to
+          traffic class 0. A bit value of 0 indicates closed; a bit value of
+          1 indicates open.";
+        reference
+          "12.29.1 and 8.6.9.4.21 of IEEE Std 802.1Q.";
+      }
+      container admin-control-list {
+        must
+          "(count(./gate-control-entry) <= ../supported-list-max)" {
+          error-message
+            "Number of elements in admin-control-list must not be greater"+
+            "than supported-list-max";
+        }
+        description
+          "AdminControlList is the administrative value of the gate control
+          list for the Port. The value must be retained across
+          reinitializations of the management system.";
+        reference
+          "12.29.1.2, 8.6.8.4 and 8.6.9.4.2 of IEEE Std 802.1Q.";
+        uses sched-gate-control-entries;
+      }
+      container oper-control-list {
+        must
+          "(count(./gate-control-entry) <= ../supported-list-max)" {
+          error-message
+            "Number of elements in oper-control-list must not be greater"+
+            "than supported-list-max";
+        }
+        config false;
+        description
+          "OperControlList is the operational value of the gate control list
+          for the Port.";
+        reference
+          "12.29.1.2, 8.6.8.4 and 8.6.9.4.18 of IEEE Std 802.1Q.";
+        uses sched-gate-control-entries;
+      }
+      container admin-cycle-time {
+        must
+          "(./numerator div ./denominator <= "+
+          "../supported-cycle-max/numerator div "+
+          "../supported-cycle-max/denominator )" {
+          error-message
+            "admin-cycle-time must not be greater than supported-cycle-max";
+        }
+        description
+          "AdminCycleTime specifies the administrative value of the gating
+          cycle time for the Port. AdminCycleTime is a rational number of
+          seconds, defined by an integer numerator and an integer
+          denominator. The value must be retained across reinitializations
+          of the management system.";
+        reference
+          "12.29.1, 8.6.8.4 and 8.6.9.4.3 of IEEE Std 802.1Q.";
+        uses ieee802:rational-grouping;
+      }
+      container oper-cycle-time {
+        must
+          "(./numerator div ./denominator <= "+
+          "../supported-cycle-max/numerator div "+
+          "../supported-cycle-max/denominator )" {
+          error-message
+            "oper-cycle-time must not be greater than supported-cycle-max";
+        }
+        config false;
+        description
+          "OperCycleTime specifies the operational value of the gating cycle
+          time for the Port. OperCycleTime is a rational number of seconds,
+          defined by an integer numerator and an integer denominator.";
+        reference
+          "12.29.1, 8.6.8.4 and 8.6.9.4.19 of IEEE Std 802.1Q.";
+        uses ieee802:rational-grouping;
+      }
+      leaf admin-cycle-time-extension {
+        type uint32;
+        units "nanoseconds";
+        description
+          "An unsigned integer number of nanoseconds, defining the maximum
+          amount of time by which the gating cycle for the Port is permitted
+          to be extended when a new cycle configuration is being installed.
+          This is the administrative value. The value must be retained
+          across reinitializations of the management system.";
+        reference
+          "12.29.1 and 8.6.9.4.4 of IEEE Std 802.1Q.";
+      }
+      leaf oper-cycle-time-extension {
+        type uint32;
+        units "nanoseconds";
+        config false;
+        description
+          "An unsigned integer number of nanoseconds, defining the maximum
+          amount of time by which the gating cycle for the Port is permitted
+          to be extended when a new cycle configuration is being installed.
+          This is the operational value.";
+        reference
+          "12.29.1 and 8.6.9.4.20 of IEEE Std 802.1Q.";
+      }
+      container admin-base-time {
+        description
+          "The administrative value of the base time at which gating cycles
+          begin, expressed as an IEEE 1588 precision time protocol (PTP)
+          timescale. The value must be retained across reinitializations of
+          the management system.";
+        reference
+          "12.29.1 and 8.6.9.4.1 of IEEE Std 802.1Q.";
+        uses ieee802:ptp-time-grouping;
+      }
+      container oper-base-time {
+        config false;
+        description
+          "The operational value of the base time at which gating cycles
+          begin, expressed as an IEEE 1588 precision time protocol (PTP)
+          timescale.";
+        reference
+          "12.29.1 and 8.6.9.4.17 of IEEE Std 802.1Q.";
+        uses ieee802:ptp-time-grouping;
+      }
+      leaf config-change {
+        type boolean;
+        description
+          "The ConfigChange parameter signals the start of a configuration
+          change when it is set to TRUE, indicating that the administrative
+          parameters for the Port are ready to be copied into their
+          corresponding operational parameters. This should only be done
+          when the various administrative parameters are all set to
+          appropriate values.";
+        reference
+          "12.29.1 and 8.6.9.4.7 of IEEE Std 802.1Q.";
+      }
+      container config-change-time {
+        config false;
+        description
+          "The time at which the next config change is scheduled to occur.";
+        reference
+          "12.29.1 and 8.6.9.4.9 of IEEE Std 802.1Q.";
+        uses ieee802:ptp-time-grouping;
+      }
+      leaf tick-granularity {
+        type uint32;
+        config false;
+        description
+          "The granularity of the cycle time clock, represented as an
+          unsigned number of tenths of nanoseconds. The value must be
+          retained across reinitializations of the management system.";
+        reference
+          "12.29.1 of IEEE Std 802.1Q";
+      }
+      container current-time {
+        config false;
+        description
+          "The current time as maintained by the local system.";
+        reference
+          "12.29.1 and 8.6.9.4.10 of IEEE Std 802.1Q.";
+        uses ieee802:ptp-time-grouping;
+      }
+      leaf config-pending {
+        type boolean;
+        config false;
+        description
+          "The value of the ConfigPending state machine variable. The value
+          is TRUE if a configuration change is in progress but has not yet
+          completed.";
+        reference
+          "12.29.1 and 8.6.9.4.8 of IEEE Std 802.1Q.";
+      }
+      leaf config-change-error {
+        type yang:counter64;
+        config false;
+        description
+          "A counter of the number of times that a re-configuration of the
+          traffic schedule has been requested with the old schedule still
+          running and the requested base time was in the past.";
+        reference
+          "12.29.1 and 8.6.9.3.1 of IEEE Std 802.1Q.";
+      }
+      leaf supported-list-max {
+        type uint32;
+        description
+          "The maximum value supported by this Port for the
+          AdminControlListLength and OperControlListLength parameters. It is
+          available for use by schedule computation software to determine
+          the port’s control list capacity prior to computation. The object
+          may optionally be read-only.";
+        reference
+          "12.29.1.5 of IEEE Std 802.1Q";
+      }
+      container supported-cycle-max {
+        description
+          "The maximum value supported by this Port of the AdminCycleTime
+          and OperCycleTime parameters. The object may optionally be
+          read-only.";
+        reference
+          "12.29.1.6 of IEEE Std 802.1Qcw";
+        uses ieee802:rational-grouping;
+      }
+      leaf supported-interval-max {
+        type uint32;
+        description
+          "The maximum value supported by this Port of the TimeIntervalValue
+          parameter. The object may optionally be read-only.";
+        reference
+          "12.29.1.7 of IEEE Std 802.1Qcw";
+      }
+    }
+  }
+}
