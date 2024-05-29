@@ -49,7 +49,7 @@ listed below. As model content may differ based on platform capabilities, sample
 
 ### Major Model Changes In 17.14.1
 
-17.14.1 model changes include adding new native models and existing native model updates. Starting from this release, all native models are in yang-version 1.1
+17.14.1 model changes include adding new native models and existing native model updates.
 
 #### Native Models Added
 
