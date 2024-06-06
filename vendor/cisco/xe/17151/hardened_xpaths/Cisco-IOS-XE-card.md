@@ -1,0 +1,3 @@
+- /native/card/type/bay
+- /native/card/type/card-type
+- /native/card/type/slot

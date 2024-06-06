@@ -1,0 +1,3 @@
+- /native/pnp/profile/name
+- /native/pnp/profile/transport/https/ipv4/port
+- /native/pnp/profile/transport/http/ipv4/port

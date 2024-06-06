@@ -1,0 +1,7 @@
+- /native/interface/GigabitEthernet/mka/pre-shared-key/key-chain/name
+- /native/interface/GigabitEthernet/mka/policy/name
+- /native/mka/policy/key-server/priority
+- /native/mka/policy/sak-rekey/interval/time
+- /native/mka/policy/macsec-cipher-suite
+- /native/mka/policy/confidentiality-offset
+- /native/mka/policy/include-icv-indicator

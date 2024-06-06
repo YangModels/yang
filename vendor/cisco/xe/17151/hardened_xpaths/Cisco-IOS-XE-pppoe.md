@@ -1,0 +1,6 @@
+- /native/interface/Ethernet/pppoe-client/dial-pool-number-list/number
+- /native/interface/Ethernet/pppoe-client/dial-pool-number-list/service-name
+- /native/interface/Ethernet/pppoe-client/ppp-max-payload
+- /native/interface/Ethernet/pppoe/enable-config/group-name
+- /native/interface/Ethernet/pppoe/enable-default-config
+- /native/interface/Ethernet/pppoe/enable-default-config/group

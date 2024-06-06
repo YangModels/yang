@@ -1,0 +1,8 @@
+- /native/track/tracked-object/ip/route/address
+- /native/track/tracked-object/ip/route/mask
+- /native/track/tracked-object/ip/route/reachability
+- /native/track/tracked-object/ipv6/route/address
+- /native/track/tracked-object/ipv6/route/reachability
+- /native/track/tracked-object/list/boolean
+- /native/track/tracked-object/object-number
+- /native/track/tracked-object/object/number

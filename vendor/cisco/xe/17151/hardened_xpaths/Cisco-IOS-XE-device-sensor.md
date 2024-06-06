@@ -1,0 +1,1 @@
+- /native/device-sensor/notify/all-changes

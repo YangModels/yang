@@ -1,0 +1,7 @@
+- /native/network-clock/synchronization-synce/automatic
+- /native/network-clock/synchronization-synce/participate
+- /native/network-clock/wait-to-restore-synce/global
+- /native/network-clock/wait-to-restore-synce/time
+- /native/network-clock/input-source-ctrl/input-source-ctrl/controller
+- /native/network-clock/input-source-ctrl/input-source-ctrl/number
+- /native/network-clock/input-source-ctrl/input-source-ctrl/priority

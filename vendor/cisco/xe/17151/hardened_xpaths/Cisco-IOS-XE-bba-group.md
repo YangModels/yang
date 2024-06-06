@@ -1,0 +1,3 @@
+- /native/bba-group/pppoe/id
+- /native/bba-group/pppoe/service/profile
+- /native/bba-group/pppoe/virtual-template

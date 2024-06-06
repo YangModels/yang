@@ -1,0 +1,10 @@
+- /native/vtp/domain
+- /native/vtp/file
+- /native/vtp/mode/client
+- /native/vtp/mode/off
+- /native/vtp/mode/server
+- /native/vtp/mode/transparent
+- /native/vtp/password/password
+- /native/vtp/pruning-config
+- /native/vtp/server/primary
+- /native/vtp/version

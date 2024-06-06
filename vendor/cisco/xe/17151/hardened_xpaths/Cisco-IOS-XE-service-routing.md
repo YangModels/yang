@@ -1,0 +1,1 @@
+- /native/service-routing/capabilities-manager

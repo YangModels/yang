@@ -1,0 +1,11 @@
+- /native/dialer-list/group-number
+- /native/dialer-list/protocol/access
+- /native/dialer-list/protocol/protocol-type
+- /native/interface/Cellular/dialer/idle-timeout
+- /native/interface/Cellular/dialer/in-band
+- /native/interface/Cellular/dialer/watch-group-list
+- /native/interface/Dialer/dialer/idle-timeout
+- /native/interface/Dialer/dialer/pool
+- /native/interface/Dialer/dialer-group
+- /native/interface/Dialer/dialer/in-band
+- /native/interface/Dialer/dialer/down-with-vInterface
