@@ -75,6 +75,16 @@ module ieee1588-ptp-ms {
     This module uses the original terminology specified by
     IEEE Std 1588 (master/slave).";
 
+  revision 2024-11-13 {
+    description
+      "Revision for amendment IEEE Std 1588f-2025.";
+    reference
+      "IEEE Std 1588f-2025, IEEE Standard for a Precision Clock
+      Synchronization Protocol for Networked Measurement and
+      Control Systems - Enhancements for latency and/or
+      asymmetry calibration.";
+  }
+
   revision 2023-08-14 {
     description
       "Initial revision.";
@@ -250,6 +260,13 @@ module ieee1588-ptp-ms {
       enhancement.";
     reference
       "Annex L of IEEE Std 1588-2019";
+  }
+
+  feature asymmetry-measurement {
+    description
+      "Delay asymmetry measurement mode.";
+    reference
+      "Annex N1 of IEEE Std 1588f-2025";
   }
 
   identity network-protocol {
@@ -657,6 +674,26 @@ module ieee1588-ptp-ms {
         unknown manner. Numeric value is A0 hex.";
     }
 
+  identity asymmetry-measurement-step {
+    description
+      "Enumeration for the current step of the delay asymmetry
+      measurement procedure's calculation algorithm.
+      YANG identity is used so that a PTP Profile's YANG augment
+      can assign values, using numeric range 03 to FE hex.";
+    reference
+      "N1.2.12 of IEEE Std 1588f-2025";
+  }
+    identity step-one {
+      base asymmetry-measurement-step;
+      description
+        "Step one in SOWD or TOWD procedure.";
+    }
+    identity step-two {
+      base asymmetry-measurement-step;
+      description
+        "Step two in SOWD or TOWD procedure.";
+    }
+
   typedef time-interval {
     type int64;
     description
@@ -869,6 +906,13 @@ module ieee1588-ptp-ms {
           "The PTP Port synchronizes to the PTP Port on the
           PTP Communication Path that is in the master state
           (i.e. receives time).";
+      }
+      enum asymmetry-meas {
+        value 128;
+        description
+          "Delay asymmetry measurement mode is enabled for the PTP
+          Port, and therefore this PTP Port is excluded from
+          normal PTP operation.";
       }
     }
     description
@@ -2927,7 +2971,9 @@ module ieee1588-ptp-ms {
               leaf egress-latency {
                 type time-interval;
                 description
-                  "Interval between the <egressProvidedTimestamp>
+                  "The value of egress-latency, optionally corrected
+                  by egress-pluggable-transceiver-latency, shall be
+                  the interval between the <egressProvidedTimestamp>
                   provided for a PTP message and the time at which
                   the message timestamp point of the PTP message
                   crosses the reference plane.";
@@ -2939,13 +2985,53 @@ module ieee1588-ptp-ms {
               leaf ingress-latency {
                 type time-interval;
                 description
-                  "Interval between the time the message timestamp
+                  "The value of ingress-latency, optionally corrected
+                  by ingress-pluggable-transceiver-latency, shall be
+                  the interval between the time the message timestamp
                   point of an ingress PTP message crosses the
                   reference plane and the <ingressProvidedTimestamp>
                   provided for the PTP message.";
                 reference
                   "7.3.4.2 of IEEE Std 1588-2019
                   8.2.16.3 of IEEE Std 1588-2019";
+              }
+
+              leaf egress-pluggable-transceiver-latency {
+                type time-interval;
+                description
+                  "If this leaf is implemented, it represents the
+                  egress latency of the pluggable transceiver
+                  (e.g., SFP module), and the interval specified
+                  in the description of the egress-latency leaf is
+                  (egress-latency +
+                  egress-pluggable-transceiver-latency).
+                  If the egress-latency leaf is implemented but the
+                  egress-pluggable-transceiver-latency leaf is not
+                  implemented, the egressPluggableTransceiverLatency
+                  data set member is assumed to be zero (i.e., only
+                  egress-latency applies to the interval).";
+                reference
+                  "7.3.4.2 of IEEE Std 1588-2019
+                  8.2.16.4 of IEEE Std 1588-2019";
+              }
+
+              leaf ingress-pluggable-transceiver-latency {
+                type time-interval;
+                description
+                  "If this leaf is implemented, it represents the
+                  ingress latency of the pluggable transceiver
+                  (e.g., SFP module), and the interval specified
+                  in the description of the ingress-latency leaf is
+                  (ingress-latency +
+                  ingress-pluggable-transceiver-latency).
+                  If the ingress-latency leaf is implemented but the
+                  ingress-pluggable-transceiver-latency leaf is not
+                  implemented, the ingressPluggableTransceiverLatency
+                  data set member is assumed to be zero (i.e., only
+                  ingress-latency applies to the interval).";
+                reference
+                  "7.3.4.2 of IEEE Std 1588-2019
+                  8.2.16.5 of IEEE Std 1588-2019";
               }
             }
 
@@ -3737,6 +3823,709 @@ module ieee1588-ptp-ms {
                   is selected for monitoring in the TLV.";
                 reference
                   "16.11.6.9 of IEEE Std 1588-2019";
+              }
+            }
+
+            container asymmetry-measurement-port-ds {
+              if-feature asymmetry-measurement;
+              description
+                "Provides management access to the optional
+                delay asymmetry measurement mode feature, scoped
+                to each PTP Port.";
+              reference
+                "N1.2 of IEEE Std 1588f-2025";
+
+              leaf enabled {
+                type boolean;
+                description
+                  "Specifies whether delay asymmetry measurement mode
+                  is enabled on the PTP Port. This node must be
+                  configured false to allow changes to most of the nodes
+                  in this asymmetry-measurement-port-ds container.";
+                reference
+                  "N1.2.2 of IEEE Std 1588f-2025";
+              }
+
+              leaf capabilities {
+                type bits {
+                  bit sync-t1t2-collection {
+                    position 0;
+                    description
+                      "True indicates that the PTP Port supports
+                      collection of timestamps generated by Sync
+                      messages, i.e., t1 and t2.";
+                  }
+                  bit pdelay-resp-t3t4-collection {
+                    position 1;
+                    description
+                      "True indicates that the PTP Port supports
+                      collection of timestamps generated by PDelay_Resp
+                      messages, i.e., t3 and t4.";
+                  }
+                  bit delay-req-t3t4-collection {
+                    position 2;
+                    description
+                      "True indicates that the PTP Port supports
+                      collection of timestamps generated by Delay_Req
+                      messages, i.e., t3 and t4. It can be true if
+                      and only if sync-t1t2-collection is true
+                      and collection of 4-timestamp sets is supported.
+                      In such case t1, t2, t3 and t4 can be collected
+                      for the E2E mechanism.";
+                  }
+                  bit pdelay-req-t1t2-collection {
+                    position 3;
+                    description
+                      "True indicates that the PTP Port supports
+                      collection of timestamps generated by PDelay_Req
+                      messages, i.e., t1 and t2. It can be true if
+                      and only if pdelay-resp-t3t4-collection is true
+                      and collection of 4-timestamp sets is supported.
+                      In such case t1, t2, t3 and t4 can be collected
+                      for the P2P mechanism.";
+                  }
+                  bit sync-only-transmit {
+                    position 8;
+                    description
+                      "True indicates that the PTP Port supports
+                      transmission of Sync messages without
+                      Follow_Up messages (i.e., supports one-step
+                      port semantics).";
+                  }
+                  bit sync-and-fup-transmit {
+                    position 9;
+                    description
+                      "True indicates that the PTP Port supports
+                      transmission of Sync and Follow_Up messages
+                      (i.e., supports two-step port semantics).";
+                  }
+                  bit p2p-transmit {
+                    position 10;
+                    description
+                      "True indicates that the PTP Port supports
+                      transmission of two-step peer-to-peer delay
+                      messages according to specifications
+                      in N1.2.3.";
+                  }
+                  bit req-resp-transmit {
+                    position 11;
+                    description
+                      "True indicates that the PTP Port supports
+                      transmission of request-response delay
+                      mechanism messages according to specifications
+                      in N1.2.3.";
+                  }
+                  bit synt-with-sync {
+                    position 16;
+                    description
+                      "True indicates that the PTP Port supports
+                      syntonization using Sync Messages.";
+                  }
+                  bit synt-with-pdelay {
+                    position 17;
+                    description
+                      "True indicates that the PTP Port supports
+                      syntonization using Pdelay Messages.";
+                  }
+                  bit synt-with-layer1 {
+                    position 18;
+                    description
+                      "True indicates that the PTP Port supports
+                      syntonization using Layer 1 methods.";
+                  }
+                  bit synt-with-other-method {
+                    position 19;
+                    description
+                      "True indicates that the PTP Port supports
+                      syntonization using a method other than Sync,
+                      Pdelay, or Layer 1.";
+                  }
+                  bit synt-with-external {
+                    position 20;
+                    description
+                      "True indicates that the PTP Port supports
+                      syntonization using an external traceable
+                      frequency source.";
+                  }
+                  bit asym-port-calc-with-sowd {
+                    position 24;
+                    description
+                      "True indicates that the PTP Port supports
+                      calculation of <delayAsymmetry> using the
+                      SOWD procedure.";
+                  }
+                  bit asym-port-calc-with-towd {
+                    position 25;
+                    description
+                      "True indicates that the PTP Port supports
+                      calculation of <delayAsymmetry> using the
+                      TOWD procedure.";
+                  }
+                  bit coefficient-port-calc {
+                    position 26;
+                    description
+                      "True indicates that the PTP Port supports
+                      calculation of <delayCoefficient> using the
+                      method selected for the calculation of
+                      <delayAsymmetry>.";
+                  }
+                }
+                config false;
+                description
+                  "Provides the capabilities of the PTP Port for
+                  asymmetry measurement.";
+                reference
+                  "N1.2.3 of IEEE Std 1588f-2025";
+              }
+
+              container capabilities-max-timestamp-sets-num {
+                config false;
+                description
+                  "Indicates the maximum value supported for
+                  collection-config-timestamp-sets-num.";
+                reference
+                  "N1.2.4 of IEEE Std 1588f-2025";
+
+                leaf max-two-timestamp-sets-num {
+                  type uint32;
+                  description
+                    "Indicates the maximum value supported for
+                    collection-config-timestamp-sets-num
+                    when collection-config-msg-type specifies
+                    measurement of two-timestamp sets.";
+                  reference
+                    "N1.2.4 of IEEE Std 1588f-2025";
+                }
+
+                leaf max-four-timestamp-sets-num {
+                  type uint32;
+                  description
+                    "Indicates the maximum value supported for
+                    collection-config-timestamp-sets-num
+                    when collection-config-msg-type specifies
+                    measurement of four-timestamp sets.";
+                  reference
+                    "N1.2.4 of IEEE Std 1588f-2025";
+                }
+              }
+
+              leaf capabilities-min-log-msg-interval {
+                type int8;
+                config false;
+                description
+                  "Indicates the minimum value that the
+                  implementation supports for
+                  msg-tx-config-log-msg-interval.";
+                reference
+                  "N1.2.5 of IEEE Std 1588f-2025";
+              }
+
+              leaf collection-enabled {
+                type boolean;
+                description
+                  "When the value of collection-enabled is true,
+                  relevant timestamps are collected.";
+                reference
+                  "N1.2.6 of IEEE Std 1588f-2025";
+              }
+
+              leaf collection-config-msg-type {
+                type enumeration {
+                  enum sync {
+                    value 1;
+                    description
+                      "Timestamps t1 and t2 generated by
+                      Sync messages are collected.
+                      Two-timestamp sets are used with
+                      collection-config-timestamp-sets-num
+                      and collected-timestamps.";
+                  }
+                  enum pdelay-resp {
+                    value 2;
+                    description
+                      "The timestamps t3 and t4 generated by
+                      Pdelay_Resp messages are collected.
+                      Two-timestamp sets are used with
+                      collection-config-timestamp-sets-num
+                      and collected-timestamps.";
+                  }
+                  enum e2e-delay {
+                    value 3;
+                    description
+                      "The timestamps t1/t2/t3/t4 generated by
+                      PTP messages associated with the
+                      Request-Response delay mechanism (E2E)
+                      are collected.
+                      Four-timestamp sets are used with
+                      collection-config-timestamp-sets-num
+                      and collected-timestamps.";
+                  }
+                  enum p2p-delay {
+                    value 4;
+                    description
+                      "The timestamps t1/t2/t3/t4 generated by
+                      PTP messages associated with the
+                      Peer-to-Peer delay mechanism (P2P)
+                      are collected.
+                      Four-timestamp sets are used with
+                      collection-config-timestamp-sets-num
+                      and collected-timestamps.";
+                  }
+                }
+                description
+                  "Enumeration that configures which timestamps
+                  are collected in the delay asymmetry measurement
+                  mode.
+                  A change of this leaf is ignored when
+                  enabled is true.";
+                reference
+                  "N1.2.7 of IEEE Std 1588f-2025";
+              }
+
+              leaf collection-config-timestamp-sets-num {
+                type uint32;
+                description
+                  "Specifies the number of timestamp sets
+                  to collect in collected-timestamps.
+                  When collection-config-msg-type specifies
+                  measurement of two-timestamp sets,
+                  two timestamps are collected per set.
+                  When collection-config-msg-type specifies
+                  measurement of four-timestamp sets,
+                  four timestamps are collected per set.
+                  A change of this leaf is ignored when
+                  enabled is true.";
+                reference
+                  "N1.2.8 of IEEE Std 1588f-2025";
+              }
+
+              leaf msg-tx-config {
+                type bits {
+                  bit transmit-sync {
+                    position 0;
+                    description
+                      "When true, the PTP Port transmits Sync
+                      messages, with or without the associated
+                      Follow_Up messages, depending on the value
+                      of the transmit-followup bit.";
+                  }
+                  bit transmit-followup {
+                    position 1;
+                    description
+                      "When false, Sync messages are sent in a
+                      one-step manner, without Follow_Up.
+                      When true, Sync messages are sent in a
+                      two-step manner, with Follow_Up messages.";
+                  }
+                  bit transmit-delay-req {
+                    position 2;
+                    description
+                      "When true, the PTP Port transmits Delay_Req
+                      messages.";
+                  }
+                  bit transmit-pdelay-req {
+                    position 3;
+                    description
+                      "When true, the PTP Port transmits Pdelay_Req
+                      messages.";
+                  }
+                }
+                description
+                  "Enumeration that configures how a PTP Port in the
+                  delay asymmetry measurement mode transmits messages.
+                  A change of this leaf is ignored when
+                  enabled is true.";
+                reference
+                  "N1.2.9 of IEEE Std 1588f-2025";
+              }
+
+              leaf msg-tx-config-log-msg-interval {
+                type int8;
+                description
+                  "Logarithm to the base 2 of the mean time interval,
+                  in units of seconds, between successive PTP Sync
+                  or successive Pdelay_Req messages that are
+                  transmitted by a PTP Port in asymmetry measurement
+                  mode.";
+                reference
+                  "N1.2.10 of IEEE Std 1588f-2025";
+              }
+
+              leaf syntonize-config-type {
+                type enumeration {
+                  enum none {
+                    value 0;
+                    description
+                      "Do not syntonize.";
+                  }
+                  enum sync {
+                    value 1;
+                    description
+                      "Syntonization using Sync messages.";
+                  }
+                  enum pdelay {
+                    value 2;
+                    description
+                      "Syntonization using Pdelay messages.";
+                  }
+                  enum layer1 {
+                    value 3;
+                    description
+                      "Syntonization using Local Clock or Local
+                      PTP Clock that is already syntonized outside
+                      the scope of this feature.";
+                  }
+                  enum external {
+                    value 4;
+                    description
+                      "Syntonization using externally traceable
+                      frequency source (e.g., GNSS, atomic clock).";
+                  }
+                  enum other {
+                    value 255;
+                    description
+                      "Syntonization using a method other than those
+                      specified in IEEE Std 1588.";
+                  }
+                }
+                description
+                  "Enumeration that configures the method to
+                  achieve syntonization between the
+                  asymMeasTimeReceiver and
+                  asymMeasTimeTransmitter PTP Ports.
+                  A change of this leaf is ignored when
+                  enabled is true.";
+                reference
+                  "N1.2.11 of IEEE Std 1588f-2025";
+              }
+
+              leaf calculate-measurement-step {
+                type identityref {
+                  base asymmetry-measurement-step;
+                }
+                description
+                  "Enumeration that configures the current step
+                   of the delay asymmetry measurement procedure,
+                   which implements the <delayAsymmetry> calculation
+                   algorithm.";
+                reference
+                  "N1.2.12 of IEEE Std 1588f-2025";
+              }
+
+              container calculate-medium {
+                description
+                  "Configures the characteristics of the transmission
+                  and reception of the medium in use.";
+                reference
+                  "N1.2.13 of IEEE Std 1588f-2025";
+
+                leaf tx-characteristic {
+                  type uint64;
+                  description
+                    "Quantifies implementation-specific characteristic
+                    of medium transmission by the PTP Port. The value
+                    is wavelength in nanometers, used by equations in
+                    N1.6.2.";
+                  reference
+                    "N1.2.13 of IEEE Std 1588f-2025";
+                }
+
+                leaf rx-characteristic {
+                  type uint64;
+                  description
+                    "Quantifies implementation-specific characteristic
+                    of medium reception by the PTP Port. The value
+                    is wavelength in nanometers, used by equations in
+                    N1.6.2.";
+                  reference
+                    "N1.2.13 of IEEE Std 1588f-2025";
+                }
+              }
+
+              leaf calculate-config-type {
+                type enumeration {
+                  enum disabled {
+                    value 0;
+                    description
+                      "Calculation disabled.";
+                  }
+                  enum sowd {
+                    value 1;
+                    description
+                      "Perform SOWD procedure calculation.";
+                  }
+                  enum towd {
+                    value 2;
+                    description
+                      "Perform TOWD procedure calculation.";
+                  }
+                }
+                description
+                  "Enumeration that configures the type of delay
+                  asymmetry measurement procedure and associated
+                  calculations performed on a
+                  PTP Port.
+                  A change of this leaf is ignored when
+                  enabled is true.";
+                reference
+                  "N1.2.14 of IEEE Std 1588f-2025";
+              }
+
+              leaf calculate-delay-asymmetry {
+                type boolean;
+                description
+                  "When this leaf changes value from false to true,
+                  computation of <delayAsymmetry> shall be initiated,
+                  provided it is supported (capabilities leaf) and
+                  configured (calculate-config-type leaf).";
+                reference
+                  "N1.2.15 of IEEE Std 1588f-2025";
+              }
+
+              leaf calculate-delay-coefficient {
+                type boolean;
+                description
+                  "When this leaf changes value from false to true,
+                  computation of <delayCoefficient> shall be initiated,
+                  provided it is supported (capabilities leaf) and
+                  configured (calculate-config-type leaf).";
+                reference
+                  "N1.2.16 of IEEE Std 1588f-2025";
+              }
+
+              leaf status {
+                type bits {
+                  bit syntonized {
+                    position 0;
+                    description
+                      "True indicates that the PTP Port is currently
+                      syntonized.";
+                  }
+                  bit calculated-delay-asymmetry {
+                    position 1;
+                    description
+                      "True indicates that the asymMeasTimeReceiver
+                      PTP Port has computed and stored the value of
+                      the <delayAsymmetry> in the
+                      calculated-delay-asymmetry leaf.
+                      This occurs under the conditions stated for the
+                      calculate-delay-asymmetry leaf.";
+                  }
+                  bit calculated-delay-coefficient {
+                    position 2;
+                    description
+                      "True indicates that the asymMeasTimeReceiver
+                      PTP Port has computed and stored the value of
+                      the <delayCoefficient> in the
+                      calculated-delay-coefficient leaf.
+                      This occurs under the conditions stated for the
+                      calculate-delay-coefficient leaf.";
+                  }
+                  bit calculated-error {
+                    position 7;
+                    description
+                      "True indicates the calculation has been started
+                      (calculate-delay-asymmetry or
+                      calculate-delay-coefficient
+                      configured true), and errors occurred during
+                      calculation.";
+                  }
+                  bit collected {
+                    position 8;
+                    description
+                      "True indicates that the asymMeasTimeReceiver
+                      PTP Port has successfully collected and
+                      stored the entire burst of appropriate
+                      timestamp sets in the collected-timestanmps
+                      list, as configured in the
+                      collection-config-msg-type leaf and the
+                      collection-config-timestamp-sets-num leaf.";
+                  }
+                  bit collected-error {
+                    position 9;
+                    description
+                      "True indicates that errors occurred while
+                      capturing and storing the entire burst of
+                      appropriate timestamp sets.";
+                  }
+                }
+                config false;
+                description
+                  "Provides status of the asymmetry measurement.";
+                reference
+                  "N1.2.17 of IEEE Std 1588f-2025";
+              }
+
+              leaf collected-config-msg-type {
+                type enumeration {
+                  enum sync {
+                    value 1;
+                    description
+                      "Timestamps t1 and t2 generated by
+                      Sync messages are collected.
+                      Two-timestamp sets are used with
+                      collection-config-timestamp-sets-num
+                      and collected-timestamps.";
+                  }
+                  enum pdelay-resp {
+                    value 2;
+                    description
+                      "The timestamps t3 and t4 generated by
+                      Pdelay_Resp messages are collected.
+                      Two-timestamp sets are used with
+                      collection-config-timestamp-sets-num
+                      and collected-timestamps.";
+                  }
+                  enum e2e-delay {
+                    value 3;
+                    description
+                      "The timestamps t1/t2/t3/t4 generated by
+                      PTP messages associated with the
+                      request-response delay mechanism (E2E)
+                      are collected.
+                      Four-timestamp sets are used with
+                      collection-config-timestamp-sets-num
+                      and collected-timestamps.";
+                  }
+                  enum p2p-delay {
+                    value 4;
+                    description
+                      "The timestamps t1/t2/t3/t4 generated by
+                      PTP messages associated with the
+                      peer-to-peer delay mechanism (P2P)
+                      are collected.
+                      Four-timestamp sets are used with
+                      collection-config-timestamp-sets-num
+                      and collected-timestamps.";
+                  }
+                }
+                config false;
+                description
+                  "Equal to the value of collection-config-msg-type
+                  at the time of transition of the enabled node from
+                  false to true.";
+                reference
+                  "N1.2.18 of IEEE Std 1588f-2025";
+              }
+
+              leaf num-sets-in-collected-timestamps {
+                type uint32;
+                config false;
+                description
+                  "Returns the current number of timestamp sets
+                  in the collected-timestamps list.";
+                reference
+                  "N1.2.18 of IEEE Std 1588f-2025";
+              }
+
+              leaf num-timestamps-in-set {
+                type uint32;
+                config false;
+                description
+                  "Returns the number of timestamps in each
+                  set (in collected-timestamps/timestamps).";
+                reference
+                  "N1.2.18 of IEEE Std 1588f-2025";
+              }
+
+              list collected-timestamps {
+                key "set-index";
+                config false;
+                description
+                  "This list stores the entire burst of appropriate
+                  timestamp sets, as configured in the
+                  collection-config-msg-type leaf and the
+                  collection-config-timestamp-sets-num leaf.
+                  The list is not valid unless the collected bit of
+                  the status leaf is true.";
+                reference
+                  "N1.2.18 of IEEE Std 1588f-2025";
+
+                leaf set-index {
+                  type uint32;
+                  description
+                    "Index to a specific timestamp set.
+                    The valid range is from 0 to
+                    (num-sets-in-collected-timestamps
+                    minus 1)";
+                }
+
+                list timestamps {
+                  key "timestamp-index";
+                  description
+                    "List of timestamps within each set.
+                    The number of elements in this list is either
+                    two or four, based on the value of the
+                    collection-config-msg-type leaf.";
+                  reference
+                    "N1.2.18 of IEEE Std 1588f-2025";
+
+                  leaf timestamp-index {
+                    type uint8;
+                    description
+                      "Index to a specific timestamp within the set.
+                      The valid range is 0..1 or 0..3, based on the
+                      value of the collection-config-msg-type leaf.";
+                  }
+
+                  container timestamp-element {
+                    description
+                      "Single timestamp within the set.";
+                    reference
+                      "N1.2.18 of IEEE Std 1588f-2025";
+
+                    leaf seconds {
+                      type uint64 {
+                        range "0..281474976710655";
+                      }
+                      description
+                        "Integer portion of the timestamp in units
+                        of seconds. Since the  IEEE 1588 type is
+                        UInteger48, only 48 bits are represented
+                        in YANG.";
+                    }
+
+                    leaf nanoseconds {
+                      type uint32;
+                      description
+                        "Fractional portion of the timestamp
+                        in units of nanoseconds.";
+                    }
+
+                    leaf sub-nanoseconds {
+                      type uint16;
+                      description
+                        "Fractional portion of the timestamp
+                        in units of 2 to the power of -16
+                        nanoseconds (i.e., same as lower 16 bits
+                        of correctionField).";
+                    }
+                  }
+                }
+              }
+
+              leaf calculated-delay-asymmetry {
+                type time-interval;
+                description
+                  "Stores the value of the <delayAsymmetry>
+                  computed by the PTP Port.
+                  The value is not valid unless the
+                  calculated-delay-asymmetry bit of the status
+                  leaf is true.";
+                reference
+                  "N1.2.19 of IEEE Std 1588f-2025";
+              }
+
+              leaf calculated-delay-coefficient {
+                type time-interval;
+                description
+                  "Stores the value of the <delayCoefficient>
+                  computed by the PTP Port.
+                  The value is not valid unless the
+                  calculated-delay-coefficient bit of the status
+                  leaf is true.";
+                reference
+                  "N1.2.20 of IEEE Std 1588f-2025";
               }
             }
           }
