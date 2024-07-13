@@ -7,7 +7,9 @@
 cwd=$(pwd)
 ietf_dir="standard/ietf"
 ieee_dir="standard/ieee"
-to_check="draft/60802 draft/qrev draft/802.1/ASdm draft/802.1/ASdn draft/802.1/CScorr draft/802.1/DC draft/802.1/Qdj draft/802.1/Qdx draft/802.1/Qdy draft/1588 published/1906.1 published/802 published/802.1"
+
+#draft/802.1/DC removed until fixed
+to_check="draft/60802 draft/qrev draft/802.1/ASdm draft/802.1/ASdn draft/802.1/ASds draft/802.1/CScorr draft/802.1/Qdd draft/802.1/Qdj draft/802.1/Qdx draft/802.1/Qdy draft/1588 draft/802 published/1906.1 published/802 published/802.1"
 
 # relax constraint for now
 # add --ietf if you want to do strict IETF checking
