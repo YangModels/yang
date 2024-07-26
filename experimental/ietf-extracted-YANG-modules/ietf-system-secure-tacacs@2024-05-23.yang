@@ -1,0 +1,586 @@
+module ietf-system-secure-tacacs {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-system-secure-tacacs";
+  prefix secure-tacacs;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-keystore {
+    prefix ks;
+    reference
+      "RFC CCCC: A YANG Data Model for a Keystore";
+  }
+  import ietf-truststore {
+    prefix ts;
+    reference
+      "RFC BBBB: A YANG Data Model for a Truststore";
+  }
+  import ietf-tls-client {
+    prefix tlsc;
+    reference
+      "RFC FFFF: YANG Groupings for TLS Clients and TLS Servers";
+  }
+  import ietf-netconf-acm {
+    prefix nacm;
+    reference
+      "RFC 8341: Network Configuration Access Control Model";
+  }
+  import ietf-crypto-types {
+    prefix ct;
+    reference
+      "RFC AAAA: YANG Data Types and Groupings for Cryptography";
+  }
+  import ietf-tls-common {
+    prefix tlscmn;
+    reference
+      "RFC FFFF: YANG Groupings for TLS Clients and TLS Servers";
+  }
+  import ietf-system {
+    prefix sys;
+    reference
+      "RFC 7317: A YANG Data Model for System Management";
+  }
+  import ietf-system-tacacs-plus {
+    prefix sys-tcs-plus;
+    reference
+      "RFC 9105: A YANG Data Model for Terminal Access Controller
+                 Access-Control System Plus (TACACS+)";
+  }
+
+  organization
+    "IETF OPSAWG (Operations and Management Area Working Group)";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/opsawg/>
+     WG List:  <mailto:opsawg@ietf.org>
+
+     Editor:   Mohamed Boucadair
+               <mailto:mohamed.boucadair@orange.com>";
+  description
+    "This module provides configuration of TACACS+ over TLS
+     clients.
+
+     Copyright (c) 2024 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Revised BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX; see the
+     RFC itself for full legal notices.";
+
+  revision 2024-05-23 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX: A YANG Model for Terminal Access Controller
+                 Access-Control System Plus (TACACS+) over TLS 1.3";
+  }
+
+  typedef client-credentials-ref {
+    type leafref {
+      path "/sys:system/sys-tcs-plus:tacacs-plus"
+         + "/secure-tacacs:client-credentials/secure-tacacs:id";
+    }
+    description
+      "Defines a type to reference client credentials.";
+  }
+
+  typedef server-credentials-ref {
+    type leafref {
+      path "/sys:system/sys-tcs-plus:tacacs-plus"
+         + "/secure-tacacs:server-credentials/secure-tacacs:id";
+    }
+    description
+      "Defines a type to reference server credentials.";
+  }
+
+  grouping certificate {
+    description
+      "Specifies the client identity using a certificate.";
+    uses "ks:inline-or-keystore-end-entity-cert-with-key-"
+       + "grouping" {
+      refine "inline-or-keystore/inline/inline-definition" {
+        must 'not(public-key-format) or derived-from-or-self'
+           + '(public-key-format, "ct:subject-public-key-'
+           + 'info-format")';
+      }
+      refine "inline-or-keystore/central-keystore/"
+           + "central-keystore-reference/asymmetric-key" {
+        must 'not(deref(.)/../ks:public-key-format) or '
+           + 'derived-from-or-self(deref(.)/../ks:public-'
+           + 'key-format, "ct:subject-public-key-info-'
+           + 'format")';
+      }
+    }
+  }
+
+  grouping raw-private-key {
+    description
+      "Specifies the client identity using a raw private
+       key.";
+    uses ks:inline-or-keystore-asymmetric-key-grouping {
+      refine "inline-or-keystore/inline/inline-definition" {
+        must 'not(public-key-format) or derived-from-or-self'
+           + '(public-key-format, "ct:subject-public-key-'
+           + 'info-format")';
+      }
+      refine "inline-or-keystore/central-keystore/"
+           + "central-keystore-reference" {
+        must 'not(deref(.)/../ks:public-key-format) or '
+           + 'derived-from-or-self(deref(.)/../ks:public-'
+           + 'key-format, "ct:subject-public-key-info-format")';
+      }
+    }
+  }
+
+  grouping tls13-epsk {
+    description
+      "An External Pre-Shared Key (EPSK) is established
+       or provisioned out-of-band, i.e., not from a TLS
+       connection.  An EPSK is a tuple of (Base Key,
+       External Identity, Hash).  When PSKs are provisioned
+       out of band, the PSK identity and the KDF hash algorithm
+       to be used with the PSK must also be provisioned.";
+    reference
+      "RFC 8446: The Transport Layer Security (TLS) Protocol
+                 Version 1.3, Section 4.2.11
+       RFC 9257: Guidance for External Pre-Shared Key (PSK) Usage
+                 in TLS, Section 6
+       RFC 9258: Importing External Pre-Shared Keys (PSKs) for
+                 TLS 1.3, Section 5.1";
+    uses ks:inline-or-keystore-symmetric-key-grouping;
+    leaf external-identity {
+      type string;
+      mandatory true;
+      description
+        "A sequence of bytes used to identify an EPSK. A label for
+         a pre-shared key established externally.";
+      reference
+        "RFC 8446: The Transport Layer Security (TLS) Protocol
+                   Version 1.3, Section 4.2.11
+         RFC 9257: Guidance for External Pre-Shared Key (PSK)
+                   Usage in TLS, Section 4.1";
+    }
+    leaf hash {
+      type tlscmn:epsk-supported-hash;
+      default "sha-256";
+      description
+        "For externally established PSKs, the Hash algorithm must be
+         set when the PSK is established or default to SHA-256 if no
+         such algorithm is defined.";
+      reference
+        "RFC 8446: The Transport Layer Security (TLS) Protocol
+                   Version 1.3, Section 4.2.11";
+    }
+    leaf context {
+      type string;
+      description
+        "The context used to determine the EPSK, if any exists. For
+         example, context may include information about peer roles or
+         identities to mitigate Selfie-style reflection attacks.";
+      reference
+        "RFC 9258: Importing External Pre-Shared Keys (PSKs) for
+                   TLS 1.3, Section 5.1 ";
+    }
+    leaf target-protocol {
+      type uint16;
+      description
+        "Specifies the protocol for which a PSK is imported for
+         use.";
+      reference
+        "RFC 9258: Importing External Pre-Shared Keys (PSKs) for
+                   TLS 1.3, Section 3 ";
+    }
+    leaf target-kdf {
+      type uint16;
+      description
+        "The KDF for which a PSK is imported for use.";
+      reference
+        "RFC 9258: Importing External Pre-Shared Keys (PSKs) for
+                   TLS 1.3, Section 3";
+    }
+  }
+
+  grouping client-identity {
+    description
+      "Identity credentials that the TLS client may present when
+       establishing a connection to a TLS server. When configured,
+       and requested by the TLS server when establishing a TLS
+       session, these credentials are passed in the Certificate
+       message.";
+    reference
+      "RFC 8446: The Transport Layer Security (TLS) Protocol
+                 Version 1.3, Section 4.4.2";
+    nacm:default-deny-write;
+    choice auth-type {
+      //default "certificate";
+      //mandatory true;
+      description
+        "A choice amongst authentication types, of which one must
+         be enabled and selected.";
+      case certificate {
+        container certificate {
+          description
+            "Specifies the client identity using a certificate.";
+          uses certificate;
+        }
+      }
+      case raw-public-key {
+        if-feature "tlsc:client-ident-raw-public-key";
+        container raw-private-key {
+          description
+            "Specifies the client identity using RPK.";
+          uses raw-private-key;
+        }
+      }
+      case tls13-epsk {
+        if-feature "tlsc:client-ident-tls13-epsk";
+        container tls13-epsk {
+          description
+            "An EPSK is established or provisioned out-of-band.";
+          uses tls13-epsk;
+        }
+      }
+    }
+  }
+
+  grouping client-identity-with-ref {
+    description
+      "Identity credentials that the TLS client may present when
+       establishing a connection to a TLS server. When configured,
+       and requested by the TLS server when establishing a TLS
+       session, these credentials are passed in the Certificate
+       message.";
+     choice ref-or-explicit {
+      description
+        "A choice between a reference of explicit configuration.";
+      case ref {
+        description
+          "Provides a reference.";
+        leaf credentials-reference {
+          type secure-tacacs:client-credentials-ref;
+          description
+            "Specifies the client credentials reference.";
+        }
+      }
+      case explicit {
+        description
+          "Explicit configuration.";
+        uses client-identity;
+      }
+    }
+  }
+
+  grouping server-authentication {
+    description
+      "Specifies how the TLS client can authenticate TLS servers.
+       Any combination of credentials is additive and unordered.";
+    nacm:default-deny-write;
+    container ca-certs {
+      presence "Indicates that CA certificates have been configured.
+                This statement is present so the mandatory descendant
+                nodes do not imply that this node must be
+                configured.";
+      description
+        "A set of CA certificates used by the TLS client to
+         authenticate TLS server certificates.
+         A server certificate is authenticated if it has a valid
+         chain of trust to a configured CA certificate.";
+      reference
+        "RFC BBBB: A YANG Data Model for a Truststore";
+      uses ts:inline-or-truststore-certs-grouping;
+    }
+    container ee-certs {
+      presence "Indicates that EE certificates have been configured.
+                This statement is present so the mandatory descendant
+                nodes do not imply that this node must be
+                configured.";
+      description
+        "A set of server certificates (i.e., end entity certificates)
+         used by the TLS client to authenticate certificates
+         presented by TLS servers. A server certificate is
+         authenticated if it is an exact match to a configured server
+         certificate.";
+      reference
+        "RFC BBBB: A YANG Data Model for a Truststore";
+      uses ts:inline-or-truststore-certs-grouping;
+    }
+    container raw-public-keys {
+      if-feature "tlsc:server-auth-raw-public-key";
+      presence "Indicates that raw public keys have been configured.
+                This statement is present so the mandatory descendant
+                nodes do not imply that this node must be
+                configured.";
+      description
+        "A set of raw public keys used by the TLS client to
+         authenticate raw public keys presented by the TLS server.
+         A raw public key is authenticated if it is an exact match
+         to a configured raw public key.";
+      reference
+        "RFC BBBB: A YANG Data Model for a Truststore";
+      uses ts:inline-or-truststore-public-keys-grouping {
+        refine "inline-or-truststore/inline/inline-definition/"
+             + "public-key" {
+          must 'derived-from-or-self(public-key-format,'
+             + ' "ct:subject-public-key-info-format")';
+        }
+        refine "inline-or-truststore/central-truststore/"
+             + "central-truststore-reference" {
+          must 'not(deref(.)/../ts:public-key/ts:public-key-'
+             + 'format[not(derived-from-or-self(., "ct:subject-'
+             + 'public-key-info-format"))])';
+        }
+      }
+    }
+    leaf tls13-epsks {
+      if-feature "tlsc:server-auth-tls13-epsk";
+      type empty;
+      description
+        "Indicates that the TLS client can authenticate TLS servers
+         using configured external PSKs.";
+    }
+  }
+
+  grouping server-authentication-with-ref {
+    description
+      "Specifies how the TLS client can authenticate TLS servers.";
+     choice ref-or-explicit {
+      description
+        "A choice between a reference of explicit configuration.";
+      case ref {
+        description
+          "Provides a reference.";
+        leaf credentials-reference {
+          type secure-tacacs:server-credentials-ref;
+          description
+            "Specifies the server credentials reference.";
+        }
+      }
+      case explicit {
+        description
+          "Explicit configuration.";
+        uses server-authentication;
+      }
+    }
+  }
+
+  grouping test-peer-aliveness {
+    description
+      "Configures the keep-alive policy to proactively test
+       the aliveness of the TLS server.  An unresponsive TLS
+       server is dropped after approximately max-wait
+       * max-attempts seconds.";
+    reference
+      "RFC 6520: Transport Layer Security (TLS) and Datagram
+                 Transport Layer Security (DTLS) Heartbeat
+                 Extension";
+    leaf max-wait {
+      type uint16 {
+        range "1..max";
+      }
+      units "seconds";
+      default "30";
+      description
+        "Sets the amount of time in seconds after which if no data
+         has been received from the TLS server, a TLS-level message
+         will be sent to test the aliveness of the TLS server.";
+    }
+    leaf max-attempts {
+      type uint8;
+      default "3";
+      description
+        "Sets the maximum number of sequential keep-alive messages
+         that can fail to obtain a response from the TLS server
+         before assuming the TLS server is no longer alive.";
+    }
+  }
+
+  grouping hello-params {
+    description
+      "Configurable parameters for the TLS hello message.";
+    nacm:default-deny-write;
+    uses tlscmn:hello-params-grouping {
+      refine "tls-versions/min" {
+        must "not(derived-from-or-self(current(), "
+           + "'tlscmn:tls12'))" {
+          error-message
+                "TLS 1.2 is not supported as min TLS version";
+        }
+      }
+      refine "tls-versions/max" {
+        must "not(derived-from-or-self(current(), "
+           + "'tlscmn:tls12'))" {
+          error-message
+                "TLS 1.2 is not supported as max TLS version";
+        }
+      }
+    }
+  }
+
+  grouping keepalives {
+    description
+      "Configures the keepalive policy for the TLS client.";
+    nacm:default-deny-write;
+    leaf peer-allowed-to-send {
+      type empty;
+      description
+        "Indicates that the remote TLS server is allowed to send
+         HeartbeatRequest messages to this TLS client.";
+      reference
+        "RFC 6520: Transport Layer Security (TLS) and Datagram
+                   Transport Layer Security (DTLS) Heartbeat
+                   Extension";
+    }
+    container test-peer-aliveness {
+      presence "Indicates that the TLS client proactively tests the
+                aliveness of the remote TLS server.";
+      description
+        "Configures the keep-alive policy to proactively test the
+         aliveness of the TLS server.  An unresponsive TLS server is
+         dropped after approximately max-wait * max-attempts
+         seconds.";
+      uses test-peer-aliveness;
+    }
+  }
+
+  grouping tls-client {
+    description
+      "A grouping for configuring a TLS client without any
+       consideration for how an underlying TCP session is
+       established.";
+    container client-identity {
+      presence
+        "Indicates that a TLS-level client identity has been
+         configured.
+         This statement is present so the mandatory descendant do not
+         imply that this node must be configured.";
+      description
+        "Identity credentials the TLS client may present when
+         establishing a connection to a TLS server.";
+      //uses client-identity;
+      uses client-identity-with-ref;
+    }
+    container server-authentication {
+      must 'ca-certs or ee-certs or raw-public-keys or tls13-epsks';
+      description
+        "Specifies how the TLS client can authenticate TLS servers.";
+      //uses server-authentication;
+      uses server-authentication-with-ref;
+    }
+    container hello-params {
+      if-feature "tlscmn:hello-params";
+      description
+        "Configurable parameters for the TLS hello message.";
+      uses hello-params;
+    }
+    container keepalives {
+      if-feature "tlsc:tls-client-keepalives";
+      description
+        "Configures the keepalive policy for the TLS client.";
+      uses keepalives;
+    }
+  }
+
+  grouping tcp-server-info {
+    description
+      "A grouping for configuring the information to contact
+       a TCP server.";
+    list remote-address {
+      key "address";
+      description
+        "A server instance may be reachable using multiple IP address
+         and port numbers. For example, use the same port number in
+         different address families or different port numbers in the
+         same address family.";
+      leaf address {
+        type inet:ip-address;
+        description
+          "The remote IP address to reach a server.";
+      }
+      leaf port-number {
+        type inet:port-number;
+        description
+          "The remote port number of the server.";
+      }
+    }
+  }
+
+  augment "/sys:system/sys-tcs-plus:tacacs-plus" {
+    description
+      "A list of client credentials to be referenced.";
+    list client-credentials {
+      key "id";
+      description
+        "Identity credentials the TLS client may present when
+         establishing a connection to a TLS server.";
+      nacm:default-deny-write;
+      leaf id {
+        type string;
+        description
+          "A credential identifier.";
+      }
+      uses client-identity;
+    }
+    list server-credentials {
+      key "id";
+      description
+        "Identity credentials the TLS client may present when
+         establishing a connection to a TLS server.";
+      nacm:default-deny-write;
+      leaf id {
+        type string;
+        description
+          "A credential identifier.";
+      }
+      uses server-authentication;
+    }
+  }
+
+  augment "/sys:system/sys-tcs-plus:tacacs-plus"
+        + "/sys-tcs-plus:server" {
+    description
+      "Adds server's domain name.";
+    uses tcp-server-info {
+      refine "remote-address/address" {
+        must 'not(../../sys-tcs-plus:address)' {
+          error-message
+            "Either use the list of bind points or RFC 9105 address
+             data node, not both.";
+        }
+      }
+      refine "remote-address/port-number" {
+        must 'not(../../sys-tcs-plus:port)' {
+          error-message
+            "Either use the list of bind points or RFC 9105 port
+             data node, not both.";
+        }
+        default "1234"; // to be replaced by TACACS-TLS-PORT
+      }
+    }
+    leaf domain-name {
+      type inet:domain-name;
+      description
+        "Provides a domain name of the TACACS+ server.";
+    }
+  }
+
+  augment
+    "/sys:system/sys-tcs-plus:tacacs-plus/sys-tcs-plus:server"
+  + "/sys-tcs-plus:security" {
+    description
+      "Adds TLS case.";
+    case tls {
+      description
+        "TLS is used.";
+      uses tls-client;
+      //uses client-identity-with-ref;
+    }
+  }
+}

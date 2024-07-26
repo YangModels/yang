@@ -3,6 +3,11 @@ module ietf-bearer-svc {
   namespace "urn:ietf:params:xml:ns:yang:ietf-bearer-svc";
   prefix bearer-svc;
 
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types, Section 4";
+  }
   import ietf-vpn-common {
     prefix vpn-common;
     reference
@@ -17,7 +22,8 @@ module ietf-bearer-svc {
   import ietf-ac-svc {
     prefix ac-svc;
     reference
-      "RFC XXXX: YANG Service Data Models for Attachment Circuits";
+      "RFC XXXX: YANG Data Models for Bearers and 'Attachment
+                 Circuits'-as-a-Service (ACaaS)";
   }
 
   organization
@@ -40,7 +46,7 @@ module ietf-bearer-svc {
     "This YANG module defines a generic YANG model for exposing
      network bearers as a service.
 
-     Copyright (c) 2023 IETF Trust and the persons identified as
+     Copyright (c) 2024 IETF Trust and the persons identified as
      authors of the code.  All rights reserved.
 
      Redistribution and use in source and binary forms, with or
@@ -57,7 +63,18 @@ module ietf-bearer-svc {
     description
       "Initial revision.";
     reference
-      "RFC xxxx: A YANG Service Data Model for Attachment Circuits";
+      "RFC XXXX: YANG Data Models for Bearers and 'Attachment
+                 Circuits'-as-a-Service (ACaaS)";
+  }
+
+  // Typedef to ease referencing cross-modules
+
+  typedef bearer-ref {
+    type leafref {
+      path "/bearer-svc:bearers/bearer-svc:bearer/bearer-svc:name";
+    }
+    description
+      "Defines a type to reference a bearer.";
   }
 
   // Identities
@@ -66,11 +83,10 @@ module ietf-bearer-svc {
     description
       "Base identity for identification of bearers.";
   }
-
   identity device-id {
     base identification-type;
     description
-      "Identification of bearers based on device..";
+      "Identification of bearers based on device.";
   }
 
   identity site-id {
@@ -108,6 +124,12 @@ module ietf-bearer-svc {
       "Wireless.";
   }
 
+  identity lag {
+    base bearer-type;
+    description
+      "Link Aggregation Group (LAG).";
+  }
+
   identity network-termination-hint {
     base vpn-common:placement-diversity;
     description
@@ -115,48 +137,61 @@ module ietf-bearer-svc {
        is provided (e.g., geoproximity).";
   }
 
+  identity syncPHY-type {
+    description
+      "Base identity for physical layer synchronization.";
+  }
+
+  identity syncE {
+    base syncPHY-type;
+    description
+      "Sync Ethernet (SyncE).";
+    reference
+      "ITU-T G.781: Synchronization layer functions for frequency
+                    synchronization based on the physical layer";
+  }
+
+  // Reusabel groupings
+
   grouping location-information {
     description
       "Basic location information";
-    container location {
+
+    leaf location-name {
+      type string;
       description
-        "Location of the node.";
-      leaf location-name {
-        type string;
-        description
-          "Provides a location name. This data node can be mapped,
-           e.g., to the 3GPP NRM IOC ManagedElement.";
+        "Provides a location name. This data node can be mapped,
+         e.g., to the 3GPP NRM IOC ManagedElement.";
+    }
+    leaf address {
+      type string;
+      description
+        "Address (number and street) of the device/site.";
+    }
+    leaf postal-code {
+      type string;
+      description
+        "Postal code of the device/site.";
+    }
+    leaf state {
+      type string;
+      description
+        "State of the device/site.  This leaf can also be
+         used to describe a region for a country that
+         does not have states.";
+    }
+    leaf city {
+      type string;
+      description
+        "City of the device/site.";
+    }
+    leaf country-code {
+      type string {
+        pattern '[A-Z]{2}';
       }
-      leaf address {
-        type string;
-        description
-          "Address (number and street) of the device/site.";
-      }
-      leaf postal-code {
-        type string;
-        description
-          "Postal code of the device/site.";
-      }
-      leaf state {
-        type string;
-        description
-          "State of the device/site.  This leaf can also be
-           used to describe a region for a country that
-           does not have states.";
-      }
-      leaf city {
-        type string;
-        description
-          "City of the device/site.";
-      }
-      leaf country-code {
-        type string {
-          pattern '[A-Z]{2}';
-        }
-        description
-          "Country of the device/site.
-           Expressed as ISO ALPHA-2 code.";
-      }
+      description
+        "Country of the device/site.
+         Expressed as ISO ALPHA-2 code.";
     }
   }
 
@@ -223,29 +258,78 @@ module ietf-bearer-svc {
     }
   }
 
+  container locations {
+    description
+      "Retrieves the list of available provider locations for
+       terminating bearers.";
+    leaf customer-name {
+      type string;
+      description
+        "Indicates the name of the customer that requested these
+         bearers.";
+    }
+    leaf role {
+      type identityref {
+        base ac-common:role;
+      }
+      description
+        "Indicates whether this bearer is used as UNI, NNI, etc.";
+    }
+    leaf local-as {
+      type inet:as-number;
+      description
+        "Indicates a provider AS Number (ASN).";
+    }
+    leaf peer-as {
+      type inet:as-number;
+      description
+        "Indicates the customer's ASN.";
+    }
+    list location {
+      key "location-name";
+      config false;
+      description
+        "Reports the list of available locations.";
+      uses location-information;
+    }
+  }
+
   container bearers {
     description
       "Main container for the bearers.";
 
+    leaf customer-name {
+      type string;
+      description
+        "Indicates the name of the customer that requested these
+         bearers.";
+    }
+    uses ac-common:op-instructions;
     container placement-constraints {
       description
         "Diversity constraint type.";
       uses placement-constraints;
     }
-
     list bearer {
-      key "id";
+      key "name";
       description
         "Maintains a list of bearers.";
-      leaf id {
+      leaf name {
         type string;
         description
-          "An identifier of the bearer.";
+          "A name that uniquely identifies a bearer for
+           a given customer.";
       }
       leaf description {
         type string;
         description
           "A description of this bearer.";
+      }
+      leaf customer-name {
+        type string;
+        description
+          "Indicates the name of the customer that requested this
+           bearer.";
       }
       uses vpn-common:vpn-components-group;
       leaf op-comment {
@@ -255,6 +339,46 @@ module ietf-bearer-svc {
            teams and which may be useful for the activation of a
            bearer. This may include, for example, information
            about the building, level, etc.";
+      }
+      leaf bearer-parent-ref {
+        type bearer-svc:bearer-ref;
+        description
+          "Specifies the parent bearer. This can be used, e.g.,
+           for a Link Aggregation Group (LAG).";
+      }
+      leaf-list bearer-lag-member {
+        type bearer-svc:bearer-ref;
+        config false;
+        description
+          "Reports LAG members.";
+      }
+      leaf sync-phy-capable {
+        type boolean;
+        config false;
+        description
+         "Indicates when set to true that a mechanism for physical
+          layer synchronization is supported for this bearer. No such
+          mechanism is supported if set to false.";
+      }
+      leaf sync-phy-enabled {
+        type boolean;
+        description
+         "Indicates when set to true that a mechanism for physical
+          layer synchronization is enabled for this bearer. No such
+          mechanism is enabled if set to false.";
+      }
+      leaf sync-phy-type {
+        when "../sync-phy-enabled='true'";
+        type identityref {
+          base syncPHY-type;
+        }
+        description
+          "Type of the physical layer synchronization.";
+      }
+      leaf provider-location-reference {
+        type string;
+        description
+          "Specifies the provider's location reference.";
       }
       container customer-point {
         description
@@ -269,8 +393,9 @@ module ietf-bearer-svc {
         container device {
           when
             "derived-from-or-self(../identified-by, "
-          + "'device-id') or derived-from-or-self(../identified-by, "
-          + "'site-and-device-id')" {
+          + "'bearer-svc:device-id') or "
+          + "derived-from-or-self(../identified-by, "
+          + "'bearer-svc:site-and-device-id')" {
             description
               "Only applicable if identified-by is device.";
           }
@@ -281,13 +406,18 @@ module ietf-bearer-svc {
             description
               "Identifier for the device where that bearer belongs.";
           }
-          uses location-information;
+          container location {
+            description
+              "Location of the node.";
+             uses location-information;
+          }
         }
         container site {
           when
             "derived-from-or-self(../identified-by, "
-          + "'site-id') or derived-from-or-self(../identified-by, "
-          + "'site-and-device-id')" {
+          + "'bearer-svc:site-id') or "
+          + "derived-from-or-self(../identified-by, "
+          + "'bearer-svc:site-and-device-id')" {
             description
               "Only applicable if identified-by is site.";
           }
@@ -299,11 +429,15 @@ module ietf-bearer-svc {
               "Identifier for the site or sites where that bearer
                belongs.";
           }
-          uses location-information;
+          container location {
+            description
+              "Location of the node.";
+             uses location-information;
+          }
         }
         leaf custom-id {
           when "derived-from-or-self(../identified-by, "
-             + "'custom')" {
+             + "'bearer-svc:custom')" {
             description
               "Only enabled id identified-by is custom.";
           }
@@ -313,13 +447,12 @@ module ietf-bearer-svc {
               customer/provider using out-of-band means.";
         }
       }
-      leaf requested-type {
+      leaf type {
         type identityref {
           base bearer-type;
         }
         description
-          "Type of the requested bearer (e.g., Ethernet or
-           wireless)";
+          "Type of the bearer (e.g., Ethernet or wireless).";
       }
       leaf test-only {
         type empty;
@@ -329,7 +462,7 @@ module ietf-bearer-svc {
           requests.";
       }
       leaf bearer-reference {
-        if-feature "vpn-common:bearer-reference";
+        if-feature "ac-common:server-assigned-reference";
         type string;
         config false;
         description
@@ -343,7 +476,7 @@ module ietf-bearer-svc {
           "Specifies the set of ACes that are bound to the bearer.";
       }
       uses ac-common:op-instructions;
-      uses vpn-common:service-status;
+      uses ac-common:service-status;
     }
   }
 }

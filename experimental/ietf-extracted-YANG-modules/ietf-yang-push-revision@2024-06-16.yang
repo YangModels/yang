@@ -1,0 +1,228 @@
+module ietf-yang-push-revision {
+  yang-version 1.1;
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-yang-push-revision";
+  prefix ypr;
+  import ietf-subscribed-notifications {
+    prefix sn;
+    reference
+      "RFC 8639: Subscription to YANG Notifications";
+  }
+  import ietf-yang-revisions {
+    prefix rev;
+    reference
+      "RFC YYYY: draft-ietf-netmod-yang-module-versioning-11,
+      Updated YANG Module Revision Handling";
+  }
+  import ietf-yang-types {
+    prefix yang;
+    rev:recommended-min-date "2013-07-15";
+    reference
+      "RFC 6991: Common YANG Data Types.";
+  }
+  import ietf-yang-semver {
+    prefix ysver;
+    reference
+      "RFC ZZZZ: draft-ietf-netmod-yang-semver-15, YANG Semantic
+      Versioning";
+  }
+
+  organization "IETF NETCONF (Network Configuration) Working Group";
+  contact
+    "WG Web:   <http:/tools.ietf.org/wg/netconf/>
+     WG List:  <mailto:netconf@ietf.org>
+
+     Authors:  Thomas Graf
+               <mailto:thomas.graf@swisscom.com>
+               Benoit Claise
+               <mailto:benoit.claise@huawei.com>
+               Alex Huang Feng
+               <mailto:alex.huang-feng@insa-lyon.fr>";
+
+  description
+    "Defines YANG push event notification header with the revision and
+    the revision-label. Adds the support of the revision and
+    revision-label selection in the YANG push subscription RPCs.
+
+    Copyright (c) 2023 IETF Trust and the persons identified as
+    authors of the code.  All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, is permitted pursuant to, and subject to the license
+    terms contained in, the Revised BSD License set forth in Section
+    4.c of the IETF Trust's Legal Provisions Relating to IETF Documents
+    (https://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC XXXX; see the RFC
+    itself for full legal notices.";
+
+  revision 2024-06-16 {
+    description
+      "First revision";
+    reference
+      "RFC XXXX: Support of Versioning in YANG Notifications
+      Subscription";
+  }
+
+  feature yang-push-revision-supported {
+    description
+      "This feature indicates the YANG Subscription Notifications
+      supports specifying the list of modules, revisions and
+      revision-label in the YANG subscription.";
+  }
+
+  // Identities
+  identity revision-unsupported {
+    base sn:establish-subscription-error;
+    base sn:modify-subscription-error;
+    description
+      "Revision not supported.  This failure can be due to subscribing
+      to a specific revision not supported by the publisher.";
+  }
+
+  identity revision-label-unsupported {
+    base sn:establish-subscription-error;
+    base sn:modify-subscription-error;
+    description
+      "Revision-label not supported.  This failure can be due to
+      subscribing to a specific revision-label not supported by the publisher.";
+  }
+
+  identity incompatible-revision-and-revision-label {
+    base sn:establish-subscription-error;
+    base sn:modify-subscription-error;
+    description
+      "The combination of revision and the revision-label are
+      incompatible. This failure happens when the revision and the
+      revision-label are both specified in the RPC and the YANG
+      module supported by the publisher does not support one of the
+      revision or the revision-label.";
+  }
+
+  grouping yang-push-module-version-config {
+    description
+      "This grouping combines the module name, the revision and
+      revision-label leaves. This grouping is to be used for
+      configuration and the leaves are not mandatory.";
+    leaf module-name {
+      type yang:yang-identifier;
+      description
+        "This references the YANG module name.";
+    }
+    leaf revision {
+      type rev:revision-date;
+      description
+        "This references the YANG module revision to be sent in the
+        subscription.";
+    }
+    leaf revision-label {
+      type ysver:version;
+      description
+        "This references the YANG module semantic version to be sent in the
+        subscription.";
+    }
+  }
+
+  grouping yang-push-module-version {
+    description
+      "This grouping combines the module name, the revision and
+      revision-label leaves. This grouping is to be used for
+      read-only cases such as the content of YANG push Notifications.
+      The module-name and revision are mandatory and MUST be present
+      in the data.";
+    leaf module-name {
+      type yang:yang-identifier;
+      config false;
+      mandatory true;
+      description
+        "This references the YANG module name.";
+    }
+    leaf revision {
+      type rev:revision-date;
+      config false;
+      mandatory true;
+      description
+        "This references the YANG module revision of the sent
+        notification message.";
+    }
+    leaf revision-label {
+      type ysver:version;
+      description
+        "This references the YANG module semantic version of the sent
+        notification message.";
+    }
+  }
+
+  grouping yang-push-module-version-list {
+    description
+      "This grouping defines a list of yang-push-module-version
+      grouping.";
+    list module-version {
+      key "module-name";
+      config false;
+      description
+        "List of yang-push-module-version grouping. The revision is
+        not configurable.";
+      uses ypr:yang-push-module-version;
+    }
+  }
+
+  grouping yang-push-module-version-config-list {
+    description
+      "This grouping defines a list of yang-push-module-version-config
+      grouping.";
+    list module-version-config {
+      key "module-name";
+      description
+        "List of yang-push-module-version-config grouping. The revision
+        is configurable.";
+      uses ypr:yang-push-module-version-config;
+    }
+  }
+
+  // Subscription parameters
+  augment "/sn:establish-subscription/sn:input" {
+    if-feature "yang-push-revision-supported";
+    description
+      "Augment the establish-subscription RPC from the
+      ietf-subscribed-notifications YANG module with the
+      yang-push-module-version-config-list grouping.";
+    uses ypr:yang-push-module-version-config-list;
+  }
+  augment "/sn:modify-subscription/sn:input" {
+    if-feature "yang-push-revision-supported";
+    description
+      "Augment the modify-subscription RPC from the
+      ietf-subscribed-notifications YANG module with the
+      yang-push-module-version-config-list grouping.";
+    uses ypr:yang-push-module-version-config-list;
+  }
+
+  // Subscription notifications
+  augment "/sn:subscription-started" {
+    if-feature "yang-push-revision-supported";
+    description
+      "Augment the subscription-started notification from the
+      ietf-subscribed-notifications YANG module with the
+      yang-push-module-version-list grouping.";
+    uses ypr:yang-push-module-version-list;
+  }
+  augment "/sn:subscription-modified" {
+    if-feature "yang-push-revision-supported";
+    description
+      "Augment the subscription-modified notification from the
+      ietf-subscribed-notifications YANG module with the
+      yang-push-module-version-list grouping.";
+    uses ypr:yang-push-module-version-list;
+  }
+
+  // Subscription container
+  augment "/sn:subscriptions/sn:subscription" {
+    if-feature "yang-push-revision-supported";
+    description
+      "Augment the subscriptions RPC container from the
+      ietf-subscribed-notifications YANG module with the
+      yang-push-module-version-config-list grouping.";
+    uses ypr:yang-push-module-version-config-list;
+  }
+}
