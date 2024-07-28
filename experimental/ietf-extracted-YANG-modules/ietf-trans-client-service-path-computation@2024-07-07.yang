@@ -1,0 +1,494 @@
+module ietf-trans-client-service-path-computation {
+  /* TODO: FIXME */
+    yang-version 1.1;
+
+  namespace "urn:ietf:params:xml:ns:yang:ietf-trans-client-service-path-computation";
+  prefix "clntsvc-cpt";
+
+  import ietf-trans-client-service {
+    prefix "clntsvc";
+    reference "draft-ietf-ccamp-client-signal-yang";
+  }
+
+  import ietf-te-types {
+    prefix "te-types";
+    reference "RFC 8776 - Traffic Engineering Common YANG Types";
+  }
+
+  import ietf-yang-types {
+    prefix "yang";
+    reference "RFC 6991 - Common YANG Data Types";
+  }
+
+ import ietf-layer1-types {
+   prefix l1-types;
+   reference "RFC ZZZZ - A YANG Data Model for Layer 1 Types";
+ }
+
+ import ietf-layer0-types {
+   prefix l0-types;
+ }
+
+ import ietf-te {
+   prefix "te";
+ }
+
+  organization
+    "Internet Engineering Task Force (IETF) CCAMP WG";
+  contact
+    "
+      ID-draft editor:
+        Chaode Yu (yuchaode@huawei.com);
+        Sergio Belotti (sergio.belotti@nokia.com);
+        Italo Busi (italo.busi@huawei.com);
+        Aihua Guo (aihuaguo.ietf@gmail.com);
+        Dieter Beller (dieter.beller@nokia.com);
+    ";
+
+  description
+    "This module defines a YANG data model for describing
+     transport network client services. The model fully conforms
+     to the Network Management Datastore Architecture (NMDA).
+
+     Copyright (c) 2021 IETF Trust and the persons
+     identified as authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Simplified BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+     This version of this YANG module is part of RFC XXXX; see
+     the RFC itself for full legal notices.";
+
+ revision 2024-07-07 {
+    description
+      "initial version";
+    reference
+      "draft-ybb-ccamp-service-path-computation";
+  }
+
+ container path-management {
+   list path {
+     key path-id;
+
+     leaf path-id {
+       type yang:uuid;
+     }
+
+     leaf creation-time {
+       type yang:date-and-time;
+     }
+
+     leaf validity-period {
+       type uint8;
+       units "minute";
+     }
+
+     container underlay-tunnels {
+       list underlay-tunnel {
+         key index;
+
+         leaf index {
+           description
+             "The tunnels underlay should be ordered by  their
+             supproting relationship. The client layer tunnels
+             should use smaller index.";
+             type uint8;
+         }
+
+         leaf tunnel-name {
+           type leafref {
+             path "/te:te/te:tunnels/te:tunnel/te:name";
+           }
+
+           description
+             "the computed result can route with some existing
+             TE tunnels. The tunnel-name is the identifier of
+             tunnel. If the tunnel is not created, this
+             parameter is not needed to provide.";
+         }
+
+         uses te-types:te-topology-identifier;
+
+         list computed-lsp {
+           key lsp-id;
+           leaf lsp-id {
+             type uint8;
+           }
+
+           leaf lsp-type {
+             type enumeration {
+               enum forwarding-working;
+               enum forwarding-protection;
+               enum reverse-working;
+               enum reverse-protection;
+             }
+           }
+
+           container lsp-metrics {
+             list lsp-metric {
+               key metric-type;
+
+               leaf metric-type {
+                 type identityref {
+                   base te-types:path-metric-type;
+                 }
+               }
+
+               leaf metric-value {
+                 type uint32;
+               }
+
+               leaf metric-unit {
+                 type string;
+               }
+             }
+           }
+           list lsp-route-objects {
+             key index;
+
+             leaf index {
+               type uint8;
+             }
+
+             uses hop-infomation;
+
+             leaf server-tunnel {
+               type leafref {
+                 path "../../../index";
+               }
+             }
+           }
+         }
+       }
+     }
+   }
+ }
+
+ rpc client-service-precompute {
+   input {
+     list request {
+       key "request-id";
+
+       leaf request-id {
+         type string;
+       }
+
+       leaf path-count {
+         type uint8 {
+           range "1..10";
+         }
+       }
+
+       uses te-types:te-topology-identifier;
+
+       container src-access-ports {
+         description
+           "Source access port of a client service.";
+         uses clntsvc:client-svc-access-parameters;
+       }
+
+       container dst-access-ports {
+         description
+               "Destination access port of a client service.";
+         uses clntsvc:client-svc-access-parameters;
+       }
+
+       uses tunnel-policy-grouping;
+       uses path-constraints;
+     }
+   }
+   output {
+     list result {
+       key "request-id";
+
+       leaf request-id {
+         type string;
+       }
+
+       leaf result-code {
+         type enumeration {
+           enum success {
+           }
+           enum failure {
+           }
+         }
+       }
+       choice result-detail {
+         case failure {
+           uses failure-info-grouping;
+         }
+
+         case success {
+           list computed-paths {
+             key path-id;
+
+             leaf path-id {
+               type yang:uuid;
+             }
+
+             leaf path-number {
+               type uint8;
+               description
+                 "when the client requestes to compute multiple paths
+                  for a service, this path-number can be used to rank
+                  the path result, based on the path computation
+                  policy. The path-number starts with 0 and 0
+                  indicates the best option. The better path's
+                  path-number should be in lower number.";
+             }
+           }
+
+           uses te-types:te-topology-identifier;
+           container src-access-ports {
+             description
+               "Source access port of a client service.";
+             uses clntsvc:client-svc-access-parameters;
+           }
+
+           container dst-access-ports {
+             description
+                   "Destination access port of a client service.";
+             uses clntsvc:client-svc-access-parameters;
+           }
+
+           container underlay-tunnels {
+             list underlay-tunnel {
+               key index;
+
+               description
+                 "The server could support all the layers of tunnels
+                 under the client signal service. If it cannot
+                 support that, it should return its topmost layer
+                 tunnel's path infomation";
+
+               leaf index {
+                 description
+                   "The tunnels underlay should be ordered by  their
+                   supproting relationship. The client layer tunnels
+                   should use smaller index.";
+                 type uint8;
+               }
+
+               leaf tunnel-name {
+                 type leafref {
+                   path "/te:te/te:tunnels/te:tunnel/te:name";
+                 }
+
+                 description
+                   "the computed result can route with some existing
+                   TE tunnels. The tunnel-name is the identifier of
+                   tunnel. If the tunnel is not created, this
+                   parameter is not needed to provide.";
+               }
+
+               uses te-types:te-topology-identifier;
+
+               list computed-lsp {
+                 key lsp-id;
+
+                 leaf lsp-id {
+                   type uint8;
+                 }
+
+                 leaf lsp-type {
+                   type enumeration {
+                     enum forwarding-working;
+                     enum forwarding-protection;
+                     enum reverse-working;
+                     enum reverse-protection;
+                   }
+                 }
+
+                 container lsp-metrics {
+                   list lsp-metric {
+                     key metric-type;
+
+                     leaf metric-type {
+                       type identityref {
+                         base te-types:path-metric-type;
+                       }
+                     }
+
+                     leaf metric-value {
+                       type uint32;
+                     }
+
+                     leaf metric-unit {
+                       type string;
+                     }
+                   }
+                 }
+
+                 list lsp-route-objects {
+                   key index;
+
+                   leaf index {
+                     type uint8;
+                   }
+
+                   uses hop-infomation;
+
+                   leaf server-tunnel {
+                     type leafref {
+                       path "../../../index";
+                     }
+                   }
+                 }
+               }
+
+             }
+           }
+         }
+       }
+     }
+   }
+ }
+
+ grouping hop-infomation {
+   leaf node-id {
+       type te-types:te-node-id;
+       description
+         "The identifier of a node in the TE topology.";
+     }
+
+     leaf node-uri-id {
+       type yang:uuid;
+       description
+         "Another identifier of TE node. This uuid of node may be acquired by inventory.";
+     }
+
+     leaf link-tp-id {
+       type te-types:te-tp-id;
+         description
+           "TE link termination point identifier, used
+            together with te-node-id to identify the
+            link termination point";
+     }
+
+     leaf ltp-uri-id {
+       type yang:uuid;
+       description
+         "another identifier of link TP. This uuid of TP may be acquired by inventory.";
+     }
+
+     container te-label {
+       description
+         "Container that specifies TE label.";
+       choice technology {
+         description
+           "Data plane technology type.";
+         case wson {
+           uses l0-types:wson-label-hop;
+         }
+         case otn {
+           uses l1-types:otn-label-hop;
+         }
+       }
+       leaf direction {
+         type te-types:te-label-direction;
+         description "Label direction";
+       }
+     }
+
+ }
+
+ grouping tunnel-policy-grouping {
+   description "Tunnel creation policy which can be also inherited by client service.";
+   container tunnel-policy {
+     uses te:protection-restoration-properties;
+
+     leaf share-timeslot {
+       type boolean;
+     }
+
+     uses path-policy;
+   }
+ }
+
+ grouping failure-info-grouping {
+   leaf failure-reason {
+     type uint32;
+   }
+   leaf error-message {
+     type string;
+   }
+ }
+
+ grouping path-constraints {
+   description "";
+
+   container explicit-route-exclude-objects {
+     list route-object-exclude-object {
+       key index;
+       uses hop-include-or-exclude-grouping;
+     }
+   }
+
+   container explicit-route-include-objects {
+     list route-object-include-object {
+       key index;
+       uses hop-include-or-exclude-grouping;
+     }
+   }
+ }
+
+ grouping hop-include-or-exclude-grouping {
+   leaf index {
+     type uint8;
+   }
+
+   uses hop-infomation;
+   leaf server-tunnel-name {
+     type leafref {
+       path "/te:te/te:tunnels/te:tunnel/te:name";
+     }
+   }
+
+   leaf lsp-type {
+     type enumeration {
+       enum all-paths;
+       enum forwarding-working;
+       enum forwarding-protection;
+       enum reverse-working;
+       enum reverse-protection;
+     }
+   }
+ }
+
+ grouping path-policy {
+   container optimizations {
+     choice algorithm {
+       case metric {
+         list optimization-metric {
+           key "metric-type";
+           leaf metric-type {
+             type identityref {
+               base te-types:path-metric-type;
+             }
+             description "TE path metric type";
+           }
+           leaf weight {
+             type uint8;
+             description "TE path metric normalization weight";
+           }
+         }
+       }
+     }
+
+     leaf lsp-type {
+       type enumeration {
+         enum all-paths;
+         enum forwarding-working;
+         enum forwarding-protection;
+         enum reverse-working;
+         enum reverse-protection;
+       }
+     }
+
+     uses te-types:generic-path-metric-bounds;
+   }
+ }
+}
