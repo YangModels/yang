@@ -1,0 +1,1120 @@
+module ietf-bmp {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-bmp";
+  prefix bmp;
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ietf-routing {
+    prefix rt;
+    reference
+      "RFC 8349: A YANG Data Model for Routing Management
+       (NMDA Version).";
+  }
+  import ietf-bgp {
+    prefix bgp;
+    reference
+      "I-D.draft-ietf-idr-bgp-model-17:
+       BGP YANG module for Service Provider Network.";
+  }
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-bgp-types {
+    prefix bt;
+    reference
+      "RFC AAAA: BGP YANG module for Service Provider Network.
+       RFC-EDITOR: please update XXX with the RFC ID assigned
+       to I-D.ietf-idr-bgp-model";
+  }
+  import ietf-netconf-acm {
+    prefix nacm;
+    reference
+      "RFC 8341: Network Configuration Access Control Model";
+  }
+  import ietf-tcp-common {
+    prefix tcpcmn;
+    reference
+      "I-D.ietf-netconf-tcp-client-server: YANG Groupings for TCP
+       Clients and TCP Servers.";
+  }
+  import ietf-routing-policy {
+    prefix rt-pol;
+    reference
+      "RFC 9067: A YANG Data Model for Routing Policy";
+  }
+  import ietf-key-chain {
+    prefix key-chain;
+    reference
+      "RFC 8177: YANG Key Chain.";
+  }
+
+  organization
+    "IETF GROW Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/grow/>
+     WG List:  <mailto:grow@ietf.org>
+
+     Author:  Camilo Cardona
+        <mailto:camilo@ntt.net>
+
+     Author:  Paolo Lucente
+        <mailto:cpaolo@ntt.net>
+
+     Author:  Thomas Graf
+        <mailto:thomas.graf@swisscom.com>
+
+     Author:  Benoit Claise
+        <mailto:benoit.claise@huawei.com>";
+  description
+    "This module specifies a structure for BMP
+     (BGP Monitoring Protocol) configuration and monitoring.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this document
+     are to be interpreted as described in BCP 14 (RFC 2119)
+     (RFC 8174) when, and only when, they appear in all
+     capitals, as shown here.
+
+     Copyright (c) 2022 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 9196
+     (https://www.rfc-editor.org/info/rfc9196); see the RFC itself
+     for full legal notices.";
+
+  revision 2024-04-03 {
+    description
+      "initial version";
+    reference
+      "RFC YYYY: BMP YANG Module
+       RFC-EDITOR: please update YYYY with this RFC ID";
+  }
+
+  identity bmp-peer-types {
+    description
+      "Enum values for selecting peers";
+  }
+
+  identity bmp-peer-types-all-peers {
+    base bmp-peer-types;
+    description
+      "This identity selects all peer's RIBs.
+       When used, it act as a 'default' configuration.";
+  }
+
+  identity bmp-ni-types {
+    description
+      "Enum values for selecting multiple Network instances
+       for configuration";
+  }
+
+  identity bmp-ni-types-all-ni {
+    base bmp-ni-types;
+    description
+      "The identify is an explicit way
+       of selecting all network instances.";
+  }
+
+  identity bmp-ni-types-global-ni {
+    base bmp-ni-types;
+    description
+      "Configuring the global one";
+  }
+
+  identity bmp-ni-types-non-global-ni {
+    base bmp-ni-types;
+    description
+      "The identify is an explicit way
+       of selecting all network instances, except th e global-one.";
+  }
+
+  grouping bmp-tcp-options {
+    description
+      "TCP options for the connection to the station";
+    leaf maximum-segment-size {
+      type uint16;
+      description
+        "Maximum segment size for the TCP connections.
+         In the absence of this container, the system
+         would select the maximum segment size for this
+         connection";
+    }
+    // Taken from the bgp yang module
+    leaf mtu-discovery {
+      type boolean;
+      default "true";
+      description
+        "Turns path mtu discovery for the  TCP sessions
+         on (true) or off (false).";
+      reference
+        "RFC 1191: Path MTU discovery.";
+    }
+    uses tcpcmn:tcp-common-grouping;
+    // taken from the bgp yang module
+    leaf secure-session-enable {
+      type boolean;
+      default "false";
+      description
+        "Does this session need to be secured?";
+    }
+    container secure-session {
+      when "../secure-session-enable = 'true'";
+      description
+        "Container for describing how a particular BMP session
+         is to be secured.";
+      choice authentication {
+        mandatory true;
+        case ao {
+          leaf ao-keychain {
+            type key-chain:key-chain-ref;
+            description
+              "Reference to the key chain that will be used by
+               this model. Applicable for TCP-AO and TCP-MD5
+               only";
+            reference
+              "RFC 8177: YANG Key Chain.";
+          }
+          description
+            "Uses TCP-AO to secure the session. Parameters for
+             those are defined as a grouping in the TCP YANG
+             model.";
+          reference
+            "RFC 5925 - The TCP Authentication Option.";
+        }
+        case md5 {
+          leaf md5-keychain {
+            type key-chain:key-chain-ref;
+            description
+              "Reference to the key chain that will be used by
+               this model. Applicable for TCP-AO and TCP-MD5
+               only";
+            reference
+              "RFC 8177: YANG Key Chain.";
+          }
+          description
+            "Uses TCP-MD5 to secure the session. Parameters for
+             those are defined as a grouping in the TCP YANG
+             model.";
+          reference
+            "RFC 5925: The TCP Authentication Option.";
+        }
+        description
+          "Choice of TCP authentication.";
+      }
+    }
+  }
+
+  grouping bmp-ip-connection {
+    description
+      "common elements for defining connectivity
+       to a BMP monitoring station";
+    choice passive-or-active {
+      mandatory true;
+      description
+        "Choice for active or passive connection as described
+         in section 3.2 of RFC 7854";
+      case active {
+        description
+          "The device starts the connection to the monitoring
+           station";
+        container active {
+          description
+            "The device starts the connection to
+             the monitoring station";
+          leaf network-instance {
+            // TODO:This will not be supported for
+            // implementations not supporting schema-mount.
+            // Should just leave it as a string?
+            // type leafref {
+            //   path "/ni:network-instances/ni:network-instance/"
+            //      + "ni:name";
+            // }
+            type string;
+            description
+              "If present, specifies the network instance
+               used to reach the monitoring station.
+               If not provided, the global network
+               instance is used.";
+          }
+          leaf station-address {
+            type inet:ip-address;
+            mandatory true;
+            description
+              "Destination IP address of monitoring station";
+          }
+          leaf station-port {
+            type inet:port-number;
+            mandatory true;
+            description
+              "Destination port of the station";
+          }
+          leaf local-address {
+            type inet:ip-address;
+            mandatory true;
+            description
+              "Local IP address to source active connection";
+          }
+          leaf local-port {
+            type inet:port-number;
+            description
+              "Optional Local port for active connection";
+          }
+        }
+      }
+      case passive {
+        description
+          "The device waits for the connection
+           in a local endpoint";
+        container passive {
+          description
+            "The device waits for the connection
+             in a local endpoint";
+          leaf network-instance {
+            // TODO:This will not be supported for
+            // implementations not supporting schema-mount.
+            // Should just leave it as a string?
+            // type leafref {
+            //   path "/ni:network-instances/ni:network-instance/"
+            //      + "ni:name";
+            // }
+            type string;
+            description
+              "If present, specifies the network instance
+               used to reach the monitoring station.
+               If not provided, the global network
+               instance is used.";
+          }
+          leaf station-address {
+            type inet:ip-address;
+            mandatory true;
+            description
+              "address of the station";
+          }
+          leaf station-port {
+            type inet:port-number;
+            description
+              "Optional value identifying the origin port of
+               the connection, if provided it MUST match";
+          }
+          leaf local-address {
+            type inet:ip-address;
+            mandatory true;
+            description
+              "Local IP address to wait for the connection";
+          }
+          leaf local-port {
+            type inet:port-number;
+            mandatory true;
+            description
+              "Local port to wait for the connection";
+          }
+        }
+      }
+    }
+  }
+
+  grouping bmp-source-configuration {
+    description
+      "Group containing some general characteristics for configuring
+       a BMP source";
+    container filters {
+      description
+        "Includes containers specifying filters for deciding
+         which routes to export to the station";
+      container policy-filter {
+        description
+          "Filter routes based on a policy.
+           The policy SHOULD NOT perform any action besides
+           filtering routes.
+           The policy SHOULD only contain accept and reject
+           routes, and the matching conditions SHOULD only
+           match prefix sets.";
+        leaf-list export-policy {
+          type leafref {
+            path "/rt-pol:routing-policy/"
+               + "rt-pol:policy-definitions/"
+               + "rt-pol:policy-definition/rt-pol:name";
+            require-instance true;
+          }
+          ordered-by user;
+          description
+            "List of policy names in sequence used to select
+             routes to be exported to station.";
+        }
+        leaf default-export-policy {
+          type rt-pol:default-policy-type;
+          default "accept-route";
+          description
+            "Explicitly set a default policy if no policy
+             definition in the export policy chain
+             is satisfied.";
+        }
+      }
+    }
+  }
+  grouping bmp-ni-peer-ribs-filter {
+    description
+      "Leaves for configuring RIBs where under the BGP
+       container.";
+    container address-families {
+      description
+        "container for lists of address-families";
+      list address-family {
+        key "address-family-id";
+        description
+          "List of address families.
+           The name of the address family, as defined
+           in the BGP model is used for keying.";
+        leaf address-family-id {
+          type identityref {
+            base bt:afi-safi-type;
+          }
+          description
+            "Address family id to configure";
+        }
+        leaf enabled {
+          type boolean;
+          default "true";
+          description
+            "Enables route monitoring messages
+             for the address family";
+        }
+        container peers-configurations {
+          description
+            "Every peer under the configured network instance can be
+            at most configured by one of the next containers.  If the
+            peer is not covered by any, then no BMP message should
+            include information from/to that peer.  If the peer is
+            covered by more than one, then the priority is:
+             1. peers
+             2. peer-groups
+             3. peer-type
+             4. bmp-peer-types
+
+             New child containers or new bmp-peer-types instances
+             SHOULD provide a way of unambiguislly selecting which
+             configuration container should be selected for a peer in
+             case mutiple matches.
+            ";
+          container bmp-peer-types {
+            description
+              "Generic identification of peers to configure.";
+            list bmp-peer-type {
+              key "peer-types-bmp";
+              description
+                "Identification of peers
+                 for which we send BMP data to the collector
+                 using a peer type defined using a peer-types-bmp.
+                 For instance, to create a default for all
+                 peers use bmp-peer-types-all-peers";
+              leaf peer-types-bmp {
+                type identityref {
+                  base bmp-peer-types;
+                }
+                description
+                  "Peer type to configure";
+              }
+              leaf enabled {
+                type boolean;
+                default "true";
+                description
+                  "Enables routing monitoring messages
+                   for the peer(s).";
+              }
+              uses bmp-source-configuration;
+            }
+          }
+          container peer-types {
+            description
+              "Generic identification of peers to configure.";
+            list peer-type {
+              key "peer-type-id";
+              description
+                "Identification of peers
+                 for which we send BMP data to the collector
+                 using BGP peer-type (e.g. internal, external)
+                ";
+              leaf peer-type-id {
+                type bt:peer-type;
+                description
+                  "BGP Peer type to configure";
+              }
+            }
+            leaf enabled {
+              type boolean;
+              default "true";
+              description
+                "Enables routing monitoring messages
+                 for the peer(s).";
+            }
+            uses bmp-source-configuration;
+          }
+          container peer-groups {
+            description
+              "Identification of peer-groups
+               to configure";
+            list peer-group {
+              key "peer-id";
+              description
+                "Identification of peer-groups
+                 for which we send BMP data to the collector";
+              leaf peer-id {
+                type leafref {
+                  path "../../../../../../../../../../../"
+                     + "bgp:peer-groups/bgp:peer-group/"
+                     + "bgp:name";
+                }
+                description
+                  "Peergroup to configure";
+              }
+              leaf enabled {
+                type boolean;
+                default "true";
+                description
+                  "Enables routing monitoring messages
+                   for the peer-group(s).";
+              }
+              uses bmp-source-configuration;
+            }
+          }
+          container peers {
+            description
+              "Identification of peers
+               for which we send BMP data to the collector";
+            list peer {
+              key "peer-id";
+              description
+                "Identification of peers
+                 for which we send BMP data to the collector";
+              leaf peer-id {
+                type leafref {
+                  path "../../../../../../../../../../../"
+                     + "bgp:neighbors/bgp:neighbor/"
+                     + "bgp:remote-address";
+                }
+                description
+                  "Peer to configure";
+              }
+              leaf enabled {
+                type boolean;
+                default "true";
+                description
+                  "Enables routing monitoring messages
+                   for the peer(s).";
+              }
+              uses bmp-source-configuration;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  grouping bmp-peer-ribs-filter {
+    description
+      "Leaves for configuring RIBs
+       under the main BMP container";
+    container address-families {
+      description
+        "container for lists of address-families";
+      list address-family {
+        key "address-family-id";
+        description
+          "List of address families.
+           The name of the address family, as defined
+           in the BGP model is used for keying.";
+        leaf address-family-id {
+          type identityref {
+            base bt:afi-safi-type;
+          }
+          description
+            "Address family id to configure";
+        }
+        leaf enabled {
+          type boolean;
+          default "true";
+          description
+            "Enables route monitoring messages
+             for the address family";
+        }
+        container peers-configurations {
+          description
+            "Every peer under this BGP instance
+             can be at most configured by one of the next containers.
+             If the peer is not covered by any, then no BMP
+             message should include information from/to that peer.
+             If the peer is covered by more than one, then the
+             priority is:
+             1. peer
+             2. peer-groups
+             3. peer-type
+             4. bmp-peer-types
+
+             New child containers or new bmp-peer-types instances
+             SHOULD provide a way of unambiguislly selecting which
+             configuration container should be selected for a peer in
+             case mutiple matches.
+            ";
+          container peers {
+            description
+              "Generic identification of peers to configure.";
+            list peer {
+              key "peer-id-str";
+              description
+                "Identification of the peer. It is up to the
+                implementation to define what to do if no peer
+                matches this key.";
+              leaf peer-id-str {
+                type string;
+                description
+                  "Peer to configure";
+              }
+              leaf enabled {
+                type boolean;
+                default "true";
+                description
+                  "Enables routing monitoring messages
+                   for the peer(s).";
+              }
+              uses bmp-source-configuration;
+            }
+          }
+          container peer-groups {
+            description
+              "Generic identification of peers to configure.";
+            list peer-group {
+              key "peer-group-id-str";
+              description
+                "Identification of the peer-group. It is up to the
+                implementation to define what to do if no peer-group
+                with this name exists.";
+              leaf peer-group-id-str {
+                type string;
+                description
+                  "Peer-group to configure";
+              }
+              leaf enabled {
+                type boolean;
+                default "true";
+                description
+                  "Enables routing monitoring messages
+                   for the peer(s).";
+              }
+              uses bmp-source-configuration;
+            }
+          }
+          container bmp-peer-types {
+            description
+              "Generic identification of peers to configure.";
+            list bmp-peer-type {
+              key "peer-types-bmp";
+              description
+                "Identification of peers
+                 for which we send BMP data to the collector
+                 using a peer type defined using a peer-types-bmp.
+                 For instance, to create a default for all
+                 peers use bmp-peer-types-all-peers";
+              leaf peer-types-bmp {
+                type identityref {
+                  base bmp-peer-types;
+                }
+                description
+                  "Peer type to configure";
+              }
+              leaf enabled {
+                type boolean;
+                default "true";
+                description
+                  "Enables routing monitoring messages
+                   for the peer(s).";
+              }
+              uses bmp-source-configuration;
+            }
+          }
+          container peer-types {
+            description
+              "Generic identification of peers to configure.";
+            list peer-type {
+              key "peer-type-id";
+              description
+                "Identification of peers
+                 for which we send BMP data to the collector
+                 using BGP peer-type (e.g. internal, external)
+                ";
+              leaf peer-type-id {
+                type bt:peer-type;
+                description
+                  "BGP peer-type to configure";
+              }
+            }
+            leaf enabled {
+              type boolean;
+              default "true";
+              description
+                "Enables routing monitoring messages
+                 for the peer(s).";
+            }
+            uses bmp-source-configuration;
+          }
+        }
+      }
+    }
+  }
+
+  grouping bmp-route-monitoring-sources {
+    description
+      "Route monitoring sources";
+    reference
+      "RFC7854:  BGP Monitoring Protocol, Section 5.";
+    container network-instance-configuration {
+      description
+        "This container offers various options for configuring BMP
+         route-monitoring messages for each network instance.
+         Additionally, network instances can be configured under the
+         bmp-data container that this module includes under the
+         /rt:routing/rt:control-plane-protocols/
+         rt:control-plane-protocol/bgp:bgp container.
+
+         This container also holds a way of configuring the network
+         instance directly. This is redundant , and unfavoured to the
+         configuration under the bgp container, but it might be used
+         for implementation not yet supporting schema-mount since
+         that is required for adding control-plane infromation using
+         the ietf-network-instance module.
+
+         This container also provides a way of configuring
+         network-instances by 'bmp-ni-types'. It currently holds two
+         instances:  bmp-ni-types-all-ni to configure all network
+         instances (serving as a default), and
+         bmp-ni-types-non-global-ni that configures all non-global
+         network instances: i.e. providing a default for all  network
+         instances under the ietf-network-instance module.
+
+         A single configuration container Network MUST
+         be applied to a network instance.  If not containe matches a
+         network instance, the BMP route monitoring messages SHOULD
+         be disabled for that network instance.  If more than one
+         container matches a network-instance  the order of
+         preference is:
+         1. The configuration under the BGP container
+         2. The Network-instance under this container
+         3. bmp-ni-types: bmp-ni-types-non-global-ni (if it matches).
+         4. bmp-ni-types: bmp-ni-types-all-ni
+
+         New identities under bmp-ni-types or augmentations of this
+         container in the future SHOULD provide a clear way of
+         selecting the configuration container for a network-instance
+         without ambiguity.";
+      list network-instance {
+        key "network-instance-id";
+        description
+          "Network instance to monitory using BMP.";
+        leaf network-instance-id {
+          type union {
+            type identityref {
+              base bmp-ni-types;
+            }
+            // TODO:This will not be supported for
+            // implementations not supporting schema-mount.
+            // Should just leave it as a string to be useful without
+            // schema-mount??
+            //type leafref {
+            //  path "/ni:network-instances/ni:network-instance/"
+            //     + "ni:name";
+            //}
+            type string;
+          }
+          description
+            "Identification of a network-instance.
+             Network instances can be identified
+             directly by their path or use an identity to
+             identify one or a group of them
+             (e.g. bmp-ni-types-all-ni for all of them)";
+        }
+        leaf enabled {
+          type boolean;
+          default "true";
+          description
+            "Enables routing monitoring
+             messages for the network instance.";
+        }
+        container adj-rib-in-pre {
+          description
+            "Configuration for the adj-rib-in pre-policy";
+          reference
+            "RFC7854: BGP Monitoring Protocol (BMP), Section 2.";
+          uses bmp-peer-ribs-filter;
+        }
+        container adj-rib-in-post {
+          description
+            "Configuration for the adj-rib-in post-policy";
+          reference
+            "RFC7854: BGP Monitoring Protocol (BMP), Section 2.";
+          uses bmp-peer-ribs-filter;
+        }
+        container local-rib {
+          description
+            "Configuration for the local-rib";
+          reference
+            "RFC9069: Support for Local RIB in the BGP Monitoring
+             Protocol (BMP), Section 3.";
+          container address-families {
+            description
+              "List of address families to enable for
+               local-rib.";
+            list address-family {
+              key "address-family-id";
+              description
+                "Address family to enable for local-rib";
+              leaf address-family-id {
+                type identityref {
+                  base bt:afi-safi-type;
+                }
+                description
+                  "Address family id to enable for local-rib";
+              }
+              uses bmp-source-configuration;
+            }
+          }
+        }
+        container adj-rib-out-pre {
+          description
+            "Configuration for the adj-rib-out pre-policy";
+          uses bmp-peer-ribs-filter;
+          reference
+            "RFC8671: Support for Adj-RIB-Out in the BGP Monitoring
+             Protocol (BMP) , Section 3.";
+        }
+        container adj-rib-out-post {
+          description
+            "Configuration for the adj-rib-out post-policy";
+          uses bmp-peer-ribs-filter;
+          reference
+            "RFC8671: Support for Adj-RIB-Out in the BGP Monitoring
+             Protocol (BMP) , Section 3.";
+        }
+      }
+    }
+  }
+
+  container bmp {
+    description
+      "Main level for BMP configuration ";
+    container bmp-monitoring-stations {
+      description
+        "Container for the list of BMP monitoring stations";
+      list bmp-monitoring-station {
+        key "id";
+        description
+          "Configuration for a BMP monitoring station.";
+        leaf id {
+          type string;
+          description
+            "Identification string for the monitoring station";
+        }
+        // Connection, missing tcp tuning params
+        // like keep-alives, segment sizes, etc.
+        container connection {
+          description
+            "Connection details for the monitoring station";
+          uses bmp-ip-connection;
+          container tcp-options {
+            description
+              "TCP options for the connection to the monitoring
+               station";
+            uses bmp-tcp-options;
+          }
+          leaf initial-delay {
+            type uint32;
+            units "seconds";
+            default "0";
+            description
+              "Initial delay of the connection to the station";
+          }
+          container backoff {
+            description
+              "Configures the backoff strategy after a connection
+               retry";
+            reference
+              "RFC7854 Section 3.2";
+            choice backoff-options {
+              description
+                "Options for backoff strategies";
+              reference
+                "RFC7854 Section 3.2";
+              case simple-exponential {
+                description
+                  "Simple exponential backoff with limits.";
+                container simple-exponential {
+                  description
+                    "Simple exponential backoff with limits.
+                     Starts with the initial backoff and doubles
+                     the backoff of every retry until reaching the
+                     maximum backoff";
+                  leaf initial-backoff {
+                    type uint32;
+                    units "seconds";
+                    default "30";
+                    description
+                      "Initial backoff time";
+                  }
+                  leaf maximum-backoff {
+                    type uint32;
+                    units "seconds";
+                    default "720";
+                    description
+                      "Maximum backoff time";
+                  }
+                }
+              }
+            }
+          }
+        }
+        container bmp-data {
+          description
+            "Configuration of BMP data";
+          leaf initiation-message {
+            type string;
+            description
+              "User defined message to append to the
+               initiation message";
+            reference
+              "RFC7854:  BGP Monitoring Protocol,
+               Section 4.3 and 4.4";
+          }
+          container bmp-statistics-report {
+            presence "Enables the BMP statistics report";
+            description
+              "Configuration of the statistics report";
+            reference
+              "RFC7854:  BGP Monitoring Protocol,
+               Section 4.8";
+            leaf statistics-interval {
+              type uint32;
+              units "seconds";
+              mandatory true;
+              description
+                "Interval for statistic report message.";
+            }
+          }
+          container bmp-route-monitoring {
+            description
+              "Configuration of the data sources for
+               route-monitoring messages";
+            uses bmp-route-monitoring-sources;
+          }
+        }
+        container session-stats {
+          config false;
+          description
+            "stats and operational values for the station";
+          leaf discontinuity-time {
+            type yang:date-and-time;
+            mandatory true;
+            description
+              "The time on the most recent occasion at which any
+               one or more of this station's counters suffered a
+               discontinuity.  If no such discontinuities have
+               occurred since the last re-initialization of the
+               local management subsystem, then this node contains
+               the time the local management subsystem
+               re-initialized itself.";
+          }
+          leaf established-session {
+            type boolean;
+            description
+              "Value indicating if the session is currently
+               established";
+          }
+          leaf total-route-monitoring-messages {
+            type uint64;
+            description
+              "Number of route-monitoring messages sent since last
+               successful connection";
+          }
+          leaf total-statistics-messages {
+            type uint64;
+            description
+              "Number of statistics messages sent since last
+               successful connection";
+          }
+          leaf total-peer-down-messages {
+            type uint64;
+            description
+              "Number of peer-down messages sent since last
+               successful connection";
+          }
+          leaf total-peer-up-messages {
+            type uint64;
+            description
+              "Number of peer-up messages sent since last successful
+               connection";
+          }
+          leaf total-initiation-messages {
+            type uint64;
+            description
+              "Number of initiation messages sent since last
+               successful connection";
+          }
+          leaf total-route-mirroring-messages {
+            type uint64;
+            description
+              "Number of route-mirroring messages sent since last
+               successful connection";
+          }
+        }
+        container actions {
+          nacm:default-deny-all;
+          description
+            "Container with the actions for the BMP operation";
+          action session-reset {
+            description
+              "Resets the session for a station.";
+            output {
+              choice outcome {
+                description
+                  "Output of the reset operation. Either a success or
+                   failure. For the latter, the reason for the
+                   error is provided.";
+                leaf success {
+                  type empty;
+                  description
+                    "Reset successful";
+                }
+                leaf failure {
+                  type string;
+                  description
+                    "Reset could not be performed.
+                     Reason is included in the field";
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Augment the BGP module to include data for network instances
+
+  augment "/rt:routing/rt:control-plane-protocols/"
+        + "rt:control-plane-protocol/bgp:bgp" {
+    description
+      "Augments the BGP container under control-plane-protocol.  It
+       can be used to configure the global BGP instance, but also the
+       network-instances under the module ietf-network-instance";
+    container bmp-data {
+      description
+        "Container for the configuration of BMP data
+         related to this BGP instance";
+      container bmp-monitoring-stations {
+        presence
+          "If this container exists, the network instance must be
+          configured using this";
+        description
+          "Container for the configuration of BMP data
+           related to this BGP instance";
+        list bmp-monitoring-station {
+          key "id";
+          description
+            "Container for the configuration of BMP data for this
+             monitoring-station related to this BGP instance";
+          leaf id {
+            // TODO: We have not been able to configure
+            // the schema mount to recognize this yet.
+            // Until we solve it, we will keep it as
+            //type leafref {
+            //  path "/bmp:bmp/bmp:bmp-monitoring-stations/"
+            //        + "bmp:bmp-monitoring-station/bmp:id";
+            //}
+            type string;
+            description
+              "Identification string for the monitoring station";
+          }
+          container bmp-route-monitoring {
+            presence "The presence of this container means the
+                      Network instance it contains MUST
+                      be configured using it";
+            description
+              "Configuration of the data sources for
+               route-monitoring messages for this network-instance";
+            leaf enabled {
+              type boolean;
+              default "true";
+              description
+                "Enables routing monitoring
+                 messages for the network instance.";
+            }
+            container adj-rib-in-pre {
+              description
+                "Configuration for the adj-rib-in pre-policy";
+              reference
+                "RFC7854: BGP Monitoring Protocol (BMP), Section 2.";
+              uses bmp-ni-peer-ribs-filter;
+            }
+            container adj-rib-in-post {
+              description
+                "Configuration for the adj-rib-in post-policy";
+              reference
+                "RFC7854: BGP Monitoring Protocol (BMP), Section 2.";
+              uses bmp-ni-peer-ribs-filter;
+            }
+            container local-rib {
+              description
+                "Configuration for the local-rib";
+              reference
+                "RFC9069: Support for Local RIB in the BGP Monitoring
+                 Protocol (BMP), Section 3.";
+              container address-families {
+                description
+                  "List of address families to enable for
+                   local-rib.";
+                list address-family {
+                  key "address-family-id";
+                  description
+                    "Address family to enable for local-rib";
+                  leaf address-family-id {
+                    type identityref {
+                      base bt:afi-safi-type;
+                    }
+                    description
+                      "Address family id to enable for local-rib";
+                  }
+                  uses bmp-source-configuration;
+                }
+              }
+            }
+            container adj-rib-out-pre {
+              description
+                "Configuration for the adj-rib-out pre-policy";
+              uses bmp-ni-peer-ribs-filter;
+              reference
+                "RFC8671: Support for Adj-RIB-Out in the BGP
+                 Monitoring Protocol (BMP) , Section 3.";
+            }
+            container adj-rib-out-post {
+              description
+                "Configuration for the adj-rib-out post-policy";
+              uses bmp-ni-peer-ribs-filter;
+              reference
+                "RFC8671: Support for Adj-RIB-Out in the BGP
+                 Monitoring Protocol (BMP) , Section 3.";
+            }
+          }
+        }
+      }
+    }
+  }
+}
