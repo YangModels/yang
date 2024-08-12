@@ -1,0 +1,394 @@
+module ietf-truststore {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-truststore";
+  prefix ts;
+
+  import ietf-netconf-acm {
+    prefix nacm;
+    reference
+      "RFC 8341: Network Configuration Access Control Model";
+  }
+
+  import ietf-crypto-types {
+    prefix ct;
+    reference
+      "RFC AAAA: YANG Data Types and Groupings for Cryptography";
+  }
+
+  organization
+    "IETF NETCONF (Network Configuration) Working Group";
+
+  contact
+    "WG Web  : https://datatracker.ietf.org/wg/netconf
+     WG List : NETCONF WG list <mailto:netconf@ietf.org>
+     Author  : Kent Watsen <kent+ietf@watsen.net>";
+
+  description
+    "This module defines a 'truststore' to centralize management
+     of trust anchors including certificates and public keys.
+
+     Copyright (c) 2024 IETF Trust and the persons identified
+     as authors of the code. All rights reserved.
+
+     Redistribution and use in source and binary forms, with
+     or without modification, is permitted pursuant to, and
+     subject to the license terms contained in, the Revised
+     BSD License set forth in Section 4.c of the IETF Trust's
+     Legal Provisions Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC BBBB
+     (https://www.rfc-editor.org/info/rfcBBBB); see the RFC
+     itself for full legal notices.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this document
+     are to be interpreted as described in BCP 14 (RFC 2119)
+     (RFC 8174) when, and only when, they appear in all
+     capitals, as shown here.";
+
+  revision 2024-03-16 {
+    description
+      "Initial version";
+    reference
+      "RFC BBBB: A YANG Data Model for a Truststore";
+  }
+
+  /****************/
+  /*   Features   */
+  /****************/
+
+  feature central-truststore-supported {
+    description
+      "The 'central-truststore-supported' feature indicates that
+       the server supports the truststore (i.e., implements the
+       'ietf-truststore' module).";
+  }
+
+  feature inline-definitions-supported {
+    description
+      "The 'inline-definitions-supported' feature indicates that
+       the server supports locally-defined trust anchors.";
+  }
+
+  feature certificates {
+    description
+      "The 'certificates' feature indicates that the server
+       implements the /truststore/certificate-bags subtree.";
+  }
+
+  feature public-keys {
+    description
+      "The 'public-keys' feature indicates that the server
+       implements the /truststore/public-key-bags subtree.";
+  }
+
+  /****************/
+  /*   Typedefs   */
+  /****************/
+
+  typedef central-certificate-bag-ref {
+    type leafref {
+      path "/ts:truststore/ts:certificate-bags/"
+         + "ts:certificate-bag/ts:name";
+    }
+    description
+      "This typedef defines a reference to a certificate bag
+       in the central truststore.";
+  }
+
+  typedef central-certificate-ref {
+    type leafref {
+      path "/ts:truststore/ts:certificate-bags/ts:certificate-bag"
+         + "[ts:name = current()/../certificate-bag]/"
+         + "ts:certificate/ts:name";
+    }
+    description
+      "This typedef defines a reference to a specific certificate
+       in a certificate bag in the central truststore. This typedef
+       requires that there exist a sibling 'leaf' node called
+       'certificate-bag' that SHOULD have the typedef
+       'central-certificate-bag-ref'.";
+  }
+
+  typedef central-public-key-bag-ref {
+    type leafref {
+      path "/ts:truststore/ts:public-key-bags/"
+         + "ts:public-key-bag/ts:name";
+    }
+    description
+      "This typedef defines a reference to a public key bag
+       in the central truststore.";
+  }
+
+  typedef central-public-key-ref {
+    type leafref {
+      path "/ts:truststore/ts:public-key-bags/ts:public-key-bag"
+         + "[ts:name = current()/../public-key-bag]/"
+         + "ts:public-key/ts:name";
+    }
+    description
+      "This typedef defines a reference to a specific public key
+       in a public key bag in the truststore.  This typedef
+       requires that there exist a sibling 'leaf' node called
+       'public-key-bag' that SHOULD have the typedef
+       'central-public-key-bag-ref'.";
+  }
+
+  /*****************/
+  /*   Groupings   */
+  /*****************/
+
+  // *-ref groupings
+
+  grouping central-certificate-ref-grouping {
+    description
+      "Grouping for the reference to a certificate in a
+       certificate-bag in the central truststore.";
+    leaf certificate-bag {
+      nacm:default-deny-write;
+      if-feature "central-truststore-supported";
+      if-feature "certificates";
+      type ts:central-certificate-bag-ref;
+      must "../certificate";
+      description
+        "Reference to a certificate-bag in the truststore.";
+    }
+    leaf certificate {
+      nacm:default-deny-write;
+      if-feature "central-truststore-supported";
+      if-feature "certificates";
+      type ts:central-certificate-ref;
+      must "../certificate-bag";
+      description
+        "Reference to a specific certificate in the
+         referenced certificate-bag.";
+    }
+  }
+
+  grouping central-public-key-ref-grouping {
+    description
+      "Grouping for the reference to a public key in a
+       public-key-bag in the central truststore.";
+    leaf public-key-bag {
+      nacm:default-deny-write;
+      if-feature "central-truststore-supported";
+      if-feature "public-keys";
+      type ts:central-public-key-bag-ref;
+      description
+        "Reference of a public key bag in the truststore including
+         the certificate to authenticate the TLS client.";
+    }
+    leaf public-key {
+      nacm:default-deny-write;
+      if-feature "central-truststore-supported";
+      if-feature "public-keys";
+      type ts:central-public-key-ref;
+      description
+        "Reference to a specific public key in the
+         referenced public-key-bag.";
+    }
+  }
+
+  // inline-or-truststore-* groupings
+
+  grouping inline-or-truststore-certs-grouping {
+    description
+      "A grouping for the configuration of a list of certificates.
+       The list of certificate may be defined inline or as a
+       reference to a certificate bag in the central truststore.
+
+       Servers that wish to define alternate truststore locations
+       MUST augment in custom 'case' statements enabling
+       references to those alternate truststore locations.";
+    choice inline-or-truststore {
+      nacm:default-deny-write;
+      mandatory true;
+      description
+        "A choice between an inlined definition and a definition
+         that exists in the truststore.";
+      case inline {
+        if-feature "inline-definitions-supported";
+        container inline-definition {
+          description
+            "A container for locally configured trust anchor
+             certificates.";
+          list certificate {
+            key "name";
+            min-elements 1;
+            description
+              "A trust anchor certificate or chain of certificates.";
+            leaf name {
+              type string;
+              description
+                "An arbitrary name for this certificate.";
+            }
+            uses ct:trust-anchor-cert-grouping {
+              refine "cert-data" {
+                mandatory true;
+              }
+            }
+          }
+        }
+      }
+      case central-truststore {
+        if-feature "central-truststore-supported";
+        if-feature "certificates";
+        leaf central-truststore-reference {
+          type ts:central-certificate-bag-ref;
+          description
+            "A reference to a certificate bag that exists in the
+             central truststore.";
+        }
+      }
+    }
+  }
+
+  grouping inline-or-truststore-public-keys-grouping {
+    description
+      "A grouping that allows the public keys to be either
+       configured locally, within the using data model, or be a
+       reference to a public key bag stored in the truststore.
+
+       Servers that wish to define alternate truststore locations
+       SHOULD augment in custom 'case' statements enabling
+       references to those alternate truststore locations.";
+    choice inline-or-truststore {
+      nacm:default-deny-write;
+      mandatory true;
+      description
+        "A choice between an inlined definition and a definition
+         that exists in the truststore.";
+      case inline {
+        if-feature "inline-definitions-supported";
+        container inline-definition {
+          description
+            "A container to hold local public key definitions.";
+          list public-key {
+            key "name";
+            description
+              "A public key definition.";
+            leaf name {
+              type string;
+              description
+                "An arbitrary name for this public key.";
+            }
+            uses ct:public-key-grouping;
+          }
+        }
+      }
+      case central-truststore {
+        if-feature "central-truststore-supported";
+        if-feature "public-keys";
+        leaf central-truststore-reference {
+          type ts:central-public-key-bag-ref;
+          description
+            "A reference to a bag of public keys that exists
+             in the central truststore.";
+        }
+      }
+    }
+  }
+
+  // the truststore grouping
+
+  grouping truststore-grouping {
+    description
+      "A grouping definition that enables use in other contexts.
+       Where used, implementations MUST augment new 'case'
+       statements into the various inline-or-truststore 'choice'
+       statements to supply leafrefs to the model-specific
+       location(s).";
+    container certificate-bags {
+      nacm:default-deny-write;
+      if-feature "certificates";
+      description
+        "A collection of certificate bags.";
+      list certificate-bag {
+        key "name";
+        description
+          "A bag of certificates.  Each bag of certificates should
+           be for a specific purpose.  For instance, one bag could
+           be used to authenticate a specific set of servers, while
+           another could be used to authenticate a specific set of
+           clients.";
+        leaf name {
+          type string;
+          description
+            "An arbitrary name for this bag of certificates.";
+        }
+        leaf description {
+          type string;
+          description
+            "A description for this bag of certificates.  The
+             intended purpose for the bag SHOULD be described.";
+        }
+        list certificate {
+          key "name";
+          description
+            "A trust anchor certificate or chain of certificates.";
+          leaf name {
+            type string;
+            description
+              "An arbitrary name for this certificate.";
+          }
+          uses ct:trust-anchor-cert-grouping {
+            refine "cert-data" {
+              mandatory true;
+            }
+          }
+        }
+      }
+    }
+    container public-key-bags {
+      nacm:default-deny-write;
+      if-feature "public-keys";
+      description
+        "A collection of public key bags.";
+      list public-key-bag {
+        key "name";
+        description
+          "A bag of public keys.  Each bag of keys SHOULD be for
+           a specific purpose.  For instance, one bag could be used
+           authenticate a specific set of servers, while another
+           could be used to authenticate a specific set of clients.";
+        leaf name {
+          type string;
+          description
+            "An arbitrary name for this bag of public keys.";
+        }
+        leaf description {
+          type string;
+          description
+            "A description for this bag public keys.  The
+             intended purpose for the bag MUST be described.";
+        }
+        list public-key {
+          key "name";
+          description
+            "A public key.";
+          leaf name {
+            type string;
+            description
+              "An arbitrary name for this public key.";
+          }
+          uses ct:public-key-grouping;
+        }
+      }
+    }
+  }
+
+  /*********************************/
+  /*   Protocol accessible nodes   */
+  /*********************************/
+
+  container truststore {
+    if-feature central-truststore-supported;
+    nacm:default-deny-write;
+    description
+      "The truststore contains bags of certificates and
+       public keys.";
+    uses truststore-grouping;
+  }
+}
