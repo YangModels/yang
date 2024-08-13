@@ -1,4 +1,0 @@
-- /native/interface/GigabitEthernet/loopdetect-enable/loopdetect
-- /native/interface/GigabitEthernet/loopdetect-param/loopdetect/action/syslog
-- /native/interface/GigabitEthernet/loopdetect-param/loopdetect/interval
-- /native/interface/GigabitEthernet/loopdetect-param/loopdetect/source-port

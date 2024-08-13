@@ -62,6 +62,7 @@ listed below. As model content may differ based on platform capabilities, sample
 * Cisco-IOS-XE-livetools-actions-rpc.yang
 * Cisco-IOS-XE-livetools-common-types.yang
 * Cisco-IOS-XE-livetools-oper.yang
+* Cisco-IOS-XE-logging-deviation.yang
 * Cisco-IOS-XE-mcast-events.yang
 * Cisco-IOS-XE-nve-oper.yang
 * Cisco-IOS-XE-omp-oper.yang
@@ -69,6 +70,8 @@ listed below. As model content may differ based on platform capabilities, sample
 * Cisco-IOS-XE-perf-measure-deviation.yang
 * Cisco-IOS-XE-port-bounce-events.yang
 * Cisco-IOS-XE-port-bounce-rpc.yang
+* Cisco-IOS-XE-port-channel-crankshaft-deviation.yang
+* Cisco-IOS-XE-port-channel-unsupported-deviation.yang
 * Cisco-IOS-XE-ppp-mcp-deviation.yang
 * Cisco-IOS-XE-red-app-common-types.yang
 * Cisco-IOS-XE-red-app-events.yang
@@ -253,4 +256,4 @@ YANG version 1.1 is described by the RFC 7950, The YANG 1.1 Data Modeling Langua
 
 ### OID to xpath Mapping
 
-SNMP OID MIB to xpath mapping is documented under [iosxe.csv](iosxe.csv) file. 
+SNMP OID MIB to xpath mapping is documented under [iosxe-snmp-OID-xpath-mapping.csv](iosxe-snmp-OID-xpath-mapping.csv) file. 

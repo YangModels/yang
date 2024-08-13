@@ -1,1 +1,0 @@
-- /native/interface/TenGigabitEthernet/power/inline/never-choice

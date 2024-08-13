@@ -1,4 +1,0 @@
-- /native/wsma/agent/config/profile
-- /native/wsma/agent/exec/profile
-- /native/wsma/agent/filesys/profile
-- /native/wsma/agent/notify/profile
