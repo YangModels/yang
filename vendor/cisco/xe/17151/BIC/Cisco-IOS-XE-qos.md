@@ -8,7 +8,13 @@
 
 ## XPaths Obsoleted
 
+- native/table-map/map
+- native/table-map/map/from
+- native/table-map/map/to
+
 ### Description
+
+Status changed from deprecated to obsolete
 
 ## XPaths Deprecated
 

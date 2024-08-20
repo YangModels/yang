@@ -16,7 +16,17 @@
 
 ## XPaths Modified
 
+- st-capwap-timer-cfg(grouping)/primed-join-timeout
+
 ### Description
+
+A new must expression added.
+
+st-login-credentials-cfg(grouping)/dot1x-password
+
+### Description
+
+Must expression more constrained than before
 
 ## XPaths Added
 

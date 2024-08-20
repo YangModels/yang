@@ -8,7 +8,11 @@
 
 ## XPaths Obsoleted
 
+- native/platform/qos/port-channel-aggregate
+
 ### Description
+
+Status changed from deprecated to obsolete.
 
 ## XPaths Deprecated
 

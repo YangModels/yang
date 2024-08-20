@@ -8,7 +8,14 @@
 
 ## XPaths Obsoleted
 
+- ap-dna-global-config(grouping)/token
+- ap-dna-global-config(grouping)/token-type
+- general-cfg-data/ap-dna-global-config/token
+- general-cfg-data/ap-dna-global-config/token-type
+
 ### Description
+
+Status changed from current to Obsolete
 
 ## XPaths Deprecated
 

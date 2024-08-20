@@ -16,7 +16,11 @@
 
 ## XPaths Modified
 
+- config-ipv6-dhcp-guard-grouping(grouping)/guard/attach-policy/policy-list/policy-name
+
 ### Description
+
+Must expression more restricted than before.
 
 ## XPaths Added
 

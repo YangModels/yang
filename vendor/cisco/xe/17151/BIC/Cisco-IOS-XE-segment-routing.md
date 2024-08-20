@@ -16,7 +16,11 @@
 
 ## XPaths Modified
 
+- native/segment-routing/srv6/explicit-sids/sid/behavior/forwarding
+
 ### Description
+
+A new when expression added.
 
 ## XPaths Added
 

@@ -16,7 +16,13 @@
 
 ## XPaths Modified
 
+- rrm-cfg(grouping)/rrm/dca-long-interval
+- rrm-cfg-data/rrms/rrm/rrm/dca-long-interval
+- rrm-rrm-config(grouping)/dca-long-interval
+
 ### Description
+
+Must expression more constrained than before.
 
 ## XPaths Added
 

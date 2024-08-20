@@ -8,7 +8,11 @@
 
 ## XPaths Obsoleted
 
+- native/dial-peer/voice/voice-class/sip/options-keepalive/profile
+
 ### Description
+
+Status changed from deprecated to obsolete.
 
 ## XPaths Deprecated
 

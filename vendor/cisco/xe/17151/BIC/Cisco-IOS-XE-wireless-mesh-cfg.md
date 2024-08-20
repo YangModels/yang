@@ -16,7 +16,11 @@
 
 ## XPaths Modified
 
+- st-mesh-profile(grouping)/profile-name
+
 ### Description
+
+New length expression 0..32 added.
 
 ## XPaths Added
 

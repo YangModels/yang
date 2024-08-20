@@ -1,4 +1,4 @@
-## Cisco-IOS-XE-wirless-mstream-cfg.yang
+## Cisco-IOS-XE-rsvp.yang
 
 
 - [XPaths Obsoleted](#xpaths-obsoleted)
@@ -16,7 +16,11 @@
 
 ## XPaths Modified
 
+- config-ip-rsvp-grouping(grouping)/rsvp/signalling/refresh/interval
+
 ### Description
+
+The range is restricted
 
 ## XPaths Added
 

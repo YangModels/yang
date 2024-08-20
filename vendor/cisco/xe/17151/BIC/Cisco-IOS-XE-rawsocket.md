@@ -1,4 +1,4 @@
-## Cisco-IOS-XE-vlan-quake-deviation.yang
+## Cisco-IOS-XE-rawsocket.yang
 
 
 - [XPaths Obsoleted](#xpaths-obsoleted)
@@ -16,7 +16,14 @@
 
 ## XPaths Modified
 
+- native/line/async-line-range/raw-socket/tcp
+- native/line/async-line-range/raw-socket/udp
+- native/line/async-line-single/raw-socket/tcp
+- native/line/async-line-single/raw-socket/udp
+
 ### Description
+
+A new when expression cannot be added.
 
 ## XPaths Added
 

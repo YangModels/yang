@@ -16,7 +16,12 @@
 
 ## XPaths Modified
 
+- ospfv3-af-ipv4-summary-prefix-grouping(grouping)/summary-prefix/tag-no-advertise-choice/tag/tag
+- ospfv3-common-address-family-grouping(grouping)/default-information/originate/metric
+
 ### Description
+
+The range has been restricted.
 
 ## XPaths Added
 
