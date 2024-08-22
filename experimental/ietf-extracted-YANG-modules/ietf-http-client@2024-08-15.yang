@@ -54,7 +54,7 @@ module ietf-http-client {
      (RFC 8174) when, and only when, they appear in all
      capitals, as shown here.";
 
-  revision 2024-07-08 {
+  revision 2024-08-15 {
     description
       "Initial version";
     reference
@@ -62,6 +62,39 @@ module ietf-http-client {
   }
 
   // Features
+
+  feature tls-supported {
+    description
+      "Indicates that the server supports configuring
+       HTTP client certificates.";
+    reference
+      "RFC 9110: HTTP Semantics";
+  }
+
+  feature "http-11-supported" {
+    description
+      "Indicates that the server supports configuring
+       clients to use the HTTP/1.1 protocol.";
+    reference
+      "RFC 9112: HTTP/1.1";
+  }
+
+  feature "http-2-supported" {
+    description
+      "Indicates that the server supports configuring
+       clients to use the HTTP/2 protocol.";
+    reference
+      "RFC 9113: HTTP/2";
+  }
+
+  feature "http-3-supported" {
+    if-feature "tls-supported";
+    description
+      "Indicates that the server supports configuring
+       clients to use the HTTP/3 protocol.";
+    reference
+      "RFC 9114 - HTTP/3";
+  }
 
   feature proxy-connect {
     description
@@ -72,20 +105,12 @@ module ietf-http-client {
       "RFC 9110: HTTP Semantics";
   }
 
-  feature tls-supported {
-    description
-      "Indicates that the server supports configuring
-       HTTP client certificates.";
-    reference
-      "RFC 9110: HTTP Semantics";
-  }
-
   // Groupings
 
-  grouping http-client-grouping {
+  grouping http-client-common-grouping {
     description
-      "A reusable grouping for configuring an HTTP client.";
-
+      "A grouping for the 'http-client-grouping' and
+       its descendant node 'proxy-connect' to use.";
     leaf uri {
       nacm:default-deny-all;
       type inet:uri;
@@ -105,31 +130,68 @@ module ietf-http-client {
         reference
           "RFC 3986  URI Generic Syntax";
     }
-    leaf proxy-uri {
-      if-feature proxy-connect;
-      type inet:uri;
+    leaf protocol-versions {
+      type union {
+        type enumeration {
+          enum any {
+            description
+              "Indicates the client is willing to use any version";
+          }
+        }
+        type bits {
+          bit "http-11" {
+            if-feature "http-11-supported";
+            description
+              "Indicates the client is willing to use HTTP/1.1.";
+          }
+          bit "http-2" {
+            if-feature "http-2-supported";
+            description
+              "Indicates the client is willing to use HTTP/2.";
+          }
+          bit "http-3" {
+            if-feature "http-3-supported";
+            description
+              "Indicates the client is willing to use HTTP/3.";
+          }
+        }
+      }
+      default "any";
       description
-        "Configures the proxy server the HTTP-client is to
-         connect through, per Section 9.3.6 of RFC 9110.
-
-         As described by RFC 3986, URIs encode:
-           - scheme: e.g., https
-           - userinfo: e.g., user@pass
-           - host: e.g., example.com
-           - port: e.g., 443
-           - path: e.g., /foo/bar
-           - query: e.g., ?query
-           - fragment: e.g., #fragment
-        ";
-        reference
-          "RFC 3986  URI Generic Syntax
-           RFC 9110: HTTP Semantics";
+        "HTTP protocol versions the client supports.";
     }
     container tls-client-parameters {
       if-feature "tls-supported";
       description
         "TLS client parameters.";
-      uses tlsc:tls-client-grouping;
+      uses tlsc:tls-client-grouping {
+        refine server-authentication {
+          presence
+            "Indicates that TLS-client parameters have been
+             configured. This statement is present so the
+             mandatory descendant nodes do not imply that
+             this node must be configured.";
+        }
+      }
+    }
+  }
+
+  grouping http-client-grouping {
+    description
+      "A reusable grouping for configuring an HTTP client.";
+    uses http-client-common-grouping;
+    container proxy-connect {
+      if-feature proxy-connect;
+      presence
+        "Indicates that the HTTP-client connects through a proxy.
+         This statement is present so the mandatory descendant
+         nodes do not imply that this node must be configured.";
+      uses http-client-common-grouping;
+      description
+        "Configures the proxy server the HTTP-client is to
+         connect through, per Section 9.3.6 of RFC 9110.";
+      reference
+        "RFC 9110: HTTP Semantics";
     }
   } // grouping http-client-grouping
 
