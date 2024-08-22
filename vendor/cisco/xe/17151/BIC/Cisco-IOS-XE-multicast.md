@@ -1,0 +1,257 @@
+## Cisco-IOS-XE-multicast.yang
+
+
+- [XPaths Obsoleted](#xpaths-obsoleted)
+- [XPaths Deprecated](#xpaths-deprecated)
+- [XPaths Modified](#xpaths-modified)
+- [XPaths Added](#xpaths-added)
+
+## XPaths Obsoleted
+
+- native/interface/AppGigabitEthernet/ip/pim/pim-mode
+- native/interface/AppGigabitEthernet/ip/pim/pim-mode-choice
+- native/interface/AppGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/AppGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/AppGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/AppGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/AppGigabitEthernet/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/AppGigabitEthernet/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/AppGigabitEthernet/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/BDI/ip/pim/pim-mode
+- native/interface/BDI/ip/pim/pim-mode-choice
+- native/interface/BDI/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/BDI/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/BDI/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/BDI/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/BDI/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/BDI/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/BDI/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/Cellular/ip/pim/pim-mode
+- native/interface/Cellular/ip/pim/pim-mode-choice
+- native/interface/Cellular/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/Cellular/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/Cellular/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/Cellular/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/Cellular/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/Cellular/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/Cellular/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/FastEthernet/ip/pim/pim-mode
+- native/interface/FastEthernet/ip/pim/pim-mode-choice
+- native/interface/FastEthernet/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/FastEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/FastEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/FastEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/FastEthernet/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/FastEthernet/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/FastEthernet/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/FiveGigabitEthernet/ip/pim/pim-mode
+- native/interface/FiveGigabitEthernet/ip/pim/pim-mode-choice
+- native/interface/FiveGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/FiveGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/FiveGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/FiveGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/FiveGigabitEthernet/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/FiveGigabitEthernet/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/FiveGigabitEthernet/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/FortyGigabitEthernet/ip/pim/pim-mode
+- native/interface/FortyGigabitEthernet/ip/pim/pim-mode-choice
+- native/interface/FortyGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/FortyGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/FortyGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/FortyGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/FortyGigabitEthernet/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/FortyGigabitEthernet/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/FortyGigabitEthernet/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/GigabitEthernet/ip/pim/pim-mode
+- native/interface/GigabitEthernet/ip/pim/pim-mode-choice
+- native/interface/GigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/GigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/GigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/GigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/GigabitEthernet/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/GigabitEthernet/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/GigabitEthernet/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/HundredGigE/ip/pim/pim-mode
+- native/interface/HundredGigE/ip/pim/pim-mode-choice
+- native/interface/HundredGigE/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/HundredGigE/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/HundredGigE/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/HundredGigE/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/HundredGigE/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/HundredGigE/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/HundredGigE/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/LISP/ip/pim/pim-mode
+- native/interface/LISP/ip/pim/pim-mode-choice
+- native/interface/LISP/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/LISP/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/LISP/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/LISP/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/LISP/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/LISP/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/LISP/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/LISP-subinterface/LISP/ip/pim/pim-mode
+- native/interface/LISP-subinterface/LISP/ip/pim/pim-mode-choice
+- native/interface/LISP-subinterface/LISP/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/LISP-subinterface/LISP/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/LISP-subinterface/LISP/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/LISP-subinterface/LISP/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/LISP-subinterface/LISP/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/LISP-subinterface/LISP/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/LISP-subinterface/LISP/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/Loopback/ip/pim/pim-mode
+- native/interface/Loopback/ip/pim/pim-mode-choice
+- native/interface/Loopback/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/Loopback/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/Loopback/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/Loopback/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/Loopback/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/Loopback/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/Loopback/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/Multilink/ip/pim/pim-mode
+- native/interface/Multilink/ip/pim/pim-mode-choice
+- native/interface/Multilink/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/Multilink/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/Multilink/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/Multilink/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/Multilink/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/Multilink/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/Multilink/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/Port-channel/ip/pim/pim-mode
+- native/interface/Port-channel/ip/pim/pim-mode-choice
+- native/interface/Port-channel/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/Port-channel/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/Port-channel/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/Port-channel/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/Port-channel/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/Port-channel/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/Port-channel/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/Port-channel-subinterface/Port-channel/ip/pim/pim-mode
+- native/interface/Port-channel-subinterface/Port-channel/ip/pim/pim-mode-choice
+- native/interface/Port-channel-subinterface/Port-channel/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/Port-channel-subinterface/Port-channel/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/Port-channel-subinterface/Port-channel/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/Port-channel-subinterface/Port-channel/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/Port-channel-subinterface/Port-channel/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/Port-channel-subinterface/Port-channel/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/Port-channel-subinterface/Port-channel/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/Serial/ip/pim/pim-mode
+- native/interface/Serial/ip/pim/pim-mode-choice
+- native/interface/Serial/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/Serial/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/Serial/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/Serial/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/Serial/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/Serial/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/Serial/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/Serial-subinterface/Serial/ip/pim/pim-mode
+- native/interface/Serial-subinterface/Serial/ip/pim/pim-mode-choice
+- native/interface/Serial-subinterface/Serial/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/Serial-subinterface/Serial/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/Serial-subinterface/Serial/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/Serial-subinterface/Serial/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/Serial-subinterface/Serial/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/Serial-subinterface/Serial/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/Serial-subinterface/Serial/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/TenGigabitEthernet/ip/pim/pim-mode
+- native/interface/TenGigabitEthernet/ip/pim/pim-mode-choice
+- native/interface/TenGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/TenGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/TenGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/TenGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/TenGigabitEthernet/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/TenGigabitEthernet/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/TenGigabitEthernet/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/Tunnel/ip/pim/pim-mode
+- native/interface/Tunnel/ip/pim/pim-mode-choice
+- native/interface/Tunnel/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/Tunnel/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/Tunnel/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/Tunnel/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/Tunnel/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/Tunnel/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/Tunnel/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/TwentyFiveGigE/ip/pim/pim-mode
+- native/interface/TwentyFiveGigE/ip/pim/pim-mode-choice
+- native/interface/TwentyFiveGigE/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/TwentyFiveGigE/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/TwentyFiveGigE/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/TwentyFiveGigE/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/TwentyFiveGigE/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/TwentyFiveGigE/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/TwentyFiveGigE/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/TwoGigabitEthernet/ip/pim/pim-mode
+- native/interface/TwoGigabitEthernet/ip/pim/pim-mode-choice
+- native/interface/TwoGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/TwoGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/TwoGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/TwoGigabitEthernet/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/TwoGigabitEthernet/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/TwoGigabitEthernet/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/TwoGigabitEthernet/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/Vif/ip/pim/pim-mode
+- native/interface/Vif/ip/pim/pim-mode-choice
+- native/interface/Vif/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/Vif/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/Vif/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/Vif/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/Vif/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/Vif/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/Vif/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/Virtual-Template/ip/pim/pim-mode
+- native/interface/Virtual-Template/ip/pim/pim-mode-choice
+- native/interface/Virtual-Template/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/Virtual-Template/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/Virtual-Template/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/Virtual-Template/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/Virtual-Template/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/Virtual-Template/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/Virtual-Template/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/VirtualPortGroup/ip/pim/pim-mode
+- native/interface/VirtualPortGroup/ip/pim/pim-mode-choice
+- native/interface/VirtualPortGroup/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/VirtualPortGroup/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/VirtualPortGroup/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/VirtualPortGroup/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/VirtualPortGroup/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/VirtualPortGroup/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/VirtualPortGroup/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/interface/Vlan/ip/pim/pim-mode
+- native/interface/Vlan/ip/pim/pim-mode-choice
+- native/interface/Vlan/ip/pim/pim-mode-choice/dense/dense-mode
+- native/interface/Vlan/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register
+- native/interface/Vlan/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/list
+- native/interface/Vlan/ip/pim/pim-mode-choice/dense/dense-mode/proxy-register/route-map
+- native/interface/Vlan/ip/pim/pim-mode-choice/passive-mode/passive
+- native/interface/Vlan/ip/pim/pim-mode-choice/sparse/sparse-mode
+- native/interface/Vlan/ip/pim/pim-mode-choice/sparse-dense/sparse-dense-mode
+- native/ip/multicast/route-limit
+- native/ip/pim/rp-address
+- native/ip/pim/rp-address/access-list
+- native/ip/pim/rp-address/address
+- native/ip/pim/rp-address/bidir
+- native/ip/pim/rp-address/override
+- native/ip/pim/vrf/rp-address
+- native/ip/pim/vrf/rp-address/access-list
+- native/ip/pim/vrf/rp-address/address
+- native/ip/pim/vrf/rp-address/bidir
+- native/ip/pim/vrf/rp-address/override
+
+### Description
+
+Status changed from deprecated to obsolete.
+
+## XPaths Deprecated
+
+### Description
+
+## XPaths Modified
+
+- config-interface-ip-pim-grouping(grouping)/dr-priority
+
+### Description
+
+The range '[(0, 4294967294)]' is added
+
+## XPaths Added
+
+### Description
