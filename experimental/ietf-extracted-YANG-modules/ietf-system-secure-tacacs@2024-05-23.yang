@@ -258,7 +258,7 @@ module ietf-system-secure-tacacs {
        and requested by the TLS server when establishing a TLS
        session, these credentials are passed in the Certificate
        message.";
-     choice ref-or-explicit {
+    choice ref-or-explicit {
       description
         "A choice between a reference of explicit configuration.";
       case ref {
@@ -347,11 +347,10 @@ module ietf-system-secure-tacacs {
          using configured external PSKs.";
     }
   }
-
   grouping server-authentication-with-ref {
     description
       "Specifies how the TLS client can authenticate TLS servers.";
-     choice ref-or-explicit {
+    choice ref-or-explicit {
       description
         "A choice between a reference of explicit configuration.";
       case ref {
@@ -368,37 +367,6 @@ module ietf-system-secure-tacacs {
           "Explicit configuration.";
         uses server-authentication;
       }
-    }
-  }
-
-  grouping test-peer-aliveness {
-    description
-      "Configures the keep-alive policy to proactively test
-       the aliveness of the TLS server.  An unresponsive TLS
-       server is dropped after approximately max-wait
-       * max-attempts seconds.";
-    reference
-      "RFC 6520: Transport Layer Security (TLS) and Datagram
-                 Transport Layer Security (DTLS) Heartbeat
-                 Extension";
-    leaf max-wait {
-      type uint16 {
-        range "1..max";
-      }
-      units "seconds";
-      default "30";
-      description
-        "Sets the amount of time in seconds after which if no data
-         has been received from the TLS server, a TLS-level message
-         will be sent to test the aliveness of the TLS server.";
-    }
-    leaf max-attempts {
-      type uint8;
-      default "3";
-      description
-        "Sets the maximum number of sequential keep-alive messages
-         that can fail to obtain a response from the TLS server
-         before assuming the TLS server is no longer alive.";
     }
   }
 
@@ -421,32 +389,6 @@ module ietf-system-secure-tacacs {
                 "TLS 1.2 is not supported as max TLS version";
         }
       }
-    }
-  }
-
-  grouping keepalives {
-    description
-      "Configures the keepalive policy for the TLS client.";
-    nacm:default-deny-write;
-    leaf peer-allowed-to-send {
-      type empty;
-      description
-        "Indicates that the remote TLS server is allowed to send
-         HeartbeatRequest messages to this TLS client.";
-      reference
-        "RFC 6520: Transport Layer Security (TLS) and Datagram
-                   Transport Layer Security (DTLS) Heartbeat
-                   Extension";
-    }
-    container test-peer-aliveness {
-      presence "Indicates that the TLS client proactively tests the
-                aliveness of the remote TLS server.";
-      description
-        "Configures the keep-alive policy to proactively test the
-         aliveness of the TLS server.  An unresponsive TLS server is
-         dropped after approximately max-wait * max-attempts
-         seconds.";
-      uses test-peer-aliveness;
     }
   }
 
@@ -480,12 +422,6 @@ module ietf-system-secure-tacacs {
         "Configurable parameters for the TLS hello message.";
       uses hello-params;
     }
-    container keepalives {
-      if-feature "tlsc:tls-client-keepalives";
-      description
-        "Configures the keepalive policy for the TLS client.";
-      uses keepalives;
-    }
   }
 
   grouping tcp-server-info {
@@ -508,6 +444,38 @@ module ietf-system-secure-tacacs {
         type inet:port-number;
         description
           "The remote port number of the server.";
+      }
+    }
+  }
+
+  // currently not used
+
+  grouping tls-grouping-reuse {
+    description
+      "A grouping for TLS with TLS1.2 and keepalive removed.";
+    uses tlsc:tls-client-grouping {
+      refine "client-identity/auth-type/tls12-psk" {
+        if-feature "not tlsc:client-ident-tls12-psk";
+      }
+      refine "server-authentication/tls12-psks" {
+        if-feature "not tlsc:server-auth-tls12-psk";
+      }
+      refine "hello-params/tls-versions/min" {
+        must "not(derived-from-or-self(current(), "
+           + "'tlscmn:tls12'))" {
+          error-message
+                "TLS 1.2 is not supported as min TLS version";
+        }
+      }
+      refine "hello-params/tls-versions/max" {
+        must "not(derived-from-or-self(current(), "
+           + "'tlscmn:tls12'))" {
+          error-message
+                "TLS 1.2 is not supported as max TLS version";
+        }
+      }
+      refine "keepalives" {
+        if-feature "not tlsc:tls-client-keepalives";
       }
     }
   }
@@ -571,9 +539,8 @@ module ietf-system-secure-tacacs {
     }
   }
 
-  augment
-    "/sys:system/sys-tcs-plus:tacacs-plus/sys-tcs-plus:server"
-  + "/sys-tcs-plus:security" {
+  augment "/sys:system/sys-tcs-plus:tacacs-plus/sys-tcs-plus:server"
+        + "/sys-tcs-plus:security" {
     description
       "Adds TLS case.";
     case tls {
