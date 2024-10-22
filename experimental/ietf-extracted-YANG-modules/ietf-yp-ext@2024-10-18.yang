@@ -1,0 +1,335 @@
+module ietf-yp-ext {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-yp-ext";
+  prefix yp-ext;
+
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-subscribed-notifications {
+    prefix sn;
+    reference
+      "RFC 8639: Subscription to YANG Notifications";
+  }
+  import ietf-yang-push {
+    prefix yp;
+    reference
+      "RFC 8641: Subscription to YANG Datastores";
+  }
+
+  organization
+    "IETF NETCONF (Network Configuration) Working Group";
+  contact
+    "WG Web:  <https:/datatracker.ietf.org/wg/netconf/>
+     WG List: <mailto:netconf@ietf.org>
+
+     Author:  Robert Wilton
+              <mailto:rwilton@cisco.com>";
+
+  description
+    "This module contains YANG specifications for YANG-Push extensions.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.
+
+     Copyright (c) 2024 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Simplified BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 8641; see the
+     RFC itself for full legal notices.";
+
+  revision 2024-10-18 {
+    description
+      "Initial revision.";
+    reference
+      "XXX: YANG Push Observability Extensions ";
+  }
+
+  /*
+   * FEATURES
+   */
+
+  /*
+   * IDENTITIES
+   */
+
+  /*
+   * TYPE DEFINITIONS
+   */
+
+  /*
+   * GROUP DEFINITIONS
+   */
+
+  grouping periodic-and-on-change {
+    description
+      "This grouping describes the datastore-specific subscription
+       that represents a combined periodic and on-change subscription.";
+    container periodic-and-on-change {
+      presence
+        "A combined periodic and on-change subscription";
+      description
+        "The publish notifies the receiver on the specific
+          periodic, and also whenever any of the data changes.";
+      leaf period {
+        type yp:centiseconds;
+        mandatory true;
+        description
+          "Duration of time that should occur between periodic
+          push updates, in units of 0.01 seconds.";
+      }
+      leaf anchor-time {
+        type yang:date-and-time;
+        description
+          "Designates a timestamp before or after which a series
+          of periodic push updates are determined.  The next
+          update will take place at a point in time that is a
+          multiple of a period from the 'anchor-time'.
+          For example, for an 'anchor-time' that is set for the
+          top of a particular minute and a period interval of a
+          minute, updates will be sent at the top of every
+          minute that this subscription is active.";
+      }
+      leaf dampening-period {
+        type yp:centiseconds;
+        default "0";
+        description
+          "Specifies the minimum interval between the assembly of
+            successive update records for a single receiver of a
+            subscription.  Whenever subscribed objects change and
+            a dampening-period interval (which may be zero) has
+            elapsed since the previous update record creation for
+            a receiver, any subscribed objects and properties
+            that have changed since the previous update record
+            will have their current values marshalled and placed
+            in a new update record.";
+      }
+      leaf sync-on-start {
+        type boolean;
+        default "true";
+        description
+          "When this object is set to 'false', (1) it restricts an
+          on-change subscription from sending 'push-update'
+          notifications and (2) pushing a full selection per the
+          terms of the selection filter MUST NOT be done for
+          this subscription.  Only updates about changes
+          (i.e., only 'push-change-update' notifications)
+          are sent.  When set to 'true' (the default behavior),
+          in order to facilitate a receiver's synchronization,
+          a full update is sent, via a 'push-update' notification,
+          when the subscription starts.  After that,
+          'push-change-update' notifications are exclusively sent,
+          unless the publisher chooses to resync the subscription
+          via a new 'push-update' notification.";
+      }
+      leaf-list excluded-change {
+        type yp:change-type;
+        description
+          "Used to restrict which changes trigger an update.  For
+           example, if a 'replace' operation is excluded, only the
+           creation and deletion of objects are reported.
+
+           TODO - Do we want this leaf?";
+      }
+    }
+  }
+
+  grouping common-notification-format {
+    description
+      "This grouping describes the common-notif-format leaf that
+       controls whether the new common message format is used for periodic
+       and on-change notifications.";
+    leaf common-notification-format {
+      type boolean;
+      default "false";
+      description
+        "This leaf controls whether the new common message format
+         is used for periodic and on-change notifications.  If set
+         to 'true', the new common message format is used.  If set
+         to 'false', the old message format is used.
+
+         TODO - Should we support hierarchical configuration here
+         (e.g., also add the leaf to the subscription container,
+         or it could be added to the receiver instead)?";
+    }
+  }
+
+  /*
+   * RPCs
+   */
+
+  /*
+   * NOTIFICATIONS
+   */
+
+  notification update {
+    description
+      "This notification contains a push update that in turn contains
+       data subscribed to via a subscription.  In the case of a
+       periodic subscription, this notification is sent for periodic
+       updates.  It can also be used for synchronization updates of
+       an on-change subscription.  This notification shall only be
+       sent to receivers of a subscription.  It does not constitute
+       a general-purpose notification that would be subscribable as
+       part of the NETCONF event stream by any receiver.";
+    leaf id {
+      type sn:subscription-id;
+      description
+        "This references the subscription that drove the
+         notification to be sent.";
+    }
+
+    leaf subscription-path {
+      type yang:xpath1.0;
+      description
+        "The subscription path indicates the schema path from the root of the
+         schema tree to the node, for which the updated state is being
+         notified, or a notification that is has been deleted.
+
+         TODO - Make this an instance data ref";
+    }
+
+    leaf target-path {
+      type string;
+    }
+
+    leaf snapshot-type {
+      type enumeration {
+        enum "periodic" {
+          description
+            "The update message is due to a periodic update.";
+        }
+        enum "on-change-update" {
+          description
+            "The update message is due to an on-change update.  This
+             means that one or more fields have changed under the
+             snapshot path.
+
+             TODO - Split this into a on-change-delete msg?";
+        }
+        enum "on-change-delete" {
+          description
+            "The update message is due to an on-change event where
+             the data node at the target path has been delete.";
+        }
+        enum "resync" {
+          description
+            "This indicates that the update is to resynchronize the
+             state, e.g., after a subscription started notification.
+
+             Ideally, the resync message SHOULD be the first
+             notification sent when a subscription has started, but
+             it is not gauranteed or required to be the first
+             (e.g., if an on-change event occurs).
+
+             These messages can be used to ensure that all state
+             has been sent to the client, and can be used to purge
+             stale data.
+
+             TODO - In the distributed notification case, need a
+             notification to indicate that all child subscriptions
+             have been sent.";
+        }
+      }
+      description
+        "This indicates the type of notification message that is being sent.";
+    }
+
+    // Could add observation time here.
+    leaf observation-time {
+      type yang:date-and-time;
+      description
+        "The time that the update was observed by the publisher.";
+    }
+
+    anydata datastore-snapshot {
+      description
+        "This contains the updated data.  It constitutes a snapshot
+        at the time of update of the set of data that has been
+        subscribed to.  The snapshot corresponds to the same
+        snapshot that would be returned in a corresponding 'get'
+        operation with the same selection filter parameters
+        applied.
+
+        Used for snapshot types except for 'on-change-delete'.";
+    }
+
+    leaf incomplete {
+      type empty;
+      description
+        "This is a flag that indicates that not all datastore
+        nodes subscribed to are included with this update.  Receivers
+        of this data SHOULD NOT assume that any missing data has been
+        implicitly deleted.
+
+        TODO - Do we still want this flag, or would it be
+        better to notify this event out of band?";
+    }
+  }
+
+  augment "/sn:subscription-started/yp:update-trigger" {
+    if-feature "yp:on-change";
+    description
+      "Allow a subscription started notification to signal a
+       combined periodic and on-change subscription.";
+    case periodic-and-on-change {
+      uses periodic-and-on-change;
+    }
+  }
+
+  augment "/sn:subscription-started" {
+    description
+      "Allow a subscription started notification to signal that it
+       uses the common notification format.";
+    uses common-notification-format;
+  }
+
+  augment "/sn:subscription-modified/yp:update-trigger" {
+    if-feature "yp:on-change";
+    description
+      "Allow a subscription started notification to signal a
+       combined periodic and on-change subscription.";
+    case periodic-and-on-change {
+      uses periodic-and-on-change;
+    }
+  }
+
+  augment "/sn:subscription-modified" {
+    description
+      "Allow a subscription modified notification to signal that it
+       uses the common notification format.";
+    uses common-notification-format;
+  }
+
+  /*
+   * DATA NODES
+   */
+
+  augment "/sn:subscriptions/sn:subscription/yp:update-trigger" {
+    when 'yp:datastore';
+    if-feature "yp:on-change";
+    description
+      "This augmentation adds objects to a subscription that are
+       specific to a datastore subscription, i.e., a subscription to
+       a stream of datastore node updates.";
+    case periodic-and-on-change {
+      uses periodic-and-on-change;
+    }
+  }
+
+  augment "/sn:subscriptions/sn:subscription" {
+    uses common-notification-format;
+  }
+}
