@@ -6,12 +6,14 @@
 cwd=$(pwd)
 ietf_dir="standard/ietf"
 ieee_dir="standard/ieee"
+iana_dir="standard/iana"
 to_check="RFC"
 
 # relax constraint for now
 # add --ietf if you want to do strict IETF checking
 ieee_dir_flag="--path $cwd/$ieee_dir/published/"
-pyang_flags="--verbose $ieee_dir_flag"
+iana_dir_flag="--path $cwd/$iana_dir/"
+pyang_flags="--verbose $ieee_dir_flag $iana_dir_flag"
 
 checkDir() {
     local dir="$ietf_dir/$1"
