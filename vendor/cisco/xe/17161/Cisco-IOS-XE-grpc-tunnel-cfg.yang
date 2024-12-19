@@ -1,0 +1,222 @@
+module Cisco-IOS-XE-grpc-tunnel-cfg {
+  yang-version 1.1;
+  namespace "http://cisco.com/ns/yang/Cisco-IOS-XE-grpc-tunnel-cfg";
+  prefix grpc-tunnel-cfg;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import cisco-semver {
+    prefix cisco-semver;
+  }
+
+  organization
+    "Cisco Systems, Inc.";
+  contact
+    "Cisco Systems, Inc.
+     Customer Service
+
+     Postal: 170 W Tasman Drive
+     San Jose, CA 95134
+
+     Tel: +1 1800 553-NETS
+
+     E-mail: cs-yang@cisco.com";
+  description
+    "This module contains a collection of YANG definitions
+     for gRPC tunnel configuration data.
+     Copyright (c) 2022 by Cisco Systems, Inc.
+     All rights reserved.";
+
+  revision 2023-03-01 {
+    description
+      "Initial revision";
+    reference
+      "1.0.0";
+    cisco-semver:module-version "1.0.0";
+  }
+
+  typedef grpctunnel-addrhost-etype {
+    type enumeration {
+      enum grpctunnel-address-type-unspecified {
+        value 0;
+        description
+          "The target address is unspecified";
+      }
+      enum grpctunnel-address-type-ip {
+        value 1;
+        description
+          "The target is specified using an IP address";
+      }
+    }
+    description
+      "Enumeration listing the various gRPC tunnel target address types";
+  }
+
+  typedef gprctunnel-secure-etype {
+    type enumeration {
+      enum grpctunnel-secure-none {
+        value 0;
+        description
+          "Connect insecurely to the destination";
+      }
+      enum grpctunnel-secure-identity {
+        value 1;
+        description
+          "Connect using TLS to the destination";
+      }
+    }
+    description
+      "Enumeration listing the various gRPC tunnel security options";
+  }
+
+  typedef grpctunnel-target-type {
+    type enumeration {
+      enum tunnel-target-gnmi-gnoi {
+        value 0;
+        description
+          "gNMI/gNOI target type (secure)";
+      }
+      enum tunnel-target-gnmi-gnoi-insecure {
+        value 1;
+        description
+          "gNMI/gNOI target type (insecure)";
+      }
+    }
+    description
+      "The target protocols that may be used with the gRPC tunnel";
+  }
+
+  grouping grpctunnel-target-config {
+    description
+      "Configuration options for a single gRPC tunnel target type";
+    leaf target-type {
+      type grpc-tunnel-cfg:grpctunnel-target-type;
+      description
+        "The gRPC tunnel target being configured";
+    }
+    leaf enable {
+      type boolean;
+      default "false";
+      description
+        "Enable or disable the target for use with gRPC tunnels";
+    }
+    leaf port-override {
+      type boolean;
+      default "false";
+      description
+        "Use the provided port-override-value for this target type instead of the default port value.";
+    }
+    leaf port-override-value {
+      type uint16;
+      must "((../port-override = 'true') and (../port-override-value > 0)) or (../port-override = 'false')" {
+        error-message "port-override-value must be a valid port number when port-override is true";
+      }
+      default "0";
+      description
+        "For use with port-override. Use a custom port number for this target type";
+    }
+  }
+
+  grouping grpctunnel-dest-config {
+    description
+      "Configuration options for a gRPC tunnel destination";
+    leaf server-id {
+      type string {
+        length "1..512";
+        pattern '[0-9a-zA-Z/\-_]*';
+      }
+      description
+        "User-provided identifier for this gRPC tunnel destination configuration";
+    }
+    leaf enable {
+      type boolean;
+      default "false";
+      description
+        "Enable or disable this gRPC tunnel destination";
+    }
+    leaf src-vrf {
+      type string;
+      description
+        "The Virtual Routing and Forwarding (VRF) instance to use for this connection. The default VRF will be used if src-vrf is empty";
+    }
+    leaf src-addr {
+      type inet:ip-address;
+      description
+        "The source address to use for outbound gRPC tunnel connections. The address associated with the Mgmt-intf will be used if this is unspecified";
+    }
+    leaf destination-port {
+      type uint16;
+      must "(../enable = 'false') or ((../enable = 'true') and (../destination-port > 0))" {
+        error-message "The destination port must be valid when this destination is enabled";
+      }
+      default "0";
+      description
+        "The destination port that will be used for the outbound gRPC connection";
+    }
+    choice addrhost-type-choice {
+      default "grpctunnel-address-type-unspecified";
+      description
+        "Destination address configuration for the outbound gRPC connection";
+      case grpctunnel-address-type-unspecified {
+        leaf unspecified {
+          type boolean;
+          must "current() = 'true'";
+          must "../enable = 'false'" {
+            error-message "The destination address may not be unspecified when the destination is enabled";
+          }
+          default "true";
+          description
+            "The destination address is unspecified";
+        }
+      }
+      case grpctunnel-address-type-ip {
+        leaf dest-addr {
+          type inet:ip-address;
+          description
+            "The destination is specified using an IP address";
+        }
+      }
+    }
+    choice secure-type-choice {
+      default "grpctunnel-secure-none";
+      description
+        "Destination address configuration for the outbound gRPC connection";
+      case grpctunnel-secure-none {
+        leaf insecure {
+          type boolean;
+          must "current() = 'true'";
+          default "true";
+          description
+            "The outgoing connection to the destination is insecure";
+        }
+      }
+      case grpctunnel-secure-identity {
+        leaf identity-tsname {
+          type string {
+            length "1..512";
+          }
+          description
+            "The outgoing connection to the destination is secured with TLS";
+        }
+      }
+    }
+  }
+
+  container grpc-tunnel-cfg-data {
+    description
+      "gRPC tunnel configuration data.";
+    list grpctunnel-target-config {
+      key "target-type";
+      description
+        "Configure individual targets that may be used with the gRPC tunnel";
+      uses grpc-tunnel-cfg:grpctunnel-target-config;
+    }
+    list grpctunnel-dest-config {
+      key "server-id";
+      description
+        "Configure an outbound gRPC tunnel connection to a specified destination";
+      uses grpc-tunnel-cfg:grpctunnel-dest-config;
+    }
+  }
+}
