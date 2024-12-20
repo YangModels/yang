@@ -1,0 +1,702 @@
+module Cisco-IOS-XE-site-manager {
+  yang-version 1.1;
+  namespace "http://cisco.com/ns/yang/Cisco-IOS-XE-site-manager";
+  prefix ios-site-manager;
+
+  import cisco-semver {
+    prefix cisco-semver;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import Cisco-IOS-XE-types {
+    prefix ios-types;
+  }
+  import Cisco-IOS-XE-native {
+    prefix ios;
+  }
+  import Cisco-IOS-XE-atm {
+    prefix ios-atm;
+  }
+
+  organization
+    "Cisco Systems, Inc.";
+  contact
+    "Cisco Systems, Inc.
+     Customer Service
+
+     Postal: 170 W Tasman Drive
+     San Jose, CA 95134
+
+     Tel: +1 1800 553-NETS
+
+     E-mail: cs-yang@cisco.com";
+  description
+    "Cisco XE Native Policy Map Yang Model.
+     Copyright (c) 2018, 2020 by Cisco Systems, Inc.
+     All rights reserved.";
+
+  revision 2022-11-01 {
+    description
+      "- Update yang-version to 1.1";
+    cisco-semver:module-version "1.2.0";
+  }
+  revision 2020-07-01 {
+    description
+      "Add site-manager load-sharing, probe, link-group and interface weight";
+    cisco-semver:module-version "1.1.0";
+  }
+  revision 2019-07-01 {
+    description
+      "Establish semantic version baseline";
+    cisco-semver:module-version "1.0.0";
+  }
+  revision 2019-03-02 {
+    description
+      "Added leaf for App-hosting Gigabit Ethernet interface";
+  }
+  revision 2018-12-13 {
+    description
+      "Deleting site-manager's name as IOS CLI deleting it";
+  }
+  revision 2018-11-21 {
+    description
+      "Adding site-manager";
+  }
+
+  typedef site-manager-site-type {
+    type enumeration {
+      enum hub;
+      enum branch;
+    }
+  }
+
+  grouping config-password {
+    container password {
+      description
+        "MD5 password to be used with MC or BRs";
+      leaf enryption-type {
+        description
+          "Encryption type (0=not yet encrypted) (7=encrypted) password";
+        type enumeration {
+          enum 0;
+          enum 7;
+        }
+      }
+      leaf auth-password {
+        description
+          "authentication password";
+        type string;
+      }
+    }
+  }
+
+  grouping config-source-interface {
+    container source-interface {
+      description
+        "Source Interface for master controller";
+      leaf Loopback {
+        description
+          "Loopback interface";
+        type leafref {
+          path "/ios:native/ios:interface/ios:Loopback/ios:name";
+        }
+      }
+    }
+  }
+
+  grouping config-class-app-policy-type {
+    leaf policy {
+      description
+        "Specify the policy (user defined/predefined)";
+      type enumeration {
+        enum best-effort;
+        enum custom;
+        enum saas-dca;
+      }
+    }
+  }
+
+  grouping class-app-group {
+    list app-group {
+      description
+        "Specify the application names";
+      key "name";
+      leaf name {
+        description
+          "user-defined application name";
+        type string;
+      }
+      uses config-class-app-policy-type;
+    }
+  }
+
+  grouping class-application {
+    list application {
+      description
+        "Specify the application names";
+      key "name";
+      leaf name {
+        description
+          "user-defined application name";
+        type string;
+      }
+      uses config-class-app-policy-type;
+    }
+  }
+
+  grouping config-policy-class {
+    list class {
+      description
+        "Create site-manager class and enter site-manager class command mode";
+      key "name sequence";
+      leaf name {
+        description
+          "site-manager class name";
+        type string;
+      }
+      leaf sequence {
+        description
+          "Set the Sequence for the class";
+        type uint16 {
+          range "1..65535";
+        }
+      }
+      container probe {
+        description
+          "Specify probe";
+        when "../../type = 'dia'";
+        container icmp {
+          description
+            "Specify ICMP to probe protocol";
+          leaf address {
+            description
+              "Specify address for probe";
+            type inet:ipv4-address;
+          }
+          leaf dscp {
+            description
+              "DSCP value";
+            type ios-types:dscp-type;
+          }
+        }
+      }
+      container load-sharing {
+        description
+          "Specify load sharing";
+        when "../../type = 'dia'";
+        container algorithm {
+          description
+            "Specify load sharing algorithm";
+          choice algorithm-choice {
+            case universal-case {
+              container universal {
+                description
+                  "Algorithm for use in most environments";
+                presence "true";
+              }
+            }
+            case per-packet-case {
+              container per-packet {
+                description
+                  "Algorithm for use in per-packet environments";
+                presence "true";
+              }
+            }
+            case original-case {
+              container original {
+                description
+                  "Algorithm for original";
+                presence "true";
+              }
+            }
+            case include-ports-case {
+              container include-ports {
+                description
+                  "Algorithm that includes layer 4 ports";
+                presence "true";
+                choice include-ports-type-choice {
+                  case distination-case {
+                    container destination {
+                      description
+                        "Use destination port in hash function";
+                      presence "true";
+                    }
+                  }
+                  case source-case {
+                    container source {
+                      description
+                        "Use source port in hash function";
+                      presence "true";
+                      container destination {
+                        description
+                          "Use source and destination ports in hash function";
+                        presence "true";
+                        leaf gtp {
+                          description
+                            "Use GTP te-id as source and destination ports in hash";
+                          type empty;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        leaf flow-stickiness {
+          description
+            "Apply load sharing flow stickiness";
+          type enumeration {
+            enum disable;
+            enum enable;
+          }
+        }
+      }
+      container match {
+        description
+          "Specify the applications the policy applies to";
+        uses class-app-group;
+        uses class-application;
+      }
+      container path-preference {
+        description
+          "Specify the preferred provider";
+        leaf primary {
+          description
+            "Primary service provider";
+          type string;
+        }
+        leaf primary2 {
+          description
+            "Primary service provider";
+          type string;
+        }
+        leaf primary3 {
+          description
+            "Primary service provider";
+          type string;
+        }
+        leaf primary4 {
+          description
+            "Primary service provider";
+          type string;
+        }
+        leaf fallback {
+          description
+            "Specify the fallback provider";
+          type union {
+            type enumeration {
+              enum routing;
+            }
+            type string;
+          }
+        }
+        leaf fallback2 {
+          description
+            "Fallback service provider";
+          type string;
+        }
+        leaf fallback3 {
+          description
+            "Fallback service provider";
+          type string;
+        }
+        leaf fallback4 {
+          description
+            "Fallback service provider";
+          type string;
+        }
+        leaf next-fallback {
+          description
+            "Specify the next-fallback provider";
+          type union {
+            type enumeration {
+              enum routing;
+            }
+            type string;
+          }
+        }
+        leaf next-fallback2 {
+          description
+            "Next-fallback service provider";
+          type string;
+        }
+        leaf next-fallback3 {
+          description
+            "Next-fallback service provider";
+          type string;
+        }
+        leaf next-fallback4 {
+          description
+            "Next-fallback service provider";
+          type string;
+        }
+      }
+    }
+  }
+
+  grouping config-policy {
+    container policy {
+      description
+        "Create policy with policy group or policy type and service type";
+      list local {
+        description
+          "Create local policy";
+        when "../../name = 'branch'";
+        key "type";
+        leaf type {
+          description
+            "Select policy service type";
+          type enumeration {
+            enum dia;
+            enum dca;
+          }
+        }
+        uses config-policy-class;
+      }
+      list group {
+        description
+          "Create group policy";
+        when "../../name = 'hub'";
+        key "group-name type";
+        leaf group-name {
+          description
+            "Create group policy";
+          type union {
+            type enumeration {
+              enum default;
+            }
+          }
+        }
+        leaf type {
+          description
+            "Select policy service type";
+          type enumeration {
+            enum dia;
+            enum dca;
+          }
+        }
+        uses config-policy-class;
+      }
+    }
+  }
+
+  grouping config-interface-site-manager-weight {
+    leaf weight {
+      description
+        "Specify DIA interface's weight";
+      type int16 {
+        range "1..255";
+      }
+    }
+  }
+
+  grouping config-interface-site-manager-grouping {
+    container site-manager {
+      description
+        "Specify a site-manager";
+      choice sitemgr-path-type {
+        case sitemgr-path {
+          leaf path {
+            description
+              "Specify a service provider for this interface";
+            type string;
+          }
+          leaf direct-internet-access {
+            description
+              "Specify Direct-Internet-Access interface";
+            type empty;
+          }
+          uses config-interface-site-manager-weight;
+        }
+        case sitemgr-inside {
+          leaf inside {
+            description
+              "Designate this interface as LAN interface on Branch border";
+            type empty;
+          }
+        }
+        case sitemgr-link-group {
+          container link-group {
+            description
+              "Specify the link-group of DIA interface";
+            presence "true";
+            leaf link-group-name {
+              description
+                "Specify a link-group name for this interface";
+              type string;
+            }
+            leaf direct-internet-access {
+              description
+                "Specify Direct-Internet-Access interface";
+              type empty;
+            }
+            uses config-interface-site-manager-weight;
+          }
+        }
+      }
+    }
+  }
+
+  grouping config-allvrfs-hub-br-common {
+    leaf dca-probe-http-interval {
+      description
+        "DCA sla http probe interval";
+      type union {
+        type int8 {
+          range "20..60";
+        }
+        type enumeration {
+          enum infinite;
+        }
+      }
+    }
+    leaf dia-probe-icmp-interval {
+      description
+        "DIA sla icmp probe interval";
+      type union {
+        type int8 {
+          range "20..60";
+        }
+        type enumeration {
+          enum infinite;
+        }
+      }
+    }
+    leaf dns-redirect {
+      description
+        "Specify new dns resolver address for DCA";
+      type inet:ipv4-address;
+    }
+  }
+
+  grouping config-sitemgr-grouping {
+    container site-manager {
+      description
+        "Configure Site Manager";
+      presence "true";
+      list master {
+        description
+          "Enter master controller configuration submode";
+        key "name";
+        leaf name {
+          type site-manager-site-type;
+        }
+        container advanced {
+          description
+            "Advanced configuration submode";
+          when "../name = 'hub'";
+          uses config-allvrfs-hub-br-common;
+        }
+        uses config-allvrfs-hub-br-common;
+        container domain-map {
+          description
+            "Enter domain mapping configuration submode";
+          when "../name = 'branch'";
+          list application {
+            description
+              "Application name";
+            key "name";
+            leaf name {
+              description
+                "Specify the application name of the mapping";
+              type string;
+            }
+            leaf domain {
+              description
+                "Domain url";
+              type string;
+            }
+            leaf dscp {
+              description
+                "DSCP value";
+              type ios-types:dscp-type;
+            }
+          }
+        }
+      }
+      list vrf {
+        description
+          "Configure Site Manager VRF";
+        key "name";
+        leaf name {
+          description
+            "Configure VRF";
+          type string;
+        }
+        container border {
+          description
+            "Configure Site Manager's Border in VRF";
+          leaf master {
+            description
+              "Specify IP address of Site-manager master controller";
+            type union {
+              type enumeration {
+                enum local;
+              }
+              type inet:ipv4-address;
+            }
+          }
+          leaf shutdown {
+            description
+              "Disable Site-manager border router functionality";
+            type empty;
+          }
+          uses config-source-interface;
+          uses config-password;
+        }
+        list master {
+          description
+            "Configure Site Manager VRF";
+          key "name";
+          leaf name {
+            description
+              "Configure Master type";
+            type site-manager-site-type;
+          }
+          uses config-source-interface;
+          leaf shutdown {
+            description
+              "Disable site-manager master controller functionality";
+            type empty;
+          }
+          container advanced {
+            description
+              "Advanced configuration submode";
+            when "../name = 'hub'";
+            container tcp {
+              description
+                "Specify tcp port numbers for mc-br communication";
+              leaf mc-port {
+                description
+                  "Specify tcp MC self port for mc-br communication";
+                type uint16 {
+                  range "1..65535";
+                }
+              }
+            }
+            leaf connection-keepalive-interval {
+              description
+                "Specify timer to send keepalives to peer";
+              type int8 {
+                range "1..60";
+              }
+            }
+          }
+          uses config-password;
+          uses config-policy;
+        }
+      }
+    }
+  }
+
+  augment "/ios:native" {
+    uses config-sitemgr-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:Ethernet" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:FastEthernet" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:ATM" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:ATM-subinterface/ios:ATM" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:ATM/ios-atm:pvc" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:ATM-subinterface/ios:ATM/ios-atm:pvc" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:GigabitEthernet" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:TenGigabitEthernet" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:FiveGigabitEthernet" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:AppGigabitEthernet" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:TwentyFiveGigE" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:FortyGigabitEthernet" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:TwoGigabitEthernet" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:HundredGigE" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:Multilink" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:Port-channel" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:Tunnel" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:LISP" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:Virtual-Template" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:vasileft" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:vasiright" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:Vlan" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:BDI" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:Cellular" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:Dialer" {
+    uses config-interface-site-manager-grouping;
+  }
+
+  augment "/ios:native/ios:interface/ios:Serial" {
+    uses config-interface-site-manager-grouping;
+  }
+}
