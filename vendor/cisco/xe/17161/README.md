@@ -73,9 +73,106 @@ listed below. As model content may differ based on platform capabilities, sample
 
 #### Native Models Modified 
 
+* Cisco-IOS-XE-aaa-types.yang 
+* Cisco-IOS-XE-aaa.yang 
+* Cisco-IOS-XE-acl.yang 
+* Cisco-IOS-XE-atm.yang 
+* Cisco-IOS-XE-bfd.yang 
+* Cisco-IOS-XE-bgp.yang 
+* Cisco-IOS-XE-bridge-domain.yang 
+* Cisco-IOS-XE-call-home.yang 
+* Cisco-IOS-XE-cdp.yang 
+* Cisco-IOS-XE-cef-deviation.yang 
+* Cisco-IOS-XE-cef.yang 
+* Cisco-IOS-XE-cellwan-oper.yang 
+* Cisco-IOS-XE-controller.yang 
+* Cisco-IOS-XE-crypto.yang 
+* Cisco-IOS-XE-cts.yang 
+* Cisco-IOS-XE-device-hardware-oper.yang 
+* Cisco-IOS-XE-dhcp-security-track-server-oper.yang 
+* Cisco-IOS-XE-dhcp.yang 
+* Cisco-IOS-XE-digitalio.yang 
+* Cisco-IOS-XE-eem.yang 
+* Cisco-IOS-XE-ethernet-cfm-efp.yang 
+* Cisco-IOS-XE-ethernet-oam.yang 
+* Cisco-IOS-XE-ethernet.yang 
+* Cisco-IOS-XE-ezpm.yang 
+* Cisco-IOS-XE-features.yang 
+* Cisco-IOS-XE-flow.yang 
+* Cisco-IOS-XE-ha-oper.yang 
+* Cisco-IOS-XE-hsrp.yang 
+* Cisco-IOS-XE-http.yang 
+* Cisco-IOS-XE-igmp.yang 
+* Cisco-IOS-XE-install-event-types.yang 
+* Cisco-IOS-XE-interface-common.yang 
+* Cisco-IOS-XE-interfaces-deviation.yang 
+* Cisco-IOS-XE-interfaces-oper.yang 
+* Cisco-IOS-XE-interfaces.yang 
+* Cisco-IOS-XE-ip.yang 
+* Cisco-IOS-XE-ipc.yang 
+* Cisco-IOS-XE-ipv6.yang 
+* Cisco-IOS-XE-l2vpn.yang 
+* Cisco-IOS-XE-line.yang 
+* Cisco-IOS-XE-lisp.yang 
+* Cisco-IOS-XE-mdns-gateway.yang 
+* Cisco-IOS-XE-meraki-connect-oper.yang 
+* Cisco-IOS-XE-mpls.yang 
+* Cisco-IOS-XE-multicast.yang 
+* Cisco-IOS-XE-nat.yang 
+* Cisco-IOS-XE-native.yang 
+* Cisco-IOS-XE-nd.yang 
+* Cisco-IOS-XE-nhrp.yang 
+* Cisco-IOS-XE-ntp.yang 
+* Cisco-IOS-XE-nwpi-oper.yang 
+* Cisco-IOS-XE-nwpi-rpc.yang 
+* Cisco-IOS-XE-nwpi-types.yang 
+* Cisco-IOS-XE-ospf.yang 
+* Cisco-IOS-XE-parser.yang 
+* Cisco-IOS-XE-perf-measure-oper.yang 
+* Cisco-IOS-XE-pim-oper.yang 
+* Cisco-IOS-XE-platform.yang 
+* Cisco-IOS-XE-poe-oper.yang 
+* Cisco-IOS-XE-policy.yang 
+* Cisco-IOS-XE-power.yang 
+* Cisco-IOS-XE-ppp.yang 
+* Cisco-IOS-XE-prp.yang 
+* Cisco-IOS-XE-rawsocket.yang 
+* Cisco-IOS-XE-route-map.yang 
+* Cisco-IOS-XE-rpc.yang 
+* Cisco-IOS-XE-service-insertion.yang 
+* Cisco-IOS-XE-sla.yang 
+* Cisco-IOS-XE-snmp.yang 
+* Cisco-IOS-XE-spanning-tree-oper.yang 
+* Cisco-IOS-XE-template.yang 
+* Cisco-IOS-XE-tunnel-types.yang 
+* Cisco-IOS-XE-tunnel.yang 
+* Cisco-IOS-XE-utd.yang 
+* Cisco-IOS-XE-vlan.yang 
+* Cisco-IOS-XE-voice-class.yang 
+* Cisco-IOS-XE-voice.yang 
+* Cisco-IOS-XE-vrrp.yang 
+* Cisco-IOS-XE-webauth-banner-internal.yang 
+* Cisco-IOS-XE-wireless-access-point-oper.yang 
+* Cisco-IOS-XE-wireless-ap-cfg.yang 
+* Cisco-IOS-XE-wireless-ap-global-oper.yang 
+* Cisco-IOS-XE-wireless-ap-types.yang 
+* Cisco-IOS-XE-wireless-client-oper.yang 
+* Cisco-IOS-XE-wireless-client-types.yang 
+* Cisco-IOS-XE-wireless-dot11-cfg.yang 
+* Cisco-IOS-XE-wireless-mstream-cfg.yang 
+* Cisco-IOS-XE-wireless-radio-cfg.yang 
+* Cisco-IOS-XE-wireless-rf-cfg.yang 
+* Cisco-IOS-XE-wireless-site-cfg.yang 
+* Cisco-IOS-XE-wireless-tunnel-cfg.yang 
+* Cisco-IOS-XE-wireless-tunnel-types.yang 
+* Cisco-IOS-XE-wireless-types.yang 
+* Cisco-IOS-XE-wireless-wlan-cfg.yang 
+* Cisco-IOS-XE-yang-interfaces-cfg.yang 
+* Cisco-IOS-XE-yang-interfaces-oper.yang 
 
 #### Other Models Modified
-
+ 
+* cisco-ia.yang
 
 ### Backward Incompatible Changes
 
