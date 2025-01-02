@@ -65,7 +65,6 @@ listed below. As model content may differ based on platform capabilities, sample
 * Cisco-IOS-XE-qfp-resource-events.yang
 * Cisco-IOS-XE-sdwan-types.yang
 * Cisco-IOS-XE-service-chain-oper.yang
-* Cisco-IOS-XE-service-chain.yang
 * Cisco-IOS-XE-snmp-deviation.yang
 * Cisco-IOS-XE-transport.yang
 * Cisco-IOS-XE-vlan-ewlc-deviation.yang
