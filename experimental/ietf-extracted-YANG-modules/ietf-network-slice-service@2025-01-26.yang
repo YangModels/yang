@@ -53,7 +53,7 @@ module ietf-network-slice-service {
       "RFC DDDD: Common YANG Types for Traffic Engineering";
   }
   import ietf-te-packet-types {
-    prefix te-packet-types;
+    prefix te-pkt;
     reference
       "RFC DDDD: Common YANG Data Types for Traffic Engineering";
   }
@@ -92,7 +92,7 @@ module ietf-network-slice-service {
      This version of this YANG module is part of RFC AAAA; see the
      RFC itself for full legal notices.";
 
-  revision 2025-01-21 {
+  revision 2025-01-26 {
     description
       "Initial revision.";
     reference
@@ -158,6 +158,7 @@ module ietf-network-slice-service {
                          Area Networks---Amendment 4: Provider
                          Bridges";
   }
+
   identity svlan-id {
     base attachment-circuit-tag-type;
     description
@@ -211,7 +212,6 @@ module ietf-network-slice-service {
     description
       "Indicates that the Slice Service requires data encryption.";
   }
-
   identity point-to-point {
     base vpn-common:vpn-topology;
     description
@@ -308,7 +308,6 @@ module ietf-network-slice-service {
     reference
       "RFC 2681: A Round-trip Delay Metric for IPPM";
   }
-
   identity two-way-delay-percentile {
     base service-slo-metric-type;
     description
@@ -350,6 +349,7 @@ module ietf-network-slice-service {
     reference
       "RFC 5481: Packet Delay Variation Applicability Statement";
   }
+
   identity two-way-delay-variation-percentile {
     base service-slo-metric-type;
     description
@@ -590,6 +590,7 @@ module ietf-network-slice-service {
       "This type is used by data models that need to reference
        Network Slice templates.";
   }
+
   typedef slice-service-ref {
     type leafref {
       path
@@ -897,10 +898,8 @@ module ietf-network-slice-service {
   grouping connectivity-construct-monitoring-metrics {
     description
       "Grouping for connectivity construct monitoring metrics.";
-    uses
-      te-packet-types:one-way-performance-metrics-gauge-packet;
-    uses
-      te-packet-types:two-way-performance-metrics-gauge-packet;
+    uses te-pkt:one-way-performance-metrics-gauge-packet;
+    uses te-pkt:two-way-performance-metrics-gauge-packet;
   }
 
   /* Main Network Slice Services Container */
@@ -953,6 +952,12 @@ module ietf-network-slice-service {
         }
       }
       uses service-slo-sle-policy;
+      leaf test-only {
+        type empty;
+        description
+          "When present, this is a feasibility check. That is, no
+           resources are reserved in the network.";
+      }
       uses ac-common:service-status;
       container sdps {
         description
@@ -1023,12 +1028,90 @@ module ietf-network-slice-service {
                     "Indicates the match type of the entry in the
                      list of the Slice Service match criteria.";
                 }
-                leaf-list value {
-                  type string;
+                choice value {
                   description
-                    "Provides a value for the Slice Service match
-                     criteria, e.g., IP prefix, VLAN ID, or
-                     ACL name.";
+                    "Choice for value of the match type.";
+                  case interface {
+                    when
+                      "derived-from-or-self(type, 'phy-interface')" {
+                        description
+                          "Match type is a physical interface.";
+                    }
+                    leaf-list interface-name {
+                      type string;
+                      description
+                        "Physical interface name for the
+                         match criteria.";
+                    }
+                  }
+                  case vlan {
+                    when "derived-from-or-self(type, 'vlan')" {
+                      description
+                        "Match type is a VLAN ID.";
+                    }
+                    leaf-list vlan {
+                      type uint16 {
+                        range "0..4095";
+                      }
+                      description
+                        "VLAN ID value for the match criteria.";
+                    }
+                  }
+                  case label {
+                    when "derived-from-or-self(type, 'label')" {
+                      description
+                        "Match type is an MPLS label.";
+                    }
+                    leaf-list label {
+                      type uint32;
+                      description
+                        "MPLS label value for the match
+                         criteria.";
+                    }
+                  }
+                  case ip-prefix {
+                    when "derived-from-or-self"
+                       + "(type, 'source-ip-prefix') or "
+                       + "derived-from-or-self"
+                       + "(type, 'destination-ip-prefix')" {
+                      description
+                        "Match type is an IP prefix.";
+                    }
+                    leaf-list ip-prefix {
+                      type inet:ip-prefix;
+                      description
+                        "IP prefix value for the match criteria.";
+                    }
+                  }
+                  case dscp {
+                    when "derived-from-or-self(type, 'dscp')" {
+                      description
+                        "Match type is a DSCP value.";
+                    }
+                    leaf-list dscp-value {
+                      type uint8 {
+                        range "0..63";
+                      }
+                      description
+                        "DSCP value for the match criteria.";
+                    }
+                  }
+                  case acl {
+                    when "derived-from-or-self(type, 'acl')" {
+                      description
+                        "Match type is an ACL name.";
+                    }
+                    leaf-list acl-name {
+                      type string {
+                        length "1..64";
+                      }
+                      description
+                        "ACL name value for the match
+                         criteria.";
+                    }
+                  }
+                  /* Add more cases as needed for other
+                  match types */
                 }
               }
               leaf target-connection-group-id {
@@ -1382,47 +1465,6 @@ module ietf-network-slice-service {
            referenced topology predefined, e.g., an abstract RFC8345
            topology.";
         uses nw:network-ref;
-      }
-      container compute {
-        description
-          "Container for NS computation.";
-        leaf compute-only {
-          type empty;
-          description
-            "When present, this is a feasibility check. That is, no
-             resources are reserved in the network.";
-        }
-        leaf compute-status {
-          type ns-compute-status;
-          config false;
-          description
-            "The NS compute state.";
-        }
-        container error-info {
-          config false;
-          description
-            "Error information related to the NS.";
-          leaf error-description {
-            type string {
-              length "1..max";
-            }
-            description
-              "Textual representation of the error occurred during
-               NS compute.";
-          }
-          leaf error-timestamp {
-            type yang:date-and-time;
-            description
-              "Timestamp of the attempt.";
-          }
-          leaf error-reason {
-            type identityref {
-              base ns-computation-error-reason;
-            }
-            description
-              "Reason for the NS computation error.";
-          }
-        }
       }
     }
   }
