@@ -22,12 +22,7 @@ module ietf-udp-notif-transport {
   import ietf-tls-client {
     prefix tlsc;
     reference
-      "RFC TTTT: YANG Groupings for TLS Clients and TLS Servers";
-  }
-  import ietf-tls-common {
-    prefix tlscmn;
-    reference
-      "RFC TTTT: YANG Groupings for TLS Clients and TLS Servers";
+      "RFC 9645: YANG Groupings for TLS Clients and TLS Servers";
   }
 
   organization "IETF NETCONF (Network Configuration) Working Group";
@@ -50,9 +45,9 @@ module ietf-udp-notif-transport {
 
   description
     "Defines a model for configuring UDP-Notif as a transport
-    for Configured Subscriptions.
+    for configured subscriptions [RFC8639].
 
-    Copyright (c) 2024 IETF Trust and the persons identified as
+    Copyright (c) 2025 IETF Trust and the persons identified as
     authors of the code.  All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
@@ -61,10 +56,17 @@ module ietf-udp-notif-transport {
     4.c of the IETF Trust's Legal Provisions Relating to IETF Documents
     (https://trustee.ietf.org/license-info).
 
-    This version of this YANG module is part of RFC XXXX; see the RFC
-    itself for full legal notices.";
+    This version of this YANG module is part of RFC XXXX
+    (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+    for full legal notices.
 
-  revision 2024-10-17 {
+    The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+    NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+    'MAY', and 'OPTIONAL' in this document are to be interpreted as
+    described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+    they appear in all capitals, as shown here.";
+
+  revision 2025-02-14 {
     description
       "Initial revision";
     reference
@@ -76,23 +78,26 @@ module ietf-udp-notif-transport {
   */
   feature encode-cbor {
     description
-      "This feature indicates that CBOR encoding of notification
-       messages is supported.";
+      "Indicates that CBOR encoding of notification
+      messages is supported.";
+    reference
+      "RFC 9254: CBOR Encoding of Data Modeled with YANG";
   }
-  feature dtls13 {
+  feature dtls {
     description
-      "This feature indicates that DTLS 1.3 encryption of UDP
-       packets is supported.";
-  }
-  feature segmentation {
-    description
-      "This feature indicates segmentation of notification messages
-      is supported.";
+      "Indicates that DTLS encryption of UDP
+      packets is supported. UDP-Notif mandates that, in 
+      unsecured networks, DTLS 1.2 or later MUST be supported,
+      and DTLS 1.3 SHOULD be supported.";
+    reference 
+      "RFC6347: Datagram Transport Layer Security Version 1.2,
+      RFC 9147: The Datagram Transport Layer Security (DTLS)
+      Protocol Version 1.3";
   }
 
  /*
   * IDENTITIES
-  */
+  */  
   identity udp-notif {
     base sn:transport;
     base sn:configurable-encoding;
@@ -104,72 +109,64 @@ module ietf-udp-notif-transport {
   identity encode-cbor {
     base sn:encoding;
     description
-      "Encode data using CBOR as described in RFC 9254.";
+      "Encode data using CBOR.";
     reference
       "RFC 9254: CBOR Encoding of Data Modeled with YANG";
   }
 
-  grouping udp-notif-receiver-grouping {
+  identity unsupported-max-segment-size {
+    base sn:establish-subscription-error;
+    base sn:modify-subscription-error;
     description
-      "Provides a reusable description of a UDP-Notif target
+      "Error triggered when the specified value 'max-segment-size'
+      is not supported by the publisher. An implementation may
+      only support a subset of the uint16.";
+    reference
+      "RFC XXXX: UDP-based Transport for Configured Subscriptions";
+  }
+
+  grouping udp-notif-receiver {
+    description
+      "Provides a reusable identification of a UDP-Notif target
       receiver.";
 
-    uses udpc:udp-client-grouping {
+    uses udpc:udp-client {
       refine remote-port {
         mandatory true;
       }
     }
 
     container dtls {
-      if-feature dtls13;
+      if-feature dtls;
       presence dtls;
       uses tlsc:tls-client-grouping {
-        // Using tls-client-grouping without TLS1.2 parameters
-        // allowing only DTLS 1.3
-        refine "client-identity/auth-type/tls12-psk" {
-          // create the logical impossibility of enabling TLS1.2
-          if-feature "not tlsc:client-ident-tls12-psk";
-        }
-        refine "server-authentication/tls12-psks" {
-          // create the logical impossibility of enabling TLS1.2
-          if-feature "not tlsc:server-auth-tls12-psk";
-        }
-        refine "hello-params/tls-versions/min" {
-          must "not(derived-from-or-self(current(), "
-            + "'tlscmn:tls12'))" {
-            error-message
-                  "TLS 1.2 is not supported as min TLS version";
-          }
-        }
-        refine "hello-params/tls-versions/max" {
-          must "not(derived-from-or-self(current(), "
-            + "'tlscmn:tls12'))" {
-            error-message
-                  "TLS 1.2 is not supported as max TLS version";
-          }
+        // Remove keep-alives for DTLS
+        refine "keepalives" {
+          if-feature "not tlsc:tls-client-keepalives";
         }
       }
-      description
-        "Container for configuring DTLS 1.3 parameters.";
+      description 
+        "Container for configuring DTLS parameters.";
     }
 
     leaf enable-segmentation {
-      if-feature segmentation;
       type boolean;
       default true;
-      description
-        "The switch for the segmentation feature. When disabled, the
-        publisher will not allow fragment for a very large data";
+      description 
+        "When disabled, the publisher will not segment UDP-Notif
+        messages and large messages may be fragmented at the IP
+        layer.";
     }
 
     leaf max-segment-size {
-      when "../enable-segmentation = 'true'";
-      if-feature segmentation;
       type uint16;
-      description
+      description 
         "UDP-Notif provides a configurable max-segment-size to
         control the size of each segment (UDP-Notif header, with
-        options, included).";
+        options, included).
+        The publisher may trigger an 'unsupported-max-segment-size'
+        error if the publisher does not support the configured
+        value.";
     }
   }
 
@@ -179,11 +176,11 @@ module ietf-udp-notif-transport {
       container udp-notif-receiver {
         description
           "The UDP-notif receiver to send notifications to.";
-        uses udp-notif-receiver-grouping;
+        uses udp-notif-receiver;
       }
     }
     description
-      "Augment the transport-type choice to include the 'udp-notif'
+      "Augments the transport-type choice to include the 'udp-notif'
        transport.";
   }
 }
