@@ -9,6 +9,11 @@ module ietf-network-slice-service {
     reference
       "RFC 6991: Common YANG Types";
   }
+  import ietf-routing-types {
+    prefix rt-types;
+    reference
+      "RFC 8294: Common YANG Data Types for the Routing Area";
+  }
   import ietf-yang-types {
     prefix yang;
     reference
@@ -92,7 +97,7 @@ module ietf-network-slice-service {
      This version of this YANG module is part of RFC AAAA; see the
      RFC itself for full legal notices.";
 
-  revision 2025-01-21 {
+  revision 2025-02-06 {
     description
       "Initial revision.";
     reference
@@ -158,6 +163,7 @@ module ietf-network-slice-service {
                          Area Networks---Amendment 4: Provider
                          Bridges";
   }
+
   identity svlan-id {
     base attachment-circuit-tag-type;
     description
@@ -504,48 +510,6 @@ module ietf-network-slice-service {
        other SLOs in the parent SLO-SLE policy still apply.";
   }
 
-  identity ns-computation-error-reason {
-    description
-      "Base identity for Network Slice (NS) computation error
-       reasons.";
-  }
-
-  identity error-no-resource {
-    base ns-computation-error-reason;
-    description
-      "NS computation has failed because there is no available
-       resource in one or more domains, e.g., bandwidth, nodes,
-       are not available to meet the SLO/SLE requirements.";
-  }
-
-  identity error-path-not-found {
-    base ns-computation-error-reason;
-    description
-      "NS computation has failed because there is no valid path
-       can be found to satisfy the requested SLO/SLE constraints or
-       path-constraints.";
-  }
-
-  identity error-latency-constraint-violation {
-    base ns-computation-error-reason;
-    description
-      "NS computation failed as latency constraint violation.";
-  }
-
-  identity error-topology-limitation {
-    base ns-computation-error-reason;
-    description
-      "NS computation failed as the network topology cannot support
-       the requested connectivity construct.";
-  }
-
-  identity error-domain-specific-failure {
-    base ns-computation-error-reason;
-    description
-      "NS computation failed as a domain-specific issue prevents
-       the feasibility check from succeeding.";
-  }
-
   /* Typedef */
 
   typedef percentage {
@@ -590,6 +554,7 @@ module ietf-network-slice-service {
       "This type is used by data models that need to reference
        Network Slice templates.";
   }
+
   typedef slice-service-ref {
     type leafref {
       path
@@ -953,6 +918,12 @@ module ietf-network-slice-service {
         }
       }
       uses service-slo-sle-policy;
+      leaf test-only {
+        type empty;
+        description
+          "When present, this is a feasibility check. That is, no
+           resources are reserved in the network.";
+      }
       uses ac-common:service-status;
       container sdps {
         description
@@ -1018,17 +989,97 @@ module ietf-network-slice-service {
                   type identityref {
                     base service-match-type;
                   }
-                  mandatory true;
                   description
                     "Indicates the match type of the entry in the
                      list of the Slice Service match criteria.";
                 }
-                leaf-list value {
-                  type string;
+                choice value {
                   description
-                    "Provides a value for the Slice Service match
-                     criteria, e.g., IP prefix, VLAN ID, or
-                     ACL name.";
+                    "Choice for value of the match type.";
+                  case interface {
+                    when "derived-from-or-self"
+                       + "(type,'ietf-nss:phy-interface')" {
+                      description
+                        "Match type is a physical interface.";
+                    }
+                    leaf-list interface-name {
+                      type string;
+                      description
+                        "Physical interface name for the
+                         match criteria.";
+                    }
+                  }
+                  case vlan {
+                    when "derived-from-or-self"
+                       + "(type, 'ietf-nss:vlan')" {
+                      description
+                        "Match type is a VLAN ID.";
+                    }
+                    leaf-list vlan {
+                      type uint16 {
+                        range "0..4095";
+                      }
+                      description
+                        "VLAN ID value for the match criteria.";
+                    }
+                  }
+                  case label {
+                    when "derived-from-or-self"
+                       + "(type, 'ietf-nss:label')" {
+                      description
+                        "Match type is an MPLS label.";
+                    }
+                    leaf-list label {
+                      type rt-types:mpls-label;
+                      description
+                        "MPLS label value for the match
+                         criteria.";
+                    }
+                  }
+                  case ip-prefix {
+                    when
+                      "derived-from-or-self"
+                    + "(type, 'ietf-nss:source-ip-prefix') or "
+                    + "derived-from-or-self"
+                    + "(type, 'ietf-nss:destination-ip-prefix')" {
+                      description
+                        "Match type is an IP prefix.";
+                    }
+                    leaf-list ip-prefix {
+                      type inet:ip-prefix;
+                      description
+                        "IP prefix value for the match criteria.";
+                    }
+                  }
+                  case dscp {
+                    when "derived-from-or-self"
+                       + "(type, 'ietf-nss:dscp')" {
+                      description
+                        "Match type is a DSCP value.";
+                    }
+                    leaf-list dscp {
+                      type inet:dscp;
+                      description
+                        "DSCP value for the match criteria.";
+                    }
+                  }
+                  case acl {
+                    when "derived-from-or-self"
+                       + "(type, 'ietf-nss:acl')" {
+                      description
+                        "Match type is an ACL name.";
+                    }
+                    leaf-list acl-name {
+                      type string {
+                        length "1..64";
+                      }
+                      description
+                        "ACL name value for the match
+                         criteria.";
+                    }
+                  }
+                  /* Add more cases as needed for other
+                  match types */
                 }
               }
               leaf target-connection-group-id {
@@ -1382,47 +1433,6 @@ module ietf-network-slice-service {
            referenced topology predefined, e.g., an abstract RFC8345
            topology.";
         uses nw:network-ref;
-      }
-      container compute {
-        description
-          "Container for NS computation.";
-        leaf compute-only {
-          type empty;
-          description
-            "When present, this is a feasibility check. That is, no
-             resources are reserved in the network.";
-        }
-        leaf compute-status {
-          type ns-compute-status;
-          config false;
-          description
-            "The NS compute state.";
-        }
-        container error-info {
-          config false;
-          description
-            "Error information related to the NS.";
-          leaf error-description {
-            type string {
-              length "1..max";
-            }
-            description
-              "Textual representation of the error occurred during
-               NS compute.";
-          }
-          leaf error-timestamp {
-            type yang:date-and-time;
-            description
-              "Timestamp of the attempt.";
-          }
-          leaf error-reason {
-            type identityref {
-              base ns-computation-error-reason;
-            }
-            description
-              "Reason for the NS computation error.";
-          }
-        }
       }
     }
   }
