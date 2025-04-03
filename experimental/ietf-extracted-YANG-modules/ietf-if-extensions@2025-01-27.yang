@@ -15,6 +15,7 @@ module ietf-if-extensions {
     reference
       "RFC 8343: A YANG Data Model For Interface Management";
   }
+
   import iana-if-type {
     prefix ianaift;
     reference "RFC 7224: IANA Interface Type YANG Module";
@@ -28,14 +29,18 @@ module ietf-if-extensions {
      WG List:  <mailto:netmod@ietf.org>
 
      Editor:   Robert Wilton
-               <mailto:rwilton@cisco.com>";
+               <mailto:rwilton@cisco.com>
+
+     Editor:   Scott Mansfield
+               <mailto:scott.mansfield@ericsson.com>";
 
   description
     "This module contains common definitions for extending the IETF
      interface YANG model (RFC 8343) with common configurable layer 2
      properties.
 
-     Copyright (c) 2024 IETF Trust and the persons identified as
+     Copyright (c) 2025 IETF Trust and the persons identified as
+
      authors of the code.  All rights reserved.
 
      Redistribution and use in source and binary forms, with or
@@ -55,7 +60,7 @@ module ietf-if-extensions {
      described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
      they appear in all capitals, as shown here.";
 
-  revision 2024-07-31 {
+  revision 2025-01-27 {
     description
       "Interface Extension YANG Module initial revision";
 
@@ -111,29 +116,6 @@ module ietf-if-extensions {
        as logical peer that receives egress traffic of the given
        interface on its ingress path and vice versa.";
     reference "RFC XXXX, Section 2.8 Peer-interface";
-  }
-
-  /*
-   * Define common identities to help allow interface types to be
-   * assigned properties.
-   */
-  identity sub-interface {
-    description
-      "Base type for generic sub-interfaces.
-
-       New or custom interface types can derive from this type to
-       inherit generic sub-interface configuration.";
-    reference "RFC XXXX, Section 2.6 Sub-interface";
-  }
-
-  identity ethSubInterface{
-    base ianaift:l2vlan;
-    base sub-interface;
-
-    description
-      "This identity represents the child sub-interface of any
-       interface types that uses Ethernet framing (with or without
-       802.1Q tagging).";
   }
 
   identity loopback {
@@ -388,8 +370,7 @@ module ietf-if-extensions {
          derived-from-or-self(../if:type, 'ianaift:pos') or
          derived-from-or-self(../if:type,
                               'ianaift:atmSubInterface') or
-         derived-from-or-self(../if:type, 'ianaift:l2vlan') or
-         derived-from-or-self(../if:type, 'ethSubInterface')" {
+         derived-from-or-self(../if:type, 'ianaift:l2vlan')" {
 
         description
           "All interface types that can have a configurable L2
@@ -481,13 +462,12 @@ module ietf-if-extensions {
    * child interfaces of other interfaces.
    */
   augment "/if:interfaces/if:interface" {
-    when "derived-from(if:type, 'sub-interface') or
-          derived-from-or-self(if:type, 'ianaift:l2vlan') or
+    when "derived-from-or-self(if:type, 'ianaift:l2vlan') or
           derived-from-or-self(if:type, 'ianaift:atmSubInterface') or
           derived-from-or-self(if:type, 'ianaift:frameRelay')"  {
       description
-        "Any ianaift:types that explicitly represent sub-interfaces
-         or any types that derive from the sub-interface identity.";
+        "Any ianaift:types that explicitly represent
+         sub-interfaces.";
     }
     if-feature "sub-interfaces";
 
@@ -503,6 +483,40 @@ module ietf-if-extensions {
         "This is the reference to the parent interface of this
          sub-interface.";
       reference "RFC XXXX, Section 2.6 Sub-interface";
+    }
+  }
+
+  /*
+   * Add overflow discards counter.
+   */
+  augment "/if:interfaces/if:interface/if:statistics" {
+    description
+      "Augment the interface model with an overflows discards
+       counter";
+    leaf in-discard-overflows {
+      type yang:counter64;
+      units frames;
+      description
+        "A count of the number of frames discarded because of
+         overflows, e.g., because there were insufficient
+         resources to buffer or process the frame.
+
+         This counter does not include frames that were discarded
+         due to a QOS policy.
+
+         For consistency, frames counted against this counter are
+         also counted against the IETF interfaces statistics.  In
+         particular, they are included in in-octets and in-discards,
+         but are not included in in-unicast-pkts, in-multicast-pkts
+         or in-broadcast-pkts, because they are not delivered to a
+         higher layer.
+
+         Discontinuities in the values of this counter can occur at
+         re-initialization of the management system, and at other
+         times as indicated by the value of the 'discontinuity-time'
+         leaf defined in the ietf-interfaces YANG module
+         (RFC 8343).
+          ";
     }
   }
 
@@ -524,7 +538,6 @@ module ietf-if-extensions {
     description
       "Augment the interface model statistics with a sub-interface
        demux discard counter.";
-
     leaf in-discard-unknown-encaps {
       type yang:counter64;
       units frames;
@@ -542,6 +555,7 @@ module ietf-if-extensions {
          but are not included in in-unicast-pkts, in-multicast-pkts
          or in-broadcast-pkts, because they are not delivered to a
          higher layer.
+
          Discontinuities in the values of this counter can occur at
          re-initialization of the management system, and at other
          times as indicated by the value of the 'discontinuity-time'
