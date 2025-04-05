@@ -1,0 +1,1881 @@
+module ietf-rift {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-rift";
+  prefix rift;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-routing {
+    prefix rt;
+    reference
+      "RFC 8349: A YANG Data Model for Routing Management
+       (NMDA Version)";
+  }
+  import ietf-interfaces {
+    prefix if;
+    reference
+      "RFC 8343: A YANG Data Model for Interface Management";
+  }
+  import ietf-routing-types {
+    prefix rt-types;
+    reference
+      "RFC 8294: Common YANG Data Types for the Routing Area";
+  }
+  import iana-routing-types {
+    prefix iana-rt-types;
+    reference
+      "RFC 8294: Common YANG Data Types for the Routing Area";
+  }
+  import ietf-key-chain {
+    prefix key-chain;
+    reference
+      "RFC 8177: YANG Data Model for Key Chains";
+  }
+
+  organization
+    "IETF RIFT (Routing In Fat Trees) Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/rift/>
+     WG List:  <mailto:rift@ietf.org>
+
+     Author:   Zheng (Sandy) Zhang
+               <mailto:zhang.zheng@zte.com.cn>
+
+     Author:   Yuehua Wei
+               <mailto:wei.yuehua@zte.com.cn>
+
+     Author:   Shaowen Ma
+               <mailto:mashaowen@gmail.com>
+
+     Author:   Xufeng Liu
+               <mailto:xufeng.liu.ietf@gmail.com>
+
+     Author:   Bruno Rijsman
+               <mailto:brunorijsman@gmail.com>";
+  description
+    "This YANG module defines the generic configuration and
+     operational state for the RIFT protocol common to all
+     vendor implementations.  It is intended that the module
+     will be extended by vendors to define vendor-specific
+     RIFT configuration parameters and policies --
+     for example, route maps or route policies.
+
+     Copyright (c) 2025 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 9719
+     (https://www.rfc-editor.org/info/rfc9719); see the RFC itself
+     for full legal notices.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.";
+
+  revision 2025-04-04 {
+    description
+      "Initial revision.";
+    reference
+      "RFC 9719: YANG Data Model for Routing in Fat Trees
+       (RIFT).";
+  }
+
+  /*
+   * Features
+   */
+
+  feature nonce-delta-adjust {
+    description
+      "Support weak nonce delta adjusting that is used in
+       security.";
+    reference
+      "RFC 9692: RIFT: Routing in Fat Trees.
+       Section 6.9.";
+  }
+
+  feature label-switching {
+    description
+      "Support label switching for instance distinguishing.";
+    reference
+      "RFC 9692: RIFT: Routing in Fat Trees.
+       Section 6.8.8";
+  }
+
+  feature tie-security {
+    description
+      "Support security function for the TIE exchange.";
+    reference
+      "RFC 9692: RIFT: Routing in Fat Trees.
+       Section 6.9.3.";
+  }
+
+  feature link-security {
+    description
+      "Support security function of link.";
+    reference
+      "RFC 9692: RIFT: Routing in Fat Trees.
+       Section 6.9.";
+  }
+
+  typedef system-id {
+    type string {
+      pattern
+    '[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}';
+    }
+    description
+      "This type defines the pattern for RIFT System IDs.
+       An example of a System ID is 0021.2FFF.FEB5.6E10.";
+  }
+
+  typedef level {
+    type uint8 {
+      range "0 .. 24";
+    }
+    default "0";
+    description
+      "The value of node level.
+       Clos and Fat Tree networks are topologically partially
+       ordered graphs and 'level' denotes the set of nodes at
+       the same height in such a network.
+       Nodes at the top level (i.e., ToF) are at the level with
+       the highest value and count down to the nodes
+       at the bottom level (i.e., leaf) with the lowest value.
+       In RIFT, level 0 always indicates that a node is a leaf,
+       but does not have to be level 0.
+       Level values can be configured manually or automatically
+       derived.";
+    reference
+      "RFC 9692: RIFT: Routing in Fat Trees.
+       Section 6.7.";
+  }
+
+  typedef ieee802-1as-timestamp {
+    type uint64;
+    units "seconds";
+    description
+      "Timestamp per IEEE802.1AS. It is advertised with prefix
+       to achieve mobility.";
+    reference
+      "RFC 9692: RIFT: Routing in Fat Trees. Section 6.8.4.
+       IEEE8021AS: Timing and Synchronization for Time-Sensitive
+                   Applications in Bridged Local Area Networks";
+  }
+
+  /*
+   * Identity
+   */
+
+  identity rift {
+    base rt:routing-protocol;
+    description
+      "Identity for the RIFT routing protocol.";
+    reference
+      "RFC 9692: RIFT: Routing in Fat Trees";
+  }
+
+  /*
+   * Groupings
+   */
+
+  grouping address-families {
+    leaf-list address-families {
+      type iana-rt-types:address-family;
+      description
+        "Indication which address families are up on the
+         interface.";
+    }
+    description
+      "Containing address families on the interface.";
+  }
+
+  grouping hierarchy-indications {
+    leaf hierarchy-indications {
+      type enumeration {
+        enum leaf-only {
+          description
+            "The node will never leave the
+             'bottom of the hierarchy'.
+             When this value is set, the 'configured-level'
+             is the minimum level value.";
+        }
+        enum leaf-only-and-leaf-2-leaf-procedures {
+          description
+            "This means leaf to leaf.
+             When this value is set, the 'configured-level'
+             is the minimum level value.";
+        }
+        enum top-of-fabric {
+          description
+            "The node is 'top of fabric'.
+             When this value is set, the 'configured-level'
+             is the maximum level value.";
+        }
+      }
+      description
+        "The hierarchy indications of this node.";
+    }
+    description
+      "Flags indicating node configuration in case of ZTP.";
+  }
+
+  grouping node-capability {
+    leaf proto-minor-ver {
+      type uint16;
+      description
+        "Represents the minor protocol encoding schema
+         version of this node.";
+    }
+    leaf flood-reduction {
+      type boolean;
+      description
+        "If the value is set to 'true', it means that
+         this node enables the flood reduction function.";
+    }
+    container hierarchy-indications {
+      config false;
+      description
+        "The hierarchy-indications of the node.";
+      uses hierarchy-indications;
+    }
+    description
+      "The supported capabilities of this node.";
+  }
+
+  grouping tie-type {
+    leaf tie-type {
+      type enumeration {
+        enum illegal {
+          description
+            "The illegal TIE.";
+        }
+        enum min-tie-type {
+          description
+            "The minimum TIE.";
+        }
+        enum node {
+          description
+            "The node TIE.";
+        }
+        enum prefix {
+          description
+            "The prefix TIE.";
+        }
+        enum positive-disaggregation-prefix {
+          description
+            "The positive disaggregation prefix TIE.";
+        }
+        enum negative-disaggregation-prefix {
+          description
+            "The negative disaggregation prefix TIE.";
+        }
+        enum pgp-prefix {
+          description
+            "The policy guide prefix TIE.";
+        }
+        enum key-value {
+          description
+            "The key value TIE.";
+        }
+        enum external-prefix {
+          description
+            "The external prefix TIE.";
+        }
+        enum positive-external-disaggregation-prefix {
+          description
+            "The positive external disaggregation prefix TIE.";
+        }
+        enum max-tie-type {
+          description
+            "The maximum TIE.";
+        }
+      }
+      description
+        "The types of TIE.";
+    }
+    description
+      "The types of TIE.";
+  }
+
+  grouping prefix-attribute {
+    leaf metric {
+      type uint32;
+      description
+        "The metric of this prefix.";
+    }
+    leaf-list tags {
+      type uint64;
+      description
+        "The tags of this prefix.";
+    }
+    container monotonic-clock {
+      container prefix-sequence-type {
+        leaf timestamp {
+          type ieee802-1as-timestamp;
+          mandatory true;
+          description
+            "The timestamp per 802.1AS can be advertised
+             with the desired prefix North TIEs.";
+        }
+        leaf transaction-id {
+          type uint8;
+          description
+            "As per RFC 8505, a sequence number called a
+             Transaction ID (TID) with a prefix can be
+             advertised.";
+          reference
+            "RFC 8505: Registration Extensions for IPv6 over
+             Low-Power Wireless Personal Area Network (6LoWPAN)
+             Neighbor Discovery";
+        }
+        description
+          "The prefix sequence attribute that can be advertised
+           for mobility.";
+        reference
+          "RFC 9692: RIFT: Routing in Fat Trees.
+           Section 6.8.4.";
+      }
+      description
+        "The monotonic clock for mobile addresses.";
+    }
+    leaf loopback {
+      type boolean;
+      description
+        "If the value is set to 'true', it
+         indicates if the interface is a node loopback.
+         The node's loopback address can be injected into
+         Prefix North and Prefix South TIEs for node reachability.";
+      reference
+        "RFC 9692: RIFT: Routing in Fat Trees.
+         Section 6.4.";
+    }
+    leaf directly-attached {
+      type boolean;
+      description
+        "If the value is set to 'true', it indicates that the
+         prefix is directly attached, i.e., should be routed to
+         even if the node is in overload.";
+    }
+    leaf from-link {
+      type uint32;
+      description
+        "In case of locally originated prefixes,
+         i.e., interface addresses this can describe which
+         link the address belongs to.";
+    }
+    leaf label {
+      type uint32;
+      description
+        "Per prefix significant label.";
+      reference
+        "RFC 9692: RIFT: Routing in Fat Trees";
+    }
+    description
+      "The attributes of the prefix.";
+  }
+
+  grouping security {
+    leaf security-type {
+      type enumeration {
+        enum public {
+          description
+            "When using Public Key Infrastructure (PKI),
+             the public and shared key can be used to verify
+             the original packet exchanged with the neighbor.";
+        }
+        enum private {
+          description
+            "When using Public Key Infrastructure (PKI),
+             the private key can be used by the Security
+             fingerprint originating node to create the signature.";
+        }
+      }
+      description
+        "The security type.";
+      reference
+        "RFC 9692: RIFT: Routing in Fat Trees.
+         Section 6.9.";
+    }
+    leaf shared {
+      type boolean;
+      description
+        "When using Public Key Infrastructure (PKI),
+         if the key is shared.";
+      reference
+        "RFC 9692: RIFT: Routing in Fat Trees.
+         Section 6.9.";
+    }
+    choice auth-key-chain {
+      description
+        "Key chain or explicit key parameter specification.";
+      case auth-key-chain {
+        leaf key-chain {
+          type key-chain:key-chain-ref;
+          description
+            "key-chain name.";
+          reference
+            "RFC 8177: YANG Data Model for Key Chains";
+        }
+      }
+      case auth-key-explicit {
+        leaf key {
+          type string;
+          description
+            "Authentication key. The length of the key may be
+             dependent on the cryptographic algorithm.";
+        }
+        leaf crypto-algorithm {
+          type identityref {
+            base key-chain:crypto-algorithm;
+          }
+          description
+            "Cryptographic algorithm associated with key.";
+          reference
+            "RFC 8177: YANG Data Model for Key Chains";
+        }
+      }
+    }
+    description
+      "The security parameters.";
+  }
+
+  grouping base-node-info {
+    leaf node-level {
+      type level;
+      config false;
+      description
+        "The level of this node.";
+    }
+    leaf system-id {
+      type system-id;
+      mandatory true;
+      description
+        "Each node is identified via a system-id that is 64
+         bits wide.";
+    }
+    leaf fabric-id {
+      type uint16;
+      description
+        "The optional id of the fabric.";
+    }
+    leaf pod {
+      type uint32 {
+        range "1..max";
+      }
+      description
+        "The identifier of the Point of Delivery (PoD).
+         A PoD is the self-contained vertical slice of a
+         Clos or Fat Tree network containing normally only leaf
+         nodes (level 0) and their immediate northbound
+         neighbors. It communicates with nodes
+         in other PoDs via the spine. Making this leaf
+         unspecified indicates that the PoD is 'undefined'.";
+    }
+    description
+      "The base information of a node.";
+  } // base-node-info
+
+  grouping link-capabilities {
+    leaf bfd-capable {
+      type boolean;
+      default "true";
+      description
+        "If this value is set to 'true', it means that
+         BFD function is enabled on the neighbor.";
+      reference
+        "RFC 5881: Bidirectional Forwarding Detection (BFD)
+         for IPv4 and IPv6 (Single Hop)";
+    }
+    leaf v4-forwarding-capable {
+      type boolean;
+      default "true";
+      description
+        "If this value is set to 'true', it means that
+         the neighbor supports v4 forwarding.";
+    }
+    leaf mtu-size {
+      type uint32;
+      default "1400";
+      description
+        "MTU of the link.";
+    }
+    description
+      "The features of neighbor.";
+  } // link-capabilities
+
+  grouping addresses {
+    leaf ipv4 {
+      type inet:ipv4-address-no-zone;
+      description
+        "IPv4 address to be used.";
+    }
+    leaf ipv6 {
+      type inet:ipv6-address-no-zone;
+      description
+        "IPv6 address to be used.";
+    }
+    description
+      "IPv4 and/or IPv6 address to be used.";
+  }
+
+  grouping lie-elements {
+    leaf label {
+      if-feature "label-switching";
+      type uint32;
+      description
+        "A locally significant, downstream assigned by
+         the neighbor, interface-specific label that may
+         be advertised in its LIEs.";
+      reference
+        "RFC 9692: RIFT: Routing in Fat Trees.
+         Section 6.8.8.";
+    }
+    leaf you-are-flood-repeater {
+      type boolean;
+      description
+        "If the neighbor on this link is flooding repeater.
+         When this value is set to 'true', the value can be
+         carried in exchanged packet.";
+      reference
+        "RFC 9692: RIFT: Routing in Fat Trees.
+         Section 6.3.9.";
+    }
+    leaf not-a-ztp-offer {
+      type boolean;
+      description
+        "When this value is set to 'true', the flag can be
+         carried in the LIE packet. When the value received
+         in the LIE from neighbor, it indicates the level on
+         the LIE MUST NOT be used to derive a ZTP level by
+         the receiving node.";
+      reference
+        "RFC 9692: RIFT: Routing in Fat Trees.
+         Section 6.7.";
+    }
+    leaf you-are-sending-too-quickly {
+      type boolean;
+      description
+        "Can be optionally set to indicate to neighbor that
+         packet losses are seen on reception based on packet
+         numbers or the rate is too high. The receiver SHOULD
+         temporarily slow down flooding rates. When this value
+         is set to 'true', the flag can be carried in packet.";
+    }
+    description
+      "The elements set in the LIEs.";
+  } // lie-elements
+
+  grouping link-id-pair {
+    leaf local-id {
+      type uint32;
+      description
+        "The local-id of link connect to this neighbor.";
+    }
+    leaf remote-id {
+      type uint32;
+      description
+        "The remote-id to reach this neighbor.";
+    }
+    leaf if-index {
+      type uint32;
+      description
+        "The local index of this interface.";
+    }
+    leaf if-name {
+      type if:interface-ref;
+      description
+        "The name of this interface.";
+    }
+    uses address-families;
+    description
+      "A pair of local and remote link-id to identify a link
+       between two nodes.";
+  } // link-id-pair
+
+  grouping neighbor-node {
+    list link-id-pair {
+      key "remote-id";
+      uses link-id-pair;
+      description
+        "The multiple parallel links to this neighbor.";
+    }
+    leaf cost {
+      type uint32;
+      description
+        "The cost value advertised by the neighbor.";
+    }
+    leaf bandwidth {
+      type uint32;
+      units "bits";
+      description
+        "Total bandwidth to the neighbor, this will be
+         normally sum of the bandwidths of all the
+         parallel links.";
+    }
+    container received-link-capabilities {
+      uses link-capabilities;
+      description
+        "The link capabilities advertised by the neighbor.";
+    }
+    description
+      "The neighbor information indicated in node TIE.";
+  } // neighbor-node
+
+  grouping neighbor {
+    leaf proto-major-ver {
+      type uint8;
+      description
+        "Represents protocol encoding schema major version of
+         this neighbor.";
+    }
+    leaf proto-minor-ver {
+      type uint16;
+      description
+        "Represents protocol encoding schema minor version of
+         this neighbor.";
+    }
+    container sent-offer {
+      leaf level {
+        type level;
+        description
+          "The level value.";
+      }
+      leaf not-a-ztp-offer {
+        type boolean;
+        description
+          "If the value is set to 'true', it indicates the
+           level on the LIE MUST NOT be used to derive a
+           ZTP level by the neighbor.";
+      }
+      description
+        "The level sent to the neighbor in case the neighbor
+         needs to be offered.";
+    }
+    container received-offer {
+      leaf level {
+        type level;
+        description
+          "The level value.";
+      }
+      leaf not-a-ztp-offer {
+        type boolean;
+        description
+          "If the value is set to 'true', it indicates the
+           level on the received LIE MUST NOT be used to
+           derive a ZTP level.";
+      }
+      leaf best {
+        type boolean;
+        description
+          "If the value is set to 'true', it means that
+           the level is the best level received from all
+           the neighbors.";
+      }
+      leaf removed-from-consideration {
+        type boolean;
+        description
+          "If the value is set to 'true', it means that
+           the level value is not considered to be used.";
+      }
+      leaf removal-reason {
+        when "../removed-from-consideration='true'" {
+          description
+            "The level value is not considered to be used.";
+        }
+        type string;
+        description
+          "The reason why this value is not considered to
+           be used.";
+      }
+      description
+        "The level offered to the interface from the neighbor.
+         And if the level value is considered to be used.";
+    }
+    container received-source-addr {
+      uses addresses;
+      description
+        "The source address of LIE and TIE packets from
+         the neighbor.";
+    } // received-offer
+    uses neighbor-node;
+    container received-in-lies {
+      uses lie-elements;
+      description
+        "The attributes received from this neighbor.";
+    }
+    leaf nbr-flood-port {
+      type inet:port-number;
+      default "915";
+      description
+        "The UDP port which is used by the neighbor to flood
+         TIEs.";
+    }
+    leaf tx-flood-port {
+      type inet:port-number;
+      default "915";
+      description
+        "The UDP port which is used by the node to flood
+         TIEs to the neighbor.";
+    }
+    leaf bfd-state {
+      type enumeration {
+        enum up {
+          description
+            "The link is protected by established BFD session.";
+        }
+        enum down {
+          description
+            "The link is not protected by established BFD session.";
+        }
+      }
+      description
+        "The link is protected by established BFD session or not.";
+    }
+    leaf outer-security-key-id {
+      type uint8;
+      description
+        "The received security key id from the neighbor.";
+      reference
+        "RFC 9692: RIFT: Routing in Fat Trees.
+         Section 6.9.3.";
+    }
+    description
+      "The neighbor information.";
+  } // neighbor
+
+  grouping link-direction-type {
+    leaf link-direction-type {
+      type enumeration {
+        enum illegal {
+          description
+            "Illegal direction.";
+        }
+        enum south {
+          description
+            "A link to a node one level down.";
+        }
+        enum north {
+          description
+            "A link to a node one level up.";
+        }
+        enum east-west {
+          description
+            "A link to a node in the same level.";
+        }
+        enum max {
+          description
+            "The max value of direction.";
+        }
+      }
+      config false;
+      description
+        "The type of link.";
+    }
+    description
+      "The type of link.";
+  } // link-direction-type
+
+  grouping tie-direction-type {
+    leaf tie-direction-type {
+      type enumeration {
+        enum illegal {
+          description
+            "Illegal direction.";
+        }
+        enum south {
+          description
+            "The direction to a node one level down.";
+        }
+        enum north {
+          description
+            "The direction to a node one level up.";
+        }
+        enum max {
+          description
+            "The max value of direction.";
+        }
+      }
+      config false;
+      description
+        "The direction type of TIE.";
+    }
+    description
+      "The direction type of TIE.";
+  } // tie-direction-type
+
+  grouping spf-direction-type {
+    leaf spf-direction-type {
+      type enumeration {
+        enum n-spf {
+          description
+            "A reachability calculation that is progressing
+             northbound, as example SPF that is using South
+             Node TIEs only. Normally it progresses a single
+             hop only and installs default routes.";
+        }
+        enum s-spf {
+          description
+            "A reachability calculation that is progressing
+             southbound, as example SPF that is using North
+             Node TIEs only.";
+        }
+      }
+      config false;
+      description
+        "The direction type of SPF calculation.";
+    }
+    description
+      "The direction type of SPF calculation.";
+  } // spf-direction-type
+
+  grouping tie-header {
+    uses tie-direction-type;
+    leaf originator {
+      type system-id;
+      description
+        "The originator's system-id of this TIE.";
+    }
+    uses tie-type;
+    leaf tie-number {
+      type uint32;
+      description
+        "The number of this TIE.";
+    }
+    leaf seq {
+      type uint64;
+      description
+        "The sequence number of a TIE.";
+      reference
+        "RFC 9692: RIFT: Routing in Fat Trees.
+         Section 6.3.1.";
+    }
+    leaf size {
+      type uint32;
+      description
+        "The size of this TIE.";
+    }
+    leaf origination-time {
+      type ieee802-1as-timestamp;
+      description
+        "Absolute timestamp when the TIE was generated.
+         This can be used on fabrics with synchronized
+         clock to prevent lifetime modification attacks.";
+    }
+    leaf origination-lifetime {
+      type uint32;
+      units "seconds";
+      description
+        "Original lifetime when the TIE was generated.
+         This can be used on fabrics with synchronized clock
+         to prevent lifetime modification attacks.";
+    }
+    leaf remaining-lifetime {
+      type uint32;
+      units "seconds";
+      description
+        "The remaining lifetime of the TIE.";
+    }
+    description
+      "TIEs are exchanged between RIFT nodes to describe parts
+       of a network such as links and address prefixes.
+       This is the TIE header information.";
+  } // tie-header
+
+  /*
+   * Data nodes
+   */
+
+  augment "/rt:routing/rt:control-plane-protocols"
+        + "/rt:control-plane-protocol" {
+    when "derived-from-or-self(rt:type, 'rift:rift')" {
+      description
+        "This augment is only valid when routing protocol
+         instance type is 'RIFT'.";
+    }
+    description
+      "RIFT ( Routing in Fat Trees ) YANG model.";
+    list rift {
+      key "name";
+      leaf name {
+        type string;
+        description
+          "The RIFT instance's name.";
+      }
+      container global {
+        description
+          "The global configuration and status of
+           this RIFT protocol instance.";
+        uses base-node-info;
+        leaf fabric-prefix {
+          type inet:ip-prefix;
+          description
+            "The configured fabric prefix.";
+        }
+        leaf fabric-prefix-advertise {
+          type boolean;
+          description
+            "Whether the fabric-prefix can be advertised or not.
+             If the value is set to 'true', it means that
+             the fabric-prefix can be advertised to neighbors.";
+        }
+        leaf configured-level {
+          type level;
+          description
+            "The configured level value of this node.";
+        }
+        container overload {
+          description
+            "If the overload in TIEs can be set
+             and the timeout value with according type.";
+          leaf overload {
+            type boolean;
+            description
+              "If the value is set to 'true', it means that
+               the overload bit in TIEs can be set.";
+          }
+          choice timeout-type {
+            description
+              "The value of timeout timer for overloading.
+               This makes sense when overload is set to 'TRUE'.";
+            case on-startup {
+              leaf on-startup-timeout {
+                type rt-types:timer-value-seconds16;
+                description
+                  "Node goes into overload until this timer
+                   expires when starting up.";
+              }
+            }
+            case immediate {
+              leaf immediate-timeout {
+                type rt-types:timer-value-seconds16;
+                description
+                  "Set overload and remove after the timeout
+                   expired.";
+              }
+            }
+          }
+        }
+        leaf proto-major-ver {
+          type uint8;
+          config false;
+          mandatory true;
+          description
+            "Represents protocol encoding schema major version.";
+        }
+        leaf proto-minor-ver {
+          type uint16;
+          config false;
+          mandatory true;
+          description
+            "Represents protocol encoding schema minor version.";
+        }
+        container node-capabilities {
+          uses hierarchy-indications;
+          leaf flood-reduction {
+            type boolean;
+            description
+              "If the node supports flood reduction function.
+               If this value is set to 'true',  it means that
+               the flood reduction function is enabled.";
+            reference
+              "RFC 9692: RIFT: Routing in Fat Trees.
+               Section 6.3.8.";
+          }
+          description
+            "The node's capabilities.";
+        }
+        leaf maximum-nonce-delta {
+          if-feature "nonce-delta-adjust";
+          type uint8 {
+            range "1..5";
+          }
+          description
+            "The configurable valid nonce delta value used for
+             security. It is used as vulnerability window.
+             If the nonces in received packet exceeds the range
+             indicated by this value, the packet MUST be
+             discarded.";
+          reference
+            "RFC 9692: RIFT: Routing in Fat Trees.
+             Section 6.9.4.";
+        }
+        leaf nonce-increasing-interval {
+          type uint16;
+          units "seconds";
+          description
+            "The configurable nonce increasing interval.";
+        }
+        leaf adjusted-lifetime {
+          type rt-types:timer-value-seconds16;
+          units "seconds";
+          description
+            "The adjusted lifetime may affect the TIE stability.
+             Be careful to change this parameter.
+             This SHOULD be prohibited less than 2*purge-lifetime.";
+        }
+        container rx-lie-multicast-addr {
+          leaf ipv4 {
+            type inet:ipv4-address;
+            default "224.0.0.121";
+            description
+              "The configurable LIE receiving IPv4 multicast
+               address.
+               Different multicast addresses can be used for
+               receiving and sending.";
+          }
+          leaf ipv6 {
+            type inet:ipv6-address;
+            default "ff02::a1f7";
+            description
+              "The configurable LIE receiving IPv6 multicast
+               address.
+               Different multicast addresses can be used for
+               receiving and sending.";
+          }
+          description
+            "The configurable LIE receiving IPv4/IPv6 multicast
+             address.
+             Different multicast addresses can be used for
+             receiving and sending.";
+        }
+        container tx-lie-multicast-addr {
+          leaf ipv4 {
+            type inet:ipv4-address;
+            description
+              "The configurable LIE sending IPv4 multicast
+               address.
+               Different multicast addresses can be used for
+               receiving and sending.";
+          }
+          leaf ipv6 {
+            type inet:ipv6-address;
+            description
+              "The configurable LIE sending IPv6 multicast
+               address.
+               Different multicast addresses can be used for
+               receiving and sending.";
+          }
+          description
+            "The configurable LIE sending IPv4/IPv6 multicast
+             address.
+             Different multicast addresses can be used for
+             receiving and sending.";
+        }
+        leaf lie-tx-port {
+          type inet:port-number;
+          default "914";
+          description
+            "The UDP port of LIE packet sending. The default port
+             number is 914. The value can be set to other value
+             associated with different RIFT instance.";
+        }
+        container global-link-capabilities {
+          uses link-capabilities;
+          description
+            "The node default link capabilities. It can be
+             overwritten by the configuration underneath interface
+             and neighbor.";
+        }
+        leaf tide-generation-interval {
+          type rt-types:timer-value-seconds16;
+          units "seconds";
+          description
+            "The TIDE generation interval.";
+        }
+        list tie-security {
+          if-feature "tie-security";
+          key "security-type";
+          uses security;
+          description
+            "The security function used for the TIE exchange.";
+          reference
+            "RFC 9692: RIFT: Routing in Fat Trees.
+             Section 6.9.3.";
+        }
+        leaf inner-security-key-id {
+          type uint8;
+          description
+            "The inner security key id for received packet
+             checking.";
+          reference
+            "RFC 9692: RIFT: Routing in Fat Trees.
+             Section 6.9.3.";
+        }
+        leaf algorithm-type {
+          type enumeration {
+            enum spf {
+              description
+                "The algorithm is SPF.";
+            }
+            enum all-path {
+              description
+                "The algorithm is all-path.";
+            }
+          }
+          description
+            "The possible algorithm types.";
+        }
+        container hal {
+          config false;
+          leaf hal-value {
+            type level;
+            description
+              "The highest defined level value seen from all
+               valid level offers received.";
+          }
+          leaf-list system-ids {
+            type system-id;
+            description
+              "The node's system-id of the offered level comes
+               from.";
+          }
+          description
+            "The highest defined level and the offered nodes set.";
+        }
+        leaf-list miscabled-links {
+          type uint32;
+          config false;
+          description
+            "List of miscabled links.";
+        }
+        leaf hop-limit {
+          type uint8 {
+            range "1 | 255";
+          }
+          default "1";
+          description
+            "The IPv4 TTL or IPv6 HL used for LIE and TIE
+             sending/receiving.";
+        }
+        leaf maximum-clock-delta {
+          type ieee802-1as-timestamp;
+          description
+            "The maximum drift for the timestamp comparing.";
+          reference
+            "RFC 9692: RIFT: Routing in Fat Trees.
+             Section 6.8.4.";
+        }
+      }
+      list interfaces {
+        key "name";
+        leaf link-id {
+          type uint32;
+          config false;
+          description
+            "The local id of this interface.";
+        }
+        leaf name {
+          type if:interface-ref;
+          description
+            "The interface's name.";
+        }
+        leaf cost {
+          type uint32;
+          description
+            "The cost from this interface to the neighbor.";
+        }
+        leaf rx-flood-port {
+          type inet:port-number;
+          default "915";
+          description
+            "The UDP port which is used to receive flooded
+             TIEs. The default port number is 915. The value
+             can be set to other value associated with different
+             RIFT instance.";
+        }
+        leaf holdtime {
+          type rt-types:timer-value-seconds16;
+          units "seconds";
+          default "3";
+          description
+            "The holding time of LIE.";
+        }
+        uses address-families;
+        container advertised-source-addr {
+          uses addresses;
+          description
+            "The address used in the advertised LIE and TIE
+             packets.";
+        }
+        uses link-direction-type;
+        leaf broadcast-capable {
+          type boolean;
+          description
+            "If LIE can be received by broadcast address.";
+          reference
+            "RFC 9692: RIFT: Routing in Fat Trees.
+             Section 6.2.";
+        }
+        leaf allow-horizontal-link {
+          type boolean;
+          description
+            "If horizontal link adjacency is allowed.";
+        }
+        container security {
+          if-feature "link-security";
+          uses security;
+          description
+            "The security function used for this interface.";
+          reference
+            "RFC 9692: RIFT: Routing in Fat Trees.
+             Section 6.9.3.";
+        }
+        leaf security-checking {
+          type enumeration {
+            enum no-checking {
+              description
+                "The security envelope does not be checked.";
+            }
+            enum permissive {
+              description
+                "The security envelope checking is permissive.";
+            }
+            enum loose {
+              description
+                "The security envelope checking is loose.";
+            }
+            enum strict {
+              description
+                "The security envelope checking is strict.";
+            }
+          }
+          description
+            "The possible security checking types.
+             Only one type can be set at the same time.";
+        }
+        leaf was-the-last-lie-accepted {
+          type boolean;
+          config false;
+          description
+            "If the value is set to 'true', it means that
+             the most recently received LIE was accepted.
+             If the LIE was rejected, the neighbor error
+             notifications should be used to find the reason.";
+        }
+        leaf last-lie-reject-reason {
+          type string;
+          config false;
+          description
+            "Description for the reject reason of the last LIE.";
+        }
+        container advertised-in-lies {
+          config false;
+          uses lie-elements;
+          description
+            "The attributes advertised in the LIEs from
+             this interface.";
+        }
+        container link-capabilities {
+          uses link-capabilities;
+          description
+            "The interface's link capabilities.";
+        }
+        leaf state {
+          type enumeration {
+            enum one-way {
+              description
+                "The initial state.";
+            }
+            enum two-way {
+              description
+                "Valid LIE received but not a ThreeWay LIE.";
+            }
+            enum three-way {
+              description
+                "Valid ThreeWay LIE received.";
+            }
+            enum multiple-neighbors-wait {
+              description
+                "More than two neighbors found in the same link.";
+            }
+          }
+          config false;
+          mandatory true;
+          description
+            "The states of LIE finite state machine.";
+          reference
+            "RFC 9692: RIFT: Routing in Fat Trees.
+             Section 6.2.1.";
+        }
+        list neighbors {
+          key "system-id";
+          config false;
+          uses base-node-info;
+          uses neighbor;
+          leaf local-nonce {
+            type uint16;
+            description
+              "The exchanged local nonce with this neighbor.";
+          }
+          leaf remote-nonce {
+            type uint16;
+            description
+              "The exchanged remote nonce to this neighbor.";
+          }
+          action clear-neighbor {
+            description
+              "Clears the connection to the neighbor.";
+          }
+          description
+            "The neighbor's information.";
+        }
+        action clear-all-neighbors {
+          description
+            "Clears all the connections to the neighbors
+             on this interface.";
+        }
+        description
+          "The interface information on this node.";
+      } // list interface
+      container statistics {
+        config false;
+        container global {
+          leaf total-num-routes-north {
+            type yang:zero-based-counter32;
+            config false;
+            description
+              "The total number of north routes.";
+          }
+          leaf total-num-routes-south {
+            type yang:zero-based-counter32;
+            config false;
+            description
+              "The total number of south routes.";
+          }
+          description
+            "The global routes number.";
+        }
+        list spf-statistics {
+          key "spf-direction-type";
+          uses spf-direction-type;
+          leaf start-time {
+            type yang:date-and-time;
+            description
+              "The last SPF calculation start time.";
+          }
+          leaf end-time {
+            type yang:date-and-time;
+            description
+              "The last SPF calculation end time.";
+          }
+          container triggering-tie {
+            uses tie-header;
+            description
+              "The TIE that triggered the SPF.";
+          }
+          action clear-spf-statistics {
+            description
+              "Clears the statistics of this type of
+               SPF calculation.";
+          }
+          description
+            "The statistics of SPF calculation.";
+        }
+        list interfaces {
+          key "name";
+          leaf name {
+            type if:interface-ref;
+            description
+              "The interface's name.";
+          }
+          container intf-states-statistics {
+            leaf intf-states-startup-time {
+              type uint64;
+              description
+                "The states and statistics record startup time
+                 of the interface.";
+            }
+            leaf num-of-nbrs-3way {
+              type yang:zero-based-counter32;
+              description
+                "The number of neighbors which state is in
+                 ThreeWay.";
+            }
+            leaf num-of-nbrs-down {
+              type yang:zero-based-counter32;
+              description
+                "The number of neighbors which state
+                 changed to down.";
+            }
+            list nbrs-down-reasons {
+              key "system-id";
+              leaf system-id {
+                type system-id;
+                description
+                  "The system-id of neighbor.";
+              }
+              leaf last-down-reason {
+                type string;
+                description
+                  "The last down reason of the neighbor.";
+              }
+              description
+                "The down neighbors and reasons.";
+            }
+            leaf num-local-level-change {
+              type yang:zero-based-counter32;
+              description
+                "The number of local level changes.";
+            }
+            leaf number-of-flaps {
+              type yang:zero-based-counter32;
+              config false;
+              description
+                "The number of interface state flaps.";
+            }
+            leaf last-state-change {
+              type yang:date-and-time;
+              config false;
+              description
+                "Time duration in the current state.";
+            }
+            leaf last-up {
+              type yang:date-and-time;
+              config false;
+              description
+                "The last time of up.";
+            }
+            leaf last-down {
+              type yang:date-and-time;
+              config false;
+              description
+                "The last time of down.";
+            }
+            container intf-lie-states {
+              leaf last-lie-sent-time {
+                type uint64;
+                description
+                  "The time of the last LIE sent.";
+              }
+              leaf last-lie-received-time {
+                type uint64;
+                description
+                  "The time of the last LIE received.";
+              }
+              leaf num-lie-received {
+                type yang:zero-based-counter32;
+                description
+                  "The number of received LIEs.";
+              }
+              leaf num-lie-transmitted {
+                type yang:zero-based-counter32;
+                description
+                  "The number of transmitted LIEs.";
+              }
+              leaf num-lie-drop-invalid-envelope {
+                type yang:zero-based-counter32;
+                description
+                  "The number of dropped LIEs due to
+                   invalid outer envelope.";
+              }
+              leaf num-lie-drop-invalid-nonce {
+                type yang:zero-based-counter32;
+                description
+                  "The number of dropped LIEs due to
+                   invalid nonce.";
+              }
+              leaf num-lie-corrupted {
+                type yang:zero-based-counter32;
+                description
+                  "The number of corrupted LIEs received.";
+              }
+              description
+                "The LIE's statistics of this interface.";
+            }
+            description
+              "The states and statistics of this interface.";
+          }
+          container flood-repeater-statistics {
+            leaf flood-repeater {
+              type system-id;
+              description
+                "The system-id of the current flood repeater.
+                 If this leaf has no value, that means the neighbor
+                 is not flood repeater.";
+            }
+            leaf num-flood-repeater-changes {
+              type yang:zero-based-counter32;
+              description
+                "The number of flood repeater changes.";
+            }
+            leaf last-flood-repeater-change-reason {
+              type string;
+              description
+                "The reason of the last flood repeater change.";
+            }
+            description
+              "The flood repeater statistics.";
+          }
+          action clear-intf-statistics {
+            description
+              "Clears the statistics of this interface.";
+          }
+          description
+            "The statistics of interfaces.";
+        }
+        list neighbors {
+          key "system-id";
+          leaf system-id {
+            type system-id;
+            description
+              "The system-id of the neighbor.";
+          }
+          container tie-state-statistics {
+            leaf transmit-queue {
+              type yang:zero-based-counter32;
+              description
+                "The length of TIE transmit queue.";
+            }
+            container last-queued-tie {
+              uses tie-header;
+              leaf reason-queued {
+                type string;
+                description
+                  "The queued reason of the last queued TIE.";
+              }
+              description
+                "The last queued TIE for transmit.";
+            }
+            leaf num-received-ties {
+              type yang:zero-based-counter32;
+              description
+                "The number of TIEs received.";
+            }
+            leaf num-transmitted-ties {
+              type yang:zero-based-counter32;
+              description
+                "The number of TIEs transmitted.";
+            }
+            leaf num-retransmitted-ties {
+              type yang:zero-based-counter32;
+              description
+                "The number of TIEs retransmitted.";
+            }
+            leaf num-flood-reduced-ties {
+              type yang:zero-based-counter32;
+              description
+                "The number of TIEs that were flood reduced.";
+            }
+            leaf num-received-tides {
+              type yang:zero-based-counter32;
+              description
+                "The number of TIDEs received.";
+            }
+            leaf num-transmitted-tides {
+              type yang:zero-based-counter32;
+              description
+                "The number of TIDEs transmitted.";
+            }
+            leaf num-received-tires {
+              type yang:zero-based-counter32;
+              description
+                "The number of TIREs received.";
+            }
+            leaf num-transmitted-tires {
+              type yang:zero-based-counter32;
+              description
+                "The number of TIREs transmitted.";
+            }
+            leaf num-request-locally {
+              type yang:zero-based-counter32;
+              description
+                "The number of TIEs requested locally.";
+            }
+            leaf num-request-remotely {
+              type yang:zero-based-counter32;
+              description
+                "The number of TIEs requested by the neighbor.";
+            }
+            leaf num-same-older-ties-received {
+              type yang:zero-based-counter32;
+              description
+                "The number of times of the same or older TIE
+                 has been received.";
+            }
+            leaf num-seq-mismatch-pkts-received {
+              type yang:zero-based-counter32;
+              description
+                "The number of packets with sequence number
+                 mismatches.";
+            }
+            container last-sent-tie {
+              uses tie-header;
+              leaf last-tie-sent-time {
+                type yang:date-and-time;
+                description
+                  "The time of the last TIE sent.";
+              }
+              description
+                "The information of the last sent TIE.";
+            }
+            container last-recv-tie {
+              uses tie-header;
+              leaf last-tie-recv-time {
+                type yang:date-and-time;
+                description
+                  "The time of the last TIE received.";
+              }
+              description
+                "The information of the last received TIE.";
+            }
+            container largest-tie {
+              container largest-tie-sent {
+                uses tie-header;
+                description
+                  "The largest TIE sent.";
+              }
+              container largest-tide-sent {
+                uses tie-header;
+                description
+                  "The largest TIDE sent.";
+              }
+              container largest-tire-sent {
+                uses tie-header;
+                description
+                  "The largest TIRE sent.";
+              }
+              description
+                "The largest sent TIE, TIDE and TIRE.";
+            }
+            container num-tie-dropped {
+              leaf num-tie-outer-envelope {
+                type yang:zero-based-counter32;
+                description
+                  "The total number of TIEs dropped due to
+                   invalid outer envelope.";
+              }
+              leaf num-tie-inner-envelope {
+                type yang:zero-based-counter32;
+                description
+                  "The total number of TIEs dropped due to
+                   invalid inner envelope.";
+              }
+              leaf num-tie-nonce {
+                type yang:zero-based-counter32;
+                description
+                  "The total number of TIEs dropped due to
+                   invalid nonce.";
+              }
+              description
+                "The total number of TIEs dropped due to
+                 security reasons.";
+            }
+            description
+              "The statistics of TIE, TIDE, TIRE
+               exchanging with this neighbor.";
+          }
+          action clear-nbr-statistics {
+            description
+              "Clears the statistics of this neighbor.";
+          }
+          description
+            "The statistics of neighbors.";
+        }
+        description
+          "The statistics collection.";
+      }
+      container database {
+        config false;
+        list ties {
+          key "tie-direction-type originator tie-type tie-number";
+          description
+            "A list of TIEs (Topology Information Elements).";
+          uses tie-header;
+          container node {
+            leaf level {
+              type level;
+              config false;
+              description
+                "The level of this node.";
+            }
+            list neighbors {
+              key "system-id";
+              uses base-node-info;
+              uses neighbor-node;
+              description
+                "The node TIE information of a neighbor.";
+            }
+            uses node-capability;
+            leaf overload-flag {
+              type boolean;
+              description
+                "If the value is set to 'true', it means that
+                 the overload bit in TIEs is set.";
+            }
+            leaf name {
+              type string;
+              description
+                "The name of this node. It won't be used as the
+                 key of node, just used for description.";
+            }
+            leaf pod {
+              type uint32;
+              description
+                "Point of Delivery. The self-contained vertical
+                 slice of a Clos or Fat Tree network containing
+                 normally only level 0 and level 1 nodes. It
+                 communicates with nodes in other PoDs via the
+                 spine. We number PoDs to distinguish them and
+                 use PoD #0 to denote 'undefined' PoD.";
+            }
+            leaf startup-time {
+              type uint64;
+              description
+                "Startup time of the node.";
+            }
+            leaf-list miscabled-links {
+              type uint32;
+              config false;
+              description
+                "List of miscabled links.";
+            }
+            leaf-list same-plane-tofs {
+              type system-id;
+              config false;
+              description
+                "ToFs in the same plane. Only carried by ToF.
+                 Multiple Node TIEs can carry disjoint sets of
+                 ToFs which MUST be joined to form a single
+                 set.";
+            }
+            leaf fabric-id {
+              type uint32;
+              config false;
+              description
+                "The optional ID of the Fabric configured.";
+            }
+            description
+              "The node element information in this TIE.";
+          } // node
+          container prefixes {
+            description
+              "The prefix element information in this TIE.";
+            list prefixes {
+              key "prefix";
+              leaf prefix {
+                type inet:ip-prefix;
+                description
+                  "The prefix information.";
+              }
+              uses tie-type;
+              uses prefix-attribute;
+              description
+                "The prefix set information.";
+            }
+          }
+          container key-value {
+            leaf key {
+              type binary;
+              description
+                "The type of key value combination.";
+            }
+            leaf value {
+              type binary;
+              description
+                "The value of key value combination.";
+            }
+            description
+              "The information used to distinguish a Key/Value
+               pair. When the type of kv is set to 'node',
+               node-element is making sense. When the type of
+               kv is set to other values except 'node',
+               prefix-info is making sense.";
+          } // kv-store
+        } // ties
+        description
+          "The TIEs information in database.";
+      } // container database
+      description
+        "RIFT configuration and state data.";
+    } //rift
+  } //augment
+
+  /*
+   * Notifications
+   */
+
+  notification error-set {
+    description
+      "The errors notification of RIFT.";
+    container tie-level-error {
+      description
+        "The TIE errors notification of RIFT.";
+      list rift {
+        key "name";
+        leaf name {
+          type string;
+          description
+            "The RIFT instance's name.";
+        }
+        list ties {
+          key "originator";
+          uses tie-header;
+          description
+            "The level is undefined in the LIEs.";
+        }
+        description
+          "The TIE errors set.";
+      }
+    }
+    container neighbor-error {
+      description
+        "The neighbor errors notification of RIFT.";
+      list rift {
+        key "name";
+        leaf name {
+          type string;
+          description
+            "The RIFT instance's name.";
+        }
+        list interfaces {
+          key "name";
+          leaf link-id {
+            type uint32;
+            description
+              "The local id of this interface.";
+          }
+          leaf name {
+            type if:interface-ref;
+            description
+              "The interface's name.";
+          }
+          list neighbors {
+            key "system-id";
+            leaf system-id {
+              type system-id;
+              description
+                "Each node is identified via a system-id which is 64
+                 bits wide.";
+            }
+            leaf node-level {
+              type level;
+              description
+                "The level of this node.";
+            }
+            description
+              "The level of the neighbor is wrong.";
+          }
+          description
+            "The interfaces with wrong level neighbor.";
+        }
+        description
+          "The RIFT instance.";
+      }
+    }
+  }
+}
