@@ -211,13 +211,10 @@ YANG version 1.1 is described by the RFC 7950, The YANG 1.1 Data Modeling Langua
 | Catalyst 9800| [yang-set-wireless.xml](yang-set-wireless.xml) |
 | C8000v/ISRv | [yang-set-c8000v.xml](yang-set-c8000v.xml) |
 | C8500/C8500L | [yang-set-c8500.xml](yang-set-c8500.xml) |
-| C8200 | [yang-set-c8200.xml](yang-set-c8200.xml) |
-| C8300 | [yang-set-c8300.xml](yang-set-c8300.xml) |
 | ESS 3x00 | [yang-set-ess3x00.xml](yang-set-ess3x00.xml) |
 | IR 1101 | [yang-set-ir1101.xml](yang-set-ir1101.xml) |
 | IE 3x00 | [yang-set-ie3x00.xml](yang-set-ie3x00.xml) |
 | ISR 1000 | [yang-set-isr1k.xml](yang-set-isr1k.xml) |
-| ISR 4000 | [yang-set-isr4k.xml](yang-set-isr4k.xml) |
 
 ### OID to xpath Mapping
 
