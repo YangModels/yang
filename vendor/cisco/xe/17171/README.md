@@ -61,17 +61,6 @@ listed below. As model content may differ based on platform capabilities, sample
 
 #### Native Models Modified 
 
-* Cisco-IOS-XE-bgp.md 
-* Cisco-IOS-XE-controller.md 
-* Cisco-IOS-XE-crypto.md 
-* Cisco-IOS-XE-dhcp.md 
-* Cisco-IOS-XE-ethernet-cfm-efp.md 
-* Cisco-IOS-XE-ethernet.md 
-* Cisco-IOS-XE-ip.md 
-* Cisco-IOS-XE-lisp.md 
-* Cisco-IOS-XE-sdwan.md 
-* Cisco-IOS-XE-wireless-rf-cfg.md 
-* Cisco-IOS-XE-wireless-wlan-cfg.md 
 * Cisco-IOS-XE-aaa-rpc.yang 
 * Cisco-IOS-XE-aaa.yang 
 * Cisco-IOS-XE-acl.yang 
