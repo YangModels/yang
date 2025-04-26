@@ -12,7 +12,7 @@
 #
 platform_dir="vendor/cisco/nx"
 
-to_check='10.2-9'
+to_check='10.5-3'
 debug=1
 
 checkDir () {
