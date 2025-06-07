@@ -1,0 +1,196 @@
+module ietf-schc-opt {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-schc-opt";
+  prefix schc-opt;
+
+  import ietf-schc {
+      prefix schc;
+  }
+
+  organization
+    "IETF IPv6 over Low Power Wide-Area Networks (lpwan) working group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/lpwan/about/>
+     WG List:  <mailto:p-wan@ietf.org>
+     Editor:   Laurent Toutain
+       <mailto:laurent.toutain@imt-atlantique.fr>
+     Editor:   Ana Minaburo
+       <mailto:ana@ackl.io>";
+  description
+     "
+     Copyright (c) 2021 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Simplified BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+     for full legal notices.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.
+
+     *************************************************************************
+
+     This module extends the ietf-schc module to include the compound-ack
+     behavior for Ack On Error as defined in RFC YYYY.
+     It introduces a new leaf for Ack on Error defining the format of the
+     SCHC Ack and add the possibility to send several bitmaps in a single
+     answer.";
+
+  revision 2024-12-19 {
+    description
+      "Initial version for RFC YYYY ";
+    reference
+      "RFC YYYY: OAM";
+  }
+
+  identity space-id-base-type {
+    description
+      "Field ID base type for all fields.";
+  }
+
+  identity space-id-coap {
+    base space-id-base-type;
+    description
+      "Field ID base type for IPv6 headers described in RFC 8200.";
+    reference
+      "RFC 8200 Internet Protocol, Version 6 (IPv6) Specification";
+  }
+
+  typedef space-type {
+    type identityref {
+      base space-id-base-type;
+    }
+    description
+      "Field ID generic type.";
+    reference
+      "RFC 8724 SCHC: Generic Framework for Static Context Header
+                Compression and Fragmentation";
+  }
+
+ augment "/schc:schc/schc:rule/schc:nature/schc:compression" {
+  list entry-option-space {
+    key "space-id option-id field-position direction-indicator";
+    leaf space-id {
+      type space-type;
+      mandatory true;
+      description
+        "";
+    }
+    leaf option-id {
+      type uint32;
+    }
+    leaf field-length {
+      type schc:fl-type;
+
+      mandatory true;
+      description
+        "Field Length, expressed in number of bits if the length is
+         known when the Rule is created or through a specific
+         function if the length is variable.";
+    }
+    leaf field-position {
+      type uint8;
+      mandatory true;
+      description
+        "Field Position in the header is an integer.  Position 1
+         matches the first occurrence of a field in the header,
+         while incremented position values match subsequent
+         occurrences.
+         Position 0 means that this entry matches a field
+         irrespective of its position of occurrence in the
+         header.
+         Be aware that the decompressed header may have
+         position-0 fields ordered differently than they
+         appeared in the original packet.";
+    }
+    leaf direction-indicator {
+      type schc:di-type;
+      mandatory true;
+      description
+        "Direction Indicator, indicate if this field must be
+         considered for Rule selection or ignored based on the
+         direction (bidirectional, only uplink, or only
+         downlink).";
+    }
+    list target-value {
+      key "index";
+      uses schc:tv-struct;
+      description
+        "A list of values to compare with the header field value.
+         If Target Value is a singleton, position must be 0.
+         For use as a matching list for the mo-match-mapping Matching
+         Operator, index should take consecutive values starting
+         from 0.";
+    }
+    leaf matching-operator {
+      type schc:mo-type;
+      must "../target-value or derived-from-or-self(.,
+                                                   'mo-ignore')" {
+        error-message
+          "mo-equal, mo-msb, and mo-match-mapping need target-value";
+        description
+          "target-value is not required for mo-ignore.";
+      }
+      must "not (derived-from-or-self(., 'mo-msb')) or
+            ../matching-operator-value" {
+        error-message "mo-msb requires length value";
+      }
+      mandatory true;
+      description
+        "MO: Matching Operator.";
+      reference
+        "RFC 8724 SCHC: Generic Framework for Static Context Header
+                  Compression and Fragmentation (see Section 7.3)";
+    }
+    list matching-operator-value {
+      key "index";
+      uses schc:tv-struct;
+      description
+        "Matching Operator Arguments, based on TV structure to allow
+         several arguments.
+         In RFC 8724, only the MSB Matching Operator needs arguments
+         (a single argument, which is the number of most significant
+         bits to be matched).";
+    }
+    leaf comp-decomp-action {
+      type schc:cda-type;
+      must "../target-value or
+                derived-from-or-self(., 'cda-value-sent') or
+                derived-from-or-self(., 'cda-compute') or
+                derived-from-or-self(., 'cda-appiid') or
+                derived-from-or-self(., 'cda-deviid')" {
+        error-message
+          "cda-not-sent, cda-lsb, and cda-mapping-sent need
+           target-value";
+        description
+          "target-value is not required for some CDA.";
+        }
+      mandatory true;
+      description
+        "CDA: Compression Decompression Action.";
+      reference
+        "RFC 8724 SCHC: Generic Framework for Static Context Header
+                  Compression and Fragmentation (see Section 7.4)";
+    }
+    list comp-decomp-action-value {
+      key "index";
+      uses schc:tv-struct;
+      description
+        "CDA arguments, based on a TV structure, in order to allow
+         for several arguments.  The CDAs specified in RFC 8724
+         require no argument.";
+    }
+  }
+
+  }
+}
