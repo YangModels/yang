@@ -1,0 +1,201 @@
+module ietf-lm-hierarchy {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-lm-hierarchy";
+  prefix lm;
+
+  import ietf-inet-types { prefix inet; }
+  import ietf-yang-types { prefix yang; }
+
+  organization
+    "IETF Network Modeling (NETMOD) Working Group";
+
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/netmod/>
+     WG List:  <mailto:netmod@ietf.org>
+
+     Author:   Keenan Williams
+               <mailto:telesis001@icloud.com>";
+
+  description
+    "This module defines a hierarchical topology model for
+     distributed language models (LMs), including request
+     escalation, authentication, and inter-node coordination.
+
+     Copyright (c) 2025 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+     for full legal notices.";
+
+  revision 2025-07-06 {
+    description "Initial version";
+    reference "RFC XXXX: Hierarchical Topology for Language Model
+               Coordination";
+  }
+
+  feature pluggable-token-validation {
+    description
+      "Indicates support for pluggable token validation
+       (e.g., JWTs, OIDC, or COSE)";
+  }
+
+  identity lm-node-type {
+    description "Base identity for LM node types.";
+  }
+
+  identity tiny-lm {
+    base lm-node-type;
+    description "A lightweight edge-deployed language model.";
+  }
+
+  identity small-lm {
+    base lm-node-type;
+    description "A mid-tier aggregator or summarizer.";
+  }
+
+  identity large-lm {
+    base lm-node-type;
+    description "A central reasoning or escalation endpoint.";
+  }
+
+  grouping auth-token-grouping {
+    description "Reusable auth-token structure.";
+    leaf auth-token {
+      type string;
+      description "A signed authentication/authorization token.";
+    }
+  }
+
+  container lm-node {
+    description "Node-level configuration and operational state.";
+
+    leaf node-id {
+      type string;
+      mandatory true;
+      description "Unique identifier of this LM node.";
+    }
+
+    leaf node-type {
+      type identityref {
+        base lm-node-type;
+      }
+      mandatory true;
+      description "Classification of this node (tiny, small, large).";
+    }
+
+    container trust {
+      description "Token validation configuration.";
+      if-feature pluggable-token-validation;
+
+      leaf trust-anchor {
+        type string;
+        description "Root or public key used for token validation.";
+      }
+
+      leaf token-scope-enforced {
+        type boolean;
+        default true;
+        description "Whether to enforce scope claims in tokens.";
+      }
+    }
+
+    action validate-token {
+      description
+        "Validates a received authentication token.";
+      input {
+        leaf token {
+          type string;
+          mandatory true;
+        }
+      }
+      output {
+        leaf valid {
+          type boolean;
+        }
+        leaf reason {
+          type string;
+        }
+      }
+    }
+  }
+
+  rpc lm-request {
+    description "Submits an inference or summarization request.";
+    input {
+      uses auth-token-grouping;
+      leaf source-node {
+        type string;
+        mandatory true;
+      }
+      leaf target-node {
+        type string;
+        mandatory true;
+      }
+      leaf request-type {
+        type enumeration {
+          enum inference;
+          enum summarization;
+        }
+        mandatory true;
+      }
+      leaf payload {
+        type string;
+        mandatory true;
+      }
+    }
+    output {
+      leaf result {
+        type string;
+      }
+      leaf status {
+        type string;
+      }
+    }
+  }
+
+  rpc model-escalation {
+    description "Forwards a request upward in the hierarchy.";
+    input {
+      uses auth-token-grouping;
+      leaf original-payload {
+        type string;
+      }
+      leaf reason {
+        type string;
+      }
+    }
+    output {
+      leaf resolution {
+        type string;
+      }
+      leaf downstream-directive {
+        type string;
+      }
+    }
+  }
+
+  notification lm-heartbeat {
+    description "Emitted to indicate liveness of this node.";
+    leaf sender-node {
+      type string;
+    }
+    leaf status {
+      type enumeration {
+        enum alive;
+        enum degraded;
+        enum unreachable;
+      }
+    }
+    leaf timestamp {
+      type yang:date-and-time;
+    }
+  }
+}
