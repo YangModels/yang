@@ -1,0 +1,312 @@
+module arcos-datapath-nexthop {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/datapath/nexthop";
+  prefix arc-dp-nexthop;
+
+  import ietf-inet-types { prefix "inet"; }
+  import openconfig-interfaces { prefix "oc-if"; }
+  import openconfig-yang-types { prefix "oc-yang"; }
+  import openconfig-mpls-types { prefix "oc-mplst"; }
+  import openconfig-policy-types { prefix "oc-pol-types"; }
+  import arcos-datapath-aft-types { prefix "arcos-dp-aft-types"; }
+  import arcos-datapath-tunnel { prefix "arcos-dp-tnl"; }
+
+  grouping nexthop-top {
+    description
+      "Structural grouping describing a next-hop entry.";
+
+    container next-hops {
+      config false;
+      description
+        "The list of next-hops that are to be used for entry within
+        the AFT table. The structure of each next-hop is address
+        family independent, such that it is possible to resolve fully
+        how the next-hop is treated. For example:
+
+        - Where ingress IPv4 unicast packets are to be forwarded via
+          an MPLS LSP, the next-hop list should indicate the MPLS
+          label stack that is used to the next-hop.
+        - Where ingress MPLS labelled packets are to be forwarded to
+          an IPv6 nexthop (for example, a CE within a VPN, then the
+          popped label stack, and IPv6 next-hop address should be
+          indicated).";
+
+      list next-hop {
+        key "index type";
+
+        description
+          "A next-hop associated with the forwarding instance";
+
+        leaf index {
+          type leafref {
+            path "../state/index";
+          }
+          description
+            "A unique index identifying the next-hop entry for the
+            entry";
+        }
+
+        leaf type {
+          type leafref {
+            path "../state/type";
+          }
+          description
+            "A unique index identifying the next-hop entry for the
+            entry";
+        }
+
+        container state {
+          config false;
+          description
+            "Operational state parameters relating to the AFT
+            next-hop entry";
+
+          uses nexthop-state;
+        }
+        uses parent-nexthop-state;
+      }
+    }
+  }
+
+  grouping parent-nexthop-flat-state-2 {
+    description
+      "Parameters relating to a next next-hops in forwarding chain";
+
+    leaf parent-index {
+      type uint64;
+      description
+        "A unique index identifying the next-hop entry for the
+        entry";
+    }
+
+    leaf parent-type {
+      type arcos-dp-aft-types:dpal-nexthop-type;
+      description
+        "A unique type identifying the next-hop entry for the
+        entry";
+    }
+    container parent-next-hops {
+      description
+        "The list of next next-hops in forwarding chain";
+      uses nexthop-state;
+      uses arcos-dp-tnl:tunnel-state-flat;
+    }
+  }
+  grouping parent-nexthop-flat-state {
+    description
+      "Parameters relating to a next next-hops in forwarding chain";
+
+    leaf parent-index {
+      type uint64;
+      description
+        "A unique index identifying the next-hop entry for the
+        entry";
+    }
+
+    leaf parent-type {
+      type arcos-dp-aft-types:dpal-nexthop-type;
+      description
+        "A unique type identifying the next-hop entry for the
+        entry";
+    }
+    container parent-next-hops {
+      description
+        "The list of next next-hops in forwarding chain";
+      uses nexthop-state;
+      uses parent-nexthop-flat-state-2;
+      uses arcos-dp-tnl:tunnel-state-flat;
+    }
+  }
+
+  grouping parent-nexthop-state {
+    description
+      "Parameters relating to a next next-hops in forwarding chain";
+
+    container parent-next-hops {
+      description
+        "The list of next next-hops in forwarding chain";
+
+      list parent-next-hop {
+        key "parent-index parent-type";
+
+        description
+          "A next-hop associated with the forwarding instance";
+
+        leaf parent-index {
+          type leafref {
+            path "../state/parent-index";
+          }
+          description
+            "A unique index identifying the next-hop entry for the
+            entry";
+        }
+
+        leaf parent-type {
+          type leafref {
+            path "../state/parent-type";
+          }
+          description
+            "A unique type identifying the next-hop entry for the
+            entry";
+        }
+
+        container state {
+          config false;
+          description
+            "Operational state parameters relating to the AFT
+            next-hop entry";
+
+          leaf parent-index {
+            type leafref {
+              path "../../../../state/index";
+            }
+            description
+              "A unique index identifying the next-hop entry for the
+              entry";
+          }
+          leaf parent-type {
+            type leafref {
+              path "../../../../state/type";
+            }
+            description
+              "A unique type identifying the next-hop entry for the
+              entry";
+          }
+        }
+      }
+    }
+  }
+
+  grouping nexthop-state {
+    description
+      "Parameters relating to a next-hop within the AFT entry";
+
+    leaf index {
+      type uint64;
+      description
+        "A unique index identifying the next-hop entry for the
+        entry";
+    }
+
+    leaf type {
+      type arcos-dp-aft-types:dpal-nexthop-type;
+      description
+        "Forwarding type.";
+    }
+
+    leaf weight {
+      type uint32;
+      description
+        "The weight of the next-hop. Traffic is balanced according to
+        the ratio described by the relative weights of the next hops
+        that exist for the AFT entry. Note that all next-hops that are
+        specified are assumed to be active next-hops and therefore
+        eligible (and selected) to be installed in the FIB, and hence
+        used for packet forwarding.";
+    }
+
+    leaf ip-address {
+      type inet:ip-address;
+      description
+        "The IP address of the next-hop system.";
+    }
+
+    leaf mac-address {
+      type oc-yang:mac-address;
+      description
+        "The MAC address of the next-hop if resolved by the local
+        network instance.";
+    }
+
+    leaf-list popped-mpls-label-stack {
+      type oc-mplst:mpls-label;
+      description
+        "The MPLS label stack to be popped from the packet when
+        switched by the system. The stack is encoded as a leaf-list
+        such that the first entry is the label that is outer-most (i.e.,
+        furthest from the bottom of the stack) label
+        stack to be popped.
+
+        If the local system pops the outer-most label 400, then the
+        value of this list is [400,]. If the local system removes two
+        labels, the outer-most being 500, and the second of which is
+        400, then the value of the list is [500, 400].
+
+        A swap operation is reflected by entries in the
+        popped-mpls-label-stack and pushed-mpls-label-stack nodes.";
+    }
+
+    leaf-list pushed-mpls-label-stack {
+      type oc-mplst:mpls-label;
+      ordered-by user;
+      description
+        "The MPLS label stack imposed when forwarding packets to the
+        next-hop
+        - the stack is encoded as a leaf list whereby the order of the
+          entries is such that the first entry in the list is the
+          label at the bottom of the stack to be pushed.
+
+        To this end, a packet which is to forwarded to a device using
+        a service label of 42, and a transport label of 8072 will be
+        represented with a label stack list of [42, 8072].
+
+        The MPLS label stack list is ordered by the user, such that no
+        system re-ordering of leaves is permitted by the system.
+
+        A swap operation is reflected by entries in the
+        popped-mpls-label-stack and pushed-mpls-label-stack nodes.";
+
+    }
+
+    leaf forwarding-action {
+      type arcos-dp-aft-types:dpal-nexthop-action-type;
+      description
+        "Forwarding action";
+    }
+
+    leaf interface {
+      type string;
+      description
+        "Reference to a base interface.  If a reference to a
+        subinterface is required, this leaf must be specified
+        to indicate the base interface.";
+    }
+
+    leaf subinterface {
+      type uint32;
+      description
+        "Reference to a subinterface -- this requires the base
+        interface to be specified using the interface leaf in
+        this container.  If only a reference to a base interface
+        is requuired, this leaf should not be set.";
+    }
+
+    leaf vni-id {
+      type uint32;
+      description
+        "Reference to VXLAN network identifier.";
+    }
+
+    leaf tunnel-id {
+      type uint32;
+      description
+        "Reference to a tunnel encapsulation.";
+    }
+    leaf failover-id {
+      type int32;
+      description
+        "Reference to a failover id.";
+    }
+    leaf protected-nh-type {
+      type arcos-dp-aft-types:dpal-nexthop-protected-type;
+      description
+        "Type to identify if the protected next-hop is Active or Backup";
+    }
+    leaf protected-nh-state {
+      type arcos-dp-aft-types:dpal-nexthop-protected-state;
+      description
+        "Type to identify if the protected next-hop path is Active or Passive in hardware";
+    }
+  }
+  uses nexthop-top;
+}

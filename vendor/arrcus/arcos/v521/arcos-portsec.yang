@@ -1,0 +1,306 @@
+module arcos-portsec {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/portsec";
+  prefix arc-portsec;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  import openconfig-interfaces {
+    prefix oc-if;
+  }
+
+  import openconfig-types {
+    prefix oc-types;
+  }
+
+  import openconfig-yang-types {
+    prefix oc-yang;
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  organization
+    "Arrcus, Inc.";
+
+  contact
+    "Arrcus, Inc.
+     2077 Gateway Place
+     Suite 400
+     San Jose, CA 95110
+
+     E-mail: yang-support@arrcus.com";
+
+  description
+    "This module contains definitions for the
+     native ArcOS Port Sec feature.
+
+     Copyright (c) 2016-2022 by Arrcus, Inc.
+     All rights reserved.";
+
+  revision 2022-10-19 {
+    description
+      "Command added: clear port security learnt-macs";
+  }
+
+  revision 2022-08-22 {
+    description
+      "port security improved config";
+  }
+
+  revision 2022-01-05 {
+    description
+      "Initial version";
+  }
+
+  typedef violation-status-types {
+    type enumeration {
+      enum RESTRICT {
+        value 0;
+        description
+          "The interface does not learn any more mac addresses";
+      }
+      enum SHUTDOWN {
+        value 1;
+        description
+          "The interface goes down";
+      }
+      enum ACTIVE {
+        value 2;
+        description
+          "The interface is active";
+      }
+    }
+  }
+
+  typedef violation-action-types {
+    type enumeration {
+      enum RESTRICT {
+        value 0;
+        description
+          "The interface does not learn anymore mac addresses";
+      }
+      enum SHUTDOWN {
+        value 1;
+        description
+          "The interface goes down";
+      }
+    }
+  }
+
+  typedef if-state-type {
+    type enumeration {
+      enum DOWN {
+        value 1;
+        description
+          "Interface state is down";
+      }
+      enum UP {
+        value 2;
+        description
+          "Interface state is up";
+      }
+    }
+  }
+
+  container port-security {
+    description
+      "Port security top level container";
+
+    container profiles {
+      description
+        "Top level container for security profiles";
+
+      list profile {
+        key "name";
+        max-elements 256;
+        description
+          "List of security profiles";
+
+        leaf name {
+          type leafref {
+            path "../config/name" ;
+          }
+          description "Reference to a configured profile name";
+        }
+
+        container config {
+          leaf name {
+            type string {
+              pattern
+                '[a-zA-Z0-9\-_]{1,32}';
+            }
+            description
+              "Port security profile name";
+          }
+
+          leaf limit {
+            type uint16 {
+              range 1..1024;
+            }
+            mandatory true;
+            description
+              "Limit number of mac entries to be learned on a port and if this limit crosses,
+              action will be taken based on the violation policy configuration";
+          }
+
+          leaf violation-policy {
+            type violation-action-types;
+            default "RESTRICT";
+            description
+              "Action to be taken when number of mac entries crosses configured limit";
+          }
+
+          leaf sticky {
+            type boolean;
+            default false;
+            description
+              "Do not age out learned mac entries, persist learned mac entries across reboots";
+          }
+        }
+      }
+    }
+
+    container state {
+      description
+        "Port security state";
+
+      config false;
+
+      container interfaces {
+
+        list interface {
+          key "name";
+
+          leaf name {
+            type oc-if:base-interface-ref;
+            description
+              "Interface name";
+          }
+
+          leaf if-status {
+            type if-state-type;
+            description
+              "Port operational status";
+          }
+
+          leaf port-security-enable {
+            type boolean;
+            description
+              "Port security enable status";
+          }
+
+          leaf profile {
+            type string;
+            description
+              "Port security profile name";
+          }
+
+          leaf sticky {
+            type boolean;
+            description
+              "Port sticky status";
+          }
+
+          leaf violation-policy {
+            type violation-action-types;
+            description
+              "Configured violation action type";
+          }
+
+          leaf limit {
+            type uint32;
+            description
+              "Configured limit count";
+          }
+
+          leaf learned-mac-hit-count {
+            type yang:counter32;
+            description
+              "Counter for number of learned mac entries";
+          }
+
+          leaf violation-count {
+            type yang:counter32;
+            description
+              "Counter for number of violated mac entries";
+          }
+
+          leaf violation-status {
+            type violation-status-types;
+            description
+              "Port Violation Status";
+          }
+        }
+
+        leaf-list "static-mac-list" {
+          type yang:mac-address;
+          description
+            "List of traffic hit static macs";
+        }
+
+        leaf-list "sticky-mac-list" {
+          type yang:mac-address;
+          description
+            "List of traffic hit sticky macs";
+        }
+
+        leaf-list "learned-mac-list" {
+          type yang:mac-address;
+          description
+            "List of traffic hit learned macs";
+        }
+      }
+    }
+
+    container internal {
+      description
+        "Implementation specific internal state information";
+
+      config false;
+
+      list interface {
+        key "name";
+
+        leaf name {
+          type oc-if:base-interface-ref;
+          description
+            "Interface name";
+        }
+
+        list saved-sticky-mac-list {
+          key "mac-address";
+
+          description
+            "Persisted list of sticky mac addresses";
+
+          leaf mac-address {
+            type yang:mac-address;
+            description
+              "Sticky mac address";
+          }
+        }
+      }
+    }
+  }
+  rpc clear-port-security {
+    description
+      "Request to flush interface data such as learnt MAC addresses";
+    input {
+      leaf interface {
+        mandatory true;
+        type oc-if:base-interface-ref;
+        description
+          "Interface name to clear";
+      }
+      leaf mac-address {
+        type yang:mac-address;
+        description
+          "Delete learned MAC address for port-security";
+      }
+    }
+  }
+}

@@ -1,0 +1,2032 @@
+module arcos-rib {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/rib";
+  prefix arc-rib;
+
+  import openconfig-policy-types {
+    prefix oc-pol-types;
+  }
+  import openconfig-network-instance {
+    prefix oc-netinst;
+  }
+  import openconfig-network-instance-types {
+    prefix oc-ni-types;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import openconfig-mpls-types {
+    prefix oc-mplst;
+  }
+  import openconfig-interfaces {
+    prefix oc-if;
+  }
+  import openconfig-types {
+    prefix oc-types;
+  }
+  import ietf-interfaces {
+    prefix ietf-if;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import openconfig-yang-types {
+    prefix oc-yang;
+  }
+  import arcos-srv6-types {
+    prefix arc-srv6-types;
+  }
+
+  organization
+    "Arrcus, Inc";
+
+  contact
+    "Arrcus, Inc.
+     2077 Gateway Place,
+     San Jose, CA 95110
+     Tel: +1 (408) 884-1965
+     E-mail: yang-support@arrcus.com";
+
+  description
+    "This module lists the RIB related information.
+     Copyright 2019-2022 by Arrcus, Inc.
+     All rights reserved.";
+
+  revision 2022-12-12 {
+    description
+      "* Add flood-and-learn attribute to support static vxlan.";
+  }
+
+  revision 2021-11-10 {
+    description
+      "* Add label type and ifindex to label entry.";
+  }
+
+  typedef route-type-value { 
+    type enumeration {
+      enum NONE {
+        description "None";
+      }
+      enum ISIS_L1 {
+        description "ISIS L1";
+      }
+      enum ISIS_L2 {
+        description "ISIS L2";
+      } 
+      enum IBGP {
+        description "IBGP";
+      }
+      enum EBGP {
+        description "EBGP";
+      }
+      enum OSPF_INTRA_AREA {
+        description
+          "OSPF Intra-Area";
+      }
+      enum OSPF_INTER_AREA {
+        description
+          "OSPF Inter-Area";
+      }
+      enum OSPF_EXTERNAL_1 {
+        description
+          "OSPF External Type-1";
+      }
+      enum OSPF_EXTERNAL_2 {
+        description
+          "OSPF External Type-2";
+      }
+    }
+  }
+
+  typedef label-type-value {
+    type enumeration {
+      enum NONE {
+        description "None";
+      }
+      enum DEAGG {
+        description "Deaggregate Label";
+      }
+      enum IMET {
+        description "IMET label";
+      }
+      enum ESI {
+        description "ESI label";
+      }
+      enum NODE {
+        description "Node SID label";
+      }
+      enum ADJ {
+        description "Adjacency SID label";
+      }
+      enum ETE {
+        description "ETE label";
+      }
+    }
+  }
+
+  typedef rib-path-type {
+    type enumeration {
+      enum "RECURSIVE" {
+        value 1;
+      }
+      enum "CONNECTED_V4" {
+        value 2;
+      }
+      enum "GLEAN_V4" {
+        value 3;
+      }
+      enum "LOCAL_V4" {
+        value 4;
+      }
+      enum "CONNECTED_V6" {
+        value 5;
+      }
+      enum "LOCAL_V6" {
+        value 6;
+      }
+      enum "GLEAN_V6" {
+        value 7;
+      }
+    }
+  }
+
+  typedef route-client-flags-type {
+    type bits {
+      bit stale {
+        position 0;
+      }
+      bit mpls-stale {
+        position 1;
+      }
+    }
+  }
+
+  grouping rib-config {
+    description
+      "Configuration parameters relating to RIB 
+       for a particular address family.";
+    leaf address-family {
+      type identityref {
+        base oc-types:ADDRESS_FAMILY;
+      }
+      description
+        "The address family of entries that are described by the
+         RIB.";
+    }
+  }
+
+  grouping loc-args {
+    container locator-args {
+      leaf loc-arg {
+        type inet:ip-address-no-zone;
+        description
+          "The mobile gateway locator address";
+      }
+      leaf loc-len {
+        type uint32;
+        description
+          "Length in bits of the locator portion of the address";
+      }
+    }
+  }
+
+  // identity statements
+
+  identity RIB_DEFINED_NEXT_HOP {
+    description
+      "A base identity type of local defined next-hops";
+  }
+
+  identity DROP {
+    base RIB_DEFINED_NEXT_HOP;
+    description
+      "Discard traffic for the corresponding destination";
+  }
+
+  // typedef statements
+
+  typedef rib-defined-next-hop {
+    type identityref {
+      base RIB_DEFINED_NEXT_HOP;
+    }
+    description
+      "Pre-defined next-hop designation for locally generated
+       routes";
+  }
+
+  grouping rib-entry-state {
+    description
+      "Operational state parameters relating to a RIB entry";
+    leaf origin-protocol {
+      type identityref {
+        base oc-pol-types:INSTALL_PROTOCOL_TYPE;
+      }
+      description
+        "The protocol from which the RIB entry was learned.";
+    }
+    leaf metric {
+      type uint32;
+      description
+        "A metric which is utilised to specify the preference of route";
+    }
+    leaf pref {
+      type uint32;
+      description
+        "A preference which is utilised to select best owner among multiple
+         producers of the same prefix";
+    }
+    leaf tag {
+      type uint32;
+      description
+        " This can be used by protocols to filter the redistributed route
+          as per the protocol redistribution policy";
+    }
+  }
+
+  grouping rib-entry-nexthop-state {
+    description
+      "Parameters relating to a next-hop within the RIB entry";
+    leaf next-hop {
+      type union {
+        type inet:ip-address-no-zone;
+        type rib-defined-next-hop;
+      }
+      description
+        "The next-hop that is to be used for the  route
+         - this may be specified as an IP address, an interface
+         or a pre-defined next-hop type - for instance, DROP.";
+    }
+    leaf recurse {
+      type boolean;
+      default "false";
+      description
+        "Determines whether the next-hop should be allowed to
+         be looked up recursively.";
+    }
+    leaf weight {
+      type uint32;
+      description
+        "The weight of the next-hop. Traffic is balanced according to
+         the ratio described by the relative weights of the next hops
+         that exist for the RIB entry. Note that all next-hops that are
+         specified are assumed to be active next-hops and therefore
+         eligible (and selected) to be installed in the FIB, and hence
+         used for packet forwarding.";
+    }
+    leaf-list pushed-mpls-label-stack {
+      type oc-mplst:mpls-label;
+      ordered-by user;
+      description
+        "The MPLS label stack imposed when forwarding packets to the
+         next-hop
+         - the stack is encoded as a leaf list whereby the order of the
+          entries is such that the first entry in the list is the
+          label at the bottom of the stack to be pushed.
+
+         To this end, a packet which is to forwarded to a device using
+         a service label of 42, and a transport label of 8072 will be
+         represented with a label stack list of [42, 8072].
+
+         The MPLS label stack list is ordered by the user, such that no
+         system re-ordering of leaves is permitted by the system.
+
+         A swap operation is reflected by entries in the
+         popped-mpls-label-stack and pushed-mpls-label-stack nodes.";
+    }
+    leaf interface {
+      type string;
+    }
+    leaf network-instance {
+      type string;
+    }
+    leaf backup {
+      type boolean;
+      description
+        "Specifies whether the path is used as backup";
+    }
+    leaf vxlan {
+      type boolean;
+      default "false";
+      description
+        "recursive path pointing to a VXLAN tunnel next-hop";
+    }
+    leaf srv6 {
+      type boolean;
+      default "false";
+      description
+        "recursive path pointing to a SRv6 tunnel next-hop";
+    }
+    leaf nh-tunnel-id {
+      type uint32;
+      description
+        "tunnel-id for remote tunnel next-hop";
+    }
+    leaf vni-id {
+      type uint32;
+      description
+        "VNI ID of this path.";
+    }
+    leaf rtep-mac {
+      type oc-yang:mac-address;
+      description
+        "remote tunnel-endpoint MAC address for a vxlan tunnel next-hop";
+    }
+    leaf pathid {
+      type uint64;
+      description
+        " This is pathid assigned to this path";
+    }
+    leaf mpls_pathid {
+      type uint64;
+      description
+         " This is pathid assigned to this path on account of ldp or other mpls protocol update";
+    }
+  }
+
+  grouping next-hops {
+    description
+      "Grouping for next hops";
+    container next-hops {
+      config false;
+      description
+        "Enclosing container for the list of next-hops associated
+                   with the forwarding entry";
+      list next-hop {
+        uses rib-entry-nexthop-state;
+      }
+    }
+  }
+
+  grouping origin {
+    description
+      "Grouping for route producer";
+    container origins {
+      config false;
+      description
+        "Enclosing container for the list of next-hops associated
+                   with the forwarding entry";
+      list origin {
+        leaf origin-protocol {
+          type identityref {
+            base oc-pol-types:INSTALL_PROTOCOL_TYPE;
+          }
+          description
+            "The protocol from which the RIB entry was learned.";
+        }
+        leaf metric {
+          type uint32;
+          description
+            "A metric which is utilised to specify the preference of route";
+        }
+        leaf pref {
+          type uint32;
+          description
+            "A preference which is utilised to select best owner among multiple
+             producers of the same prefix";
+        }
+        leaf tag {
+          type uint32;
+          description
+            " This can be used by protocols to filter the redistributed route
+              as per the protocol redistribution policy";
+        }
+        leaf route-type {
+          type route-type-value;
+            description
+            "Route type";
+        }
+        leaf local-label {
+          type uint32;
+          description
+            " This is incoming label assigned to this route";
+        }
+        leaf label-index {
+          type uint32;
+          description
+            " This is incoming label index assigned to this route";
+        }
+        leaf nhid {
+          type uint64;
+          description
+            " This is nhid assigned to paths added by this client";
+        }
+        leaf last-updated {
+          type yang:date-and-time;
+          description
+            "Indicates the last time the entry was update.";
+        }
+        leaf flags {
+          type route-client-flags-type;
+          description
+            " This can be used to show internal state eg. stale etc";
+        }
+        leaf opaque-data {
+          type uint64;
+          description
+            "Route opaque data installed by client";
+        }
+
+        leaf hw-update-last-notif {
+          type yang:date-and-time;
+          description
+            "Indicates the last time the hardware update was notified";
+        }
+
+        uses next-hops;
+        uses loc-args;
+      }
+    }
+  }
+
+  grouping rnh-cookies {
+    description
+      "cookies for rnh";
+    container cookies {
+      config false;
+      list cookie {
+        leaf cookie-value {
+          type uint64;
+          description
+            "cookie assosiated with rnh";
+        }
+      }
+    }
+  }
+
+  grouping rnh-tracker {
+    description
+      "Grouping for route producer";
+    container trackers {
+      config false;
+      description
+        "Enclosing container for the list of next-hops associated
+                   with the forwarding entry";
+      list tracker {
+        leaf tracking-protocol {
+          type identityref {
+            base oc-pol-types:INSTALL_PROTOCOL_TYPE;
+          }
+          description
+            "The protocol from which the RIB entry was learned.";
+        }
+        uses rnh-cookies;
+      }
+    }
+  }
+
+  grouping v6-rnh-tracker {
+    description
+      "Grouping for route producer";
+    container trackers {
+      config false;
+      description
+        "Enclosing container for the list of next-hops associated
+                   with the forwarding entry";
+      list tracker {
+        leaf tracking-protocol {
+          type identityref {
+            base oc-pol-types:INSTALL_PROTOCOL_TYPE;
+          }
+          description
+            "The protocol from which the RIB entry was learned.";
+        }
+        uses rnh-cookies;
+      }
+    }
+  }
+
+  grouping route-hw-update-state {
+    description
+      "Route hardware update status information";
+
+    leaf install-ack {
+      type boolean;
+      description
+        "Indicates if the route installation is acked by hardware";
+    }
+
+    leaf status-code {
+      type uint32;
+      description
+        "Status code returned by hardware";
+    }
+
+    leaf version {
+      type uint64;
+      description
+        "Route version";
+    }
+  }
+
+  grouping ipv4-entries {
+    description
+      "Grouping for forwarding entries by lookup keys";
+    container ipv4-entries {
+      config false;
+      list entry {
+        key "prefix";
+        description
+          "IPv4 prefix used for lookup";
+        leaf prefix {
+          type inet:ipv4-prefix;
+          description
+            "The IPv4 prefix corresponding to the route";
+        }
+        leaf best-protocol {
+          type identityref {
+            base oc-pol-types:INSTALL_PROTOCOL_TYPE;
+          }
+          description
+            "The protocol which is best and its paths are used for forwarding.";
+        }
+
+        container hw-update {
+          description
+            "Route hardware update status information";
+
+          uses route-hw-update-state;
+        }
+
+        uses origin;
+      }
+    }
+  }
+
+  grouping ipv6-entries {
+    description
+      "Grouping for forwarding entries by lookup keys";
+    container ipv6-entries {
+      config false;
+      list entry {
+        key "prefix";
+        leaf prefix {
+          type inet:ipv6-prefix;
+          description
+            "The IPv6 prefix corresponding to the route";
+        }
+        leaf best-protocol {
+          type identityref {
+            base oc-pol-types:INSTALL_PROTOCOL_TYPE;
+          }
+          description
+            "The protocol which is best and its paths are used for forwarding.";
+        }
+
+        container hw-update {
+          description
+            "Route hardware update status information";
+
+          uses route-hw-update-state;
+        }
+
+        uses origin;
+      }
+    }
+  }
+
+  grouping ipv4-supernets {
+    description
+      "Grouping for forwarding entries by supernet";
+
+    container ipv4-supernets {
+      config false;
+
+      description
+        "IPv4 prefix supernets covering other prefixes";
+
+      list ipv4-supernet {
+        key "prefix";
+
+        description
+          "IPv4 prefix supernet covering other prefixes";
+
+        leaf prefix {
+          type leafref {
+            path "../state/prefix";
+          }
+          description
+            "Reference to the supernet prefix";
+        }
+
+        container state {
+          config false;
+          description
+            "Supernet state";
+
+          leaf prefix {
+            type inet:ipv4-prefix;
+            description
+              "IPv4 supernet prefix";
+          }
+        }
+
+        uses ipv4-entries;
+      }
+    }
+  }
+
+  grouping ipv6-supernets {
+    description
+      "Grouping for forwarding entries by supernet";
+
+    container ipv6-supernets {
+      config false;
+
+      description
+        "IPv6 prefix supernets covering other prefixes";
+
+      list ipv6-supernet {
+        key "prefix";
+
+        description
+          "IPv6 prefix supernet covering other prefixes";
+
+        leaf prefix {
+          type leafref {
+            path "../state/prefix";
+          }
+          description
+            "Reference to the supernet prefix";
+        }
+
+        container state {
+          config false;
+          description
+            "Supernet state";
+
+          leaf prefix {
+            type inet:ipv6-prefix;
+            description
+              "IPv6 supernet prefix";
+          }
+        }
+
+        uses ipv6-entries;
+      }
+    }
+  }
+
+  grouping ipv4-rnh-entries {
+    description
+      "Grouping for forwarding entries by lookup keys";
+    container ipv4-rnh-entries {
+      list entry {
+        key "prefix";
+        config false;
+        description
+          "IPv4 prefix used for lookup";
+        leaf prefix {
+          type inet:ipv4-prefix;
+          description
+            "The IPv4 prefix corresponding to the route";
+        }
+        leaf res-state {
+          type boolean;
+          description
+            "True if RNH is resolved";
+        }
+        leaf mpls-reachable {
+          type boolean;
+          description
+            "Whether this RNH is reachable via labeled path";
+        }
+        leaf metric {
+          type uint32;
+          description
+            "A metric which is utilised to specify the preference of route";
+        }
+        leaf res-prefix {
+          type inet:ipv4-prefix;
+          description
+            "The IPv4 prefix corresponding to the route";
+        }
+        leaf recur-level {
+          type uint32;
+          description
+            "Recursion level if RNH is resolved";
+        }
+        leaf ref-count {
+          type uint32;
+          description
+            "Reference count of this RNH";
+        }
+        uses rnh-tracker;
+      }
+    }
+  }
+
+  grouping ipv6-rnh-entries {
+    description
+      "Grouping for forwarding entries by lookup keys";
+    container ipv6-rnh-entries {
+      list v6entry {
+        key "prefix";
+        leaf prefix {
+          type inet:ipv6-prefix;
+          description
+            "The IPv6 prefix corresponding to the route";
+        }
+        leaf res-state {
+          type boolean;
+          description
+            "True if RNH is resolved";
+        }
+        leaf mpls-reachable {
+          type boolean;
+          description
+            "Whether this RNH is reachable via labeled path";
+        }
+        leaf metric {
+          type uint32;
+          description
+            "A metric which is utilised to specify the preference of route";
+        }
+        leaf res-prefix {
+          type inet:ipv6-prefix;
+          description
+            "The IPv6 prefix corresponding to the route";
+        }
+        leaf recur-level {
+          type uint32;
+          description
+            "Recursion level if RNH is resolved";
+        }
+        leaf ref-count {
+          type uint32;
+          description
+            "Reference count of this RNH";
+        }
+        uses v6-rnh-tracker;
+      }
+    }
+  }
+
+  grouping label-next-hops {
+    description
+      "Grouping for next hops";
+    container next-hops {
+      config false;
+      description
+	"Enclosing container for the list of next-hops associated with the label entry";
+
+      list next-hop {
+        uses rib-entry-nexthop-state;
+      }
+    }
+  }
+
+  grouping label-entry {
+    description
+      "Grouping for label entry";
+      list entry {
+        key "label";
+          description
+            "Label used for lookup";
+
+        leaf label {
+          type uint32;
+          description
+            "The FEC label entry (ILM) ";
+        }
+
+        leaf label-type {
+          description "Label type";
+          type label-type-value ;
+        }
+
+        leaf vpn-table-id {
+          type uint32;
+          description
+            "VPN table id associated with the label";
+        }
+
+        leaf ifindex {
+          type uint64;
+          description
+            "Interface index associated with the label";
+        }
+
+        leaf protocol {
+          type identityref {
+            base "oc-pol-types:INSTALL_PROTOCOL_TYPE";
+          }
+          description
+            "The protocol which is best and its paths are used for forwarding.";
+        }
+
+        leaf route-type {
+          description "Route type";
+          type route-type-value ;
+        }
+        leaf nhid {
+          type uint64;
+          description 
+            "This is nhid assigned to paths added by this client";
+        }
+        leaf last-updated {
+          type yang:date-and-time;
+          description
+            "Indicates the last time the entry was update.";
+        }
+        leaf flags {
+          type route-client-flags-type;
+          description
+            " This can be used to show internal state eg. stale etc";
+        }
+        uses label-next-hops;
+      }
+  }
+
+  grouping ipv4-label-entries {
+    description
+      "Grouping for label entries by lookup keys";
+
+    container ipv4-label-entries {
+      config false;
+      uses label-entry;
+    }
+  }
+
+  grouping ipv6-label-entries {
+    description
+      "Grouping for label entries by lookup keys";
+
+    container ipv6-label-entries {
+      config false;
+      uses label-entry;
+    }
+
+  }
+
+  grouping sid-next-hops {
+    description
+      "Grouping for sid next hops";
+    container next-hops {
+      config false;
+      description
+	"Enclosing container for the list of next-hops associated with the sid entry";
+
+      list next-hop {
+        uses rib-entry-nexthop-state;
+      }
+    }
+  }
+
+  grouping sid-entry {
+    description
+      "Grouping for sid entry";
+      list entry {
+        key "sid";
+          description
+            "sid used for lookup";
+
+        leaf sid {
+          type inet:ipv6-prefix;
+          description
+            "IPv6 Sid value ";
+        }
+        leaf micro-segment-behaviour-unode {
+          type  boolean;
+          description
+            "This designates sid as usid";
+        }
+        leaf function {
+          type arc-srv6-types:srv6-endpoint-behavior-type;
+        }
+
+        leaf locator-name {
+          type string ;
+          description
+            "locator name";
+        }
+        
+        leaf protocol {
+          type identityref {
+            base "oc-pol-types:INSTALL_PROTOCOL_TYPE";
+          }
+          description
+            "The protocol which is best and its paths are used for forwarding.";
+        }
+
+        leaf sid-table-id {
+          type uint32;
+          description
+            "Table id corresponding END.T or END.DT variants";
+        }
+        leaf network-instance {
+          type string;
+          description
+            "Network instance Name";
+        }
+        leaf nhid {
+          type uint64;
+          description 
+            "This is nhid assigned to path added by this client for END.X variants of the sid";
+        }
+        leaf last-updated {
+          type yang:date-and-time;
+          description
+            "Indicates the last time the entry was update.";
+        }
+        leaf flags {
+          type route-client-flags-type;
+          description
+            " This can be used to show internal state eg. stale etc";
+        }
+        //uses sid-next-hops;
+     }
+  }
+
+  grouping ipv6-sid-entries {
+    description
+      "Grouping for sid entries by lookup keys";
+
+    container ipv6-sid-entries {
+      config false;
+      uses sid-entry;
+    }
+
+  }
+
+  grouping tunnel-termination-entry {
+    description
+      "Grouping for tunnel_termination entry";
+      list entry {
+        key "ip";
+          description
+            "ip used for lookup";
+
+        leaf ip {
+          type inet:ipv6-prefix;
+          description
+            "IPv6 termination ip ";
+        }
+        leaf ip-addr-family {
+          type identityref {
+            base oc-types:ADDRESS_FAMILY;
+          }
+        }
+        leaf function {
+          type arc-srv6-types:srv6-endpoint-behavior-type;
+        }
+        leaf inner-vrf-id {
+          type uint32;
+          description
+            "Vrf id corresponding END.T or END.DT variants";
+        }
+        leaf network-instance {
+          type string;
+          description
+            "Network instance Name";
+        }
+        leaf last-updated {
+          type yang:date-and-time;
+          description
+            "Indicates the last time the entry was update.";
+        }
+        leaf binding-sid {
+          type inet:ipv6-prefix;
+          description
+            "binding sid ";
+        }
+        leaf sid {
+          type inet:ipv6-address;
+          description
+            "DT4/DT6 SID";
+        }
+        leaf gtp-source-prefix {
+          type inet:ipv6-prefix;
+          description
+            "gtp source prefix";
+        }
+        leaf flags {
+          type uint64;
+          description
+            " This can be used to show internal state eg. stale etc";
+        }
+     }
+  }
+
+  grouping ipv6-tunnel-termination-entries {
+    description
+      "Grouping for tunnel_termination entries by lookup keys";
+
+    container ipv6-tunnel-termination-entries {
+      config false;
+      uses tunnel-termination-entry;
+    }
+
+  }
+  grouping stats {
+    description
+      "Client specific counters";
+    leaf routes {
+      type yang:counter32;
+      description
+        "Number of Routes";
+    }
+    leaf paths {
+      type yang:counter32;
+      description
+        "Number of Paths";
+    }
+   leaf mpls-paths {
+      type yang:counter32;
+      description
+        "Number of MPLS Paths";
+    }
+    leaf rnhs {
+      type yang:counter32;
+      description
+        "Number of RNHs";
+    }
+    leaf route-add-msg {
+      type yang:counter64;
+      description
+        "Number of Add route msgs rcvd";
+    }
+    leaf route-delete-msg {
+      type yang:counter64;
+      description
+        "Number of Delete route msgs rcvd";
+    }
+    leaf rnh-add-msg {
+      type yang:counter64;
+      description
+        "Number of Add rnh msgs rcvd";
+    }
+    leaf rnh-delete-msg {
+      type yang:counter64;
+      description
+        "Number of Delete rnh msgs rcvd";
+    }
+    leaf label-add-msg {
+      type yang:counter64;
+      description
+        "Number of Add Label msgs rcvd";
+    }
+    leaf label-delete-msg {
+      type yang:counter64;
+      description
+        "Number of Delete Label msgs rcvd";
+    }
+    leaf sid-add-msg {
+      type yang:counter64;
+      description
+        "Number of Add sid msgs rcvd";
+    }
+    leaf sid-delete-msg {
+      type yang:counter64;
+      description
+        "Number of Delete sid msgs rcvd";
+    }
+    leaf prefix-tracking-prefixes {
+      type yang:counter32;
+      description
+        "Number of prefixes registered for prefix-tracking";
+    }
+    leaf prefix-tracking-ranges {
+      type yang:counter32;
+      description
+        "Number of prefix ranges registered for prefix-tracking";
+    }
+    leaf prefix-tracking-reach-ranges {
+      type yang:counter32;
+      description
+        "Number of prefix ranges that are reachable";
+    }
+    leaf prefix-tracking-add-requests {
+      type yang:counter64;
+      description
+        "Number of prefix-tracking Add requests";
+    }
+    leaf prefix-tracking-delete-requests {
+      type yang:counter64;
+      description
+        "Number of prefix-tracking Delete requests";
+    }
+    leaf prefix-tracking-reach-notifs {
+      type yang:counter64;
+      description
+        "Number of prefix-tracking reachable notifications";
+    }
+    leaf prefix-tracking-unreach-notifs {
+      type yang:counter64;
+      description
+        "Number of prefix-tracking unreach notifications";
+    }
+    leaf tunnel-termination-add-msg {
+      type yang:counter64;
+      description
+        "Number of Add tunnel_termination msgs rcvd";
+    }
+    leaf tunnel-termination-delete-msg {
+      type yang:counter64;
+      description
+        "Number of Delete tunnel_termination msgs rcvd";
+    }
+  }
+
+  grouping stats-entries {
+    description
+      "grouping for RIB statistics";
+    container stats-entries {
+      config false;
+      description
+        "container for RIB stats";
+      uses stats;
+      list clients {
+        key "name";
+        config false;
+        description
+          "The list of RIB clients.";
+        leaf name {
+          type identityref {
+            base oc-pol-types:INSTALL_PROTOCOL_TYPE;
+          }
+          description
+            "Name of RIB client";
+        }
+        uses stats;
+      }
+    }
+  }
+
+  grouping client-info {
+    description
+      "Grouping for RIB clients";
+    container client-info {
+      config false;
+      list clients {
+        key "client";
+        description
+          "client information";
+        leaf client {
+          type identityref {
+            base oc-pol-types:INSTALL_PROTOCOL_TYPE;
+          }
+          description
+            "The client protocol.";
+        }
+        leaf-list redistribution-sources {
+          type identityref {
+            base oc-pol-types:INSTALL_PROTOCOL_TYPE;
+          }
+          description
+            "list of redistrbution sources for this client ";
+        }
+        leaf hw-update-requested {
+          type boolean;
+          description
+            "whether the update-wait-data-plane attribute is enabled for this client";
+        }
+        leaf nh-info-requested {
+          type boolean;
+          description
+            "whether this client expects nh info to be sent along with redistributed prefixes";
+        }
+      }
+    }
+  }
+
+  grouping nhid {
+    description
+      "Parameters relating to a nhid within the RIB entry";
+    leaf protection-tracker-id {
+      type uint64;
+      description
+        "Protection tracker ID for the nexthop";
+    }
+    leaf count {
+      type uint8;
+      description
+        "Number of pathids ";
+    }
+    leaf-list pathids-list {
+      type uint64;
+      ordered-by user;
+      description
+        "pathids ";
+    }
+  }
+
+  grouping ipv4-nhids {
+    description
+      "Grouping for nhid entries by lookup keys";
+    container ipv4-nhids {
+      list ipv4-nhids {
+        key "nhid";
+        description
+          "NH id";
+        leaf nhid {
+          type uint64;
+          description
+            "NHD id allocated to set of path";
+        }
+        uses nhid;
+      }
+    }
+  }
+
+  grouping ipv6-nhids {
+    description
+      "Grouping for NHID entries by lookup keys";
+    container ipv6-nhids {
+      list v6nhids {
+        key "nhid";
+        description
+          "nh id";
+        leaf nhid {
+          type uint64;
+          description
+            "NH id allocated to path";
+        }
+        uses nhid;
+      }
+    }
+  }
+
+  typedef protection-tracker-flags-type {
+    type bits {
+      bit stale {
+        position 0;
+      }
+    }
+  }
+
+  grouping protectiontracker {
+    description
+      "Parameters relating to a protection tracker within the RIB entry";
+    leaf interface {
+      type string;
+      description
+        "Interface tracked for protection trigger";
+    }
+    leaf next-hop {
+      type inet:ip-address-no-zone;
+      description
+        "Next-hop address tracked for protection trigger";
+    }
+    leaf network-instance {
+      type string;
+      description
+        "Next-hop network instance tracked for protection trigger";
+    }
+    leaf bfd-source {
+      type inet:ip-address-no-zone;
+      description
+        "BFD source address";
+    }
+    leaf bfd-destination {
+      type inet:ip-address-no-zone;
+      description
+        "BFD destination address";
+    }
+    leaf bfd-session-id {
+      type uint64;
+      description
+        "BFD session ID";
+    }
+    leaf flags {
+      type protection-tracker-flags-type;
+      description
+        "Protection tracker flags.";
+    }
+  }
+
+  grouping ipv4-protection-trackers {
+    description
+      "Grouping for protection tracker ID entries by lookup keys";
+    container ipv4-protection-trackers {
+      list entry {
+        key "tracker-id";
+        description
+          "Protection tracker id";
+        leaf tracker-id {
+          type uint64;
+          description
+            "Protection tracker id allocated to set of path";
+        }
+        uses protectiontracker;
+      }
+    }
+  }
+
+  grouping ipv6-protection-trackers {
+    description
+      "Grouping for protection tracker ID entries by lookup keys";
+    container ipv6-protection-trackers {
+      list entry {
+        key "tracker-id";
+        description
+          "Protection tracker id";
+        leaf tracker-id {
+          type uint64;
+          description
+            "Protection tracker id allocated to set of path";
+        }
+        uses protectiontracker;
+      }
+    }
+  }
+
+  grouping path {
+    description
+      "Parameters relating to a next-hop within the RIB entry";
+    leaf af {
+      type uint32;
+    }
+    leaf nh-tableid {
+      type uint32;
+    }
+    leaf next-hop {
+      type inet:ip-address-no-zone;
+      description
+        "The next-hop that is to be used for the  route
+         - this may be specified as an IP address, an interface
+         or a pre-defined next-hop type - for instance, DROP.";
+    }
+    leaf ifindex {
+      type uint64;
+    }
+    leaf tunnel-id {
+      type uint32;
+      description
+        "Next-hop Tunnel ID";
+    }
+    leaf vni-id {
+      type uint32;
+      description
+        "VNI ID";
+    }
+    leaf weight {
+      type uint32;
+      description
+        "The weight of the next-hop";
+    }
+    leaf flags {
+      type uint32;
+    }
+    leaf backup {
+      type boolean;
+      description
+        "This path is used as backup";
+    }
+    leaf label-cnt {
+      type uint8;
+    }
+    leaf-list pushed-mpls-label-stack {
+      type oc-mplst:mpls-label;
+      ordered-by user;
+      description
+        "The MPLS label stack imposed";
+    }
+  }
+
+  grouping ipv4-pathids {
+    description
+      "Grouping for forwarding entries by lookup keys";
+    container ipv4-pathids {
+      list pathids {
+        key "pathid";
+        description
+          "path id";
+        leaf pathid {
+          type uint64;
+          description
+            "Path id allocated to path";
+        }
+        uses path;
+      }
+    }
+  }
+
+  grouping ipv6-pathids {
+    description
+      "Grouping for forwarding entries by lookup keys";
+    container ipv6-pathids {
+      list v6pathids {
+        key "pathid";
+        description
+          "path id";
+        leaf pathid {
+          type uint64;
+          description
+            "Path id allocated to path";
+        }
+        uses path;
+      }
+    }
+  }
+
+  typedef tunnel-flags-type {
+    type bits {
+      bit stale {
+        position 0;
+      }
+    }
+  }
+
+  grouping ipv4-tunnels {
+    description
+      "Grouping for tunnel entries by lookup keys";
+    container ipv4-tunnels {
+      config false;
+      list entry {
+        key "tunnel-id";
+        description
+          "tunnel-id used for lookup";
+        leaf tunnel-id {
+          type uint32;
+          description
+            "tunnel-ID associated with this tunnel";
+        }
+        leaf ltep-ip {
+          type inet:ipv4-address-no-zone;
+          description
+            "local tunnel-endpoint ipv4 address";
+        }
+        leaf rtep-ip {
+          type inet:ipv4-address-no-zone;
+          description
+            "remote tunnel-endpoint ipv4 address";
+        }
+        leaf tunnel-table-id {
+          type uint32;
+          description
+            "underlay table-id for this tunnel";
+        }
+        leaf l4port {
+          type uint32;
+          description
+            "UDP port for this tunnel";
+        }
+        leaf flood-and-learn {
+          type boolean;
+          description
+            "If set to true for the tunnel, mac-learning happens through flooding and not via EVPN.";
+        }
+        leaf tunnel-encap {
+          type enumeration {
+            enum "VXLAN" {
+              description
+                "VXLAN tunnel encapsulation";
+            }
+          }
+          description
+            "tunnel encapsulation";
+        }
+        leaf flags {
+          type tunnel-flags-type;
+          description
+            "Tunnel flags.";
+        }
+      }
+    }
+  }
+
+  grouping ipv6-tunnels {
+    description
+      "Grouping for tunnel entries by lookup keys";
+    container ipv6-tunnels {
+      config false;
+      list entry {
+        key "tunnel-id";
+        description
+          "tunnel-id used for lookup";
+        leaf tunnel-id {
+          type uint32;
+          description
+            "tunnel-ID associated with this tunnel";
+        }
+        leaf ltep-ip {
+          type inet:ipv6-address-no-zone;
+          description
+            "local tunnel-endpoint ipv6 address";
+        }
+        leaf rtep-ip {
+          type inet:ipv6-address-no-zone;
+          description
+            "remote tunnel-endpoint ipv6 address";
+        }
+        leaf tunnel-table-id {
+          type uint32;
+          description
+            "underlay table-id for this tunnel";
+        }
+        leaf tunnel-encap {
+          type enumeration {
+            enum "SRV6" {
+              description
+                "SRv6 tunnel encapsulation";
+            }
+          }
+          description
+            "tunnel encapsulation";
+        }
+        leaf function {
+          type arc-srv6-types:srv6-endpoint-behavior-type;
+        }
+        leaf-list sid-list {
+          type inet:ipv6-address-no-zone;
+          description
+            "The list of SIDs added to SRv6 tunnel header";
+        }
+        leaf flags {
+          type tunnel-flags-type;
+          description
+            "Tunnel flags.";
+        }
+        uses loc-args;
+      }
+    }
+  }
+
+  grouping ids-cmn {
+    description
+      "Container ID information";
+    leaf id-type {
+      type string;
+      description
+        "Specifies if the ID allocated is for path or NH ";
+    }
+    leaf refcount {
+      type uint32;
+      description
+        "Refcount for  the ID";
+    }
+    leaf path-type {
+      type uint32;
+      description
+        "Indicates Path type  if the ID corresponds to a path";
+    }
+    leaf-list pathids {
+      type uint32;
+    }
+    leaf nh-addr {
+      type inet:ip-address-no-zone;
+      description
+        "Specifies the NH address corresponding to the path
+         if applicable";
+    }
+    leaf tunnel-id {
+      type uint32;
+      description
+        "Tunnel id corresponding to the path if applicable";
+    }
+  }
+
+  grouping ipv4-ids {
+    container ipv4-id-list {
+      config false;
+      list ipv4-container-id {
+        description
+          "Container ID Information  for IPV4 RIB table";
+        key "id";
+        leaf id {
+          type uint32;
+          description
+            "Container ID allocated by RIB";
+        }
+        uses ids-cmn;
+      }
+    }
+  }
+
+  grouping ipv6-ids {
+    container ipv6-id-list {
+      config false;
+      list ipv6-container-id {
+        description
+          "Container ID Information  for IPV6 RIB table";
+        key "id";
+        leaf id {
+          type uint32;
+          description
+            "Container ID allocated by RIB";
+        }
+        uses ids-cmn;
+      }
+    }
+  }
+
+
+  /*
+   * RIB Prefix-tracking information
+   */
+  grouping rib-ptrack-cookie-state {
+    description
+      "Prefix-tracking cookie state";
+
+    leaf cookie-value {
+      type uint64;
+      description
+        "Client cookie value";
+    }
+
+    leaf is-stale {
+      type boolean;
+      description
+        "Indicates if the client cookie entry is stale";
+    }
+  }
+
+  grouping rib-ptrack-client-state {
+    description
+      "Prefix-tracking client state";
+
+    leaf client-name {
+      type string;
+      description
+        "Name of the client that registered for this prefix range";
+    }
+
+    leaf client-tag {
+      type uint32;
+      description
+        "Tag of the client that registered for this prefix range";
+    }
+
+    leaf is-match-info-required {
+      type boolean;
+      description
+        "Indicates if the client requires information about the match prefix";
+    }
+
+    leaf is-match-paths-required {
+      type boolean;
+      description
+        "Indicates if the client requires information about the bestpaths
+        of the match prefix";
+    }
+
+    leaf is-stale {
+      type boolean;
+      description
+        "Indicates if the client entry is stale";
+    }
+
+    leaf cookie-count {
+      type uint32;
+      description
+        "Number of cookies from this client tracking this prefix range";
+    }
+  }
+
+  grouping rib-ptrack-match-info-state {
+    description
+      "Prefix-tracking prefix range match state";
+
+    leaf prefix {
+      type inet:ip-prefix;
+      description
+        "Valid IP prefix covered under the prefix range i.e. match prefix";
+    }
+
+    leaf install-protocol {
+      type identityref {
+        base oc-pol-types:INSTALL_PROTOCOL_TYPE;
+      }
+      description
+        "Protocol that installed the bestpath of the match prefix";
+    }
+
+    leaf route-type {
+      type route-type-value;
+      description
+        "Route type of the bestpath of the match prefix";
+    }
+
+    leaf nhid {
+      type uint32;
+      description
+        "NHID of the bestpath of the match prefix";
+    }
+
+    leaf metric {
+      type uint32;
+      description
+        "Metric of the bestpath of the match prefix";
+    }
+
+    leaf is-mpls {
+      type boolean;
+      description
+        "Indicates if one of the bestpaths of the match prefix
+        is a labeled path";
+    }
+  }
+
+  grouping rib-ptrack-range-state {
+    description
+      "Prefix-tracking prefix range state";
+
+    leaf prefix {
+      type inet:ip-prefix;
+      description
+        "IP prefix registered for prefix-tracking";
+    }
+
+    leaf masklength-range {
+      type string {
+        pattern '(([0-9]|[1-9][0-9]|1[0-2][0-8])\.\.([0-9]|[1-9][0-9]' +
+                '|1[0-2][0-8]))|exact';
+      }
+      description
+        "The prefix range for the masklength, or 'exact' if
+         the prefix has an exact length";
+    }
+
+    leaf is-match-prefix-exist {
+      type boolean;
+      description
+        "Indicates whether a valid prefix exists in the RIB routing table
+        that is covered by prefix range";
+    }
+
+    leaf client-count {
+      type uint32;
+      description
+        "Number of clients tracking this prefix range";
+    }
+  }
+
+  grouping rib-table-ptrack-state {
+    description
+      "Table prefix-tracking state";
+
+    leaf prefix-count {
+      type uint32;
+      description
+        "Number of prefixes registered for prefix-tracking";
+    }
+
+    leaf range-count {
+      type uint32;
+      description
+        "Number of prefix ranges registered for prefix-tracking";
+    }
+
+    leaf reach-range-count {
+      type uint32;
+      description
+        "Number of prefix ranges that are reachable";
+    }
+  }
+
+  grouping rib-ptrack-cookie-structure {
+    description
+      "Prefix-tracking cookie list information";
+
+    container cookies {
+      description
+        "Prefix-tracking cookie list";
+
+      list cookie {
+        key "cookie-value";
+
+        description
+          "List of cookies registered for prefix-tracking";
+
+        leaf cookie-value {
+          type leafref {
+            path "../state/cookie-value";
+          }
+          description
+            "Reference to the cookie value";
+        }
+
+        container state {
+          config false;
+          description
+            "Prefix-tracking cookie state";
+
+          uses rib-ptrack-cookie-state;
+        }
+      }
+    }
+  }
+
+  grouping rib-ptrack-client-structure {
+    description
+      "Prefix-tracking client list information";
+
+    container clients {
+      description
+        "Prefix-tracking client list";
+
+      list client {
+        key "client-name client-tag";
+
+        description
+          "List of clients registered for prefix-tracking";
+
+        leaf client-name {
+          type leafref {
+            path "../state/client-name";
+          }
+          description
+            "Reference to the client name";
+        }
+
+        leaf client-tag {
+          type leafref {
+            path "../state/client-tag";
+          }
+          description
+            "Reference to the client tag";
+        }
+
+        container state {
+          config false;
+          description
+            "Prefix-tracking client state";
+
+          uses rib-ptrack-client-state;
+        }
+
+        uses rib-ptrack-cookie-structure;
+      }
+    }
+  }
+
+  grouping rib-ptrack-prefix-range-structure {
+    description
+      "Prefix range information";
+
+    container prefix-ranges {
+      description
+        "Prefix range table";
+
+      list prefix-range {
+        key "prefix masklength-range";
+
+        description
+          "List of prefix ranges registered for prefix-tracking";
+
+        leaf prefix {
+          type leafref {
+            path "../state/prefix";
+          }
+          description
+            "Reference to the registered prefix";
+        }
+
+        leaf masklength-range {
+          type leafref {
+            path "../state/masklength-range";
+          }
+          description
+            "Reference to the registered prefix range";
+        }
+
+        container state {
+          config false;
+          description
+            "Prefix-tracking prefix state";
+
+          uses rib-ptrack-range-state;
+        }
+
+        container match-info {
+          description
+            "Prefix-tracking prefix range match information";
+
+          container state {
+            config false;
+            description
+              "Prefix-tracking prefix range match state";
+
+            uses rib-ptrack-match-info-state;
+          }
+        }
+
+        uses rib-ptrack-client-structure;
+      }
+    }
+  }
+
+  grouping rib-table-ptrack-structure {
+    description
+      "Table prefix-tracking information";
+
+    container prefix-tracking {
+      description
+        "Prefix-tracking information";
+
+      container state {
+        config false;
+        description
+          "Table prefix-tracking state";
+
+        uses rib-table-ptrack-state;
+      }
+
+      uses rib-ptrack-prefix-range-structure;
+    }
+  }
+
+
+  grouping rib-top {
+    description
+      "Top-level grouping for rib routes";
+    list rib {
+      key "address-family";
+      config false;
+      description
+        "An individual routing table associated with a
+         an address family.";
+      leaf address-family {
+        type leafref {
+          path "../state/address-family";
+        }
+        mandatory true;
+        config false;
+        description
+          "Reference to the address family with which the RIB is
+           associated";
+      }
+      container state {
+        description
+          "Configuration parameters relating to the RIB.";
+        uses rib-config;
+      }
+      uses ipv4-entries {
+        when "address-family = 'oc-types:IPV4'";
+      }
+      uses ipv6-entries {
+        when "address-family = 'oc-types:IPV6'";
+      }
+      uses ipv4-supernets {
+        when "address-family = 'oc-types:IPV4'";
+      }
+      uses ipv6-supernets {
+        when "address-family = 'oc-types:IPV6'";
+      }
+      uses ipv4-rnh-entries {
+        when "address-family = 'oc-types:IPV4'";
+      }
+      uses ipv6-rnh-entries {
+        when "address-family = 'oc-types:IPV6'";
+      }
+      uses ipv4-nhids {
+        when "../oc-netinst:name = 'default' and
+              address-family = 'oc-types:IPV4'";
+      }
+      uses ipv6-nhids {
+        when "../oc-netinst:name = 'default' and
+              address-family = 'oc-types:IPV6'";
+      }
+      uses ipv4-protection-trackers {
+        when "address-family = 'oc-types:IPV4'";
+      }
+      uses ipv6-protection-trackers {
+        when "address-family = 'oc-types:IPV6'";
+      }
+      uses ipv4-pathids {
+        when "../oc-netinst:name = 'default' and
+              address-family = 'oc-types:IPV4'";
+      }
+      uses ipv6-pathids {
+        when "../oc-netinst:name = 'default' and
+              address-family = 'oc-types:IPV6'";
+      }
+      uses ipv4-tunnels {
+        when "address-family = 'oc-types:IPV4'";
+      }
+      uses ipv4-ids {
+        when "../oc-netinst:name = 'default' and
+              address-family = 'oc-types:IPV4'";
+      }
+      uses ipv6-ids {
+        when "../oc-netinst:name = 'default' and
+              address-family = 'oc-types:IPV6'";
+      }
+      uses ipv4-label-entries {
+        when "address-family = 'oc-types:IPV4'";
+      }
+      uses ipv6-label-entries {
+        when "address-family = 'oc-types:IPV6'";
+      }
+      uses ipv6-sid-entries {
+        when "address-family = 'oc-types:IPV6'";
+      }
+      uses ipv6-tunnel-termination-entries {
+        when "address-family = 'oc-types:IPV6'";
+      }
+      uses ipv6-tunnels {
+        when "address-family = 'oc-types:IPV6'";
+      }
+
+      uses rib-table-ptrack-structure;
+      uses stats-entries;
+      uses client-info;
+    }
+  }
+
+  augment "/oc-netinst:network-instances/oc-netinst:network-instance" {
+    uses rib-top {
+      when "./oc-netinst:config/oc-netinst:type = 'oc-ni-types:L3VRF'";
+    }
+  }
+}

@@ -1,0 +1,247 @@
+module arcos-qos-tablemap {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/qos/tablemap";
+  prefix arc-qos-tbl;
+
+  import arcos-qos {
+    prefix arc-qos;
+  }
+  import arcos-qos-tablemap-types {
+    prefix arc-qos-tbl-types;
+  }
+  import arcos-platform {
+    prefix arc-platform;
+  }
+
+  organization
+    "Arrcus, Inc.";
+  contact
+    "Arrcus, Inc.
+     Customer Service
+     Postal: 2077 Gateway Place
+     San Jose, CA 95110
+     Tel: +1 1XXX XXX-XXXX
+     E-mail: xxx@arrcus.com";
+  description
+    "YANG data-model for qos tablemap definitions.
+     Expanded from the generic tablemap data model (tablemap.yang)";
+
+
+  typedef value-type {
+    type union {
+      type uint32 {
+        range "0..63";
+      }
+      type enumeration {
+        enum ANY {
+          description
+            "Indicates any valid value (e.g., wildcard)";
+        }
+      }
+    }
+  }
+
+
+  grouping tablemap-from-value {
+    description
+      "Grouping for non local-tc from-value";
+
+    leaf-list from-value {
+      min-elements 1;
+      type value-type;
+
+      description
+        "List of values to be mapped from";
+    }
+  }
+
+  grouping tablemap-to-value {
+    description
+      "Grouping for non local-tc to-value";
+
+    leaf to-value {
+      mandatory true;
+      type uint32 {
+        range "0..63";
+      }
+      description
+        "Value to be mapped to";
+    }
+  }
+
+
+  grouping local-tc-entry-top {
+    description
+      "Grouping that holds local-tc value and drop-precedence";
+
+    leaf local-tc-value {
+      type uint32 {
+        range "0..7";
+      }
+      description
+        "Local Priority Traffic Class Value";
+    }
+    leaf drop-precedence {
+      type uint32 {
+        range "0..1";
+      }
+      default "0";
+      description
+        "a drop precedence (0 if not configured)";
+    }
+  }
+
+
+  grouping local-tc-entries-top {
+    description
+      "Grouping for list of local-tc entries";
+
+    list local-tc-entry {
+      key "local-tc-value drop-precedence";
+      min-elements 1;
+
+      description
+        "a local-tc value with drop-precedence";
+
+      leaf local-tc-value {
+        type leafref {
+          path "../config/local-tc-value";
+        }
+        description
+          "unique value to be mapped to";
+      }
+      leaf drop-precedence {
+        type leafref {
+          path "../config/drop-precedence";
+        }
+        description
+          "a drop precedence (0 if not configured)";
+      }
+      container config {
+        description
+          "Configuration parameters relating to tablemap";
+
+        uses local-tc-entry-top;
+      }
+      container state {
+        config false;
+        description
+          "Operational state parameters relating to tablemap";
+
+        uses local-tc-entry-top;
+      }
+    }
+  }
+
+  grouping tablemap-attributes {
+    description
+      "Main top-level grouping for Tablemap attributes";
+    leaf name {
+      type string {
+        length "1..79";
+      }
+      description
+        "Give name of a table-map:";
+    }
+    leaf description {
+      type string {
+        length "1..254";
+      }
+      description
+        "tablemap description";
+    }
+    leaf to-type {
+      type identityref {
+        base arc-qos-tbl-types:MAP_TYPE;
+      }
+      mandatory true;
+      description
+        "type of a codepoint to be mapped to";
+    }
+    leaf from-type {
+      type identityref {
+        base arc-qos-tbl-types:MAP_TYPE;
+      }
+      mandatory true;
+      description
+        "type of a codepoint to be mapped from";
+    }
+  }
+
+  grouping tablemaps-top {
+    description
+      "Top-level grouping for QoS specific tablemap database";
+    container tablemaps {
+      description
+        "Set of tablemaps configured";
+      list tablemap {
+        key "name";
+        description
+          "A specific tablemap in the tablemap data-base";
+        leaf name {
+          type leafref {
+            path "../config/name";
+          }
+          description
+            "unique name identifying tablemap <string, min:1 chars, max: 79 chars>";
+        }
+        container config {
+          description
+            "Configuration parameters relating to tablemap";
+          uses tablemap-attributes {
+            refine "from-type" {
+              must "current() = 'arc-qos-tbl-types:LOCAL_TC' or "
+                 + "current() = 'arc-qos-tbl-types:DSCP' or "
+                 + "current() = 'arc-qos-tbl-types:COS' or "
+                 + "((current() = 'arc-qos-tbl-types:MPLS_TC') and "
+                 + " ((/arc-platform:platform/arc-platform:family = 'arc-platform:BROADCOM_DNX') or "
+                 + "  (/arc-platform:platform/arc-platform:deployment-type = 'arc-platform:DISTRIBUTED')))" {
+                error-message "table type not supported for qos";
+              }
+            }
+            refine "to-type" {
+              must "current() = 'arc-qos-tbl-types:LOCAL_TC' or "
+                 + "current() = 'arc-qos-tbl-types:DSCP' or "
+                 + "current() = 'arc-qos-tbl-types:COS' or "
+                 + "((current() = 'arc-qos-tbl-types:MPLS_TC') and "
+                 + " ((/arc-platform:platform/arc-platform:family = 'arc-platform:BROADCOM_DNX') or "
+                 + "  (/arc-platform:platform/arc-platform:deployment-type = 'arc-platform:DISTRIBUTED')))" {
+                error-message "table type not supported for qos";
+              }
+            }
+          }
+        }
+        container state {
+          config false;
+          description
+            "Operational state parameters relating to tablemap";
+          uses tablemap-attributes;
+        }
+
+        uses local-tc-entries-top {
+          augment "local-tc-entry/config" {
+            when "../../config/to-type = 'arc-qos-tbl-types:LOCAL_TC'";
+            uses tablemap-from-value;
+          }
+          augment "local-tc-entry/state" {
+            when "../../config/to-type = 'arc-qos-tbl-types:LOCAL_TC'";
+            uses tablemap-from-value;
+          }
+
+          augment "local-tc-entry/config" {
+            when "../../config/from-type = 'arc-qos-tbl-types:LOCAL_TC'";
+            uses tablemap-to-value;
+          }
+          augment "local-tc-entry/state" {
+            when "../../config/from-type = 'arc-qos-tbl-types:LOCAL_TC'";
+            uses tablemap-to-value;
+          }
+        }
+      }
+    }
+  }
+
+  augment "/arc-qos:qos" {
+    uses tablemaps-top;
+  }
+}

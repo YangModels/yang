@@ -1,0 +1,502 @@
+module arcos-srv6 {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/srv6";
+  prefix arc-srv6;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  import openconfig-network-instance {
+    prefix oc-netinst;
+  }
+
+  import arcos-srv6-types {
+    prefix arc-srv6-types;
+  }
+
+  organization
+    "Arrcus, Inc.";
+
+  contact
+    "Arrcus, Inc.
+    2077 Gateway Place
+    Suite 400
+    San Jose, CA 95110
+
+    E-mail: yang-support@arrcus.com";
+
+  description
+    "This module contains definitions for the
+    native ArcOS SRv6 domain.
+
+    Copyright (c) 2016-2019 by Arrcus, Inc.
+    All rights reserved.";
+
+
+  revision 2020-01-06 {
+    description "Initial version";
+  }
+
+  grouping srv6-gtp-tunnel-termination-config-top {
+    description
+      "Configuration data for gtp-tunnel-termination";
+
+    leaf inner-vrf {
+      mandatory true;
+      description
+        "Inner vrf after gtp decap";
+      type leafref {
+        path "/oc-netinst:network-instances/oc-netinst:network-instance" +
+          "/oc-netinst:name";
+      }
+    }
+
+    leaf source-prefix {
+      mandatory true;
+      type inet:ipv6-prefix;
+      description
+        "Used to compute the source address of the outer IPv6 header after SRH encapsulation";
+    }
+
+    leaf binding-sid {
+      mandatory true;
+      type inet:ipv6-prefix;
+      description
+        "Used to compute the destination address of the outer IPv6 header after SRH encapsulation";
+    }
+  }
+
+  grouping srv6-static-sids-top {
+      description
+          "Fields for static sid"; 
+
+      leaf behavior {
+          mandatory true;
+          type arc-srv6-types:srv6-mobile-function-type;
+          description
+              "Mobile function";
+          must "../behavior = 'arc-srv6-types:END_M_GTP4_E' or ../behavior = 'arc-srv6-types:END_M_GTP6_E'" {
+              error-message "Only behavior END_M_GTP4_E and END_M_GTP6_E are supported";
+          }
+
+      }
+
+      leaf egress-vrf {
+          mandatory true;
+          description
+              "Outer vrf after gtp encap";
+          type leafref {
+              path "/oc-netinst:network-instances/oc-netinst:network-instance" +
+                  "/oc-netinst:name";
+          }
+      }
+
+      leaf source-address {
+          type inet:ipv4-address;
+          description
+              "Sets the source address of the outer IPv4 header after GTP encapsulation";
+          when "../behavior = 'arc-srv6-types:END_M_GTP4_E'"; 
+          must "not(../source-position)" {
+              error-message "source-address and source-position cannot co-exist";
+          }
+      }
+
+      leaf source-position {
+          type uint8 {
+              range "0..96";
+          }
+          description
+              "The bit position on the source address of the incoming packet from where the source address of the outer IPv4 header after GTP encapsulation needs to be extracted";
+          when "../behavior = 'arc-srv6-types:END_M_GTP4_E'"; 
+          must "not(../source-address)" {
+              error-message "source-address and source-position cannot co-exist";
+          }
+      }
+  }
+
+  grouping srv6-static-sids {
+      list static-sid {
+          key "function";
+          description
+              "Info to be configured about a sid";
+          leaf function {
+              type uint32 {
+                  range "0..1048575";
+              }
+              description
+                  "Function value of sid";
+          }
+
+          container config {
+              description
+                  "Configurable items for static sids"; 
+              uses srv6-static-sids-top;
+              must "behavior != 'arc-srv6-types:END_M_GTP4_E' or (boolean(source-address) = 'true' or  " + 
+                  " boolean(source-position) = 'true')" {
+                      error-message "One and only one of source-address and source-position must be configured";
+                  }
+
+          }
+
+          container state {
+              config false;
+              description
+                  "Operational state for static sids"; 
+              uses srv6-static-sids-top;
+          }
+
+      }
+  }
+
+  grouping srv6-locator-config-top {
+    description
+      "Configuration data for locator";
+
+    leaf locator-node-length {
+      type uint8;
+      default 16;
+      description
+        "SRv6 SID Locator Node length in bits";
+    }
+
+    leaf prefix {
+      mandatory true;
+      type inet:ipv6-prefix;
+      description
+        "locator address";
+    }
+
+    leaf micro-segment-behavior-unode {
+      type boolean;
+      default false;
+      description
+        "This designates locator as usid. Will need to change to
+        enum later.";
+    }
+
+    leaf mobile {
+      type boolean;
+      default false;
+      description
+        "This designates locator as mobile";
+    }
+
+    leaf function-length {
+      type uint8 {
+        range "1..20";
+      }
+      default 16;
+      description
+        "SRv6 SID Function length in bits";
+      when "../micro-segment-behavior-unode = 'false' and 
+        ../mobile = 'false'"; 
+    }
+
+    leaf algorithm {
+      type uint8 {
+        range "128..255";
+      }
+      description
+        "Algorithm ID associated with the locator";
+      when "../mobile = 'false'";
+    }
+  }  
+
+  grouping srv6-encapsulation-config-top {
+    description
+      "Configuration data for encapsulation";
+
+    leaf source-address {
+      type inet:ipv6-address;
+      description
+        "Sets the source address of the encap IPv6 header";
+    }
+    leaf ip-ttl-propagation {
+      type boolean;
+      default false;
+      description
+        "Determines whether hop-limit/TTL of inner packet is copied to outer encap header";
+    }
+    leaf hop-limit {
+      type uint8 {
+        range "1..255";
+      }
+      default 255;
+      description
+        "Sets the hop-limit field of the encap IPv6 header";
+      when "../ip-ttl-propagation = 'false'"; 
+    }
+  }
+
+  grouping srv6-client {
+    list client {
+      key "name";
+      config false;
+      description
+        "client info of an entry";
+      leaf name {
+        type string {
+          length "1..20";
+        }
+        description
+          "client name";
+      }
+      leaf handle {
+        type uint64;
+        description
+          "Handle used for communicating with the client";
+      }
+    }
+  }
+
+  grouping srv6-sid-path {
+    list sid-path {
+      key "next-hop-address";
+      config false;
+      description
+        "Info abput sid-paths for a given sid";
+      leaf next-hop-address {
+        type inet:ip-address;
+        description
+          "NH address of adjacency";
+      }
+      leaf interface {
+        type string {
+          length "1..20";
+        }
+        description
+          "interface name";
+      }
+    }
+  }
+
+  grouping srv6-sid-paths-top {
+    description
+      "Grouping for sid-paths by lookup keys";
+
+    container sid-paths {
+      uses srv6-sid-path;
+    }
+  }
+
+  grouping srv6-local-sid {
+    list local-sid {
+      key "sid";
+      config false;
+      description
+        "Info about a given end sid";
+      leaf sid {
+        type inet:ipv6-prefix;
+        description
+          "IPv6 sid value";
+      }
+      leaf behavior {
+        type arc-srv6-types:srv6-endpoint-behavior-type;
+        description 
+          "Endpoint behavior";
+      }
+      leaf locator-name {
+        type string {
+          length "1..20";
+        }
+        description
+          "locator name";
+      }
+      leaf client-name {
+        type string {
+          length "1..20";
+        }
+        description
+          "client name";
+      }
+      leaf table-id {
+        type uint32;
+        description
+          "Table Id for ENDT, DT, uDT";
+      }
+      leaf usid-length {
+        type uint8;
+        default 16;
+        description
+          "Indicates the length of the usid";
+      }
+      leaf source-address {
+          type inet:ipv4-address;
+          description
+              "Sets the source address of the outer IPv4 header after GTP encapsulation";
+      }
+
+      leaf source-position {
+          type uint8 {
+              range "0..96";
+          }
+          description
+              "The bit position on the source address of the incoming packet from where the source address of the outer IPv4 header after GTP encapsulation needs to be extracted";
+      }
+
+
+      uses srv6-sid-paths-top;
+    }
+  }
+
+  grouping srv6-locators-top {
+    list locator {
+      key "name";
+
+      description
+        "locator info of an entry";
+
+      leaf name {
+        type string {
+          length "1..20";
+        }
+        description
+          "locator name";
+      }
+      container config {
+        description
+          "Configurable items at the srv6 locator level"; 
+        uses srv6-locator-config-top;
+        must "micro-segment-behavior-unode = 'false' or locator-node-length = 16" {
+          error-message "Only locator-node-length = 16 is supported for usid";
+        }
+      }
+      container state {
+        config false;
+        description
+          "Operational State data at the srv6 locator level"; 
+        uses srv6-locator-config-top;
+      }
+
+      uses srv6-static-sids {
+        description
+            "Static sids under a locator";
+      }
+    }
+  }
+
+  grouping srv6-gtp-tunnel-termination-top {
+    list gtp-tunnel-termination {
+      key "prefix";
+
+      description
+        "static config for srv6 tunnel termination";
+
+      leaf prefix {
+        type inet:ip-prefix;
+        description
+          "Prefix for tunnel termination";
+      }
+      
+      container config {
+        description
+          "Configurable items for tunnel termination"; 
+        uses srv6-gtp-tunnel-termination-config-top;
+      }
+
+      container state {
+        config false;
+        description
+          "Operational State items for tunnel termination"; 
+        uses srv6-gtp-tunnel-termination-config-top;
+      }
+    }
+  }
+
+  grouping srv6-encapsulation-top {
+    container encapsulation {
+      container config {
+        description
+          "Configurable items for srv6 encapsulation"; 
+        uses srv6-encapsulation-config-top;
+      }
+      container state {
+        config false;
+        description
+          "Operational State data for srv6 encapsulation level"; 
+        uses srv6-encapsulation-config-top;
+      }
+    }
+  }
+
+
+  grouping srv6-local-sids-top {
+    description
+      "Grouping for sids by lookup keys";
+
+    container local-sids {
+      config false;
+      uses srv6-local-sid;
+    }
+  }
+
+  grouping srv6-clients-top {
+    description
+      "Grouping for clients by lookup keys";
+
+    container clients {
+      config false; 
+      uses srv6-client;
+    }
+  }
+
+  grouping srv6-top {
+    description
+      "Top-level grouping for srv6";
+    container srv6 {
+      description
+        "srv6 configuration";
+      uses srv6-locators-top {
+          when "current()/../oc-netinst:name = 'default'" {
+              description
+                  "SRv6 locator configuration is only valid with the default
+                  network instance.";
+          }
+      }
+      uses srv6-gtp-tunnel-termination-top {
+          when "current()/../oc-netinst:name != 'default'" {
+              description
+                  "SRv6 tunnel termination  configuration is not valid with the default
+                  network instance.";
+          }
+      }
+
+      uses srv6-encapsulation-top {
+          when "current()/../oc-netinst:name = 'default'" {
+              description
+                  "SRv6 encapsulation configuration is only valid with the default
+                  network instance.";
+          }
+      }
+
+      uses srv6-clients-top {
+          when "current()/../oc-netinst:name = 'default'" {
+              description
+                  "SRv6 clients info  is only valid with the default
+                  network instance.";
+          }
+      }
+
+
+      uses srv6-local-sids-top {
+          when "current()/../oc-netinst:name = 'default'" {
+              description
+                  "SRv6 local sid info  is only valid with the default
+                  network instance.";
+          }
+      }
+
+    }
+  }
+
+  augment "/oc-netinst:network-instances/oc-netinst:network-instance" {
+    uses srv6-top {
+          when "current()/oc-netinst:name != 'management'" {
+              description
+                  "SRv6 configuration is not valid with the management network instance.";
+          }
+      }
+
+  }
+}
