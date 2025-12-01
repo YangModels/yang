@@ -1,0 +1,357 @@
+module tailf-progress {
+  yang-version 1.1;
+  namespace "http://tail-f.com/ns/progress";
+  prefix progress;
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+
+  import ietf-datastores {
+    prefix ds;
+  }
+
+  description
+    "This module contains a collection of YANG definitions for
+     tracing progress.
+
+     Copyright 2018-2021 Cisco Systems, Inc.
+     All rights reserved.
+     Permission is hereby granted to redistribute this file without
+     modification.";
+
+  revision 2021-12-17 {
+    description
+      "Released as part of ConfD-7.7 / NCS-5.7.
+
+       Added /progress/trace/event/trace-id.";
+  }
+
+  revision 2020-06-25 {
+    description
+      "Released as part of ConfD-7.4 / NCS-5.4.
+
+       Renamed leaf /progress/trace/event/tid to
+       /progress/trace/event/transaction-id.
+
+       Added /progress/trace/event/annotation.
+
+       Added /progress/trace/event/database.";
+  }
+
+  revision 2018-06-14 {
+    description
+      "Released as part of ConfD-6.7.
+
+       Added /progress/trace/verbosity.
+
+       Added /progress/trace/event/timer.";
+  }
+
+  revision 2018-03-01 {
+    description
+      "Initial revision.";
+  }
+
+  identity datastore {
+    description
+      "Abstract base identity for datastore identities.";
+  }
+
+  identity pre-commit-running {
+    description
+      "The pre-commit-running configuration datastore.";
+    base datastore;
+  }
+
+  container progress {
+    tailf:hidden "debug";
+    list trace {
+      key name;
+      leaf name {
+        type string;
+        description
+          "A unique name for this progress trace.";
+      }
+      container destination {
+        choice destination {
+          mandatory true;
+          case file {
+            leaf file {
+              type string;
+              mandatory true;
+              description
+                "Will log progress data to the given file.";
+            }
+            leaf format {
+              type enumeration {
+                enum csv {
+                  description
+                    "Comma-separated values file defined by RFC 4180.";
+                }
+                enum log {
+                  description
+                    "Pretty printed log file with each event on a single line.";
+                }
+              }
+              default csv;
+            }
+          }
+          case oper-data {
+            leaf oper-data {
+              type empty;
+              description
+                "Will log non-persistent operational data to the
+                 ../../event list. This data can not be subscribed to.";
+            }
+          }
+        }
+      }
+      leaf enabled {
+        description
+          "Whether the trace is enabled or not.";
+        type boolean;
+        default true;
+      }
+      leaf max-size {
+        when "../destination/oper-data";
+        type union {
+          type enumeration {
+            enum unlimited;
+          }
+          type uint32 {
+            range "1..max";
+          }
+        }
+        default 1000;
+        description
+          "Max size of the ../event list. When the maximum size
+           is reached, the oldest list entry is purged.";
+      }
+      leaf verbosity {
+        description
+          "The verbosity level of the progress trace.";
+        type enumeration {
+          enum normal;
+          enum verbose;
+          enum very-verbose;
+          enum debug;
+        }
+        default normal;
+      }
+      container filter {
+        description
+          "If no filter is configured all transaction and
+           action events will be logged.";
+        leaf local-user {
+          type string;
+          description
+            "Only log events for the specified local user.";
+        }
+        uses context-grouping {
+          refine context {
+            description
+              "Only log events for the specified context.
+               The context is either one of netconf, cli, webui, snmp,
+               rest, system or it can be any other context string
+               defined through the use of MAAPI.";
+          }
+        }
+      }
+
+      tailf:action purge {
+        tailf:display-when "../destination/oper-data";
+        tailf:info "Remove events";
+        tailf:actionpoint progress {
+          tailf:internal;
+        }
+        description
+          "This action requests to delete events from the event
+           list according to the supplied criteria.";
+        input {
+          uses filter-input;
+        }
+        output {
+          leaf purged-events {
+            type uint16;
+          }
+        }
+      }
+
+      list event {
+        key timestamp;
+        config false;
+        tailf:callpoint progress {
+          tailf:internal;
+        }
+        leaf timestamp {
+          tailf:display-groups "none details summary";
+          type yang:date-and-time;
+        }
+        leaf duration {
+          tailf:display-groups "none details";
+          type decimal64 {
+            fraction-digits 3;
+          }
+          units "seconds";
+          description
+            "The duration of the event in seconds.";
+        }
+        leaf timer {
+          tailf:display-groups "details";
+          type decimal64 {
+            fraction-digits 3;
+          }
+          description
+            "Time difference from the first occurrence of the
+             same transaction id in the list.";
+        }
+        leaf session-id {
+          tailf:display-groups "none details summary";
+          type uint64;
+          description
+            "User session id.";
+        }
+        leaf transaction-id {
+          tailf:display-groups "none details summary";
+          type uint64;
+          description
+            "Transaction id.";
+        }
+        leaf datastore {
+          tailf:display-groups "none details summary";
+          type union {
+            type identityref {
+              base ds:datastore;
+            }
+            type identityref {
+              base progress:datastore;
+            }
+          }
+          description
+            "The datastore of the transaction. Progress trace events
+             can be emitted even for read-only datastores, for example
+             when the system updates the operational state or when an
+             read-only transaction is used in conjunction with the
+             invocation of an action.";
+        }
+        uses context-grouping {
+          refine context {
+            tailf:display-groups "none details";
+            description
+              "The context is either one of netconf, cli, webui, snmp,
+               rest, system or it can be any other context string
+               defined through the use of MAAPI.";
+          }
+        }
+        leaf trace-id {
+          tailf:display-groups "none details summary";
+          type string {
+            length "1..64";
+          }
+          description
+            "Per request unique trace id, included in headers and
+             entries for relevant logs";
+        }
+        leaf subsystem {
+          tailf:display-groups "none details summary";
+          type string;
+          description
+            "The name of the subsystem that generated the event.";
+        }
+        leaf phase {
+          tailf:display-groups "none details summary";
+          type enumeration {
+            enum validate {
+              tailf:code-name transaction_validate;
+            }
+            enum write-start {
+              tailf:code-name transaction_write_start;
+            }
+            enum prepare {
+              tailf:code-name transaction_prepare;
+            }
+            enum commit {
+              tailf:code-name transaction_commit;
+            }
+            enum abort {
+              tailf:code-name transaction_abort;
+            }
+          }
+          description
+            "The phase of the transaction.";
+        }
+        leaf message {
+          tailf:display-groups "none details summary";
+          tailf:sort-priority 1;
+          type string;
+          description
+            "Progress event message.";
+        }
+        leaf annotation {
+          tailf:display-groups "none details summary";
+          tailf:sort-priority 1;
+          type string;
+          description
+            "Metadata about the event, indicating error, explains
+             latency or shows result etc.";
+        }
+      }
+    }
+  }
+
+  grouping context-grouping {
+    leaf context {
+      type union {
+        type enumeration {
+          enum netconf;
+          enum cli;
+          enum webui;
+          enum snmp;
+          enum rest;
+          enum system;
+        }
+        type string;
+      }
+    }
+  }
+
+  grouping filter-input {
+    container older-than {
+      presence "Age specification";
+      description
+        "Matches the 'when' leaf in the event.";
+      choice age-spec {
+        case seconds {
+          leaf seconds {
+            type uint16;
+          }
+        }
+        case minutes {
+          leaf minutes {
+            type uint16;
+          }
+        }
+        case hours {
+          leaf hours {
+            type uint16;
+          }
+        }
+        case days {
+          leaf days {
+            type uint16;
+          }
+        }
+        case weeks {
+          leaf weeks {
+            type uint16;
+          }
+        }
+      }
+    }
+  }
+}

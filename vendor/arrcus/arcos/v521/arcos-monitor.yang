@@ -1,0 +1,313 @@
+module arcos-monitor {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/monitor";
+  prefix arc-mon;
+
+  import iana-if-type {
+    prefix ianaift;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import openconfig-yang-types {
+    prefix yang;
+  }
+  import openconfig-interfaces {
+    prefix oc-if;
+  }
+  import openconfig-if-ethernet {
+    prefix oc-eth;
+  }
+  import openconfig-vlan {
+    prefix oc-vlan;
+  }
+  import openconfig-if-aggregate {
+    prefix oc-lag;
+  }
+  import openconfig-acl {
+    prefix oc-acl;
+  }
+  import arcos-platform {
+    prefix arc-platform;
+  }
+
+  import arcos-features {
+    prefix arc-features;
+  }
+
+
+  grouping monitor-session-acl-config {
+    leaf acl-type {
+      type identityref {
+        base oc-acl:ACL_TYPE;
+      }
+
+      description
+        "Reference to the acl type, list key";
+    }
+
+    leaf acl-name {
+      type leafref {
+        path "/oc-acl:acl/oc-acl:acl-sets/oc-acl:acl-set[oc-acl:type=current()/../acl-type]/oc-acl:config/oc-acl:name";
+      }
+
+      description
+        "Reference to the acl name, list key";
+    }
+  }
+
+  grouping monitor-session-acl-top {
+    description
+      "Grouping that defines reference to set of ACLs for a monitoring session";
+
+    list acl {
+      key "acl-type acl-name";
+      description
+        "List of ACL references";
+
+      leaf acl-type {
+        type leafref {
+          path "../config/acl-type";
+        }
+
+        description
+          "Reference to the acl type, list key";
+      }
+
+      leaf acl-name {
+        type leafref {
+          path "../config/acl-name";
+        }
+
+        description
+          "Reference to the acl name, list key";
+      }
+
+      container config {
+        uses monitor-session-acl-config;
+        description
+          "Parameters for acl enabled under monitored source";
+      }
+
+      container state {
+        config false;
+
+        uses monitor-session-acl-config;
+        description
+          "Parameters for acl enabled under monitored source";
+      }
+    }
+  }
+
+
+  grouping monitor-session-destination-config {
+    leaf ifname {
+      type leafref {
+        path "/oc-if:interfaces/oc-if:interface/oc-if:config/oc-if:name";
+      }
+      description
+        "Destination interface monitored traffic mirrored to";
+
+      must "((current() != 'ma1') and " +
+         "(((/oc-if:interfaces/oc-if:interface[oc-if:name=current()]/oc-if:config/oc-if:type = 'ianaift:ieee8023adLag') and (boolean(/oc-if:interfaces/oc-if:interface[oc-if:name=current()]/oc-lag:aggregation/oc-vlan:switched-vlan/oc-vlan:config/oc-vlan:interface-mode) != 'true')) or " +
+         "((/oc-if:interfaces/oc-if:interface[oc-if:name=current()]/oc-if:config/oc-if:type = 'ianaift:ethernetCsmacd') and (boolean(/oc-if:interfaces/oc-if:interface[oc-if:name=current()]/oc-eth:ethernet/oc-eth:config/oc-lag:aggregate-id) != 'true') and (boolean(/oc-if:interfaces/oc-if:interface[oc-if:name=current()]/oc-eth:ethernet/oc-vlan:switched-vlan/oc-vlan:config/oc-vlan:interface-mode) != 'true'))) and " +
+         "(count(/oc-if:interfaces/oc-if:interface[oc-if:name=current()]/oc-if:subinterfaces/oc-if:subinterface) = 0))" {
+        error-message "only swp and bond interfaces supported, as a destination,  without any l2 and l3 configurations";
+      }
+    }
+  }
+
+  grouping monitor-session-destination-cpu {
+      leaf cpu {
+          type empty;
+          description
+              "Punt mirror traffic to the CPU";
+      }
+  }
+
+  grouping monitor-session-destination-cpu-top {
+      container config {
+          uses monitor-session-destination-cpu;
+      }
+      container state {
+          config false;
+          uses monitor-session-destination-cpu;
+      }
+  }
+
+  grouping monitor-session-destination-top {
+    container destination {
+      description
+        "Destination interface monitored traffic mirrored to";
+
+      list interface {
+        key "ifname";
+
+        leaf ifname {
+          type leafref {
+            path "../config/ifname";
+          }
+
+          description
+            "Destination interface monitored traffic mirrored to";
+        }
+
+        container config {
+          description
+            "Parameters for monitoring session destination";
+
+          uses monitor-session-destination-config;
+        }
+
+        container state {
+          config false;
+          description
+            "Parameters for monitoring session destination";
+
+          uses monitor-session-destination-config;
+        }
+      }
+
+      uses monitor-session-destination-cpu-top;
+    }
+  }
+
+  grouping monitor-session-source-config {
+    leaf ifname {
+      type leafref {
+        path "/oc-if:interfaces/oc-if:interface/oc-if:config/oc-if:name";
+      }
+      description
+        "Source interface for which traffic is monitored for";
+
+      must "((current() != 'ma1') and " +
+             "((/oc-if:interfaces/oc-if:interface[oc-if:name=current()]/oc-if:config/oc-if:type = 'ianaift:ieee8023adLag') or " +
+             "(/oc-if:interfaces/oc-if:interface[oc-if:name=current()]/oc-if:config/oc-if:type = 'ianaift:l3ipvlan' and ../direction = 'INGRESS') or " +
+             "((/oc-if:interfaces/oc-if:interface[oc-if:name=current()]/oc-if:config/oc-if:type = 'ianaift:ethernetCsmacd') and (boolean(/oc-if:interfaces/oc-if:interface[oc-if:name=current()]/oc-eth:ethernet/oc-eth:config/oc-lag:aggregate-id) != 'true'))))" {
+        error-message "only swp, bond and svi supported as a source interface";
+      }
+    }
+
+    leaf direction {
+      type enumeration {
+        enum INGRESS {
+          description "Incoming traffic to be monitored";
+        }
+        enum EGRESS {
+          description "Outgoing traffic to be monitored";
+        }
+      }
+      description
+        "Direction of the traffic to be monitored";
+    }
+  }
+
+
+  grouping monitor-session-source-top {
+    container source {
+      list interface {
+        key "ifname direction";
+        max-elements 255;
+        description
+          "List of source interface for which traffic is monitored for";
+
+        leaf ifname {
+          type leafref {
+            path "../config/ifname";
+          }
+
+          description
+            "Source interface for which traffic is monitored for";
+        }
+
+        leaf direction {
+          type leafref {
+            path "../config/direction";
+          }
+
+          description
+            "Direction of the traffic to be monitored";
+        }
+
+        container config {
+          description
+            "Parameters for monitoring session source";
+
+          uses monitor-session-source-config;
+        }
+
+        container state {
+          config false;
+          description
+            "Parameters for monitoring session source";
+
+          uses monitor-session-source-config;
+        }
+
+        uses monitor-session-acl-top {
+          when "(current()/direction = 'INGRESS')";
+        }
+      }
+    }
+  }
+
+
+  grouping monitor-session-top {
+    leaf session-name {
+      type string {
+        length "0..79";
+      }
+      description
+        "Name of the monitoring session";
+    }
+
+    leaf enable {
+      type boolean;
+      default false;
+      description
+        "By default keep monitoring profile disabled";
+    }
+  }
+
+  grouping monitor-top {
+    list monitor-session {
+      key "session-name";
+      description
+        "List of monitoring sessions (enabled only when atleast one destination configured)";
+
+      leaf session-name {
+        type leafref {
+          path "../config/session-name";
+        }
+
+        description
+          "Name of the session";
+      }
+
+      container config {
+        description
+          "Parameters for monitoring session";
+
+        uses monitor-session-top;
+      }
+
+      container state {
+        config false;
+        description
+          "Parameters for monitoring session";
+
+        uses monitor-session-top;
+      }
+
+      uses monitor-session-destination-top;
+      uses monitor-session-source-top;
+    }
+  }
+
+
+  uses monitor-top {
+    when "not(boolean(/arc-features:features/arc-features:feature[arc-features:name='arc-features:ARCOS_MONITOR']))" +
+    "or /arc-features:features/arc-features:feature[arc-features:name='arc-features:ARCOS_MONITOR']" +
+           "/arc-features:supported = 'true'";
+  }
+}

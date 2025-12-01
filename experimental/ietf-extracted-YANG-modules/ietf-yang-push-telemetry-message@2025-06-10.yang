@@ -1,0 +1,277 @@
+module ietf-yang-push-telemetry-message {
+  yang-version 1.1;
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-yang-push-telemetry-message";
+  prefix yptm;
+
+  import ietf-subscribed-notifications {
+    prefix sn;
+    reference
+      "RFC 8639: Subscription to YANG Notifications";
+  }
+  import ietf-telemetry-message {
+    prefix tm;
+    reference
+      "draft-netana-nmop-message-broker-telemetry-message: Extensible
+       YANG Model for Network Telemetry Messages";
+  }
+  import ietf-yang-push {
+    prefix yp;
+    reference
+      "RFC 8641: Subscription to YANG Notifications for Datastore
+       Updates";
+  }
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-datastores {
+    prefix ds;
+    reference
+      "RFC 8342: Network Management Datastore Architecture (NMDA)";
+  }
+  import ietf-yang-revisions {
+    prefix rev;
+    reference
+      "draft-ietf-netmod-yang-module-versioning: Updated YANG Module
+       Revision Handling";
+  }
+  import ietf-yang-semver {
+    prefix ysver;
+    reference
+      "draft-ietf-netmod-yang-semver: YANG Semantic Versioning";
+  }
+
+  organization
+    "IETF Draft";
+  contact
+    "Author:    Ahmed Elhassany
+                <mailto:ahmed.elhassany@swisscom.com>
+
+                Thomas Graf
+                <mailto:thomas.graf@swisscom.com>";
+  description
+    "Adds YANG-Push specific subscription metadata to the data
+     collection protocol provenance of the ietf-telemetry-message
+     envelope.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this document
+     are to be interpreted as described in BCP 14 (RFC 2119)
+     (RFC 8174) when, and only when, they appear in all
+     capitals, as shown here.
+
+     Copyright (c) 2025 IETF Trust and the persons identified as
+       authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or without
+     modification, is permitted pursuant to, and subject to the license
+     terms contained in, the Revised BSD License set forth in Section
+     4.c of the IETF Trust's Legal Provisions Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX; see the RFC
+     itself for full legal notices.";
+
+  revision 2025-06-10 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX";
+  }
+
+  augment "/tm:message/tm:telemetry-message-metadata" {
+    description
+      "Augments telemetry-message-metadata with YANG-Push specific
+       subscription metadata";
+    container yang-push-subscription {
+      config false;
+      description
+        "YANG-Push specific subscription metadata";
+      leaf id {
+        type sn:subscription-id;
+        description
+          "This references the affected subscription.";
+      }
+      choice filter-spec {
+        description
+          "The content filter specification for this request.";
+        anydata subtree-filter {
+          description
+            "Event stream evaluation criteria or the parameter
+             identifies the port of the target datastore encoded in the
+             syntax of a subtree filter as defined in RFC 6241,
+             Section 6.";
+          reference
+            "RFC 6241: Network Configuration Protocol (NETCONF),
+             Section 6.";
+        }
+        leaf xpath-filter {
+          type yang:xpath1.0;
+          description
+            "Event stream evaluation criteria or porting of the target
+             datastore encoded in the syntax of an XPath 1.0
+             expression";
+          reference
+            "XML Path Language (XPath) Version 1.0
+              (https://www.w3.org/TR/1999/REC-xpath-19991116)
+              RFC 7950: The YANG 1.1 Data Modeling Language,
+                      Section 10";
+        }
+      }
+      choice target {
+        description
+          "Identifies the source of information against which a
+           subscription is being applied as well as specifics on the
+           subset of information desired from that source.";
+        case stream {
+          leaf stream {
+            type string;
+            description
+              "Indicates the event stream to be considered for this
+               subscription.";
+          }
+        }
+        case datastore {
+          leaf datastore {
+            type identityref {
+              base ds:datastore;
+            }
+            description
+              "Datastore from which to retrieve data.";
+          }
+        }
+      }
+      leaf transport {
+        type sn:transport;
+        description
+          "For a configured subscription, this leaf specifies the
+           transport used to deliver messages destined for all
+           receivers of that subscription.";
+      }
+      leaf encoding {
+        type sn:encoding;
+        description
+          "The type of encoding for notification messages.  For a
+           dynamic subscription, if not included as part of an
+           'establish-subscription' RPC, the encoding will be populated
+           with the encoding used by that RPC.  For a configured
+           subscription, if not explicitly configured, the encoding
+           will be the default encoding for an underlying transport.";
+      }
+      leaf purpose {
+        type string;
+        description
+          "Open text allowing a configuring entity to embed the
+           originator or other specifics of this subscription.";
+      }
+      choice update-trigger {
+        description
+          "Defines necessary conditions for sending an event record to
+           the subscriber.";
+        case periodic {
+          container periodic {
+            presence "indicates a periodic subscription";
+            description
+              "The publisher is requested to notify periodically the
+               current values of the datastore as defined by the
+               selection filter.";
+            leaf period {
+              type yp:centiseconds;
+              description
+                "Duration of time which should occur between periodic
+                 push updates, in one hundredths of a second.";
+            }
+            leaf anchor-time {
+              type yang:date-and-time;
+              description
+                "Designates a timestamp before or after which a series
+                 of periodic push updates are determined. The next
+                 update will take place at a whole multiple interval
+                 from the anchor time.  For example, for an anchor time
+                 is set for the top of a particular minute and a period
+                 interval of a minute, updates will be sent at the top
+                 of every minute this subscription is active.";
+            }
+          }
+        }
+        case on-change {
+          container on-change {
+            presence "indicates an on-change subscription";
+            description
+              "The publisher is requested to notify changes in values
+               in the datastore subset as defined by a selection
+               filter.";
+            leaf dampening-period {
+              type yp:centiseconds;
+              default "0";
+              description
+                "Specifies the minimum interval between the assembly of
+                 successive update records for a single receiver of a
+                 subscription.  Whenever subscribed objects change, and
+                 a dampening period interval (which may be zero) has
+                 elapsed since the previous update record creation for
+                 a receiver, then any subscribed objects and properties
+                 which have changed since the previous update record
+                 will have their current values marshalled and placed
+                 into a new update record.";
+            }
+            leaf sync-on-start {
+              type boolean;
+              default "true";
+              description
+                "When this object is set to false, it restricts an
+                 on-change subscription from sending push-update
+                 notifications.  When false, pushing a full selection
+                 per the terms of the selection filter MUST NOT be done
+                 for this subscription.  Only updates about changes,
+                 i.e. only push-change-update notifications are sent.
+                 When true (default behavior), in order to facilitate a
+                 receiver's synchronization, a full update is sent when
+                 the subscription starts using a push-update
+                 notification.  After that, push-change-update
+                 notifications are exclusively sent unless the publisher
+                 chooses to resync the subscription via a new
+                 push-update notification.";
+            }
+          }
+        }
+      }
+      list module-version {
+        key "module-name";
+        config false;
+        description
+          "List of yang-push-module-version grouping. The revision is
+           not configurable.";
+        leaf module-name {
+          type yang:yang-identifier;
+          config false;
+          description
+            "This references the YANG module name.";
+        }
+        leaf revision {
+          type rev:revision-date;
+          config false;
+          description
+            "This references the YANG module revision of the sent
+             notification message.";
+        }
+        leaf revision-label {
+          type ysver:version;
+          description
+            "This references the YANG module semantic version of the
+             sent notification message.";
+        }
+      }
+      leaf yang-library-content-id {
+        type string;
+        config false;
+        description
+          "Contains the YANG library content identifier RFC 8525
+           information.";
+      }
+    }
+  }
+}

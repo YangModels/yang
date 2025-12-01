@@ -1,0 +1,258 @@
+module arcos-sflow {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/sflow";
+  prefix arc-sflow;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import iana-if-type {
+    prefix ianaift;
+  }
+  import openconfig-interfaces {
+    prefix oc-if;
+  }
+  import openconfig-network-instance {
+    prefix oc-netinst;
+  }
+  import arcos-platform {
+    prefix arc-platform;
+  }
+
+  grouping sflow-packet-sampling-rate {
+    description
+      "Grouping for sflow packet sampling rate parameters";
+    leaf packet-sampling-rate {
+      type uint32;
+      description
+        "default packet sampling rate for each interface/direction";
+    }
+  }
+
+  grouping sflow-collector-common-fields {
+    description
+      "Grouping for sflow collector specific optional fields";
+    leaf port {
+      type uint16;
+      default 6343;
+      description
+        "Destination Layer 4 port number of sflow datagram (default- 6343)";
+    }
+  }
+
+  grouping sflow-ipv4-top {
+    description
+      "Grouping for sflow ipv4 global configurations";
+    container ipv4 {
+      description
+        "Parameters for the IPv4 sflow datagrams";
+      leaf source-address {
+        type inet:ipv4-address-no-zone;
+        description
+          "Source address of sflow datagram (default- ma1 address)";
+      }
+      list collector {
+        key "address";
+        max-elements 6;
+        description
+          "List of collectors for sflow datagrams";
+        leaf address {
+          mandatory true;
+          type inet:ipv4-address-no-zone;
+          description
+            "Destination address of sflow datagram";
+        }
+        uses sflow-collector-common-fields;
+      }
+    }
+  }
+
+  grouping sflow-ipv6-top {
+    description
+      "Grouping for sflow ipv6 global configurations";
+    container ipv6 {
+      description
+        "Parameters for the IPv6 sflow datagrams";
+      leaf source-address {
+        type inet:ipv6-address-no-zone;
+        description
+          "Source address of sflow datagram (default- ma1 address)";
+      }
+      list collector {
+        key "address";
+        description
+          "List of collectors for sflow datagrams";
+        leaf address {
+          mandatory true;
+          type inet:ipv6-address-no-zone;
+          description
+            "Destination address of sflow datagram";
+        }
+        uses sflow-collector-common-fields;
+      }
+    }
+  }
+
+  grouping sflow-global-state-top {
+    description
+      "Defines for sflow specific statistics";
+    leaf counter-samples {
+      type uint64;
+      description
+        "Total valid counter samples sent";
+    }
+    leaf packet-samples {
+      type uint64;
+      description
+        "Total valid packet samples sent";
+    }
+  }
+
+  grouping sflow-global-top {
+    description
+      "Defines for sflow specific global configurations";
+    leaf counter-sampling-interval {
+      type uint16 {
+        range "10..300";
+      }
+      description
+        "Polling interval in seconds (default- 60 seconds)";
+    }
+    uses sflow-packet-sampling-rate;
+    leaf source-interface {
+      type leafref {
+        path "/oc-if:interfaces/oc-if:interface/oc-if:config/oc-if:name";
+      }
+      description
+        "Sflow Agent interface (default- ma1 interface)";
+    }
+    leaf network-instance {
+      type leafref {
+        path "/oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:config/oc-netinst:name";
+      }
+      description
+        "Name of a l3vrf network-instance (default instance if not specified)";
+    }
+    uses sflow-ipv4-top {
+      when "(not(boolean(./ipv6/source-address)) and "
+         + " not(boolean(./ipv6/collector/address)))";
+    }
+    uses sflow-ipv6-top {
+      when "(not(boolean(./ipv4/source-address)) and "
+         + " not(boolean(./ipv4/collector/address)))";
+    }
+  }
+
+  grouping sflow-interface-top {
+    description
+      "Defines for sflow specific interface level configurations";
+    leaf name {
+      type leafref {
+        path "/oc-if:interfaces/oc-if:interface/oc-if:config/oc-if:name";
+      }
+      description
+        "Reference to the sflow interface";
+      must "(/oc-if:interfaces/oc-if:interface[oc-if:name=current()]/oc-if:config/oc-if:type = 'ianaift:ethernetCsmacd') or
+            (/oc-if:interfaces/oc-if:interface[oc-if:name=current()]/oc-if:config/oc-if:type = 'ianaift:ieee8023adLag') or (
+            (/oc-if:interfaces/oc-if:interface[oc-if:name=current()]/oc-if:config/oc-if:type = 'ianaift:l3ipvlan') and
+            (/arc-platform:platform/arc-platform:family = 'arc-platform:BROADCOM_DNX'))";
+    }
+    leaf direction {
+      type enumeration {
+        enum ingress {
+          description
+            "sflow sampling for incoming traffic";
+        }
+        enum egress {
+          description
+            "sflow sampling for outgoing traffic";
+        }
+      }
+    }
+    uses sflow-packet-sampling-rate {
+      when "(/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_TRIDENT4') or
+            (/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_TRIDENT3') or
+            (/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_TRIDENT2') or
+            (/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_TOMAHAWK') or
+            (/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_TOMAHAWK3') or
+            (/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_HELIX4') or
+            (/arc-platform:platform/arc-platform:family = 'arc-platform:BROADCOM_DNX_JPLUS') or
+            (/arc-platform:platform/arc-platform:family = 'arc-platform:BROADCOM_DNX') or
+            (boolean(/arc-platform:platform/arc-platform:asic) != 'true')";
+    }
+  }
+
+  grouping sflow-top {
+    description
+      "Top-level grouping for sflow feature";
+    container sflow {
+      description
+        "sflow feature specific configurations and state";
+      container global {
+        description
+          "Global config/state parameters for sflow";
+        container config {
+          description
+            "Global configuration parameters for sflow";
+          uses sflow-global-top;
+        }
+        container state {
+          description
+            "Global state parameters for sflow";
+          config false;
+          uses sflow-global-top;
+          uses sflow-global-state-top;
+        }
+      }
+      container interfaces {
+        description
+          "Interface config/state parameters for sflow";
+        list interface {
+          key "name direction";
+          description
+            "List of interfaces on which sFlow is enabled";
+          leaf name {
+            type leafref {
+              path "../config/name";
+            }
+          }
+          leaf direction {
+            type leafref {
+              path "../config/direction";
+            }
+          }
+          container config {
+            description
+              "Interface configuration parameters for sflow";
+            uses sflow-interface-top {
+              refine direction {
+                must "not ((current() = 'egress') and "
+                  +"(/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_JERICHOPLUS'))" {
+                    error-message "Egress sflow sampling not supported on this platform";
+                  }
+              }
+            }
+          }
+          container state {
+            description
+              "Interface configuration parameters for sflow";
+            config false;
+            uses sflow-interface-top;
+          }
+        }
+      }
+    }
+  }
+
+  uses sflow-top {
+    when "(/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_TRIDENT4') or
+          (/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_TRIDENT3') or
+          (/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_TRIDENT2') or
+          (/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_TOMAHAWK') or
+          (/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_TOMAHAWK3') or
+          (/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_HELIX4') or
+          (/arc-platform:platform/arc-platform:family = 'arc-platform:BROADCOM_DNX') or
+          (/arc-platform:platform/arc-platform:family = 'arc-platform:BROADCOM_DNX_JPLUS') or
+          (boolean(/arc-platform:platform/arc-platform:asic) != 'true')";
+  }
+}

@@ -1,0 +1,189 @@
+module ietf-udp-notif-transport {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport";
+  prefix unt;
+
+  import ietf-subscribed-notifications {
+    prefix sn;
+    reference
+      "RFC 8639: Subscription to YANG Notifications";
+  }
+  import ietf-subscribed-notif-receivers {
+    prefix snr;
+    reference
+      "draft-ietf-netconf-https-notif: An HTTPS-based Transport
+       for Configured Subscriptions";
+  }
+  import ietf-udp-client {
+    prefix udpc;
+    reference
+      "draft-ietf-netconf-udp-client-server: YANG Grouping for
+       UDP Clients and UDP Servers";
+  }
+  import ietf-tls-client {
+    prefix tlsc;
+    reference
+      "RFC 9645: YANG Groupings for TLS Clients and TLS Servers";
+  }
+
+  organization
+    "IETF NETCONF (Network Configuration) Working Group";
+  contact
+    "WG Web:   <http:/tools.ietf.org/wg/netconf/>
+     WG List:  <mailto:netconf@ietf.org>
+
+     Authors:  Guangying Zheng
+               <mailto:zhengguangying@huawei.com>
+               Tianran Zhou
+               <mailto:zhoutianran@huawei.com>
+               Thomas Graf
+               <mailto:thomas.graf@swisscom.com>
+               Pierre Francois
+               <mailto:pierre.francois@insa-lyon.fr>
+               Alex Huang Feng
+               <mailto:alex.huang-feng@insa-lyon.fr>
+               Paolo Lucente
+               <mailto:paolo@ntt.net>";
+  description
+    "Defines a model for configuring UDP-Notif as a transport
+     for configured subscriptions [RFC8639].
+
+     Copyright (c) 2025 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+     for full legal notices.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.";
+
+  revision 2025-06-04 {
+    description
+      "Initial revision";
+    reference
+      "RFC XXXX: UDP-based Transport for Configured Subscriptions";
+  }
+
+  /*
+   * FEATURES
+   */
+
+  feature encode-cbor {
+    description
+      "Indicates that CBOR encoding of notification
+       messages is supported.";
+    reference
+      "RFC 9254: CBOR Encoding of Data Modeled with YANG";
+  }
+
+  feature dtls {
+    description
+      "Indicates that DTLS encryption of UDP
+       packets is supported. UDP-Notif mandates that, in
+       unsecured networks, DTLS 1.2 or later MUST be supported,
+       and DTLS 1.3 SHOULD be supported.";
+    reference
+      "RFC6347: Datagram Transport Layer Security Version 1.2,
+       RFC 9147: The Datagram Transport Layer Security (DTLS)
+       Protocol Version 1.3";
+  }
+
+  /*
+   * IDENTITIES
+   */  
+
+  identity udp-notif {
+    base sn:transport;
+    base sn:configurable-encoding;
+    description
+      "UDP-Notif is used as transport for notification messages
+        and state change notifications.";
+  }
+
+  identity encode-cbor {
+    base sn:encoding;
+    description
+      "Encode data using CBOR.";
+    reference
+      "RFC 9254: CBOR Encoding of Data Modeled with YANG";
+  }
+
+  identity unsupported-max-segment-size {
+    base sn:establish-subscription-error;
+    base sn:modify-subscription-error;
+    description
+      "Error triggered when the specified value 'max-segment-size'
+       is not supported by the publisher. An implementation may
+       only support a subset of the uint16.";
+    reference
+      "RFC XXXX: UDP-based Transport for Configured Subscriptions";
+  }
+
+  grouping udp-notif-receiver {
+    description
+      "Provides a reusable identification of a UDP-Notif target
+       receiver.";
+    uses udpc:udp-client {
+      refine "remote-port" {
+        mandatory true;
+      }
+    }
+    container dtls {
+      if-feature "dtls";
+      presence "dtls";
+      uses tlsc:tls-client-grouping {
+        // Remove keep-alives for DTLS
+        refine "keepalives" {
+          if-feature "not tlsc:tls-client-keepalives";
+        }
+      }
+      description
+        "Container for configuring DTLS parameters.";
+    }
+    leaf enable-segmentation {
+      type boolean;
+      default "true";
+      description
+        "When disabled, the publisher will not segment UDP-Notif
+        messages. This may cause IP-layer fragmentation when
+        messages are larger than the MTU. IP fragmentation is
+        discouraged (RFC 8085, RFC 8900) and generally unsafe.
+        Disabling is not recommended.";
+    }
+    leaf max-segment-size {
+      type uint16;
+      description
+        "UDP-Notif provides a configurable max-segment-size to
+         control the size of each segment (UDP-Notif header, with
+         options, included).
+         The publisher may trigger an 'unsupported-max-segment-size'
+         error if the publisher does not support the configured
+         value.";
+    }
+  }
+
+  augment "/sn:subscriptions/snr:receiver-instances/"
+        + "snr:receiver-instance/snr:transport-type" {
+    case udp-notif {
+      container udp-notif-receiver {
+        description
+          "The UDP-Notif receiver to send notifications to.";
+        uses udp-notif-receiver;
+      }
+    }
+    description
+      "Augments the transport-type choice to include the 'udp-notif'
+       transport.";
+  }
+}
