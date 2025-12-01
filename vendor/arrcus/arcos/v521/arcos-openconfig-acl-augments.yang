@@ -1,0 +1,448 @@
+module arcos-openconfig-acl-augments {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/openconfig/acl/augments";
+  prefix arc-oc-acl-aug;
+
+  import openconfig-acl {
+    prefix oc-acl;
+  }
+
+  import iana-if-type {
+    prefix ianaift;
+  }
+
+  import openconfig-yang-types {
+    prefix oc-yang;
+  }
+
+  import ietf-inet-types {
+    prefix ietf-inet;
+  }
+
+  import openconfig-interfaces {
+    prefix oc-if;
+  }
+
+  import openconfig-if-ethernet {
+    prefix oc-eth;
+  }
+
+  import openconfig-if-aggregate {
+    prefix oc-lag;
+  }
+
+  import openconfig-network-instance {
+    prefix oc-ni;
+  }
+
+  import arcos-copp-service-policy {
+    prefix arc-copp-svc-pol;
+  }
+
+  identity REDIRECT {
+    base oc-acl:FORWARDING_ACTION;
+    description
+      "Redirect the packet";
+  }
+
+  grouping ipv4-redirect-config {
+    description
+      "Config of IPv4 redirect action";
+
+    leaf network-instance {
+      type oc-ni:network-instance-ref;
+      description
+        "redirect packet to specified network-instance";
+    }
+
+    leaf next-hop {
+      type ietf-inet:ipv4-address-no-zone;
+      description
+        "redirect packet to specified ipv4 nexthop address";
+    }
+  }
+
+  grouping ipv4-redirect-state {
+    description
+      "State information of IPv4 redirect action";
+  }
+
+  grouping ipv4-redirect-action-top {
+    description
+      "Grouping for parameters related to ipv4 redirect forwarding action";
+
+    container ipv4-redirect {
+      description
+        "Container holding parameters related to ipv4 redirect forwarding action";
+
+      container config {
+        description
+          "Config data";
+        uses ipv4-redirect-config;
+      }
+
+      container state {
+        config false;
+        description
+          "State information";
+        uses ipv4-redirect-config;
+        uses ipv4-redirect-state;
+      }
+    }
+  }
+
+
+  grouping ipv6-redirect-config {
+    description
+      "Config of IPv6 redirect action";
+
+    leaf network-instance {
+      type oc-ni:network-instance-ref;
+      description
+        "redirect packet to specified network-instance";
+    }
+
+    leaf next-hop {
+      type ietf-inet:ipv6-address-no-zone;
+      description
+        "redirect packet to specified ipv6 nexthop address";
+    }
+  }
+
+  grouping ipv6-redirect-state {
+    description
+      "State information of IPv6 redirect action";
+  }
+
+
+  grouping ipv6-redirect-action-top {
+    description
+      "Grouping for parameters related to ipv6 redirect forwarding action";
+
+    container ipv6-redirect {
+      description
+        "Container holding parameters related to ipv6 redirect forwarding action";
+
+      container config {
+        description
+          "Config data";
+        uses ipv6-redirect-config;
+      }
+
+      container state {
+        config false;
+        description
+          "State information";
+        uses ipv6-redirect-config;
+        uses ipv6-redirect-state;
+      }
+    }
+  }
+
+
+  grouping interface-acl-sets-top {
+    description
+      "Top-level grouping for per-interface per-direction ACL data";
+
+    list acl-set {
+      key "type";
+      description
+        "List of per-direction ACLs on the interface";
+
+      leaf type {
+        type identityref {
+          base oc-acl:ACL_TYPE;
+        }
+        description
+          "Reference to the ACL set type (ACL_IPV4, ACL_IPV6 or ACL_L2)
+          applied on the interface direction.";
+      }
+
+      leaf set-name {
+        type leafref {
+          path "/oc-acl:acl/oc-acl:acl-sets" +
+               "/oc-acl:acl-set[oc-acl:type=current()/../type]/oc-acl:config" +
+               "/oc-acl:name";
+        }
+        mandatory true;
+        description
+          "Reference to the ACL set name applied on interface direction";
+      }
+    }
+  }
+
+  grouping acl-service-policies-top {
+    description
+      "Top-level grouping for per-interface ACL data";
+
+    list acl-service-policies {
+      key "direction";
+      description
+        "Direction of traffic the ACL polices take effect on";
+
+      leaf direction {
+        type enumeration {
+          enum ingress-acl-sets {
+            description
+              "ACL per-interface policies for incoming traffic";
+          }
+          enum egress-acl-sets {
+            description
+              "ACL per-interface policies for outgoing traffic";
+          }
+        }
+      }	
+      uses interface-acl-sets-top;
+
+      container state {
+        config false;
+        uses interface-acl-sets-top;
+      }
+    }
+  }
+
+  augment "/oc-acl:acl/oc-acl:acl-sets/oc-acl:acl-set" {
+    container interfaces {
+      config false;
+      list interface {
+        key "id direction";
+        description 
+          "Interfaces on which a given ACL is applied";
+        leaf id {
+          type leafref {
+            path "../state/id";
+          }
+        }
+
+        leaf direction {
+          type leafref {
+            path "../state/direction";
+          }
+        }
+
+        container state {
+          leaf id {
+            type string;
+            description 
+              "User defined identifier for interface and subinterface";
+          }
+          
+          leaf direction {
+            type enumeration {
+              enum ingress-acl {
+                description
+                  "ACL per-interface policies for incoming traffic";
+              }
+              enum egress-acl {
+                description
+                  "ACL per-interface policies for outgoing traffic";
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  augment "/oc-if:interfaces/oc-if:interface" {
+    uses acl-service-policies-top {
+      when "((current()/oc-if:config/oc-if:type = 'ianaift:softwareLoopback') or " +
+           " (current()/oc-if:config/oc-if:type = 'ianaift:l3ipvlan') or " +
+           " (current()/oc-if:config/oc-if:type = 'ianaift:ieee8023adLag') or " +
+           " ((current()/oc-if:config/oc-if:type = 'ianaift:ethernetCsmacd') and (boolean(current()/oc-eth:ethernet/oc-eth:config/oc-lag:aggregate-id) != 'true')))";
+    }
+  }
+
+  augment "/oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface" {
+    uses acl-service-policies-top {
+      when "((current()/../../oc-if:config/oc-if:type = 'ianaift:ieee8023adLag') or " +
+           " ((current()/../../oc-if:config/oc-if:type = 'ianaift:ethernetCsmacd') and (boolean(current()/../../oc-eth:ethernet/oc-eth:config/oc-lag:aggregate-id) != 'true')))";
+      refine "acl-service-policies/direction" {
+        must "current() = 'ingress-acl-sets'" {
+          error-message "Egress ACL not supported under subinterfaces";
+        }
+      }
+    }
+  }
+
+  augment "/arc-copp-svc-pol:control-plane" {
+    uses acl-service-policies-top;
+  }
+
+  augment "/oc-acl:acl/oc-acl:acl-sets/oc-acl:acl-set/oc-acl:acl-entries" +
+          "/oc-acl:acl-entry/oc-acl:state" {
+    leaf matched-ingress-packets {
+      type oc-yang:counter64;
+      description
+        "Aggregate count of the number of packets matching the current ACL
+        entry on ingress direction accross all interfaces.";
+    }
+    leaf matched-egress-packets {
+      type oc-yang:counter64;
+      description
+        "Aggregate count of the number of packets matching the current ACL
+        entry on egress direction accross all interfaces.";
+    }
+    leaf matched-ingress-octets {
+      type oc-yang:counter64;
+      description
+        "Aggregate count of the number of octets (bytes) matching the current
+        ACL entry on ingress direction accross all interfaces.";
+    }
+    leaf matched-egress-octets {
+      type oc-yang:counter64;
+      description
+        "Aggregate count of the number of octets (bytes) matching the current
+        ACL entry on ingress direction accross all interfaces.";
+    }
+  }
+
+  augment "/oc-acl:acl/arc-oc-acl-aug:bgp-flowspec/arc-oc-acl-aug:acl-set" +
+          "/arc-oc-acl-aug:acl-entries/arc-oc-acl-aug:acl-entry/arc-oc-acl-aug:state" {
+    leaf matched-ingress-packets {
+      type oc-yang:counter64;
+      description
+        "Aggregate count of the number of packets matching the current ACL
+        entry on ingress direction accross all interfaces.";
+    }
+    leaf matched-egress-packets {
+      type oc-yang:counter64;
+      description
+        "Aggregate count of the number of packets matching the current ACL
+        entry on egress direction accross all interfaces.";
+    }
+    leaf matched-ingress-octets {
+      type oc-yang:counter64;
+      description
+        "Aggregate count of the number of octets (bytes) matching the current
+        ACL entry on ingress direction accross all interfaces.";
+    }
+    leaf matched-egress-octets {
+      type oc-yang:counter64;
+      description
+        "Aggregate count of the number of octets (bytes) matching the current
+        ACL entry on ingress direction accross all interfaces.";
+    }
+  }
+
+  augment "/oc-acl:acl" {
+    container system-defined {
+      config false;
+      description
+        "Display system defined ACLs.These ACLs can not be re-used or modified";
+      list acl-set {
+        key "name type";
+        description
+          "List of ACL sets, each comprising of a list of ACL
+          entries";
+
+        uses oc-acl:acl-set-config;
+        uses oc-acl:access-list-entries-top;
+      }
+    }
+  }
+
+  augment "/oc-acl:acl" {
+    container bgp-flowspec {
+      config false;
+      description
+        "Display bgp flowspec defined ACLs.These ACLs can not be re-used or modified";
+      list acl-set {
+        key "name type";
+        description
+          "List of ACL sets, each comprising of a list of ACL
+          entries";
+
+        uses oc-acl:acl-set-config;
+        uses oc-acl:access-list-entries-top;
+      }
+    }
+  }
+
+
+  augment "/oc-acl:acl/oc-acl:acl-sets/oc-acl:acl-set/oc-acl:acl-entries" +
+          "/oc-acl:acl-entry/oc-acl:actions" {
+    uses ipv4-redirect-action-top {
+      when "((current()/oc-acl:config/oc-acl:forwarding-action='arc-oc-acl-aug:REDIRECT')" +
+           " and (current()/../../../oc-acl:type = 'oc-acl:ACL_IPV4'))";
+    }
+  }
+
+  augment "/oc-acl:acl/oc-acl:acl-sets/oc-acl:acl-set/oc-acl:acl-entries" +
+          "/oc-acl:acl-entry/oc-acl:actions" {
+    uses ipv6-redirect-action-top {
+      when "((current()/oc-acl:config/oc-acl:forwarding-action='arc-oc-acl-aug:REDIRECT')" +
+           " and (current()/../../../oc-acl:type = 'oc-acl:ACL_IPV6'))";
+    }
+  }
+
+
+  augment "/oc-acl:acl/arc-oc-acl-aug:bgp-flowspec/arc-oc-acl-aug:acl-set" +
+          "/arc-oc-acl-aug:acl-entries/arc-oc-acl-aug:acl-entry/arc-oc-acl-aug:actions" {
+    uses ipv4-redirect-action-top;
+  }
+
+  augment "/oc-acl:acl/arc-oc-acl-aug:bgp-flowspec/arc-oc-acl-aug:acl-set" +
+          "/arc-oc-acl-aug:acl-entries/arc-oc-acl-aug:acl-entry/arc-oc-acl-aug:actions" {
+    uses ipv6-redirect-action-top;
+  }
+
+  augment "/oc-acl:acl/oc-acl:acl-sets/oc-acl:acl-set" +
+          "/oc-acl:acl-entries/oc-acl:acl-entry/oc-acl:state" {
+    leaf priority {
+      type uint32;
+    }
+    description "Add priority field for configured aces";
+  }
+
+  augment "/oc-acl:acl/arc-oc-acl-aug:system-defined/arc-oc-acl-aug:acl-set" +
+          "/arc-oc-acl-aug:acl-entries/arc-oc-acl-aug:acl-entry/arc-oc-acl-aug:state" {
+    leaf priority {
+      type uint32;
+    }
+    description "Add priority field for system-defined aces";
+  }
+
+  augment "/oc-acl:acl/arc-oc-acl-aug:bgp-flowspec/arc-oc-acl-aug:acl-set" +
+          "/arc-oc-acl-aug:acl-entries/arc-oc-acl-aug:acl-entry/arc-oc-acl-aug:state" {
+    leaf priority {
+      type uint32;
+    }
+    description "Add priority field for bgp-flowspec aces";
+  }
+
+  deviation "/oc-acl:acl/arc-oc-acl-aug:bgp-flowspec/arc-oc-acl-aug:acl-set" +
+            "/arc-oc-acl-aug:acl-entries/arc-oc-acl-aug:acl-entry" +
+            "/arc-oc-acl-aug:ipv4/arc-oc-acl-aug:state/arc-oc-acl-aug:source-address" {
+    deviate replace {
+      type ietf-inet:ipv4-prefix;
+    }
+    description "Use ietf-inet types instead of oc-inet";
+  }
+
+  deviation "/oc-acl:acl/arc-oc-acl-aug:bgp-flowspec/arc-oc-acl-aug:acl-set" +
+            "/arc-oc-acl-aug:acl-entries/arc-oc-acl-aug:acl-entry" +
+            "/arc-oc-acl-aug:ipv4/arc-oc-acl-aug:state/arc-oc-acl-aug:destination-address" {
+    deviate replace {
+      type ietf-inet:ipv4-prefix;
+    }
+    description "Use ietf-inet types instead of oc-inet";
+  }
+
+  deviation "/oc-acl:acl/arc-oc-acl-aug:bgp-flowspec/arc-oc-acl-aug:acl-set" +
+            "/arc-oc-acl-aug:acl-entries/arc-oc-acl-aug:acl-entry" +
+            "/arc-oc-acl-aug:ipv6/arc-oc-acl-aug:state/arc-oc-acl-aug:source-address" {
+    deviate replace {
+      type ietf-inet:ipv6-prefix;
+    }
+    description "Use ietf-inet types instead of oc-inet";
+  }
+  deviation "/oc-acl:acl/arc-oc-acl-aug:bgp-flowspec/arc-oc-acl-aug:acl-set" +
+            "/arc-oc-acl-aug:acl-entries/arc-oc-acl-aug:acl-entry" +
+            "/arc-oc-acl-aug:ipv6/arc-oc-acl-aug:state/arc-oc-acl-aug:destination-address" {
+    deviate replace {
+      type ietf-inet:ipv6-prefix;
+    }
+    description "Use ietf-inet types instead of oc-inet";
+  }
+}

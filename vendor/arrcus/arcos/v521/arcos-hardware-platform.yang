@@ -1,0 +1,257 @@
+submodule arcos-hardware-platform {
+  yang-version 1.1;
+
+  belongs-to arcos-hardware {
+    prefix arc-hw;
+  }
+
+  import arcos-platform {
+    prefix arc-platform;
+  }
+
+  import arcos-hardware-platform-xgs {
+    prefix arc-hw-platform-xgs;
+  }
+
+  import arcos-hardware-platform-dnx {
+    prefix arc-hw-platform-dnx;
+  }
+
+  import arcos-hardware-platform-types {
+    prefix arc-hw-platform-types;
+  }
+
+  import arcos-features {
+    prefix arc-features;
+  }
+
+  import openconfig-vlan-types {
+    prefix oc-vlan-types;
+  }
+
+  typedef hw-pltf-fwd-profile {
+    type enumeration {
+      enum P1 {
+        value 1;
+        description
+          "Profile 1";
+      }
+      enum P2 {
+        description
+          "Profile 2";
+      }
+      enum P3 {
+        description
+          "Profile 3";
+      }
+      enum P4 {
+        description
+          "Profile 4";
+      }
+      enum P5 {
+        description
+          "Profile 5";
+      }
+    }
+  }
+
+  grouping sys-rsvd-vlans {
+    description "Vlans used for system internal purposes";
+
+    leaf sys-rsvd-vlan-min {
+      description "Lower bound for system reserved internal vlan range";
+      type oc-vlan-types:vlan-id;
+    }
+
+    leaf sys-rsvd-vlan-max {
+      description "Upper bound for system reserved internal vlan range";
+      type oc-vlan-types:vlan-id;
+    }
+  }
+
+  grouping hardware-platform {
+    description "Platform specific configuration";
+
+    container config {
+      leaf forwarding-mode {
+        description "Configuration of switch forwarding mode";
+        when "/arc-platform:platform/arc-platform:asic != 'arc-platform:BROADCOM_HELIX4'";
+
+        type identityref {
+          base arc-hw-platform-types:SWITCH_FORWARDING_MODE;
+        }
+
+        must "current() = 'arc-hw-platform-types:STORE_AND_FORWARD' or " +
+             "/arc-platform:platform/arc-platform:family = 'arc-platform:BROADCOM_XGS'" {
+          error-message "Cut through mode not supported on this platform";
+        }
+      }
+
+      container forwarding-scale {
+        leaf fwd-profile {
+          type hw-pltf-fwd-profile;
+          description
+            "HW Forwarding Scale profile";
+        }
+        leaf overlay-nexthop-profile {
+          when "/arc-features:features/arc-features:feature[arc-features:name='arc-features:ARCOS_RIOT']" +
+               "/arc-features:supported = 'true'" {
+            description
+              "HW overlay nexthop profile";
+          }
+          type hw-pltf-fwd-profile;
+        }
+      }
+
+      container buffer-fairness {
+        leaf enable {
+          description "Enable fair distribution of traffic credits based on ingress traffic rate";
+          when "/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_JERICHO2'";
+
+          type boolean;
+          default false;
+        }
+        leaf scan-interval {
+           description "Interval (in ms) at which hardware is polled";
+           when "/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_JERICHO2'";
+
+           type uint32;
+           default 1000;
+        }
+        leaf dampening-percent {
+           description "Percent of delta to dampen while measuring weights";
+           when "/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_JERICHO2'";
+
+           type uint32;
+           default 0;
+        }
+      }
+
+      uses sys-rsvd-vlans {
+        description "System internal reserved vlan range specification";
+        when "/arc-platform:platform/arc-platform:family = 'arc-platform:BROADCOM_XGS'";
+        refine sys-rsvd-vlan-min {
+          default 3966;
+        }
+        refine sys-rsvd-vlan-max {
+          default 4094;
+        }
+      }
+    }
+
+    container state {
+      config false;
+
+      leaf forwarding-mode {
+        description "Configuration of switch forwarding mode";
+        type identityref {
+          base arc-hw-platform-types:SWITCH_FORWARDING_MODE;
+        }
+      }
+
+      container forwarding-scale {
+        leaf fwd-profile {
+          type hw-pltf-fwd-profile;
+          description
+            "HW Forwarding Scale profile";
+        }
+        leaf L2-entries {
+          type uint32;
+          description
+            "Number of L2 entries in Forwarding Scale profile";
+        }
+        leaf Host-entries {
+          type uint32;
+          description
+            "Number of Host entries in Forwarding Scale profile";
+        }
+        leaf LPM-entries {
+          type uint32;
+          description
+            "Number of LPM entries in Forwarding Scale profile";
+        }
+        leaf overlay-nexthop-profile {
+          when "/arc-features:features/arc-features:feature[arc-features:name='arc-features:ARCOS_RIOT']" +
+               "/arc-features:supported = 'true'" {
+            description
+              "HW overlay nexthop profile";
+          }
+          type hw-pltf-fwd-profile;
+        }
+      }
+
+      container buffer-fairness {
+        description "Buffer fairness hardware state";
+
+        leaf enabled {
+          description "Fair distribution of traffic credits based on ingress traffic rate";
+          when "/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_JERICHO2'";
+
+          type boolean;
+        }
+
+        leaf scan-interval {
+          description "Fair distribution of traffic credits based on ingress traffic rate";
+          when "/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_JERICHO2'";
+
+          type uint32;
+        }
+
+        leaf dampening-percent {
+          description "Fair distribution of traffic credits based on ingress traffic rate";
+          when "/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_JERICHO2'";
+
+          type uint32;
+        }
+
+        list port-state {
+          description "Buffer fairness state per port";
+          when "/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_JERICHO2'";
+
+          key "ifname";
+          leaf ifname {
+            description "Port name";
+            type string;
+          }
+
+          list hardware-q-weights {
+            description "Port buffer fairness ratio for all ingress nodes";
+            key "qnum";
+            leaf qnum {
+              description "Queue number";
+              type uint32;
+            }
+            leaf q_weights {
+              description "Per queue weights";
+              type string;
+            }
+          }
+        }
+      }
+
+      uses sys-rsvd-vlans {
+        when "/arc-platform:platform/arc-platform:family = 'arc-platform:BROADCOM_XGS'";
+        description "System internal reserved vlan range specification";
+      }
+    }
+
+    uses arc-hw-platform-xgs:xgs-queue-profile {
+      when "(/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_TRIDENT3') or " +
+           "(/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_TOMAHAWK') or " +
+           "(/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_TRIDENT4')";
+      description "Device specific queue profile configuration";
+    }
+
+    uses arc-hw-platform-xgs:xgs-load-balancing {
+      when "(/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_TRIDENT3') or " +
+           "(/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_TRIDENT4')";
+      description "Device specific load balancing configuration";
+    }
+
+    uses arc-hw-platform-dnx:dnx-linkscan-interval {
+      when "(/arc-platform:platform/arc-platform:family = 'arc-platform:BROADCOM_DNX') or" +
+           " (/arc-platform:platform/arc-platform:family = 'arc-platform:BROADCOM_DNX_JPLUS')";
+      description "Device specific linkscan interval configuration";
+    }
+  }
+}

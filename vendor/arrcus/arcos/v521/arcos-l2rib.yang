@@ -1,0 +1,1687 @@
+module arcos-l2rib {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/l2rib";
+  prefix arc-l2rib;
+
+  import openconfig-network-instance {
+    prefix oc-ni;
+  }
+
+  import openconfig-network-instance-types {
+    prefix oc-ni-types;
+  }
+
+  import arcos-openconfig-network-instance-types {
+    prefix arc-oc-ni-types;
+  }
+
+  import arcos-openconfig-network-instance-augments {
+    prefix arc-oc-netinst-aug;
+  }
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  import openconfig-interfaces {
+    prefix oc-if;
+  }
+
+  import openconfig-types {
+    prefix oc-types;
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  organization
+    "Arrcus, Inc.";
+
+  contact
+    "Arrcus, Inc.
+     2077 Gateway Place
+     Suite 400
+     San Jose, CA 95110
+
+     E-mail: yang-support@arrcus.com";
+
+  description
+    "This module contains definitions for the
+     native ArcOS Layer 2 RIB domain.
+
+     Copyright (c) 2016-2022 by Arrcus, Inc.
+     All rights reserved.";
+
+  revision 2023-03-29 {
+    description "Add l2ni state for mac-limit, pkt-action,
+          l2ni mac-valid and mac-on-hold counters
+          and mac entry state to indicate 
+          if mac is in hold state";
+  }
+
+  revision 2022-12-14 {
+    description "Static VXLAN REMOTE Producer";
+  }
+
+  revision 2022-03-31 {
+    description "Support for EVPN MPLS underlay";
+  }
+
+  revision 2019-10-31 {
+    description "Initial version";
+  }
+
+
+  identity L2RIB_PRODUCER_CONSUMER_TYPE {
+    description
+      "Base type for entities which can either install routes into or
+      receive routes from the L2 RIB";
+  }
+
+  identity NONE {
+    base L2RIB_PRODUCER_CONSUMER_TYPE;
+    description "No Protocol";
+  }
+
+  identity BGP {
+    base L2RIB_PRODUCER_CONSUMER_TYPE;
+    description "Border Gateway Protocol";
+  }
+
+  identity STATIC {
+    base L2RIB_PRODUCER_CONSUMER_TYPE;
+    description "Locally configured static route";
+  }
+
+  identity LOCAL {
+    base L2RIB_PRODUCER_CONSUMER_TYPE;
+    description "Locally learned/gleaned route";
+  }
+
+  identity REMOTE {
+    base L2RIB_PRODUCER_CONSUMER_TYPE;
+    description "Remote learned/gleaned route";
+  }
+
+  identity INTERNAL_LOCAL {
+    base L2RIB_PRODUCER_CONSUMER_TYPE;
+    description "marked Local internally";
+  }
+
+  identity BGP_DERIVED {
+    base L2RIB_PRODUCER_CONSUMER_TYPE;
+    description "Route derived from a different type of BGP route";
+  }
+
+  identity RIB {
+    base L2RIB_PRODUCER_CONSUMER_TYPE;
+    description "Layer 3 Routing Information Base";
+  }
+
+  identity RIB_V4 {
+    base L2RIB_PRODUCER_CONSUMER_TYPE;
+    description "Layer 3 Routing Information Base for IPv4";
+  }
+
+  identity RIB_V6 {
+    base L2RIB_PRODUCER_CONSUMER_TYPE;
+    description "Layer 3 Routing Information Basefor IPv6";
+  }
+
+  identity FIB {
+    base L2RIB_PRODUCER_CONSUMER_TYPE;
+    description "Forwarding Information Base";
+  }
+
+  identity FIB_V4 {
+    base L2RIB_PRODUCER_CONSUMER_TYPE;
+    description "Forwarding Information Base for IPv4";
+  }
+
+  identity FIB_V6 {
+    base L2RIB_PRODUCER_CONSUMER_TYPE;
+    description "Forwarding Information Base for IPv6";
+  }
+
+  identity DPAL {
+    base L2RIB_PRODUCER_CONSUMER_TYPE;
+    description "Data Plane Adaptation Layer";
+  }
+
+
+  /*
+   * L2RIB Table Type
+   */
+  identity L2RIB_TABLE_TYPE {
+    description
+      "L2RIB L2NI Table Type";
+  }
+
+  identity TABLE_TYPE_NONE {
+    base L2RIB_TABLE_TYPE;
+    description "Invalid type";
+  }
+
+  identity TABLE_TYPE_INTERFACE {
+    base L2RIB_TABLE_TYPE;
+    description "Interface";
+  }
+
+  identity TABLE_TYPE_VLAN {
+    base L2RIB_TABLE_TYPE;
+    description "VLAN";
+  }
+
+  identity TABLE_TYPE_EVPN_VPWS {
+    base L2RIB_TABLE_TYPE;
+    description "EVPN VPWS";
+  }
+
+  identity TABLE_TYPE_VLAN_AWARE_BUNDLE {
+    base L2RIB_TABLE_TYPE;
+    description "VLAN Aware Bundle";
+  }
+
+  /*
+   * L2RIB Egress Type
+   */
+  identity L2RIB_EGRESS_TYPE {
+    description
+      "Base identity to represent the egress type of L2RIB path or nexthop.";
+  }
+
+  identity EGRESS_NONE {
+    base "L2RIB_EGRESS_TYPE";
+    description
+      "No egress information available.";
+  }
+
+  identity EGRESS_TUNNEL {
+    base "L2RIB_EGRESS_TYPE";
+    description
+      "A tunnel.";
+  }
+
+  identity EGRESS_PATH {
+    base "L2RIB_EGRESS_TYPE";
+    description
+      "A single path.";
+  }
+
+  identity EGRESS_ECMP {
+    base "L2RIB_EGRESS_TYPE";
+    description
+      "Underlay ECMP paths.";
+  }
+
+  identity EGRESS_OVERLAY_ECMP {
+    base "L2RIB_EGRESS_TYPE";
+    description
+      "Overlay ECMP paths.";
+  }
+
+  identity EGRESS_IFINDEX {
+    base "L2RIB_EGRESS_TYPE";
+    description
+      "Interface ifindex.";
+  }
+
+  /*
+   * L2RIB L2NI State
+   */
+  grouping l2ni-state {
+    description
+      "Grouping for L2RIB L2NI state";
+
+    container l2ni-state {
+      description
+        "L2NI state";
+
+      leaf id {
+        type uint32;
+        description
+          "L2NI ID";
+      }
+
+      leaf name {
+        type string;
+        description
+          "L2NI Name";
+      }
+
+      leaf type {
+        type identityref {
+          base "L2RIB_TABLE_TYPE";
+        }
+        description
+          "L2NI Type";
+      }
+
+      leaf vni {
+        type uint32;
+        description
+          "VNI";
+      }
+
+      leaf parent-ifindex {
+        type uint32;
+        description
+          "Parent interface-index";
+      }
+
+      leaf l3-ifindex {
+        type uint32;
+        description
+          "Layer3 interface-index";
+      }
+
+      leaf parent-vlan-aware-bundle-id {
+        type uint32;
+        description
+          "The ID of the parent VLAN Aware Bundle L2NI";
+      }
+
+      leaf bundle-vlan-count {
+        type uint32;
+        description
+          "Number of VLAN IDs in this VLAN Aware Bundle L2NI";
+      }
+
+      leaf-list bundle-vlan-ids {
+        type uint16;
+        description
+          "List of VLAN IDs in this VLAN Aware Bundle L2NI";
+      }
+
+      leaf advertise-mac-routes {
+        type boolean;
+        description
+          "Advertise EVPN MAC routes";
+      }
+
+      leaf maximum-mac-entries {
+        type uint32;
+        description
+          "Maximum number of mac-entries that can be programmed on this L2NI.";
+      }
+
+      leaf pkt-action {
+        type identityref {
+          base "arc-oc-netinst-aug:MAC_LIMIT_PACKET_ACTION_TYPE";
+        }
+        description
+          "Packet action when number of macs on this L2ni exceeds 
+            the configured maximum value.";
+      }
+
+      leaf mac-limit-state {
+        type boolean;
+        description
+          "Indicates if the L2NI is in a state of mac limit violation.";
+      }
+
+      leaf flags {
+        type yang:hex-string;
+        description
+          "Opaque flags";
+      }
+    }
+  }
+
+  grouping path-full {
+    description
+      "Parameters relating to a next-hop within the L2 RIB entry";
+
+    leaf resolved {
+      type boolean;
+      description
+        "True if the path is fully resolved";
+    }
+    leaf esi-resolved {
+      type boolean;
+      description
+        "True if the route contains an ESI and there is a
+         corresponding ESI route with the same path";
+    }
+    leaf af {
+      type identityref {
+        base "oc-types:ADDRESS_FAMILY";
+      }
+    }
+    leaf next-hop {
+      type inet:ip-address-no-zone;
+      description
+        "The next-hop that is to be used for the route
+        - this may be an IPv4 or IPv6 address";
+    }
+    leaf encap-type {
+      type enumeration {
+        enum VXLAN {
+          description "VXLAN tunnel encapsulation";
+        }
+        enum MPLS {
+          description "MPLS encapsulation";
+        }
+      }
+    }
+    leaf l2-label {
+      type uint32;
+      description
+	      "VNI for VXLAN Encap, MPLS Label for MPLS Encap";
+    }
+    leaf nh-ni-name {
+      type string;
+      description
+	      "Name of Network Instance the next-hop IP is within";
+    }
+    leaf path-type {
+      type identityref {
+        base L2RIB_EGRESS_TYPE;
+      }
+      description
+        "Path type";
+    }
+    leaf path-id {
+      type uint64;
+      description
+        "Internal Path id allocated to path";
+    }
+  }
+
+  grouping path-brief {
+    description
+      "Brief parameters relating to a next-hop within the L2 RIB entry";
+
+    leaf next-hop {
+      type inet:ip-address-no-zone;
+      description
+        "The next-hop that is to be used for the route
+        - this may be an IPv4 or IPv6 address";
+    }
+    leaf encap-type {
+      type enumeration {
+        enum VXLAN {
+          description "VXLAN tunnel encapsulation";
+        }
+        enum MPLS {
+          description "MPLS encapsulation";
+        }
+      }
+    }
+    leaf l2-label {
+      type uint32;
+      description
+	      "VNI for VXLAN Encap, MPLS Label for MPLS Encap";
+    }
+    leaf nh-ni-name {
+      type string;
+      description
+        "Name of Network Instance the next-hop IP is within";
+    }
+    leaf resolved {
+      type boolean;
+      description
+        "True if the path is fully resolved";
+    }
+  }
+
+  grouping mac-origin-full {
+    description
+      "Parameters related to a route producer for a MAC route";
+
+    list origin {
+      key "origin-protocol";
+
+      leaf origin-protocol {
+        type identityref {
+          base "L2RIB_PRODUCER_CONSUMER_TYPE";
+        }
+        description
+          "The protocol from which the L2 RIB entry was learned.";
+      }
+      leaf local-interface {
+        type oc-if:interface-id;
+        description
+          "Interface the MAC was learned on, if locally learned";
+      }
+      leaf esi {
+        type yang:hex-string;
+        description
+          "Ethernet Segment Identifier";
+      }
+      leaf seq-num {
+        type uint32;
+        description
+          "Route sequence number";
+      }
+      leaf sticky {
+        type boolean;
+        description
+          "True if this mac is currently marked sticky";
+      }
+      leaf local-vni {
+        type uint32;
+        description
+          "Local VXLAN VNI";
+      }
+      leaf last-updated {
+        type yang:date-and-time;
+        description
+          "Indicates the last time the entry was updated";
+      }
+      leaf flags {
+        type string;
+        description
+          "This can be used to show internal state eg. stale etc";
+      }
+      leaf next-hop-type {
+        type identityref {
+          base L2RIB_EGRESS_TYPE;
+        }
+        description
+          "Next-hop type";
+      }
+      leaf next-hop-id {
+        type uint64;
+        description
+          "Next hop id allocated to set of paths";
+      }
+      leaf next-hop-path-count {
+        type uint32;
+        description
+          "Number of overlay egress paths in use";
+      }
+      leaf next-hop-aliasing-path-count {
+        type uint32;
+        description
+          "Number of aliasing overlay egress paths in use";
+      }
+      list paths {
+        description
+          "Paths for this MAC route";
+        uses path-full;
+      }
+    }
+  }
+
+  grouping mac-origin-brief {
+    description
+      "Brief Parameters related to a route producer for a MAC route";
+
+    leaf local-interface {
+      type oc-if:interface-id;
+      description
+        "Interface the MAC was learned on, if locally learned";
+    }
+    leaf esi {
+      type yang:hex-string;
+      description
+        "Ethernet Segment Identifier";
+    }
+    leaf origin-protocol {
+      type identityref {
+        base "L2RIB_PRODUCER_CONSUMER_TYPE";
+      }
+      description
+        "The protocol from which the L2 RIB entry was learned.";
+    }
+    leaf seq-num {
+      type uint32;
+      description
+        "Route sequence number";
+    }
+    leaf sticky {
+      type boolean;
+      description
+        "True if this mac is currently marked sticky";
+    }
+    leaf last-updated {
+      type yang:date-and-time;
+      description
+        "Indicates the last time the entry was updated";
+    }
+    list paths {
+      description
+        "Paths for this MAC route";
+      uses path-brief;
+    }
+  }
+
+  grouping mac-entries-full {
+    description
+      "Grouping for full MAC route entries";
+
+    container mac-entries-full {
+      description
+        "Full MAC entry listing";
+
+      list entry {
+        key "mac-address";
+        description
+          "MAC Address used for lookup";
+  
+        leaf mac-address {
+          type yang:mac-address;
+          description
+            "The MAC Address corresponding to the route";
+        }
+        leaf best-protocol {
+          type identityref {
+            base "L2RIB_PRODUCER_CONSUMER_TYPE";
+          }
+          description
+            "The protocol which is best and its paths are used for forwarding.";
+        }
+        leaf duplicate-move-count {
+          type uint32;
+          description
+            "Number of mac moves for this mac within the duplicate detection window";
+        }
+        leaf duplicate-start-time {
+          type yang:date-and-time;
+          description
+            "Indicates start time for duplicat detection window";
+        }
+        leaf duplicate {
+          type boolean;
+          description
+            "True if this mac is currently marked duplicate";
+        }
+        leaf total-move-count {
+          type uint64;
+          description
+            "Total number of mac moves for this mac";
+        }
+        leaf on-hold {
+          type boolean;
+          description
+            "True if this mac is currently on hold because of mac limit violation on L2NI";
+        }
+        uses mac-origin-full;
+      }
+    }
+  }
+
+  grouping mac-entries-brief {
+    description
+      "Grouping for brief MAC route entries";
+
+    container mac-entries {
+      description
+        "Brief MAC entry listing";
+
+      list entry {
+        key "mac-address";
+        description
+          "MAC Address used for lookup";
+
+        leaf mac-address {
+          type yang:mac-address;
+          description
+            "The MAC Address corresponding to the route";
+        }
+        uses mac-origin-brief;
+      }
+    }
+  }
+
+  grouping mac-ip-origin-full {
+    description
+      "Grouping for route producer information";
+
+    list origin {
+      key "origin-protocol";
+
+      leaf origin-protocol {
+        type identityref {
+          base "L2RIB_PRODUCER_CONSUMER_TYPE";
+        }
+        description
+          "The protocol from which the L2 RIB entry was learned.";
+      }
+      leaf mac-address {
+        type yang:mac-address;
+        description
+          "The MAC Address corresponding to the route";
+      }
+      leaf l3-local-interface {
+        type oc-if:interface-id;
+        description
+          "Local layer 3 interface this host IP is reachable through ";
+      }
+      leaf ip-vrf-id {
+        type uint32;
+        description
+          "Local layer 3 interface IP VRF ID";
+      }
+      leaf l2-local-interface {
+        type oc-if:interface-id;
+        description
+          "Local layer 2 interface the MAC address is reachable through ";
+      }
+      leaf esi {
+        type yang:hex-string;
+        description
+          "Ethernet Segment Identifier";
+      }
+      leaf seq-num {
+        type uint32;
+        description
+          "Route sequence number";
+      }
+      leaf last-updated {
+        type yang:date-and-time;
+        description
+          "Indicates the last time the entry was updated";
+      }
+      leaf flags {
+        type string;
+        description
+          "This can be used to show internal state eg. stale etc";
+      }
+      leaf current-retry-count {
+        type uint32;
+        description
+          "current retry count for an object currently in retry";
+      }
+      leaf total-retries {
+        type uint32;
+        description
+          "total retry count for an object over its lifetime";
+      }
+      leaf next-hop-type {
+        type identityref {
+          base L2RIB_EGRESS_TYPE;
+        }
+        description
+          "Next-hop type";
+      }
+      leaf next-hop-id {
+        type uint64;
+        description
+          "Next-hop id allocated to set of paths";
+      }
+      list paths {
+        description
+          "Paths for this MAC route";
+        uses path-full;
+      }
+    }
+  }
+
+  grouping mac-ip-origin-brief {
+    description
+      "Grouping for route producer brief information";
+
+    leaf mac-address {
+      type yang:mac-address;
+      description
+        "The MAC Address corresponding to the route";
+    }
+    leaf l3-local-interface {
+      type oc-if:interface-id;
+      description
+        "Local layer 3 interface this host IP is reachable through ";
+    }
+    leaf l2-local-interface {
+      type oc-if:interface-id;
+      description
+        "Local layer 2 interface the MAC address is reachable through ";
+    }
+    leaf esi {
+      type yang:hex-string;
+      description
+        "Ethernet Segment Identifier";
+    }
+    leaf origin-protocol {
+      type identityref {
+        base "L2RIB_PRODUCER_CONSUMER_TYPE";
+      }
+      description
+        "The protocol from which the L2 RIB entry was learned.";
+    }
+    leaf seq-num {
+      type uint32;
+      description
+        "Route sequence number";
+    }
+    leaf last-updated {
+      type yang:date-and-time;
+      description
+        "Indicates the last time the entry was updated";
+    }
+    list paths {
+      description
+        "Paths for this MAC route.";
+      uses path-brief;
+    }
+  }
+
+  grouping inclusive-multicast-ipv4-origin {
+    description
+      "Grouping for route producer information";
+
+    leaf origin-protocol {
+      type identityref {
+        base "L2RIB_PRODUCER_CONSUMER_TYPE";
+      }
+      description
+        "The protocol from which the L2 RIB entry was learned.";
+    }
+    leaf last-updated {
+      type yang:date-and-time;
+      description
+        "Indicates the last time the entry was updated";
+    }
+    leaf next-hop-type {
+      type identityref {
+        base L2RIB_EGRESS_TYPE;
+      }
+      description
+        "Next-hop type";
+    }
+    leaf next-id {
+      type uint64;
+      description
+        "Internal tunnel or path id for this route";
+    }
+    leaf flags {
+      type yang:hex-string;
+      description
+        "Opaque flags";
+    }
+
+    uses path-full;
+  }
+
+  grouping mac-ipv4-entries-full {
+    description
+      "Grouping for forwarding entries by lookup keys";
+
+    container mac-ipv4-entries-full {
+      description
+        "Full IPv4 MAC-IP entry listing";
+
+      list entry {
+        key "ipv4-address";
+        description
+          "IPv4 host address used for lookup";
+
+        leaf ipv4-address {
+          type inet:ipv4-address-no-zone;
+          description
+            "IPv4 Host Address";
+        }
+        leaf best-protocol {
+          type identityref {
+            base "L2RIB_PRODUCER_CONSUMER_TYPE";
+          }
+          description
+            "The protocol which is best and its paths are used for forwarding.";
+        }
+        uses mac-ip-origin-full;
+      }
+    }
+  }
+
+  grouping mac-ipv4-entries-brief {
+    description
+      "Grouping for forwarding entries by lookup keys";
+
+    container mac-ipv4-entries {
+      description
+        "Brief IPv4 MAC-IP entry listing";
+
+      list entry {
+        key "ipv4-address";
+        description
+          "IPv4 host address used for lookup";
+
+        leaf ipv4-address {
+          type inet:ipv4-address-no-zone;
+          description
+            "IPv4 Host Address";
+        }
+        uses mac-ip-origin-brief;
+      }
+    }
+  }
+
+  grouping mac-ipv6-entries-full {
+    description
+      "Grouping for forwarding entries by lookup keys";
+
+    container mac-ipv6-entries-full {
+      description
+        "Full IPv6 MAC-IP entry listing";
+
+      list entry {
+        key "ipv6-address";
+        description
+          "IPv6 Host address used for lookup";
+
+        leaf ipv6-address {
+          type inet:ipv6-address-no-zone;
+          description
+	          "IPv6 Host Address";
+        }
+        leaf best-protocol {
+          type identityref {
+            base "L2RIB_PRODUCER_CONSUMER_TYPE";
+          }
+          description
+            "The protocol which is best and its paths are used for forwarding.";
+        }
+        uses mac-ip-origin-full;
+      }
+    }
+  }
+
+  grouping mac-ipv6-entries-brief {
+    description
+      "Grouping for brief IPv6 MAC-IP routes";
+
+    container mac-ipv6-entries {
+      description
+        "Brief IPv6 MAC-IP entry listing";
+
+      list entry {
+        key "ipv6-address";
+        description
+          "IPv6 Host address used for lookup";
+
+        leaf ipv6-address {
+          type inet:ipv6-address-no-zone;
+          description
+	          "IPv6 Host Address";
+        }
+        uses mac-ip-origin-brief;
+      }
+    }
+  }
+
+  grouping inclusive-multicast-entries {
+    description
+      "Grouping for inclusive mutlicast entry";
+
+    container inclusive-multicast-entries {
+      description
+        "Inclusive Multicast entry listing";
+
+      list entry {
+        key "ipv4-address";
+        description
+          "IPv4 peer address used for lookup";
+
+        leaf ipv4-address {
+          type inet:ipv4-address-no-zone;
+          description
+            "IPv4 Peer Address";
+        }
+        uses inclusive-multicast-ipv4-origin;
+      }
+    }
+  }
+
+  grouping evi-esi-entries {
+    description
+      "Grouping for brief EVI-ESI routes";
+
+    container evi-esi-entries {
+      description
+        "Brief EVI-ESI Route entry listing";
+
+      list entry {
+        key "esi";
+        description
+          "Ethernet Segment Identifier used for lookup";
+
+        leaf esi {
+          type yang:hex-string;
+          description
+            "Ethernet Segment Identifier";
+        }
+        leaf flags {
+          type yang:hex-string;
+          description
+            "Opaque flags";
+        }
+        leaf next-hop-type {
+          type identityref {
+            base L2RIB_EGRESS_TYPE;
+          }
+          description
+            "Next-hop type";
+        }
+        leaf next-hop-id {
+          type uint64;
+          description
+            "Next-hop id allocated to set of paths";
+        }
+        leaf next-hop-path-count {
+          type uint32;
+          description
+            "Number of overlay egress paths in use";
+        }
+        list paths {
+          description
+            "Paths for this MAC route";
+
+          uses path-full;
+        }
+      }
+    }
+  }
+
+  grouping vpws-evi-entries {
+    description
+      "Grouping for VPWS EVI routes";
+
+    container vpws-evi-entries {
+      description
+        "VPWS EVI Route entry listing";
+
+      list entry {
+        key "local-interface";
+        description
+          "Local Interface Identifier used for lookup";
+
+        leaf local-interface {
+          type oc-if:interface-id;
+          description
+            "Local Interface for this VPWS Route";
+        }
+        leaf local-sid {
+          type uint32;
+          description
+            "Local VPWS service instance identifier";
+        }
+        leaf remote-sid {
+          type uint32;
+          description
+            "Remote VPWS service instance identifier";
+        }
+        leaf ingress-label {
+          type uint32;
+          description
+            "Ingress MPLS Label";
+        }
+        leaf esi {
+          type yang:hex-string;
+          description
+            "Ethernet Segment Identifier";
+        }
+        leaf overlay-ecmp-nhid {
+          type uint64;
+          description
+            "Next-hop id allocated to set of paths for overlay ECMP";
+        }
+        leaf last-updated {
+          type yang:date-and-time;
+          description
+            "Indicates the last time the entry was updated";
+        }
+        list paths {
+          description
+            "Paths for this route";
+          uses path-full;
+        }
+      }
+    }
+  }
+
+  grouping memory-stats {
+    description
+      "L2 RIB memory stats counters";
+
+    leaf global-alloc {
+      type yang:counter64;
+      description
+        "Number of global allocs";
+    }
+    leaf global-free {
+      type yang:counter64;
+      description
+        "Number of global frees";
+    }
+    leaf l2ni-alloc {
+      type yang:counter64;
+      description
+        "Number of L2NI object allocs";
+    }
+    leaf l2ni-free {
+      type yang:counter64;
+      description
+        "Number of L2NI object frees";
+    }
+    leaf mac-entry-alloc {
+      type yang:counter64;
+      description
+        "Number of mac entry object allocs";
+    }
+    leaf mac-entry-free {
+      type yang:counter64;
+      description
+        "Number of mac entry object frees";
+    }
+    leaf mac-route-alloc {
+      type yang:counter64;
+      description
+        "Number of mac route object allocs";
+    }
+    leaf mac-route-free {
+      type yang:counter64;
+      description
+        "Number of mac route object frees";
+    }
+    leaf mac-ip-entry-alloc {
+      type yang:counter64;
+      description
+        "Number of mac-ipv4 entry object allocs";
+    }
+    leaf mac-ip-entry-free {
+      type yang:counter64;
+      description
+        "Number of mac-ipv4 entry object frees";
+    }
+    leaf mac-ip-route-alloc {
+      type yang:counter64;
+      description
+        "Number of mac-ipv4 route object allocs";
+    }
+    leaf mac-ip-route-free {
+      type yang:counter64;
+      description
+        "Number of mac-ipv4 route object frees";
+    }
+    leaf ir-route-alloc {
+      type yang:counter64;
+      description
+        "Number of ingress-replication route object allocs";
+    }
+    leaf ir-route-free {
+      type yang:counter64;
+      description
+        "Number of ingress-replication route object frees";
+    }
+  }
+
+  grouping mobility-stats {
+    description
+      "L2 RIB mobility stats counters";
+
+    leaf mac-moves {
+      type yang:counter64;
+      description
+        "Number of MAC moves";
+    }
+    leaf duplicate-macs {
+      type yang:counter64;
+      description
+        "Number of duplicate MACs at any given time";
+    }
+    leaf duplicate-mac-events {
+      type yang:counter64;
+      description
+        "Total number of duplicate MAC events";
+    }
+    leaf duplicate-mac-recovery-events {
+      type yang:counter64;
+      description
+        "Total number of duplicate MAC recovery events";
+    }
+  }
+
+  grouping producer-stats {
+    description
+      "L2 RIB producer stats counters";
+
+    leaf mac-routes {
+      type yang:counter32;
+      description
+        "Number of MAC Routes";
+    }
+    leaf mac-ipv4-routes {
+      type yang:counter32;
+      description
+        "Number of MAC-IPv4 Routes";
+    }
+    leaf mac-ipv6-routes {
+      type yang:counter32;
+      description
+        "Number of MAC-IPv6 Routes";
+    }
+    leaf inclusive-multicast-routes {
+      type yang:counter32;
+      description
+        "Number of EVPN Inclusive Multicast Routes";
+    }
+    leaf esi-routes {
+      type yang:counter32;
+      description
+        "Number of Ethernet A-D per ES Routes";
+    }
+    leaf evi-esi-routes {
+      type yang:counter32;
+      description
+        "Number of Ethernet A-D per EVI Routes";
+    }
+    leaf vpws-evi-routes {
+      type yang:counter32;
+      description
+        "Number of VPWS Ethernet A-D per EVI Routes";
+    }
+    leaf mac-route-add-msg {
+      type yang:counter64;
+      description
+        "Number of MAC Route Add msgs rcvd";
+    }
+    leaf mac-ipv4-route-add-msg {
+      type yang:counter64;
+      description
+        "Number of MAC-IPv4 Route Add msgs rcvd";
+    }
+    leaf mac-ipv6-route-add-msg {
+      type yang:counter64;
+      description
+        "Number of MAC-IPv6 Route Add msgs rcvd";
+    }
+    leaf inclusive-multicast-add-msg {
+      type yang:counter64;
+      description
+        "Number of Inclusive Multicast Route Add msgs rcvd";
+    }
+    leaf esi-route-add-msg {
+      type yang:counter64;
+      description
+        "Number of Ethernet A-D per ES Route Add msgs rcvd";
+    }
+    leaf evi-esi-route-add-msg {
+      type yang:counter64;
+      description
+        "Number of Ethernet A-D per EVI Route Add msgs rcvd";
+    }
+    leaf vpws-evi-route-add-msg {
+      type yang:counter64;
+      description
+        "Number of VPWS Ethernet A-D per EVI Route Add msgs rcvd";
+    }
+    leaf mac-route-update-msg {
+      type yang:counter64;
+      description
+        "Number of MAC Route Update msgs rcvd";
+    }
+    leaf mac-ipv4-route-update-msg {
+      type yang:counter64;
+      description
+        "Number of MAC-IPv4 Route Update msgs rcvd";
+    }
+    leaf mac-ipv6-route-update-msg {
+      type yang:counter64;
+      description
+        "Number of MAC-IPv6 Route Update msgs rcvd";
+    }
+    leaf inclusive-multicast-update-msg {
+      type yang:counter64;
+      description
+        "Number of Inclusive Multicast Route Update msgs rcvd";
+    }
+    leaf esi-route-update-msg {
+      type yang:counter64;
+      description
+        "Number of Ethernet A-D per ES Route Update msgs rcvd";
+    }
+    leaf evi-esi-route-update-msg {
+      type yang:counter64;
+      description
+        "Number of Ethernet A-D per EVI Route Update msgs rcvd";
+    }
+    leaf vpws-evi-route-update-msg {
+      type yang:counter64;
+      description
+        "Number of VPWS Ethernet A-D per EVI Route Update msgs rcvd";
+    }
+    leaf mac-route-delete-msg {
+      type yang:counter64;
+      description
+        "Number of MAC Route Delete msgs rcvd";
+    }
+    leaf mac-ipv4-route-delete-msg {
+      type yang:counter64;
+      description
+        "Number of MAC-IPv4 Route Delete msgs rcvd";
+    }
+    leaf mac-ipv6-route-delete-msg {
+      type yang:counter64;
+      description
+        "Number of MAC-IPv6 Route Delete msgs rcvd";
+    }
+    leaf inclusive-multicast-delete-msg {
+      type yang:counter64;
+      description
+        "Number of Inclusive Multicast Route Update msgs rcvd";
+    }
+    leaf esi-route-delete-msg {
+      type yang:counter64;
+      description
+        "Number of Ethernet A-D per ES Route Delete msgs rcvd";
+    }
+    leaf evi-esi-route-delete-msg {
+      type yang:counter64;
+      description
+        "Number of Ethernet A-D per EVI Route Delete msgs rcvd";
+    }
+    leaf vpws-evi-route-delete-msg {
+      type yang:counter64;
+      description
+        "Number of VPWS Ethernet A-D per EVI Route Delete msgs rcvd";
+    }
+    leaf mac-add-drops {
+      type yang:counter64;
+      description
+        "Number of MAC Route Adds dropped";
+    }
+    leaf mac-update-drops {
+      type yang:counter64;
+      description
+        "Number of MAC Route Adds dropped";
+    }
+  }
+
+  grouping consumer-stats {
+    description
+      "L2 RIB consumer stats counters";
+
+    leaf mac-route-update-msg {
+      type yang:counter64;
+      description
+        "Number of MAC Route Update msgs sent";
+    }
+    leaf mac-ipv4-route-update-msg {
+      type yang:counter64;
+      description
+        "Number of MAC-IPv4 Route Update msgs sent";
+    }
+    leaf mac-ipv6-route-update-msg {
+      type yang:counter64;
+      description
+        "Number of MAC-IPv6 Route Update msgs sent";
+    }
+    leaf inclusive-multicast-update-msg {
+      type yang:counter64;
+      description
+        "Number of Inclusive Multicast Route Update msgs sent";
+    }
+    leaf next-hop-id-add-msg {
+      type yang:counter64;
+      description
+        "Number of next-hop-id Add msgs sent";
+    }
+    leaf nht-req-update-msg {
+      type yang:counter64;
+      description
+        "Number of Next Hop Tracking Request update msgs sent";
+    }
+    leaf vpws-evi-update-msg {
+      type yang:counter64;
+      description
+        "Number of VPWS EVI update msgs sent";
+    }
+    leaf next-hop-id-delete-msg {
+      type yang:counter64;
+      description
+        "Number of next-hop-id Delete msgs sent";
+    }
+    leaf mac-route-delete-msg {
+      type yang:counter64;
+      description
+        "Number of MAC Route Delete msgs sent";
+    }
+    leaf mac-ipv4-route-delete-msg {
+      type yang:counter64;
+      description
+        "Number of MAC-IPv4 Route Delete msgs sent";
+    }
+    leaf mac-ipv6-route-delete-msg {
+      type yang:counter64;
+      description
+        "Number of MAC-IPv6 Route Delete msgs sent";
+    }
+    leaf inclusive-multicast-delete-msg {
+      type yang:counter64;
+      description
+        "Number of Inclusive Multicast Route Delete msgs sent";
+    }
+    leaf nht-req-delete-msg {
+      type yang:counter64;
+      description
+        "Number of Next Hop Tracking Request Delete msgs sent";
+    }
+    leaf vpws-evi-delete-msg {
+      type yang:counter64;
+      description
+        "Number of VPWS EVI Delete msgs sent";
+    }
+    leaf send-retries {
+      type yang:counter64;
+      description
+        "Number of times sending was blocked, requiring a retry to send";
+    }
+  }
+
+  grouping stats-entries {
+    description
+      "grouping for L2 RIB statistics";
+
+    container stats-entries {
+      description
+        "L2 RIB statistics";
+
+      container memory {
+        description
+          "global memory statistics";
+  
+        uses memory-stats;
+      }
+
+      container mobility {
+        description
+          "network-instance mac mobility statistics";
+  
+        uses mobility-stats;
+      }
+      container current-total {
+        description
+          "network-instance total statistics";
+  
+        leaf num-macs {
+          type yang:counter32;
+          description
+            "Total Number of MAC Routes (local + dynamic) currently programmed in FDB.";
+        }
+        leaf num-macs-valid {
+          type yang:counter32;
+          description
+            "Number of MAC Routes valid and programmed";
+        }
+        leaf num-macs-on-hold {
+          type yang:counter32;
+          description
+            "Number of MAC Routes on hold because of mac limit exceeded condition";
+        }
+      }
+
+      container producer-totals {
+        description
+          "Total statistics for all producers";
+  
+        uses producer-stats;
+      }
+
+      container consumer-totals {
+        description
+          "Total statistics for all consumers";
+  
+        uses consumer-stats;
+      }
+
+      list producers {
+        key "name";
+        description
+          "L2 RIB producer application";
+
+        leaf name {
+          type identityref {
+            base "L2RIB_PRODUCER_CONSUMER_TYPE";
+          }
+          description
+            "Name of L2 RIB producer";
+        }
+        uses producer-stats;
+      }
+
+      list consumers {
+        key "name";
+        description
+          "L2 RIB consumer application";
+
+        leaf name {
+          type identityref {
+            base "L2RIB_PRODUCER_CONSUMER_TYPE";
+          }
+          description
+            "Name of L2 RIB consumer";
+        }
+        uses consumer-stats;
+      }
+    }
+  }
+
+  grouping esi-entries {
+    description
+      "Both local and remote ESIs";
+
+    container esi-entries {
+      description
+        "Ethernet Segment Identifier Routes";
+
+      list entry {
+        key "esi";
+        description
+          "Ethernet Segment Identifier used for lookup";
+  
+        leaf esi {
+          type yang:hex-string;
+          description
+            "Ethernet Segment Identifier";
+        }
+        leaf local-interface {
+          type oc-if:interface-id;
+          description
+            "Local Interface for this ESI, if any";
+        }
+        leaf flags {
+          type string;
+          description
+            "This can be used to show internal state eg. local, remote etc";
+        }
+        leaf vlan-count {
+          type uint32;
+          description
+            "Number of VLAN IDs for this ESI";
+        }
+        leaf-list vlan-ids {
+          type uint16;
+          description
+            "List of VLAN IDs for this ESI";
+        }
+        list paths {
+          description
+            "Paths for this ESI, if remote";
+          uses path-brief;
+          leaf path-id {
+            type uint32;
+            description
+              "Internal Path id allocated to path";
+          }
+        }
+      }
+    }
+  }
+  grouping ids-cmn {
+    description
+      "Next Hop ID information";
+
+    leaf refcount {
+      type uint32;
+       description "Refcount for  the ID";
+    }
+    list paths {
+      description
+        "Path information for NHID container";
+      key "path-id";
+      leaf path-id {
+        type uint32;
+        description
+          "Path egress ID";
+      }
+      leaf path-type {
+        type identityref {
+          base L2RIB_EGRESS_TYPE;
+        }
+        description
+          "Type of path";
+      }
+      leaf label {
+        type uint32;
+        description
+          "MPLS label, if applicable";
+      }
+    }
+  }
+
+  grouping container-id-entries {
+    container container-id-entries {
+      list entry {
+        description
+          "Container ID Information  for L2RIB table";
+        key "id";
+        leaf id {
+          type uint32;
+          description "Container ID allocated by L2RIB";
+        }
+        uses ids-cmn;
+      }
+    }
+  }
+
+  grouping ipv4-neighbors {
+    description
+      "Grouping for L2RIB IPv4 neighbors";
+
+    container ipv4-neighbors {
+      description
+        "IPv4 neighbor entry listing";
+
+      list entry {
+        key "ifname ipv4-address";
+        description
+          "Interface name and IPv4 neighbor address used for lookup";
+
+        leaf ifname {
+          type string;
+          description "Interface the neighbor is associated with";
+        }
+        leaf ipv4-address {
+          type inet:ipv4-address-no-zone;
+          description
+            "Neighbor IPv4 Address";
+        }
+        leaf mac-address {
+          type yang:mac-address;
+          description
+            "The MAC Address of the neighbor";
+        }
+        leaf origin-protocol {
+          type identityref {
+            base "L2RIB_PRODUCER_CONSUMER_TYPE";
+          }
+          description
+            "Originator of this neighbor entry";
+        }
+      }
+    }
+  }
+
+  grouping ipv6-neighbors {
+    description
+      "Grouping for L2RIB IPv6 neighbors";
+
+    container ipv6-neighbors {
+      description
+        "IPv6 neighbor entry listing";
+
+      list entry {
+        key "ifname ipv6-address";
+        description
+          "Interface name and IPv6 neighbor address used for lookup";
+
+        leaf ifname {
+          type string;
+          description "Interface the neighbor is associated with";
+        }
+        leaf ipv6-address {
+          type inet:ipv6-address-no-zone;
+          description
+            "Neighbor IPv6 Address";
+        }
+        leaf mac-address {
+          type yang:mac-address;
+          description
+            "The MAC Address of the neighbor";
+        }
+        leaf origin-protocol {
+          type identityref {
+            base "L2RIB_PRODUCER_CONSUMER_TYPE";
+          }
+          description
+            "Originator of this neighbor entry";
+        }
+      }
+    }
+  }
+
+  grouping l2rib-top {
+    description
+      "Top-level grouping for L2 RIB";
+
+    container l2rib {
+      description
+        "Global level state for the Layer 2 Routing Information Base";
+
+      config false;
+      uses esi-entries;
+      uses container-id-entries;
+      uses ipv4-neighbors;
+      uses ipv6-neighbors;
+      uses stats-entries;
+    }
+  }
+  
+  grouping l2rib-ni-top {
+    description
+      "Top-level grouping for L2 RIB under Network Interface";
+
+    container l2rib {
+      description
+        "Layer 2 Routing Information Base state information";
+
+      config false;
+
+      uses l2ni-state;
+      uses mac-entries-brief;
+      uses mac-entries-full;
+      uses mac-ipv4-entries-brief;
+      uses mac-ipv4-entries-full;
+      uses mac-ipv6-entries-brief;
+      uses mac-ipv6-entries-full;
+      uses inclusive-multicast-entries;
+      uses evi-esi-entries;
+      uses vpws-evi-entries;
+      uses stats-entries;
+    }
+  }
+  
+  augment "/oc-ni:network-instances/oc-ni:network-instance" {
+    uses l2rib-ni-top {
+      when "./oc-ni:config/oc-ni:type = 'oc-ni-types:L2VLAN' or " +
+           "./oc-ni:config/oc-ni:type = 'arc-oc-ni-types:L2P2P_EVPN' or " +
+           "./oc-ni:config/oc-ni:type = 'arc-oc-ni-types:L2VLAN_AWARE_BUNDLE'" {
+      }
+    }
+  }
+
+  uses l2rib-top;
+
+}

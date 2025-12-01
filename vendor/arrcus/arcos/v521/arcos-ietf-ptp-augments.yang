@@ -1,0 +1,646 @@
+/**
+ * Filename: arcos-ietf-ptp-augments.yang
+ *
+ * Description:
+ * YANG data-model for Arcos PTP augments
+ *
+ * Copyright 2022-2022 by Arrcus, Inc.
+ * All rights reserved.
+ */
+
+module arcos-ietf-ptp-augments {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/ietf/ptp/augments";
+  prefix arc-ietf-ptp-aug;
+
+  import ietf-ptp {
+    prefix ptp;
+  }
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  import arcos-ietf-ptp-types {
+    prefix arc-ptp-types;
+  }
+
+  import openconfig-interfaces {
+    prefix oc-if;
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  import arcos-features {
+    prefix arc-features;
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+
+  organization 
+    "Arrcus, Inc";
+
+  contact
+    "Arrcus, Inc.
+     2077 Gateway Place 
+     Suite 400
+     San Jose, CA 95110
+     E-mail: yang-support@arrcus.com";
+
+  description
+    "This module lists arrcus ptp augments related information.
+     Copyright (c) 2022-2022 by Arrcus, Inc.
+     All rights reserved.";
+
+  revision 2023-04-11 {
+    description
+      "Added 4 leaf (interface-name, esmc-status, is-selected-source, ql-received)
+      to global-sync-e";
+  }
+
+  revision 2023-03-15 {
+    description
+      "Add subinterface support to portDS underlying-interface";
+  }
+
+  revision 2023-03-12 {
+    description
+      "Add SyncE operational state information.";
+  }
+  revision 2023-03-07 {
+    description
+      "Add servo algorithm mode configuration";
+  }
+
+  revision 2023-02-20 {
+    description
+      "Add port-ds-list transport and master address config options";
+  }
+
+  revision 2023-02-09 {
+    description
+      "Add defaultDS.localPriority, portDS.localPriority, and " +
+      "defaultDS.maxStepsRemoved leaves";
+  }
+
+  revision 2023-01-30 {
+    description
+      "Added time-of-day leaf to time-properties-ds.
+       Added clock-profile leaf to clock-info";
+  }
+
+  revision 2022-11-18 {
+    description
+      "Initial revision.";
+
+    reference
+      "RFC 8575: YANG Data Model for the Precision Time Protocol (PTP)";
+  }
+
+  augment "/ptp:ptp/ptp:instance-list" {
+    leaf clock-profile {
+      type arc-ptp-types:arc-clock-profile-type;
+      // default default_profile;
+      description
+        "PTP clock profile type g8275.1/g8275.2/default.";
+    }
+    leaf servo-alg {
+      type arc-ptp-types:arc-servo-algo-type;
+      default default-algorithm;
+      description
+        "PTP servo algorithm type.";
+    }
+
+    uses default-ref-defaults;
+  }
+
+  augment "/ptp:ptp/ptp:instance-list/ptp:default-ds" {
+    leaf local-priority {
+      type uint8;
+      tailf:default-ref "../../default-ds-defaults/local-priority-def";
+      description
+        "The localPriority attribute of local clock";
+    }
+    leaf max-steps-removed {
+      type uint8;
+      tailf:default-ref "../../default-ds-defaults/max-steps-removed-def";
+      description
+        "The maxStepsRemoved attribute of local clock";
+    }
+  }
+
+  augment "/ptp:ptp/ptp:instance-list/ptp:port-ds-list" {
+    leaf master-only {
+      type boolean;
+      default false;
+      description
+        "PTP master only mode on the clock port.";
+    }
+    leaf local-priority {
+      type uint8;
+      tailf:default-ref "../../port-ds-defaults/local-priority-def";
+      description
+        "The localPriority attribute of local clock port";
+    }
+    leaf transport {
+      when "../../arc-ietf-ptp-aug:clock-profile = 'G8275.2'";
+      type arc-ptp-types:arc-transport-type;
+      description
+        "The IP protocol to use for G.8275.2 unicast messages";
+    }
+    leaf grant-duration {
+      when "../../arc-ietf-ptp-aug:clock-profile = 'G8275.2'";
+      type uint16;
+      tailf:default-ref "../../port-ds-defaults/grant-duration-def";
+      description
+        "The unicast grant duration value of local clock port";
+    }
+
+    uses underlying-interface;
+    uses master-address;
+  }
+
+  grouping underlying-interface {
+    description
+      "PTP port underlying interface configuration";
+    container underlying-interface {
+      description
+        "Reference to the underlying interface and subinterface";
+      uses oc-if:interface-ref;
+    }
+  }
+
+  grouping default-ref-defaults {
+    description
+      "Default values for default-ds and port-ds-list";
+    container default-ds-defaults {
+      tailf:hidden "ptp-internal";
+      leaf local-priority-def {
+        type uint8;
+      }
+      leaf max-steps-removed-def {
+        type uint8;
+      }
+    }
+    container port-ds-defaults {
+      tailf:hidden "ptp-internal";
+      leaf local-priority-def {
+        type uint8;
+      }
+      leaf grant-duration-def {
+        type uint16;
+      }
+    }
+  }
+
+  grouping master-address {      
+    container master {
+      description
+        "PTP port master address configuration";
+      when "../../arc-ietf-ptp-aug:clock-profile = 'G8275.2'";
+
+      container ipv4 {
+        when "not(../ipv6/address)";
+        leaf address {
+          must "../../../arc-ietf-ptp-aug:transport = 'ipv4' or not(.)" {
+            error-message "Master address family must match port transport";
+          }
+          type inet:ipv4-address;
+          description
+            "IPv4 address of master port";
+        }
+      }
+      container ipv6 {
+        when "not(../ipv4/address)";
+        leaf address {
+          must "../../../arc-ietf-ptp-aug:transport = 'ipv6' or not(.)" {
+            error-message "Master address family must match port transport";
+          }
+          type inet:ipv6-address;
+          description
+            "IPv6 address of master port";
+        }
+      }
+    }
+  }
+
+  /* 
+   Note: This leaf is state info but intended to be config:true, 
+   to fit style of counterparts in the time-properties-ds container.
+   However, Removing config:false on an "augment" seems to cause the 
+`  show-operational-state cli to not retrieve data for this leaf.
+  */
+  augment "/ptp:ptp/ptp:instance-list/ptp:time-properties-ds" {
+    leaf time-of-day {
+      type yang:date-and-time; 
+      config false; 
+      description
+        "Date and time of day";
+    }
+  }
+
+  grouping ptp-version-top {
+    description
+      "PTP version information.";
+
+    container version {
+      config false;
+      description
+        "Operational state for PTP version data.";
+
+      leaf client-version {
+        type string;
+        description
+          "Client Version.";
+      }
+      leaf server-version {
+        type string;
+        description
+          "Server Version.";
+      }
+      leaf ptp-service-version {
+        type string;
+        description
+          "Service Version.";
+      }
+      leaf ptp-protocol-version {
+        type string;
+        description
+          "PTP protocol version.";
+      }
+      leaf algorithm-version {
+        type string;
+        description
+          "Algorithm version.";
+      }
+      leaf cpld-version {
+        type string;
+        description
+          "CPLD firmware verson.";
+      }
+      leaf fpga-version {
+        type string;
+        description
+          "FPGA firmware Version.";
+      }
+      leaf hardware-version {
+        type string;
+        description
+          "Hardware version.";
+      }
+      leaf dpll-version {
+        type string;
+        description
+          "DPLL Version.";
+      }
+    }
+  }
+
+  grouping ptp-servo-top {
+    container servo { 
+      config false;
+      description
+        "Operational state information for PTP servo";
+      leaf configuration {
+        type string;
+        description 
+          "Frequency correction";
+      } 
+      leaf state {
+        type enumeration {
+          enum ACQUIRING;
+          enum FREQ_LOCKED;
+          enum PHASE_LOCKED; 
+          enum HOLDOVER;
+          enum REF_FAILED;
+          enum NO_ACTIVE_SERVER;
+          enum UNKNOWN;
+          enum MANUAL_FREERUN;
+          enum MANUAL_HOLDOVER;
+          enum MANUAL_SERVO_HOLDOVER;
+          enum HOLDOVER_IN_SPEC;
+          enum HOLDOVER_OUT_OF_SPEC;
+        }
+        description 
+          "Servo state.";
+      } 
+      leaf state-duration {
+        type string;
+        description 
+          "Servo status duration.";
+      } 
+      leaf lock-status {
+        description 
+          "Servo lock status.";
+        type enumeration {
+          enum UNLOCKED; 
+          enum LOCKED; 
+        }
+      } 
+      leaf frequency-correction {
+        type int32;
+        units ppt;
+        description 
+          "Average frequency offset";
+      }
+      leaf phase-correction {
+        type uint32;
+        units nsec;
+        description 
+          "Phase Offset";
+      }
+      leaf offset-from-master {
+        type int64;
+        units nsec;
+        description
+          "The current value of the time difference between
+            a master and a slave clock as computed by the slave.";
+        
+      }
+      leaf mean-path-delay {
+        type int64;
+        units nsec;
+        description
+          "The current value of the mean propagation time between
+            a master and a slave clock as computed by the slave.";
+      }
+      leaf sync-packet-rate {
+        type yang:gauge32;
+        description 
+          "Forward path packet rate of the server.";
+      }
+      leaf delay-packet-rate {
+        type yang:gauge32;
+        description 
+          "Reverse path packet rate of the server.";
+      }
+    }
+  }
+
+  grouping ptp-clock-stats-top {
+    container stats {
+      config false;
+      description
+        "PTP clock statistics";
+      leaf packets-sent {
+        type yang:zero-based-counter32;
+        description 
+          "Total PTP packets sent.";
+      }
+      leaf packets-received {
+        type yang:zero-based-counter32;
+        description 
+          "Total PTP packets received.";
+      }
+      leaf packets-discarded {
+        type yang:zero-based-counter32;
+        description 
+          "Total PTP packets discarded.";
+      }
+      leaf ipv4-ptp-packets-received {
+        type yang:zero-based-counter32;
+        description 
+          "IPv4 PTP packets received.";
+      }
+      leaf ipv6-ptp-packets-received{
+        type yang:zero-based-counter32;
+        description 
+          "IPv6 PTP packets received.";
+      }
+      leaf l2-ptp-packets-received {
+        type yang:zero-based-counter32;
+        description 
+          "L2 PTP packets received.";
+      }
+      leaf rx-queue-overflows {
+        type yang:zero-based-counter32;
+        description 
+          "A count of the instances of receives queue overflows.";
+      }
+      action counters {
+        output {
+          leaf result {
+            type string;
+            description 
+              "Result of operation.";
+          }
+        }
+      }
+    }
+  }
+
+  grouping ptp-port-stats-top {
+    container port-stats {
+      config false;
+      description 
+        "PTP statistics for a given port";
+      leaf packets-received {
+        type yang:zero-based-counter32;
+        description 
+          "PTP packets received.";
+      }
+      leaf packets-sent {
+        type yang:zero-based-counter32;
+        description 
+          "PTP packets sent.";
+      }
+      leaf packets-discarded {
+        type yang:zero-based-counter32;
+        description 
+          "PTP packets discarded.";
+      }
+    }
+  }
+
+  grouping ptp-clock-info-top {
+    container clock-info {
+      config false;
+      description 
+        "PTP Clock Information for the local clock";
+
+      leaf clock-identity {
+        type tailf:hex-list;
+        description
+          "Identity of local clock.";
+      }
+      leaf clock-profile {
+        type arc-ptp-types:arc-clock-profile-type;
+        description "Clock profile";
+      }
+      leaf clock-type {
+        type enumeration {
+          enum GRANDMASTER {
+            value 1;
+          }
+          enum BOUNDARY_CLOCK {
+            value 2;
+          }
+          enum TRANSPARENT_CLOCK {
+            value 3;
+          }
+        }
+        description 
+          "Clock type";
+      }
+      leaf number-of-ports {
+        type uint32;
+        description 
+          "Number of ports on the local clock.";
+      }
+      leaf clock-class {
+        type uint8;
+        description 
+          "Denotes the traceablility of the time or frequency 
+           distributed by the clock.";
+      }
+      leaf domain-number {
+        type uint32;
+        description
+          "The domain number of the current syntonization
+            domain.";
+      }
+      leaf scaled-log-variance {
+        type uint32;
+        description 
+          "The precision of the timestamps included in messages issued by
+            the clock when it is not synchronized to another clock.";
+      }
+      leaf priority1 {
+        type uint32;
+        description
+          "The priority1 attribute of the local clock.";
+      }
+      leaf priority2 {
+        type uint32;
+        description
+          "The priority2 attribute of the local clock.";
+      }
+      leaf slave-only {
+        type boolean;
+        description
+          "When set to true, the clock is a slave-only clock.";
+      }
+      leaf two-step {
+        type boolean;
+         description
+          "When set to true, the clock is a two-step clock;
+            otherwise,the clock is a one-step clock.";
+      }
+      leaf announce-receipt-timeout-min {
+        type uint32;
+        description 
+          "The minimum value of announce receipt timeout interval.";
+      }
+      leaf announce-receipt-timeout-def {
+        type uint32;
+        description 
+          "The default value of announce receipt timeout interval.";
+      }
+      leaf announce-receipt-timeout-max {
+        type uint32;
+        description 
+          "The maximum value of announce receipt timeout interval.";
+      }
+      leaf log-announce-interval-min {
+        type int32;
+        description 
+          "The minimum value of log announce interval.";
+      }
+      leaf log-announce-interval-def {
+        type int32;
+        description 
+          "The default value of log announce interval.";
+      }
+      leaf log-announce-interval-max {
+        type int32;
+        description
+           "The maximum value of log announce interval.";
+      }
+      leaf log-sync-interval-min {
+        type int32;
+        description
+           "The minimum value of log sync interval.";
+      }
+      leaf log-sync-interval-def {
+        type int32;
+        description 
+          "The default value of log sync interval.";
+      }
+      leaf log-sync-interval-max {
+        type int32;
+        description 
+          "The maximum value of log sync interval.";
+      }
+      leaf log-min-delay-req-interval-min {
+        type int32;
+        description 
+          "The minimum permitted mean time interval between Delay_Req messages.";
+      }
+      leaf log-min-delay-req-interval-def {
+        type int32;
+        description 
+          "The default permitted mean time interval between Delay_Req messages.";
+      }
+      leaf log-min-delay-req-interval-max {
+        type int32;
+        description
+           "The maxmimum permitted mean time interval between Delay_Req messages.";
+      }
+      leaf domain-num-min {
+        type int32;
+        description
+           "The minimum of domain number.";
+      }
+      leaf domain-num-def {
+        type int32;
+        description 
+          "The default of domain number.";
+      }
+      leaf domain-num-max {
+        type int32;
+        description 
+          "The maximum of domain number.";
+      }
+      leaf priority2-min {
+        type int32;
+        description 
+          "The minimum of priority2.";
+      }
+      leaf priority2-def {
+        type int32;
+        description 
+          "The default of priority2.";
+      }
+      leaf priority2-max {
+        type int32;
+        description 
+          "The maximum of priority2.";
+      }
+      leaf local-priority {
+        type int32;
+        description 
+          "The local priority attribute of the local clock.";
+      }
+    }
+  }
+  
+  augment "/ptp:ptp" {
+    when "/arc-features:features/arc-features:feature[arc-features:name='arc-features:ARCOS_PTP_BOUNDARY_CLOCK']/arc-features:supported = 'true'";
+    uses ptp-version-top;
+  }
+
+  augment "/ptp:ptp/ptp:instance-list" {
+    when "/arc-features:features/arc-features:feature[arc-features:name='arc-features:ARCOS_PTP_BOUNDARY_CLOCK']/arc-features:supported = 'true'";
+    uses ptp-servo-top;
+    uses ptp-clock-stats-top;
+    uses ptp-clock-info-top;
+  }
+
+  augment "/ptp:ptp/ptp:instance-list/ptp:port-ds-list" {
+    uses ptp-port-stats-top;
+  }
+}

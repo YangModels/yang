@@ -1,0 +1,425 @@
+module arcos-vxlan {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/vxlan";
+  prefix arc-overlay;
+
+  import iana-if-type {
+    prefix ianaift;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import openconfig-interfaces {
+    prefix oc-if;
+  }
+  import openconfig-network-instance {
+    prefix oc-netinst;
+  }
+  import openconfig-network-instance-types {
+    prefix oc-ni-types;
+  }
+  import arcos-openconfig-network-instance-types {
+    prefix arc-oc-ni-types;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import openconfig-if-ip {
+    prefix oc-ip;
+  }
+  import openconfig-vlan-types {
+    prefix oc-vlan-types;
+  }
+  import openconfig-vlan {
+    prefix oc-vlan;
+  }
+
+  organization
+    "Arrcus, Inc.";
+
+  contact
+    "Arrcus, Inc.
+     2077 Gateway Place
+     San Jose, CA 95110
+     Tel: +1 (408) 884-1965
+     E-mail: yang-support@arrcus.com";
+
+  description
+    "This module contains definitions for ArcOS VxLAN support.
+     Copyright (c) 2018-2022 by Arrcus, Inc.
+     All rights reserved.";
+
+  revision 2022-12-05 {
+    description "Add support for Static VXLAN";
+  }
+
+  revision 2022-03-18 {
+    description "Add support for VLAN Aware Bundle";
+  }
+
+  revision 2018-10-03 {
+    description "Initial version";
+  }
+
+  grouping vni-state-group {
+    container vni-state {
+      config false;
+      leaf vni-run-state {
+        type enumeration {
+            enum UP {
+                description "VNI state id up";
+            }
+            enum DOWN {
+                description "VNI state is down";
+            }
+        }
+        description "VNI state";
+      }
+      leaf vni-type {
+        type enumeration {
+            enum ROUTED {
+                description "routed VNI associated with an IP VRF";
+            }
+            enum BRIDGED {
+                description "bridged VNI associated with a MAC VRF";
+            }
+        }
+        description "VNI type";
+      }
+      leaf ltep-id {
+        type uint32;
+        description "Local tunnel endpoint associated with this VNI";
+      }
+      leaf vni-ifindex {
+        type uint32;
+        description "vni ifindex";
+      }
+      leaf ip-or-mac-vrf {
+        type string;
+        description "IP or MAC VRF associated with this VNI";
+      }
+      leaf vrf-id {
+        type uint32;
+        description "VRF ID for L3-VNI IP-VRF or L2-VNI MAC-VRF";
+      }
+      leaf vrf-ifindex {
+        type uint32;
+        description "ifindex for L3-VNI IP-VRF or L2-VNI bridge";
+      }
+      leaf vni-router-mac {
+        type yang:mac-address;
+        description "router MAC address for a routed VNI";
+      }
+
+      leaf-list static-rteps {
+        type inet:ip-address-no-zone;
+        description
+          "List of static remote VTEP IPs for BUM ingress replication";
+      }
+  
+      leaf ingress-unicast-packets {
+        type uint64;
+        description "VPN ingress unicast packet count";
+      }
+      leaf ingress-mcast-packets {
+        type uint64;
+        description "VPN ingress multicast packet count";
+      }
+      leaf ingress-bcast-packets {
+        type uint64;
+        description "VPN ingress broadcast packet count";
+      }
+      leaf egress-unicast-packets {
+        type uint64;
+        description "VPN egress unicast packet count";
+      }
+      leaf egress-mcast-packets {
+        type uint64;
+        description "VPN egress multicast packet count";
+      }
+      leaf egress-bcast-packets {
+        type uint64;
+        description "VPN egress broadcast packet count";
+      }
+      leaf ingress-unicast-bytes {
+        type uint64;
+        description "VPN egress unicast byte count";
+      }
+      leaf ingress-mcast-bytes {
+        type uint64;
+        description "VPN egress multicast byte count";
+      }
+      leaf ingress-bcast-bytes {
+        type uint64;
+        description "VPN egress broadcast byte count";
+      }
+      leaf egress-unicast-bytes {
+        type uint64;
+        description "VPN egress unicast byte count";
+      }
+      leaf egress-mcast-bytes {
+        type uint64;
+        description "VPN egress multicast byte count";
+      }
+      leaf egress-bcast-bytes {
+        type uint64;
+        description "VPN egress broadcast byte count";
+      }
+    }
+  }
+
+  container overlay {
+    description "Network Overlays Manager CLI";
+    list vni-all{
+      config false;
+      key "vnid";
+      description "Virtual Network Instance Table";
+
+      leaf vnid {
+        type uint32;
+        description "Virtual Network Instance ID";
+      }
+      uses vni-state-group;
+    }
+
+    list local-tunnel-endpoint {
+      key "ltep-id";
+      description "IP Local Tunnel Endpoint configuration";
+      max-elements 1;
+
+      leaf ltep-id {
+        type uint32;
+        description "IP Local Tunnel Endpoint ID";
+        mandatory true;
+      }
+
+      leaf source-interface {
+        type oc-if:base-interface-ref;
+        mandatory true;
+        description "IP Local Tunnel Endpoint source loopback";
+        must "/oc-if:interfaces/oc-if:interface[oc-if:name=current()]"
+           + "/oc-if:config/oc-if:type = 'ianaift:softwareLoopback'" {
+          error-message "ltep source interface must be of type loopback";
+        }
+        must "count(/overlay/local-tunnel-endpoint/source-interface[current()=.]) = 1" {
+          error-message "Each source interface may only be used in one local-tunnel-endpoint";
+        }
+        must "count(/oc-netinst:network-instances/oc-netinst:network-instance/" +
+             "oc-netinst:interfaces/oc-netinst:interface[oc-netinst:id=current()]) = 0" {
+          error-message "ltep source interface must be in the default network-instance";
+        }
+      }
+
+      container local-tunnel-endpoint-state {
+        config false;
+        leaf ltep-run-state {
+          type enumeration {
+            enum UP {
+                description "local tunnel endpoint state is up";
+            }
+            enum DOWN {
+                description "local tunnel endpoint state is down";
+            }
+          }
+          description "local tunnel endpoint state";
+        }
+        leaf source-interface {
+          type oc-if:base-interface-ref;
+          description "IP Local Tunnel Endpoint source loopback";
+        }
+        leaf source-ip {
+          type inet:ipv4-address-no-zone;
+          description "tunnel source ipv4 address";
+        }
+        leaf encapsulation {
+          type enumeration {
+            enum VXLAN {
+                description "VXLAN tunnel encapsulation";
+            }
+          }
+          description "tunnel encapsulation";
+        }
+        leaf udp-port {
+          type uint32;
+          description "tunnel destination UDP port";
+        }
+      }
+    }
+
+    list static-vxlan-tunnels {
+      config false;
+      key "tunnel-id";
+      description "L2FM Published Static VXLAN tunnels";
+
+      leaf tunnel-id {
+        type uint32;
+        description "Tunnel identifier";
+      }
+
+      leaf ltep-ip {
+        type inet:ip-address;
+        description
+          "Source LTEP IP address of tunnel";
+      }
+
+      leaf rtep-ip {
+        type inet:ip-address;
+        description
+          "Destination RTEP IP address of tunnel";
+      }
+
+      leaf resolved {
+        type boolean;
+        description
+          "True when RIB has resolved a route to the RTEP IP";
+      }
+
+      leaf use-count {
+        type uint32;
+        description
+          "Number of VNIs using this tunnel";
+      }
+    }
+
+    leaf static-vxlan {
+      type boolean;
+      description "Setting true enables static flood-and-learn VXLAN and disables EVPN VXLAN";
+      must "not(current() = 'true' and " +
+        "/oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:config/oc-netinst:advertise-mac-routes = 'true')" {
+        error-message "'network-instance advertise-mac-routes' must not be true when 'overlay static-vxlan' is true";
+      }
+    }
+  }
+
+  grouping vni-top {
+
+    description "VNI configuration for a network instance";
+
+    list vni {
+      key "vni-id";
+      description "Virtual Network Instance";
+
+      leaf vni-id {
+        type uint32 {
+          range "1..16777215";
+        }
+        description "Virtual Network Instance ID";
+        mandatory true;
+        must "count(/oc-if:interfaces/oc-if:interface[oc-if:name=current()/../../oc-netinst:name]"
+           + "/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv4/oc-ip:addresses"
+           + "/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group) = 0" {
+          error-message "VRRP may not be configured on VXLAN enabled VLANs";
+        }
+        must "count(/oc-if:interfaces/oc-if:interface[oc-if:name=current()/../../oc-netinst:name]"
+           + "/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses"
+           + "/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group) = 0" {
+          error-message "VRRP may not be configured on VXLAN enabled VLANs";
+        }
+        must "../../oc-netinst:config/oc-netinst:type != 'arc-oc-ni-types:L2VLAN_AWARE_BUNDLE' or " +
+             "boolean(../../oc-netinst:config/local-tunnel-endpoint-id)" {
+          error-message "VXLAN L2VLAN_AWARE_BUNDLE NI's require a local-tunnel-endpoint-id";
+        }
+        must "../../oc-netinst:config/oc-netinst:type = 'arc-oc-ni-types:L2VLAN_AWARE_BUNDLE' or " +
+             "count(../../vni) < 2" {
+          error-message "Only L2VLAN_AWARE_BUNDLE NI's can have more than one vni";
+        }
+        must "../../oc-netinst:config/oc-netinst:type = 'arc-oc-ni-types:L2VLAN_AWARE_BUNDLE' or " +
+             "(/overlay/static-vxlan = 'false') or count(/overlay/static-vxlan) = 0" {
+          error-message "When 'overlay static-vxlan' is true, VNIs may only be configured on L2VLAN_AWARE_BUNDLE NI's";
+        }
+      }
+
+      leaf local-tunnel-endpoint-id {
+        when "../../oc-netinst:config/oc-netinst:type != 'arc-oc-ni-types:L2VLAN_AWARE_BUNDLE'" {
+          description
+            "LTEP for an L2VLAN network instance";
+        }
+        type leafref {
+            path "/overlay/local-tunnel-endpoint/ltep-id";
+          }
+        mandatory true;
+        description "Local tunnel endpoint ID associated with this VNI";
+      }
+
+      leaf arp-nd-suppression {
+        when "../../oc-netinst:config/oc-netinst:type != 'arc-oc-ni-types:L2VLAN_AWARE_BUNDLE'" {
+          description
+            "ARP/ND Suppression setting for an L2VLAN network instance";
+        }
+        type boolean;
+        default true;
+        description "Controls ARP and ND Suppression for L2 VNIs with a L3 subinterface";
+      }
+
+      leaf centralized-evpn-routing {
+        when "../../oc-netinst:config/oc-netinst:type != 'arc-oc-ni-types:L2VLAN_AWARE_BUNDLE'" {
+          description
+            "Control centralized EVPN routing when
+             a network instance is a Layer 2 instance";
+        }
+        type boolean;
+        default false;
+        description
+          "Enables centralized EVPN routing with the SVI configured on this L2 VNI";
+      }
+
+      leaf vlan-id {
+        when "../../oc-netinst:config/oc-netinst:type = 'arc-oc-ni-types:L2VLAN_AWARE_BUNDLE'" {
+          description
+            "VLAN ID per VNI for a VLAN-Aware Bundle network instance";
+        }
+        mandatory true;
+        type leafref {
+          path "/oc-vlan:vlans/oc-vlan:vlan/oc-vlan:vlan-id";
+        }
+        description "The VLAN ID associated with this VNI";
+      }
+
+      uses vni-state-group;
+    }
+  }
+
+  grouping vxlan-ni-top {
+
+    description "Network-instance level grouping for EVPN configuration data.";
+
+    leaf local-tunnel-endpoint-id {
+      must "boolean(../../vni)"  {
+          error-message "LTEP is only valid for VXLAN (VNI)";
+        }
+      type leafref {
+          path "/overlay/local-tunnel-endpoint/ltep-id";
+        }
+      description
+        "VXLAN Local tunnel endpoint ID associated with this NI";
+    }
+
+    container static-vxlan {
+
+      leaf-list remote-vteps {
+        type inet:ip-address-no-zone;
+        max-elements 128;
+        description
+          "List of remote VTEP IP addresses for ingress replication of BUM traffic";
+        must "boolean(../../../vni)"  {
+          error-message "static-vxlan configuration is only valid for VXLAN (VNI)";
+        }
+        must "/overlay/static-vxlan = 'true'" {
+          error-message "Global 'overlay static-vxlan' must be true";
+        }
+      }
+    }
+  }
+
+  augment "/oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:config" {
+    when "oc-netinst:type = 'arc-oc-ni-types:L2VLAN_AWARE_BUNDLE'";
+    uses vxlan-ni-top;
+  }
+
+  augment "/oc-netinst:network-instances/oc-netinst:network-instance" {
+    when "oc-netinst:config/oc-netinst:type = 'oc-ni-types:L2VLAN' or " +
+         "oc-netinst:config/oc-netinst:type = 'oc-ni-types:L3VRF' or " +
+         "oc-netinst:config/oc-netinst:type = 'arc-oc-ni-types:L2VLAN_AWARE_BUNDLE'";
+    uses vni-top;
+  }
+}

@@ -1,0 +1,322 @@
+module arcos-qos-random-detect {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/qos/random-detect";
+  prefix arc-qos-red;
+
+  import arcos-qos {
+    prefix arc-qos;
+  }
+
+  import arcos-platform {
+    prefix arc-platform;
+  }
+
+  organization
+    "Arrcus, Inc.";
+  contact
+    "Arrcus, Inc.
+     2077 Gateway Place
+     San Jose, CA 95110
+     Tel: +1 (408) 884-1965
+     E-mail: eng@arrcus.com";
+  description
+    "YANG data-model for Weighted Random Early Detection";
+  revision "2022-03-17" {
+    description
+      "Introduce feature based WRED enable for VDR platform";
+  }
+
+  grouping random-detect-drop-precedence {
+    description
+      "Grouping that defines drop-precedence set and related values";
+
+    leaf-list drop-precedence {
+      type uint8 {
+        range "0..2";
+      }
+
+      description
+        "A list of drop-precedence values";
+    }
+  }
+
+
+  grouping random-detect-threshold {
+    description
+      "Grouping that forms union of required parameters of a threshold";
+
+    leaf value {
+      type uint32;
+      mandatory true;
+      description
+        "Threshold value";
+    }
+
+    leaf unit {
+      type enumeration {
+        enum bytes {
+          description
+            "Unit in bytes";
+        }
+        enum kbytes {
+          description
+            "Unit in kilobytes";
+        }
+        enum mbytes {
+          description
+            "Unit in megabytes";
+        }
+      }
+      default "kbytes";
+      description
+        "Unit of a threshold value";
+    }
+  }
+
+
+  grouping random-detect-entry-parameters {
+    description
+      "Grouping of Weighted Random Early Detect entry specific parameters";
+
+    container min-threshold {
+      description
+        "Container holding minimum threshold parameters";
+
+      uses random-detect-threshold;
+    }
+
+    container max-threshold {
+      description
+        "Container holding maximum threshold parameters";
+
+      uses random-detect-threshold;
+    }
+
+    leaf probability {
+      type uint8 {
+        range 1..100;
+      }
+      mandatory true;
+      description
+        "Probability value that determines drop eligibility";
+    }
+
+    leaf ecn-mark {
+      type boolean;
+      default false;
+      description
+        "ECN marking enabled or disabled";
+    }
+  }
+
+
+  grouping random-detect-entry-default-parameters {
+    description
+      "Grouping of Weighted Random Early Detect default entry";
+
+    container entry-default {
+      description
+        "Container for Weighted Random Early Detect default entry";
+
+      presence "Generic threshold parameters";
+      uses random-detect-entry-parameters;
+    }
+  }
+
+  grouping random-detect-entry-template-top {
+    description
+      "Grouping of a list of entry parameters";
+
+    list entry {
+      key "entry-name";
+      description
+        "An entry specific parameters set";
+
+      leaf entry-name {
+        type string {
+          length "1..79";
+        }
+
+        description
+          "A WRED entry name for which this parameters set";
+      }
+
+      container config {
+        description
+          "Configuration data";
+        uses random-detect-entry-parameters;
+      }
+
+      container state {
+        config false;
+        description
+          "Operational data";
+        uses random-detect-entry-parameters;
+      }
+    }
+  }
+
+
+  grouping random-detect-profile-parameters {
+    description
+      "Grouping of Weighted Random Early Detect profile parameters";
+
+    leaf name {
+      type string {
+        length "1..79";
+      }
+      description
+        "Name of a Weighted Random Early Detect profile";
+    }
+
+    leaf type {
+      type enumeration {
+        enum NONE {
+          description
+            "Type NONE means Weighted Random Detect does not have any sub-classification
+             There is only one threshold parameters set subject to all traffic where
+             enabled as an instance";
+        }
+        enum DROP_PRECEDENCE {
+          description
+            "Weighted Random Detect may have sub-classes, each with set of
+             drop-precedence values and threshold parameters set";
+        }
+      }
+      default "NONE";
+      description
+        "Type of Weighted Random Early Detect entry classification rule";
+    }
+
+    leaf weight {
+      type uint8 {
+        range "1..15";
+      }
+      default 9;
+      description
+        "Weighted Random Early Detect queue weight";
+    }
+  }
+
+
+  grouping random-detect-profile-template-top {
+    description
+      "Grouping for a list of Weighted Random Early Detect profile templates";
+
+    list profile {
+      key name;
+      description
+        "Weighted Random Early Detect profile template";
+
+      leaf name {
+        type leafref {
+          path "../config/name";
+        }
+        description
+          "Weighted Random Early Detect profile template name";
+      }
+
+      container config {
+        description
+          "Configuration parameters of a Weighted Random Early Detect profile template";
+
+        uses random-detect-profile-parameters;
+        uses random-detect-entry-default-parameters;
+      }
+
+      container state {
+        config false;
+        description
+          "Operational state parameters of a Weighted Random Early Detect profile template";
+
+        uses random-detect-profile-parameters;
+        uses random-detect-entry-default-parameters;
+      }
+
+      uses random-detect-entry-template-top {
+        when "config/type != 'NONE'";
+        augment "entry/config" {
+          uses random-detect-drop-precedence {
+            when "../../config/type = 'DROP_PRECEDENCE'";
+          }
+        }
+        augment "entry/state" {
+          uses random-detect-drop-precedence {
+            when "../../config/type = 'DROP_PRECEDENCE'";
+          }
+        }
+      }
+    }
+  }
+
+  grouping random-detect-profile-top {
+    description
+      "Top level grouping for a Weighted Random Early Detect";
+
+    container random-detect {
+      description
+        "Weighted Random Early Detect profile template configuration";
+
+      uses random-detect-profile-template-top;
+    }
+  }
+
+  augment "/arc-qos:qos" {
+    uses random-detect-profile-top {
+      when "(/arc-platform:platform/arc-platform:family = 'arc-platform:BROADCOM_XGS') or "
+        + "(/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_JERICHO2') or "
+        + "(/arc-platform:platform/arc-platform:asic = 'arc-platform:BROADCOM_X2C') or"
+        + "(/arc-platform:platform/arc-platform:deployment-type = 'arc-platform:DISTRIBUTED')";
+    }
+  }
+
+
+  grouping random-detect-entry-state {
+    description
+      "Grouping of a list of drop precedence entry parameters";
+
+    list entry {
+      key "entry-name";
+      description
+        "An entry specific parameters";
+
+      leaf entry-name {
+        type string;
+        description
+          "An entry name for which this parameters set";
+      }
+
+      uses random-detect-entry-parameters;
+    }
+  }
+
+  grouping random-detect-instance-state {
+    description
+      "Grouping for a Weighted Random Early Detect profile instance";
+
+    container state {
+      config false;
+
+      uses random-detect-profile-parameters;
+
+      leaf dropcount {
+        type uint64;
+        description
+          "Dropped/ecn-marked packets by Weighted Random Detect algorithm";
+      }
+
+      uses random-detect-entry-state;
+    }
+  }
+
+  grouping random-detect-instance-top {
+    description
+      "Weighted Random Early Detect instance";
+
+    container random-detect {
+      description
+        "Weighted Random Early Detect instantiation of a profile";
+      uses random-detect-instance-state;
+    }
+  }
+}

@@ -1,0 +1,218 @@
+module arcos-rib-lpm {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/rib/lpm";
+  prefix arc-rib-lpm;
+
+  import openconfig-network-instance {
+    prefix oc-ni;
+  }
+  import openconfig-mpls-types {
+    prefix oc-mplst;
+  }
+  import openconfig-policy-types {
+    prefix oc-pol-types;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import arcos-rib {
+    prefix arc-rib;
+  }
+
+  grouping rib-entry-nexthop-state {
+    description
+      "Parameters relating to a next-hop within the RIB entry";
+
+    leaf next-hop {
+      type union {
+        type inet:ip-address-no-zone;
+        type arc-rib:rib-defined-next-hop;
+      }
+      description
+        "The next-hop that is to be used for the  route
+        - this may be specified as an IP address, an interface
+        or a pre-defined next-hop type - for instance, DROP.";
+    }
+    leaf via {
+      type union {
+        type inet:ip-address-no-zone;
+        type arc-rib:rib-defined-next-hop;
+      }
+      description
+        "The next-hop that is to be used for the  route
+        - this may be specified as an IP address, an interface
+        or a pre-defined next-hop type - for instance, DROP.";
+    }
+
+    leaf recurse {
+      type boolean;
+      default false;
+      description
+        "Determines whether the next-hop should be allowed to
+        be looked up recursively." ;
+    }
+    leaf weight {
+      type uint32;
+      description
+        "The weight of the next-hop. Traffic is balanced according to
+        the ratio described by the relative weights of the next hops
+        that exist for the RIB entry. Note that all next-hops that are
+        specified are assumed to be active next-hops and therefore
+        eligible (and selected) to be installed in the FIB, and hence
+        used for packet forwarding.";
+    }
+
+    leaf-list pushed-mpls-label-stack {
+      type oc-mplst:mpls-label;
+      ordered-by user;
+      description
+        "The MPLS label stack imposed when forwarding packets to the
+        next-hop
+        - the stack is encoded as a leaf list whereby the order of the
+          entries is such that the first entry in the list is the
+          label at the bottom of the stack to be pushed.
+
+        To this end, a packet which is to forwarded to a device using
+        a service label of 42, and a transport label of 8072 will be
+        represented with a label stack list of [42, 8072].
+
+        The MPLS label stack list is ordered by the user, such that no
+        system re-ordering of leaves is permitted by the system.
+
+        A swap operation is reflected by entries in the
+        popped-mpls-label-stack and pushed-mpls-label-stack nodes.";
+
+    }
+    leaf interface {
+      type string;
+    }
+  }
+
+  grouping next-hops {
+    description
+      "Grouping for next hops";
+      list next-hop {
+	  uses rib-entry-nexthop-state;
+      }
+  }
+
+  grouping origin {
+    description
+      "Grouping for route producer";
+      leaf origin-protocol {
+        type identityref {
+          base "oc-pol-types:INSTALL_PROTOCOL_TYPE";
+        }
+        description
+          "The protocol from which the RIB entry was learned.";
+      }
+      leaf metric {
+        type uint32;
+        description
+          "A metric which is utilised to specify the preference of route";
+      }
+
+      leaf pref {
+        type uint32;
+        description
+          "A preference which is utilised to select best owner among multiple
+           producers of the same prefix";
+      }
+      leaf tag {
+        type uint32;
+        description
+          " This can be used by protocols to filter the redistributed route
+            as per the protocol redistribution policy";
+      }
+      leaf local-label {
+        type uint32;
+        description
+          " This is incoming label assigned to this route";
+      }
+      leaf last-updated {
+        type yang:date-and-time;
+        description
+          "Indicates the last time the entry was update.";
+      }
+      uses rib-entry-nexthop-state;
+  }
+  grouping ipv4-entry {
+    description
+      "Grouping for forwarding entries by lookup keys";
+
+      leaf prefix {
+      	type inet:ipv4-prefix;
+	      description
+	        "The IPv4 prefix corresponding to the route";
+      }
+      leaf best-protocol {
+        type identityref {
+          base "oc-pol-types:INSTALL_PROTOCOL_TYPE";
+        }
+        description
+          "The protocol which is best and its paths are used for forwarding.";
+      }
+      uses origin;
+    }
+
+  grouping ipv6-entry {
+    description
+      "Grouping for forwarding entries by lookup keys";
+      leaf prefix {
+      	type inet:ipv6-prefix;
+	      description
+	        "The IPv6 prefix corresponding to the route";
+      }
+      leaf best-protocol {
+        type identityref {
+          base "oc-pol-types:INSTALL_PROTOCOL_TYPE";
+        }
+        description
+          "The protocol which is best and its paths are used for forwarding.";
+      }
+      uses origin;
+  }
+
+  grouping rib-lpm-top {
+    container rib-lpm {
+      description
+        "Perform a Longest Prefix Match lookup in the RIB";
+      action v4-route {
+        description
+          "IPv4 route lookup";
+          input {
+            leaf address {
+            type inet:ipv4-address;
+            mandatory true;
+            description
+            "The IPv4 address to be looked up from RIB";
+          }
+        }
+        output {
+          uses ipv4-entry;
+        }
+      }
+      action v6-route {
+        description
+          "IPv6 route lookup";
+        input {
+          leaf address {
+          type inet:ipv6-address;
+          mandatory true;
+            description
+            "The IPv6 address to be looked ip from RIB";
+          }
+        }
+        output {
+          uses ipv6-entry;
+        }
+      }
+    }
+  }
+  augment "/oc-ni:network-instances/oc-ni:network-instance" {
+    uses rib-lpm-top;
+  }
+}
