@@ -13,7 +13,7 @@
 platform_dir="vendor/arrcus/"
 
 # NOTE: please just have the directories you are checking here
-to_check="arcos/v521"
+to_check="arcos/v821"
 
 debug=0
 
