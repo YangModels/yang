@@ -1,0 +1,435 @@
+module arcos-openconfig-telemetry-augments {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/openconfig/telemetry/augments";
+  prefix arc-oc-telemetry-aug;
+
+  import openconfig-telemetry-types {
+    prefix oc-telemetry-types;
+  }
+
+  import openconfig-telemetry {
+    prefix oc-telemetry;
+  }
+
+  import openconfig-interfaces {
+    prefix oc-if;
+  }
+
+  import openconfig-network-instance {
+    prefix oc-ni;
+  }
+
+  organization
+    "Arrcus, Inc.";
+
+  contact
+    "Arrcus, Inc.
+     2077 Gateway Place
+     Suite 400
+     San Jose, CA 95110
+
+     E-mail: yang-support@arrcus.com";
+
+  description
+    "This module defines ArcOS augments to the
+     OpenConfig telemetry module.
+
+     Copyright (c) 2016-2019 by Arrcus, Inc.
+     All rights reserved.";
+
+  revision 2019-10-27 {
+    description "Initial revision";
+  }
+
+  identity SENSOR_TYPE {
+    description
+      "base type for supported telemetry sensors";
+  }
+
+  identity RIB_ROUTES {
+    base "SENSOR_TYPE";
+    description "Route information published by RIB to Forwarding";
+  }
+
+  identity PLATFORM_STATE {
+    base "SENSOR_TYPE";
+    description "Platform information like CPU usage, peripherals state etc";
+  }
+
+  identity ACL_STATISTICS {
+    base "SENSOR_TYPE";
+    description "ACL statistics";
+  }
+
+  identity INTERFACE_STATISTICS {
+    base "SENSOR_TYPE";
+    description "Interface statistics";
+  }
+
+  identity BGP_STATE {
+    base "SENSOR_TYPE";
+    description "BGP best paths, peering changes";
+  }
+
+  identity ISIS_STATE {
+    base "SENSOR_TYPE";
+    description "ISIS adjacencies and statistics";
+  }
+
+  identity OSPF_STATE {
+    base "SENSOR_TYPE";
+    description "OSPF sessions and statistics";
+  }
+
+  identity OSPF3_STATE {
+    base "SENSOR_TYPE";
+    description "OSPF V3 sessions and statistics";
+  }
+
+  identity LDP_STATE {
+    base "SENSOR_TYPE";
+    description "LDP session, adjacency and label-binding";
+  }
+
+  identity PFCP_STATE {
+    base "SENSOR_TYPE";
+    description "PFCP session";
+  }
+
+  identity L2RIB_STATE {
+    base "SENSOR_TYPE";
+    description "L2RIB state information published by L2RIB";
+  }
+
+  identity EVPN {
+    base "SENSOR_TYPE";
+    description "EVPN related information";
+  }
+
+  identity OS_STATS {
+    base "SENSOR_TYPE";
+    description "Operating System Statistics such as TCP Stats, FD Stats";
+  }
+
+  identity LLDP {
+    base "SENSOR_TYPE";
+    description "LLDP related information";
+  }
+
+  identity LICENSE {
+    base "SENSOR_TYPE";
+    description "License related information";
+  }
+
+  identity SID_STATE {
+    base "SENSOR_TYPE";
+    description "Segment Routing ID related information";
+  }
+
+  grouping sensors-top {
+    description
+      "Top-level grouping for Sensor Tags";
+
+    leaf-list sensors {
+      type identityref {
+        base SENSOR_TYPE;
+      }
+
+      description
+        "List of sensors to be enabled for streaming";
+    }
+  }
+
+  typedef telemetry-state {
+    type enumeration {
+      enum off {
+        description
+          "Disable telemetry";
+      }
+      enum on {
+        description
+          "Enable telemetry";
+      }
+    }
+  }
+
+  grouping global-top {
+    container global {
+      container config {
+        leaf status {
+          type telemetry-state;
+          default off;
+	        description
+	          "Turn telemetry ON or OFF";
+        }
+        must "status != 'on' or "+
+             "(count(/oc-telemetry:telemetry-system/oc-telemetry:destination-groups" +
+                     "/oc-telemetry:destination-group) > 0 " +
+             "and " +
+             "count(/oc-telemetry:telemetry-system/oc-telemetry:subscriptions" +
+                    "/oc-telemetry:persistent-subscriptions" +
+                    "/oc-telemetry:persistent-subscription) > 0)" {
+             error-message "Both destination-groups and persistent-subscriptions " +
+                           "must be configured to turn ON telemetry";
+        }
+        leaf cuid {
+          type string {
+            length "1..31";
+          }
+	  description
+	    "Unique customer ID from ArcOS license";
+        }
+        must "status != 'on' or string-length(cuid) > 0" {
+           error-message "Customer ID is mandatory when enabling telemetry";
+        }
+      }
+
+      container state {
+        config false;
+        leaf status {
+          type telemetry-state;
+        }
+
+        leaf cuid {
+          type string {
+            length "1..31";
+          }
+        }
+
+        leaf device-id {
+          type string {
+            length "1..63";
+          }
+        }
+
+        uses sensor-stats;
+      }
+    }
+  }
+
+  grouping statistics-top {
+    container statistics {
+      config false;
+      description "Destination statistics";
+
+      leaf msgs-created {
+        type uint64;
+        default 0;
+        description "Number of messages created for transmission";
+      }
+
+      leaf msgs-delivered {
+        type uint64;
+        default 0;
+        description "Number of messages delivered successfully";
+      }
+
+      leaf msgs-failed {
+        type uint64;
+        default 0;
+        description "Number of messages failed to be delivered";
+      }
+
+      leaf msgs-dropped {
+        type uint64;
+        default 0;
+        description "Number of messages dropped before transmission";
+      }
+    }
+  }
+
+  grouping sensor-stats {
+    list sensor-statistics {
+      key sensor;
+
+      leaf sensor {
+        type identityref {
+          base SENSOR_TYPE;
+        }
+
+        description "Name of sensor";
+      }
+
+      leaf notifications-generated {
+        type uint64;
+        default 0;
+        description "Number of notifications generated by this sensor";
+      }
+    }
+  }
+
+  grouping ssl {
+    container ssl {
+      presence "Enables SSL";
+      description
+        "Enables SSL (actually TLS) and configure associated settings";
+
+      leaf ca-cert-file {
+        type string {
+          length "1..255";
+        }
+        description
+          "Absolute file path to the corresponding signing Certificate Authority certificate.";
+      }
+
+      container client-authentication {
+        presence "Enables SSL client authentication";
+        description "SSL client (mutual) authentication settings";
+
+        leaf cert-file {
+          mandatory true;
+          type string {
+            length "1..255";
+          }
+          description
+            "Absolute file path to the client certificate.";
+        }
+
+        leaf key-file {
+          mandatory true;
+          type string {
+            length "1..255";
+          }
+          description
+            "Absolute path to the corresponding private key file for the client certificate.";
+        }
+      }
+    }
+  }
+
+  grouping summary {
+    container summary {
+      leaf acl {
+        type boolean;
+        default false;
+        description "enable ACL telemetry";
+      }
+      leaf bgp {
+        type boolean;
+        default false;
+        description "enable BGP telemetry";
+      }
+      leaf dpal {
+        type boolean;
+        default false;
+        description "enable DPAL telemetry";
+      }
+      leaf pfcp-proxy {
+        type boolean;
+        default false;
+        description "enable PFCP-Proxy telemetry";
+      }
+      leaf isis {
+        type boolean;
+        default false;
+        description "enable ISIS telemetry";
+      }
+      leaf ldp {
+        type boolean;
+        default false;
+        description "enable LDP telemetry";
+      }
+      leaf pltfmgr {
+        type boolean;
+        default false;
+        description "enable PLTMGR telemetry";
+      }
+      leaf rib {
+        type boolean;
+        default false;
+        description "enable RIB telemetry";
+      }
+      leaf l2rib {
+        type boolean;
+        default false;
+        description "enable L2RIB telemetry";
+      }
+      leaf evpn {
+        type boolean;
+        default false;
+        description "enable EVPN telemetry";
+      }
+      leaf os-stats {
+        type boolean;
+        default false;
+        description "enable OS-STATS telemetry";
+      }
+      leaf lldp {
+        type boolean;
+        default false;
+        description "enable LLDP telemetry";
+      }
+      leaf sidmgr {
+        type boolean;
+        default false;
+        description "enable SIDMGR telemetry";
+      }
+      leaf license {
+        type boolean;
+        default false;
+        description "enable License telemetry";
+      }
+      leaf ospf {
+        type boolean;
+        default false;
+        description "enable OSPF telemetry";
+      }
+      leaf ospf3 {
+        type boolean;
+        default false;
+        description "enable OSPF V3 telemetry";
+      }
+    }
+  }
+
+  grouping source-top {
+    leaf source-interface {
+      type leafref {
+        path "/oc-if:interfaces/oc-if:interface/oc-if:config/oc-if:name";
+      }
+      description "Source interface to use to connect to destination";
+    }
+
+    leaf network-instance {
+      type oc-ni:network-instance-ref;
+      description
+        "Use this network instance (VRF) to connect to destination.
+         The above 'source-interface', if configured, must belong
+         to this network instance. If no 'source-interface' is configured
+         then the source interface will be chosen automatically from
+         within this network-instance";
+    }
+  }
+
+  augment "/oc-telemetry:telemetry-system/oc-telemetry:subscriptions" +
+          "/oc-telemetry:persistent-subscriptions/oc-telemetry:persistent-subscription" +
+          "/oc-telemetry:config" {
+    uses sensors-top;
+  }
+
+  augment "/oc-telemetry:telemetry-system/oc-telemetry:subscriptions" +
+          "/oc-telemetry:persistent-subscriptions/oc-telemetry:persistent-subscription" +
+          "/oc-telemetry:state" {
+    uses sensors-top;
+  }
+
+  augment "/oc-telemetry:telemetry-system/oc-telemetry:destination-groups" +
+          "/oc-telemetry:destination-group/oc-telemetry:destinations/oc-telemetry:destination" +
+          "/oc-telemetry:config" {
+    uses ssl;
+    uses source-top;
+  }
+
+  augment "/oc-telemetry:telemetry-system/oc-telemetry:destination-groups" +
+          "/oc-telemetry:destination-group/oc-telemetry:destinations/oc-telemetry:destination" +
+          "/oc-telemetry:state" {
+    uses statistics-top;
+    uses ssl;
+    uses source-top;
+  }
+
+  augment "/oc-telemetry:telemetry-system" {
+    uses global-top;
+    uses summary;
+  }
+}
