@@ -1,0 +1,184 @@
+module arcos-copp-service-policy {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/copp/service-policy";
+  prefix arc-copp-svc-pol;
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  import arcos-policy {
+    prefix arc-pol;
+  }
+  import arcos-service-policy {
+    prefix arc-svc-pol;
+  }
+  import arcos-policy-action {
+    prefix arc-pol-actn;
+  }
+  import arcos-platform {
+    prefix arc-platform;
+  }
+
+  organization
+    "Arrcus, Inc.";
+  contact
+    "Arrcus, Inc.
+    2077 Gateway Place
+    Suite 400
+    San Jose, CA 95110
+
+    E-mail: yang-support@arrcus.com";
+  description
+    "YANG data-model for copp specific policy on control plane interface
+    Copyright (c) 2016-2023 by Arrcus, Inc.
+    All rights reserved.";
+
+  revision 2024-03-28 {
+    description
+      "import if-qos-service-policy queue-stats-top and
+       include under copp service policy classifier state.
+       This is needed after arcos-policy refactor removed
+       stats from under policy classifier";
+
+  }
+
+  grouping queue-stats-top {
+    container counters {
+
+      leaf match-packets {
+        type yang:zero-based-counter64;
+        description "Number of packets matched";
+      }
+
+      leaf match-bytes {
+        type yang:zero-based-counter64;
+        description "Number of bytes matched";
+      }
+
+      leaf offered-rate {
+        type uint32;
+        units "bps";
+        description
+          "Total offered rate ; calculated from matched byte counts from the classifier";
+      }
+
+      leaf dropped-rate {
+        type uint32;
+        units "bps";
+        description
+          "Total dropped rate ; calculated from queue-dropcount";
+      }
+
+      leaf queue-txcount {
+        type yang:zero-based-counter64;
+        description
+          "Number of packets successfully transmitted out of a queue";
+      }
+
+      leaf queue-txbytes {
+        type yang:zero-based-counter64;
+        description
+          "Number of bytes successfully transmitted out of a queue";
+      }
+
+      leaf queue-dropcount {
+        type yang:zero-based-counter64;
+        description
+          "Number of packets dropped from a queue.
+          Drops could be as a result of dropping discipline or
+          could be as a result of unavailabilty of buffers";
+      }
+
+      leaf queue-dropbytes {
+        type yang:zero-based-counter64;
+        description
+          "Number of bytes dropped from a queue.
+          Drops could be as a result of dropping discipline or
+          could be as a result of unavailabilty of buffers";
+      }
+
+      leaf queue-sizebytes {
+        type yang:gauge64;
+        description
+          "Number of bytes in the queue.";
+      }
+
+      leaf queue-sizecount {
+        type yang:gauge64;
+        description
+          "Number of packets in the queue.";
+      }
+
+    }
+  }
+
+  grouping control-plane-service-policy-state {
+    container state {
+      config false;
+
+      list service-policy {
+        key "direction";
+        uses arc-svc-pol:service-policy-attributes;
+      }
+    }
+    description
+      "Grouping to define COPP policy instance state";
+  }
+
+  augment "/control-plane/service-policies" {
+    uses control-plane-service-policy-state;
+  }
+
+  augment "/control-plane/service-policies/state/service-policy" {
+    uses arc-pol:policy-classifiers-state-top {
+      refine "classifiers" {
+        config false;
+      }
+    }
+  }
+
+  augment "/control-plane/service-policies/state/service-policy"
+        + "/classifiers/classifier"
+        + "/state" {
+    uses queue-stats-top;
+  }
+
+  augment "/control-plane/service-policies/state/service-policy"
+        + "/classifiers/classifier/actions/action" {
+    uses arc-pol-actn:mark-top;
+  }
+
+  augment "/control-plane/service-policies/state/service-policy"
+        + "/classifiers/classifier/actions/action/mark/state" {
+    uses arc-pol-actn:mark-local-tc-top;
+  }
+
+  augment "/control-plane/service-policies/state/service-policy"
+        + "/classifiers/classifier/actions/action" {
+    uses arc-pol-actn:police-top;
+  }
+
+  augment "/control-plane/service-policies/state/service-policy"
+        + "/classifiers/classifier/actions/action/police/state" {
+    uses arc-pol-actn:police-stats-top;
+  }
+
+  grouping control-plane-top {
+    container control-plane {
+      uses arc-svc-pol:service-policies-top;
+      description
+        "Target to enable COPP policy instance";
+    }
+    description
+      "Grouping to define target for COPP policy instance";
+  }
+
+  uses control-plane-top {
+    refine "control-plane/service-policies/service-policy/direction" {
+      must "current() = 'INGRESS'" {
+        error-message "Egress policies not supported for copp";
+      }
+    }
+  }
+}

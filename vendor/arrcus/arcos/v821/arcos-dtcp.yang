@@ -1,0 +1,730 @@
+module arcos-dtcp {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/dtcp";
+  prefix arc-dtcp;
+
+  import arcos-common-types {
+    prefix arc-common-types;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import arcos-system-types {
+    prefix arc-sys-types;
+  }
+  import openconfig-system {
+    prefix oc-sys;
+  }
+  import openconfig-inet-types {
+    prefix oc-inet;
+  }
+  import openconfig-network-instance {
+    prefix oc-netinst;
+  }
+  import openconfig-network-instance-types {
+    prefix oc-ni-types;
+  }
+  import arcos-openconfig-system-augments {
+    prefix arc-oc-sys-aug;
+  }
+  import openconfig-aaa-types {
+    prefix oc-aaa-types;
+  }
+  import arcos-platform {
+    prefix arc-platform;
+  }
+  import arcos-hardware {
+    prefix arc-hw;
+  }
+  import arcos-hardware-platform-types{
+    prefix arc-hw-platform-types;
+  }
+
+  organization
+    "Arrcus, Inc.";
+
+  contact
+    "Arrcus, Inc.
+     2077 Gateway Place
+     Suite 400
+     San Jose, CA 95110
+
+     E-mail: yang-support@arrcus.com";
+
+  description
+    "This module contains definitions for the Dynamic Tasking Control Protocol
+    (DTCP) feature in ArcOS
+
+     Copyright (c) 2024 by Arrcus, Inc.
+     All rights reserved.";
+  
+  revision "2025-01-21" {
+    description
+      "Fix KBP mode validation on VDR standby nodes";
+  }
+
+  revision "2024-11-04" {
+    description
+      "Update KBP mode validation";
+  }
+  
+  revision "2024-10-21" {
+    description
+      "Add jmirror header state to tunnels";
+  }
+
+  revision "2024-05-10" {
+    description
+      "Add DTCP server SSH transport allowed roles config";
+  }
+
+  revision "2024-03-22" {
+    description
+      "Add DTCP server SSH transport configuration";
+  }
+
+  revision "2024-01-12" {
+    description
+      "Initial version";
+  }
+
+
+  rpc dtcp-clear-global-counters {
+    description
+      "Clear the global DTCP server counters";
+
+    output {
+      uses arc-common-types:generic-rpc-response;
+    }
+  }
+
+  rpc dtcp-clear-client-counters {
+    description
+      "Clear per client DTCP server counters";
+
+    input {
+      leaf client {
+        mandatory true;
+        description
+          "ALL DTCP clients or the name of one client";
+        type union {
+          type enumeration {
+            enum ALL {
+              description
+                "All DTCP clients";
+            }
+          }
+          type leafref {
+            path "/oc-sys:system/arc-dtcp:dtcp-server/arc-dtcp:clients" +
+                 "/arc-dtcp:client/arc-dtcp:id";
+          }
+        }
+      }
+    }
+
+    output {
+      uses arc-common-types:generic-rpc-response;
+    }
+  }
+
+  rpc dtcp-clear-client-sequence-number {
+    description
+      "Reset the next expected sequence number for a DTCP client";
+
+    input {
+      leaf client {
+        mandatory true;
+        description
+          "ALL DTCP clients or the name of one client";
+        type union {
+          type enumeration {
+            enum ALL {
+              description
+                "All DTCP clients";
+            }
+          }
+          type leafref {
+            path "/oc-sys:system/arc-dtcp:dtcp-server/arc-dtcp:clients" +
+                 "/arc-dtcp:client/arc-dtcp:id";
+          }
+        }
+      }
+    }
+
+    output {
+      uses arc-common-types:generic-rpc-response;
+    }
+  }
+
+  grouping dtcp-global-config {
+    description
+      "Global configuration for DTCP feature";
+
+    leaf enable {
+      type boolean;
+      default false;
+      description
+        "Enables the DTCP service";
+    }
+
+    leaf force-jmirror-header {
+      type boolean;
+      default false;
+      description
+        "Should jmirror shim header be added to intercepted packets even if " +
+        "session id and intercept id parameters aren't specified";
+    }
+  }
+
+  grouping dtcp-over-ssh-config {
+    description
+      "Configuration for DTCP over SSH transport";
+    
+    leaf enable {
+      type boolean;
+      default false;
+      description
+        "Enables the SSHD subsystem for DTCP over SSH. The SSHD subsystem is
+         disabled by default.";
+    }
+
+    leaf permit-root-login {
+      type boolean;
+      default false;
+      description
+        "Allow connection to DTCP server over SSH with root user login";
+    }
+
+    leaf timeout {
+      type uint16;
+      units seconds;
+      default 0;
+      description
+        "Sets the idle timeout in seconds on terminal connections
+         to the system for DTCP over SSH.  The default value
+         is 0 which indicates no idle timeout";
+    }
+
+    leaf-list allowed-roles {
+      type union {
+        type identityref {
+          base oc-aaa-types:SYSTEM_DEFINED_ROLES;
+        }
+        type leafref {
+          path "/oc-sys:system/oc-sys:aaa/oc-sys:authentication" +
+               "/arc-oc-sys-aug:roles/arc-oc-sys-aug:role" +
+               "/arc-oc-sys-aug:config/arc-oc-sys-aug:name";
+        }
+      }
+      //default oc-aaa-types:SYSTEM_ROLE_ADMIN;
+      description
+        "The set of roles allowed to authenticate with DTCP server over SSH";
+    }
+  }
+
+  grouping dtcp-transport-top {
+    description
+      "Configuration of transport protocol for DTCP server";
+    
+    container transport {
+      description
+        "Top-level container for DTCP transport protocols";
+      
+      container ssh {
+        description
+          "Configuration of DTCP-over-SSH";
+        
+        container config {
+          description
+            "Configuration for DTCP over SSHv2";
+
+          uses dtcp-over-ssh-config;
+        }
+
+        container state {
+          config false;
+
+          description
+            "Operational state for DTCP over SSHv2";
+          
+          uses dtcp-over-ssh-config;
+        }
+      }
+    }
+  }
+
+  grouping dtcp-common-stats {
+    description
+      "DTCP statistics common between global and per client";
+
+    leaf add-requests-received {
+      type yang:zero-based-counter64;
+      description
+        "The number of Add Request commands received by the DTCP server";
+    }
+
+    leaf delete-requests-received {
+      type yang:zero-based-counter64;
+      description
+        "The number of Delete Request commands received by the DTCP server";
+    }
+
+    leaf list-requests-received {
+      type yang:zero-based-counter64;
+      description
+        "The number of List Request commands received by the DTCP server";
+    }
+
+    leaf noop-requests-received {
+      type yang:zero-based-counter64;
+      description
+        "The number of NoOp Request commands received by the DTCP server";
+    }
+
+    leaf responses-sent {
+      type yang:zero-based-counter64;
+      description
+        "The number of Response messages sent by the DTCP server";
+    }
+
+    leaf authentication-errors {
+      type yang:zero-based-counter64;
+      description
+        "The number of Request messages received that had an authentication failure.";
+    }
+
+    leaf parse-errors {
+      type yang:zero-based-counter64;
+      description
+        "The number of Request messages received that had a parsing failure.";
+    }
+
+    leaf sequence-errors {
+      type yang:zero-based-counter64;
+      description
+        "The number of Request messages received that contained an invalid
+         sequence number.";
+    }
+
+    leaf unsupported-commands {
+      type yang:zero-based-counter64;
+      description
+        "The number of Request messages received that contained a command
+         that is not supported.";
+    }
+
+    leaf unsupported-versions {
+      type yang:zero-based-counter64;
+      description
+        "The number of Request messages received that contained an unsupported
+         version.";
+    }
+
+    leaf unsupported-parameters {
+      type yang:zero-based-counter64;
+      description
+        "The number of Request messages received that contained a parameter
+         that is not supported";
+    }
+
+    leaf mandatory-parameter-missings {
+      type yang:zero-based-counter64;
+      description
+        "The number of Request messages received that were missing a mandatory
+         parameter.";
+    }
+
+    leaf invalid-timeouts {
+      type yang:zero-based-counter64;
+      description
+        "The number of Add Request messages received that contained an invalid
+         timeout setting.";
+    }
+
+    leaf invalid-filters {
+      type yang:zero-based-counter64;
+      description
+        "The number of Add Request messages received that contained an invalid
+         filter specification.";
+    }
+
+    leaf max-criteria-id-rejects {
+      type yang:zero-based-counter64;
+      description
+        "The number of Add Request messages rejected due to the max " +
+        "Criteria-ID limit hit";
+    }
+
+    leaf unknown-criteria-ids {
+      type yang:zero-based-counter64;
+      description
+        "The number of Request messages received that contained a Criteria-ID
+         value that does not exist.";
+    }
+
+    leaf unknown-cdests {
+      type yang:zero-based-counter64;
+      description
+        "The number of Request messages received that a content destination
+         (CDest-ID) parameter that does not exist.";
+    }
+
+    leaf last-clear {
+      type yang:date-and-time;
+      description
+        "Indicates the last time the counters were cleared.";
+    }
+  }
+
+  grouping dtcp-tunnel {
+    description
+      "DTCP tunnel state";
+
+    leaf destination-address {
+      type inet:ip-address;
+      description
+        "The IP address of the tunnel destination";
+    }
+
+    leaf destination-port {
+      type inet:port-number;
+      description
+        "Destination UDP port";
+    }
+
+    leaf source-address {
+      type inet:ip-address;
+      description
+        "The IP address of the tunnel source";
+    }
+
+    leaf source-port {
+      type inet:port-number;
+      description
+        "Source UDP port";
+    }
+
+    leaf intercept-id {
+      type uint32;
+      description
+        "Intercept ID to insert in content delivery header";
+    }
+
+    leaf session-id {
+      type uint32;
+      description
+        "Session ID to insert in content delivery header";
+    }
+
+    leaf jmirror-header {
+      type boolean;
+      description
+        "Is the jmirror header included for this tunnel";
+    }
+
+    leaf reference-count {
+      type yang:gauge32;
+      description
+        "Number of filters using this tunnel";
+    }
+  }
+
+  grouping dtcp-tunnels {
+    description
+      "Grouping for tunnels for delivering copied packets";
+
+    container tunnels {
+      description
+        "Container for content delivery tunnels";
+
+      list tunnel {
+        key "tunnel-id";
+        description
+          "One tunnel tied to one or more filters created by DTCP clients";
+
+        leaf tunnel-id {
+          type uint32;
+          description
+            "ID of the tunnel";
+        }
+
+        uses dtcp-tunnel;
+      }
+    }
+  }
+
+  grouping dtcp-global-top {
+    description
+      "Top-level grouping for DTCP global config/state";
+
+    container config {
+      description
+        "Configuration data for DTCP globally";
+
+      uses dtcp-global-config {
+        refine "enable" {
+          must "(current() = 'true' and ((derived-from-or-self(/arc-hw:hardware/arc-hw:config/arc-hw:platform/" +
+               "arc-hw:config/arc-hw:kbp-mode, 'arc-hw-platform-types:ACL_ONLY')) or " +
+               "(derived-from-or-self(/arc-platform:platform/arc-platform:family, 'arc-platform:VIRTUAL') and " +
+               "derived-from-or-self(/arc-platform:platform/arc-platform:deployment-type, 'arc-platform:STANDALONE')))) " +
+               "or (current() = 'false')" {
+            error-message "HW Platform KBP mode must be configured as ACL_ONLY " +
+                          "for DTCP server to be enabled";
+          }
+        }
+      }
+    }
+
+    container state {
+      config false;
+      description
+        "Operational state for DTCP globally";
+
+      uses dtcp-global-config;
+      uses dtcp-tunnels;
+
+      container counters {
+        description
+          "Global DTCP statistics counters";
+
+        leaf unknown-client-ids {
+          type yang:zero-based-counter64;
+          description
+            "The number of Request messages received that contained a client control
+             source ID that is not configured";
+        }
+        uses dtcp-common-stats;
+      }
+    }
+  }
+
+  grouping dtcp-client-config {
+    description
+      "DTCP Client configuration";
+
+    leaf id {
+      type string {
+        length "1..32";
+      }
+      description
+        "Client source identifier string";
+    }
+
+    leaf secret-key {
+      type arc-sys-types:encrypted-string;
+      mandatory true;
+      description
+        "The shared secret key used in the SHA-1 message authentication hash
+         for DTCP messages";
+    }
+  }
+
+  grouping dtcp-client-state {
+    description
+      "DTCP Client state";
+
+    leaf last_sequence_num {
+      type uint64;
+      description
+        "The last sequence number received from the client";
+    }
+  }
+
+  grouping filter-criteria {
+    description
+      "DTCP filter match criteria";
+
+    leaf source-address {
+      type inet:ip-prefix;
+      description
+        "Source IP address prefix.";
+    }
+
+    leaf source-port {
+      type string;
+      description
+        "Source port or range";
+    }
+
+    leaf destination-address {
+      type inet:ip-prefix;
+      description
+        "Destination IP address prefix.";
+    }
+
+    leaf destination-port {
+      type string;
+      description
+        "Destination port or range";
+    }
+
+    leaf protocol {
+      type string;
+      description
+        "IP Protocol value or range";
+    }
+  }
+
+  grouping filter-stats {
+    description
+      "DTCP filter statistics";
+
+    leaf average-bandwidth {
+      type yang:gauge64;
+      units "bits/second";
+      description
+        "Average bandwidth over last 10 seconds";
+    }
+
+    leaf matching-packets {
+      type yang:zero-based-counter64;
+      description
+        "Number of packets matching this filter";
+    }
+
+    leaf matching-bytes {
+      type yang:zero-based-counter64;
+      description
+        "Number of bytes matching this filter";
+    }
+
+  }
+
+  grouping dtcp-filter {
+    description
+      "DTCP filter state";
+
+    leaf client-addr {
+      type inet:ip-address;
+      description
+        "The IP address of the client that created this filter";
+    }
+
+    leaf created-time {
+      type yang:date-and-time;
+      description
+        "The time that this filter was created";
+    }
+  
+    leaf cdest-id {
+      type string;
+      description
+        "The Content Destination ID";
+    }
+
+    leaf tunnel-id {
+      type uint32;
+      description
+        "ID of the tunnel to use for content delivery";
+    }
+
+    leaf priority {
+      type uint32;
+      description
+        "Priority based on both DTCP Priority parameter and filter criteria";
+    }
+
+    leaf acl-id {
+      type uint32;
+      description
+        "Internal ACL ID of the filter";
+    }
+
+    uses filter-criteria;
+    uses filter-stats;
+  }
+
+  grouping dtcp-filters {
+    description
+      "Grouping for filters created by a DTCP client";
+
+    container filters {
+      description
+        "Container for DTCP client filters";
+
+      list filter {
+        key "criteria-id";
+        description
+          "One filter created by a DTCP client";
+
+        leaf criteria-id {
+          type uint32;
+          description
+            "Filter Criteria-ID";
+        }
+
+        uses dtcp-filter;
+      }
+    }
+  }
+
+  grouping dtcp-client-top {
+    description
+      "Top-level grouping for DTCP clients";
+
+    container clients {
+      description
+        "Enclosing container for list of DTCP Clients";
+
+      list client {
+        key "id";
+        description
+          "List of DTCP Clients";
+
+        leaf id {
+          type leafref {
+            path "../config/id";
+          }
+          description
+            "References the configured DTCP Client ID";
+        }
+
+        container config {
+          description
+            "Configuration data for DTCP Clients";
+
+          uses dtcp-client-config;
+        }
+
+        container state {
+          config false;
+
+          description
+            "Operational state data for DTCP Clients";
+
+          uses dtcp-client-config;
+          uses dtcp-client-state;
+          uses dtcp-filters;
+
+          container counters {
+            description
+              "Per Client DTCP statistics counters";
+    
+            uses dtcp-common-stats;
+          }
+        }
+      }
+    }
+  }
+
+  grouping dtcp-top {
+    description
+      "Top-level grouping for DTCP feature";
+
+    container dtcp-server {
+      description
+        "Top level container for DTCP configuration and operational state";
+
+      uses dtcp-global-top;
+      uses dtcp-client-top;
+      uses dtcp-transport-top;
+    }
+  }
+
+  augment "/oc-sys:system" {
+    uses dtcp-top;
+  }
+}
