@@ -1,0 +1,222 @@
+module arcos-storm-control {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/storm-control";
+  prefix arc-strm-ctl;
+
+  import iana-if-type {
+    prefix ianaift;
+  }
+
+  import openconfig-interfaces {
+    prefix oc-if;
+  }
+
+  import openconfig-yang-types {
+    prefix oc-yang;
+  }
+
+  import openconfig-if-ethernet {
+    prefix oc-eth;
+  }
+
+  import openconfig-if-aggregate {
+    prefix oc-lag;
+  }
+
+  import arcos-platform {
+    prefix arc-platform;
+  }
+
+  import openconfig-system {
+    prefix oc-sys;
+  }
+
+  import arcos-openconfig-system-augments {
+    prefix arc-oc-sys-aug;
+  }
+
+  organization
+    "Arrcus, Inc.";
+
+  contact
+    "Arrcus, Inc.
+     2077 Gateway Place
+     Suite 400
+     San Jose, CA 95110
+
+     E-mail: yang-support@arrcus.com";
+
+  description
+    "This module contains definitions for the storm control feature in ArcOS
+
+     Copyright (c) 2016-2023 by Arrcus, Inc.
+     All rights reserved.";
+
+  revision 2024-10-14 {
+    description "Add support for Storm Control on subinterfaces";
+  }
+
+  revision 2023-09-12 {
+    description "Display storm-control node based on interface name";
+  }
+
+  revision 2023-05-15 {
+    description "Make storm control level and kbps configs mutually exclusive";
+  }
+
+  revision 2023-01-09 {
+    description "Add option to configure rates in kbps";
+  }
+
+  revision 2022-11-02 {
+    description "Update min value configurable for broadcast-level,
+                 multicast-level and unknown-unicast-level";
+  }
+
+  grouping storm-control-top {
+    description
+      "Top-level grouping for layer 2 storm control feature";
+
+    container storm-control {
+      description
+        "Storm control feature for a port";
+
+      choice broadcast-options {
+        leaf broadcast-level {
+          type decimal64 {
+            fraction-digits 2;
+            range "0.01..100";
+          }
+          description "broadcast traffic rate limit as percentage of port speed";
+        }
+        leaf broadcast-kbps {
+          type uint32 {
+            range "1..4294967295";
+          }
+          units "kilobits per second";
+          description "broadcast traffic rate limit in kilobits per second";
+        }
+      }
+      
+      choice multicast-options {
+        leaf multicast-level {
+          type decimal64 {
+            fraction-digits 2;
+            range "0.01..100";
+          }
+          description "multicast traffic rate limit as percentage of port speed";
+        }
+        leaf multicast-kbps {
+          type uint32 {
+            range "1..4294967295";
+          }
+          units "kilobits per second";
+          description "multicast traffic rate limit in kilobits per second";
+        }
+      }
+
+      choice unknown-unicast-options {
+        leaf unknown-unicast-level {
+          type decimal64 {
+            fraction-digits 2;
+            range "0.01..100";
+          }
+          description "unknown-unicast traffic rate limit as percentage of port speed";
+        }
+        leaf unknown-unicast-kbps {
+          type uint32 {
+            range "1..4294967295";
+          }
+          units "kilobits per second";
+          description "unknown-unicast traffic rate limit in kilobits per second";
+        }
+      }
+
+      container state {
+        config false;
+        leaf bcast-Kbps {
+          type uint32;
+          description "broadcast rate limit in Kbps";
+        }
+        leaf mcast-Kbps {
+          type uint32;
+          description "multicast rate limit in Kbps";
+        }
+        leaf uucast-Kbps {
+          type uint32;
+          description "unknown unicast rate limit in Kbps";
+        }
+      }
+    }
+  }
+
+  grouping storm-control-subintf-config {
+    description
+      "Subinterface level storm-control configuration";
+
+    leaf broadcast-kbps {
+      type uint32 {
+        range "1..4294967295";
+      }
+      units "kilobits per second";
+      description "broadcast traffic rate limit in kilobits per second";
+    }
+    leaf multicast-kbps {
+      type uint32 {
+        range "1..4294967295";
+      }
+      units "kilobits per second";
+      description "multicast traffic rate limit in kilobits per second";
+    }
+    leaf unknown-unicast-kbps {
+      type uint32 {
+        range "1..4294967295";
+      }
+      units "kilobits per second";
+      description "unknown-unicast traffic rate limit in kilobits per second";
+    }
+  }
+ 
+  grouping storm-control-subintf-top {
+    description
+      "Top-level grouping for subinterface level storm control feature";
+
+    container storm-control {
+      description
+        "Storm control feature for a subinterface";
+
+      container config {
+        description
+          "configuration data";
+        uses storm-control-subintf-config;
+      }
+
+      container state {
+        config false;
+        description
+          "state data";
+        uses storm-control-subintf-config;
+      }
+    }
+  }
+
+  augment "/oc-if:interfaces/oc-if:interface" {
+    uses storm-control-top {
+      when "(current()/oc-if:name != 'ma1' and " +
+           "(((starts-with(current()/oc-if:name, 'swp')) or " +
+           "(starts-with(current()/oc-if:name, 'bond'))) and " +
+           "(boolean(current()/oc-eth:ethernet/oc-eth:config/oc-lag:aggregate-id) != 'true')))";
+    }
+  }
+
+  augment "/oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface" {
+    uses storm-control-subintf-top {
+      when "(starts-with(current()/../../oc-if:name, 'swp') or " +
+           " starts-with(current()/../../oc-if:name, 'bond')) and " +
+           "current()/oc-if:index > 0 and " +
+           "((/arc-platform:platform/arc-platform:family = 'arc-platform:BROADCOM_DNX') or " +
+           " (/arc-platform:platform/arc-platform:deployment-type = 'arc-platform:DISTRIBUTED')) or " +
+           "(/oc-sys:system/arc-oc-sys-aug:cli/arc-oc-sys-aug:config/arc-oc-sys-aug:unhide-unsupported-cli = 'true')";
+    }
+  }
+}

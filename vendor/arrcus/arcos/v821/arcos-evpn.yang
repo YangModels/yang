@@ -1,0 +1,767 @@
+module arcos-evpn {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/evpn";
+  prefix arc-evpn;
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import openconfig-interfaces {
+    prefix oc-if;
+  }
+  import openconfig-network-instance {
+    prefix oc-netinst;
+  }
+  import openconfig-network-instance-types {
+    prefix oc-ni-types;
+  }
+  import arcos-openconfig-network-instance-types {
+    prefix arc-oc-ni-types;
+  }
+  import openconfig-yang-types {
+    prefix oc-yang;
+  }
+  import iana-if-type {
+    prefix ianaift;
+  }
+  import openconfig-if-ip {
+    prefix oc-ip;
+  }
+  import arcos-vxlan {
+    prefix arc-overlay;
+  }
+  import openconfig-vlan-types {
+    prefix oc-vlan-types;
+  }
+  import openconfig-vlan {
+    prefix oc-vlan;
+  }
+
+  organization
+    "Arrcus, Inc.";
+
+  contact
+    "Arrcus, Inc.
+     2077 Gateway Place
+     Suite 400
+     San Jose, CA 95110
+     Tel: +1 (408) 884-1965
+     E-mail: yang-support@arrcus.com";
+
+  description
+    "This module contains definitions for the
+     native ArcOS EVPN domain.
+
+     Copyright (c) 2016-2024 by Arrcus, Inc.
+     All rights reserved.";
+
+  revision 2024-12-03 {
+    description "Add router-ip-selected state";
+  }
+
+  revision 2024-03-19 {
+    description "Add EVPN domain support";
+  }
+
+  revision 2024-02-10 {
+    description "Add EVPN flow-label";
+  }
+
+  revision 2024-02-09 {
+    description "Remove when statement for control-word";
+  }
+
+  revision 2024-02-02 {
+    description "Add VPWS linkloss-signalling";
+  }
+
+  revision 2023-09-12 {
+    description "Display evpn config only for bond interfaces";
+  }
+
+  revision 2022-05-17 {
+    description "Add VPWS control-word";
+  }
+
+  revision 2022-03-18 {
+    description "Updated to support MPLS";
+  }
+
+  revision 2019-10-31 {
+    description "Initial version";
+  }
+
+  grouping evpn-global-config {
+    description
+      "EVPN related global configuration parameters";
+
+    leaf anycast-gateway-mac {
+      type yang:mac-address;
+      description
+        "MAC address to use for EVPN anycast L3 gateway interfaces";
+    }
+    leaf df-election-time {
+      type uint32 {
+        range "1 .. 3600";
+        }
+      units seconds;
+      description
+        "How long (in seconds) before performing Designated Forwarder election";
+    }
+  }
+
+  grouping evpn-global-state {
+    description
+      "EVPN related global state parameters";
+
+    leaf router-ip-selected {
+      type inet:ip-address-no-zone;
+      description
+        "The selected EVPN router IP value";
+    }
+  }
+
+  grouping duplicate-mac-config {
+    description
+      "Configuration data for duplicate MAC detection";
+
+    leaf window {
+      type uint32 {
+        range "5 .. 600";
+        }
+      units seconds;
+      description
+        "Time window (in seconds) for detecting duplicate MACs";
+    }
+    leaf threshold {
+      type uint32 {
+        range "2 .. 100";
+        }
+      description
+        "Number of moves within the detection window time to be considered a duplicate";
+    }
+    leaf auto-recovery-time {
+      type uint32 {
+        range "0 .. 360";
+        }
+        units minutes;
+      description
+        "How long (in minutes) before the duplicate MAC state for an
+         address is cleared. Setting to zero disables auto-recovery";
+    }
+  }
+
+  grouping duplicate-mac-global-top {
+    description
+      "Top-level grouping for duplicate MAC detection data at global level";
+
+    container duplicate-mac-detection {
+      description
+        "Parameters related to detecting duplicate MAC addresses";
+
+      container config {
+        description
+          "Configuration data for the duplicate MAC detection";
+
+        uses duplicate-mac-config;
+      }
+
+      container state {
+        config false;
+        description
+          "Operational state data for duplicate MAC detection";
+
+        uses duplicate-mac-config;
+      }
+    }
+  }
+
+  grouping esi-pruned-counters {
+    description
+      "Split horizon group filtered ESI pruned stats";
+
+    leaf esi-pruned-pkts {
+      type oc-yang:counter64;
+      description
+        "Number of Split horizon group filtered ESI pruned packets";
+    }
+
+    leaf esi-pruned-octets {
+      type oc-yang:counter64;
+      description
+        "Number of Split horizon group filtered ESI pruned bytes";
+    }
+  }
+
+  grouping esi-info {
+    description
+      "Grouping for EVPN ESI Information";
+
+    container esi-info {
+      description
+        "EVPN ESI information";
+      config false;
+
+      container counters {
+        description
+          "Split horizon group filtered ESI pruned stats";
+        config false;
+
+        uses esi-pruned-counters;
+      }
+
+      list esi {
+        key "entry-esi";
+	      description
+	        "ESI used for lookup";
+
+        leaf entry-esi {
+          type yang:hex-string;
+          description
+            "Ethernet Segment Identifier";
+        }
+	      leaf local-interface {
+          type oc-if:interface-id;
+          description
+            "Local Interface for this ESI";
+        }
+        leaf oper-status {
+          type enumeration {
+            enum UP {
+              value 1;
+              description
+                "Operationally Up";
+            }
+            enum DOWN {
+              value 2;
+              description
+                "Operationally Down";
+            }
+          }
+        }
+        leaf lacp-status {
+          type enumeration {
+            enum ACTIVE {
+              value 1;
+              description
+                "LACP PDUs are being actively received";
+            }
+            enum INACTIVE {
+              value 2;
+              description
+                "LACP PDUs are not being received";
+            }
+          }
+        }
+        leaf-list ordered-pe-list {
+          type inet:ip-address-no-zone;
+          description "Ordered list of PEs participating in DF election, including ourselves";
+	    }
+        leaf our-ordinal {
+          type uint32;
+          description "Our ordinal value in the ordered list of PEs";
+        }
+        list network-instance {
+          key "entry-network-instance";
+          description
+            "Layer 2 Network Instance for lookup";
+
+          leaf entry-network-instance {
+            type oc-netinst:network-instance-ref;
+            description "Layer 2 Network Instance";
+          }
+          leaf designated-forwarder {
+            type inet:ip-address-no-zone;
+            description
+              "IP Address of Designated Fowarder for this network instance";
+          }
+        }
+      }
+    }
+  }
+
+  grouping arp-nd-supression-counters {
+    container arp-nd-supression-counters {
+
+      description
+        "Number of ARP/ND packets supressed";
+      config false;
+
+      leaf arp-supression-counters {
+        type uint64;
+        description
+          "Number of ARP broadcast packets supressed";
+      }
+
+      leaf nd-supression-counters {
+        type uint64;
+        description
+          "Number of Neighbor solicitation packets supressed";
+      }
+    }
+  }
+
+  grouping evpn-domain-config {
+    description
+      "EVPN domain configuration";
+
+    leaf name {
+      type string {
+        length "1..32";
+      }
+      description
+        "Domain identifier string";
+      must "current() != 'default'" {
+        error-message "domain name 'default' is reserved";
+      }
+    }
+  }
+
+  grouping evpn-domain-state {
+    description
+      "EVPN domain state";
+
+    leaf id {
+      type uint32;
+      description
+        "Domain internal ID";
+    }
+  }
+
+  grouping evpn-domain-top {
+    description
+      "Top-level grouping for EVPN domain definition ";
+
+    container domains {
+      description
+        "Enclosing container for list of domains";
+
+      list domain {
+        key "name";
+        description
+          "List of domains";
+
+        leaf name {
+          type leafref {
+            path "../config/name";
+          }
+          description
+            "References the configured domain name";
+        }
+
+        container config {
+          description
+            "Configuration data for EVPN domains";
+
+          uses evpn-domain-config;
+        }
+
+        container state {
+          config false;
+
+          description
+            "Operational state data for EVPN domains";
+
+          uses evpn-domain-config;
+          uses evpn-domain-state;
+        }
+      }
+    }
+  }
+
+  grouping evpn-global-top {
+    description
+      "Top-level grouping for global EVPN data";
+
+    container config {
+      description
+        "Global Configuration data for EVPN";
+      uses evpn-global-config;
+    }
+    container state {
+      config false;
+      description
+        "Global Operational state data for EVPN";
+      uses evpn-global-config;
+      uses evpn-global-state;
+    }
+
+    uses esi-info;
+    uses duplicate-mac-global-top;
+    uses arp-nd-supression-counters;
+    uses evpn-domain-top;
+  }
+
+  grouping evpn-top {
+    description
+      "Top-level grouping for EVPN configuration and opstate data.";
+
+    container evpn {
+      description
+        "EVPN related parameters";
+
+      uses evpn-global-top;
+    }
+  }
+
+  uses evpn-top;
+
+  grouping vpws-service-id-config {
+    description
+      "Configuration data for EVPN VPWS Service IDs";
+
+    leaf local {
+      type uint32 {
+        range "1 .. 16777214";
+      }
+      mandatory true;
+      description
+        "Unique local VPWS service instance identifier";
+    }
+    leaf remote {
+      type uint32 {
+        range "1 .. 16777214";
+      }
+      mandatory true;
+      description
+        "Unique remote VPWS service instance identifier";
+    }
+  }
+
+  grouping vpws-interface-top {
+    description
+      "Interface grouping for EVPN VPWS configuration and opstate data.";
+
+    container vpws-service-id {
+      description
+        "EVPN VPWS interface related parameters";
+
+      container config {
+        description
+          "VPWS Interface configuration";
+        uses vpws-service-id-config;
+      }
+      container state {
+        config false;
+        description
+          "VPWS Interface state";
+        uses vpws-service-id-config;
+      }
+    }
+  }
+
+  grouping evi-ni-top {
+
+    description
+      "Network-instance level grouping for EVPN EVI configuration and
+       opstate data.";
+
+    list evi {
+      key "evi-id";
+      max-elements 1;
+      description "EVPN Instance ID";
+      must "(boolean(current()/../../arc-overlay:vni) != 'true')" {
+        error-message "An EVPN network-instance can only be either VXLAN or MPLS";
+      }
+
+      leaf evi-id {
+        type uint32 {
+          range "1 .. 65534";
+        }
+        description "EVPN Instance ID";
+      }
+
+      leaf arp-nd-suppression {
+        when "../../oc-netinst:type != 'arc-oc-ni-types:L2P2P_EVPN' and "
+           + "../../oc-netinst:type != 'arc-oc-ni-types:L2VLAN_AWARE_BUNDLE'" {
+          description
+            "ARP/ND Suppression setting for an L2VLAN network instance";
+        }
+        type boolean;
+        default true;
+        description "Controls ARP and ND Suppression";
+      }
+
+      leaf centralized-evpn-routing {
+        when "../../oc-netinst:type != 'arc-oc-ni-types:L2P2P_EVPN' and "
+           + "../../oc-netinst:type != 'arc-oc-ni-types:L2VLAN_AWARE_BUNDLE'" {
+          description
+            "Control centralized EVPN routing when
+             a network instance is a Layer 2 instance";
+        }
+        type boolean;
+        default false;
+        description
+          "Enables centralized EVPN routing with the SVI configured on this L2 VNI";
+      }
+      leaf advertise-irb-mac-ip {
+        type boolean;
+        default false;
+        description
+          " Enable using IRB IP and system MAC to mac-ip route publish.";
+      }
+
+      container vlan-ids {
+        when "../../../oc-netinst:config/"
+           + "oc-netinst:type = 'arc-oc-ni-types:L2VLAN_AWARE_BUNDLE'" {
+          description
+            "VLAN IDs for a VLAN-Aware Bundle network instance";
+        }
+        list vlan-id {
+          key "vlan-id";
+          description "VLANs associated with EVI under VLAN Aware Bundle";
+          leaf vlan-id {
+            type leafref {
+              path "/oc-vlan:vlans/oc-vlan:vlan/oc-vlan:vlan-id";
+            }
+          }
+        }
+      }
+
+      leaf control-word {
+        type boolean;
+        default false;
+        description
+          "Controls whether this router requests that other routers insert a
+           control word between the label stack and the MPLS payload.";
+      }
+
+      leaf link-loss-forwarding {
+        when "derived-from-or-self(../../../oc-netinst:config/oc-netinst:type, 'arc-oc-ni-types:L2P2P_EVPN')";
+        type boolean;
+        default false;
+        description
+          "Controls Link Loss Forwarding by propagating a detected link loss
+           from one end of port based VPWS circuits to the link on the other
+           end";
+      }
+
+      leaf flow-label {
+        type boolean;
+        default false;
+        description
+          "Controls whether this router is capable of
+           sending and receiving flow label";
+      }
+
+      leaf e-tree {
+        type boolean;
+        when "../../oc-netinst:type != 'arc-oc-ni-types:L2P2P_EVPN' and "
+           + "../../oc-netinst:type != 'arc-oc-ni-types:L2VLAN_AWARE_BUNDLE'";
+        must "(current() = 'true' and ../arp-nd-suppression = 'false') or " +
+          "current() = 'false'" {
+          error-message "arp-nd-suppression must be false for e-tree to be true";
+        }
+        default false;
+        description
+          "Sets E-Tree functionality for the EVI";
+      }
+    }
+  }
+
+  grouping evpn-ni-top {
+
+    description "Network-instance level grouping for EVPN configuration data.";
+
+    leaf arp-nd-suppression {
+      type boolean;
+      default true;
+      description
+        "Controls ARP and ND Suppression for L2 VNIs with a L3 subinterface";
+    }
+
+    leaf centralized-evpn-routing {
+      type boolean;
+      default false;
+      description
+        "Enables centralized EVPN routing with the SVI configured on this NI";
+    }
+  }
+
+  grouping evpn-interface-config {
+    description
+      "EVPN configuration for interface";
+
+    leaf esi {
+      type string {
+        pattern "00(:[0-9a-fA-F]{2}){9}";
+      }
+      must "starts-with(current(), '00')" {
+        error-message "Invalid entry: ESI type must be 0";
+      }
+      must "current() != '00:00:00:00:00:00:00:00:00:00'" {
+        error-message "Invalid entry: ESI 0 is reserved";
+      }
+
+      description
+        "Ethernet Segment Identifier";
+    }
+  }
+
+  grouping evpn-interface-top {
+    description
+      "Top-level grouping for configuration of interface EVPN parameters";
+
+    container evpn {
+      description
+        "Container for EVPN interface configuration on interfaces";
+
+      container config {
+        description
+          "EVPN Configuration parameters";
+        uses evpn-interface-config;
+      }
+
+      container state {
+        config false;
+        description
+          "EVPN state information";
+        uses evpn-interface-config;
+      }
+    }
+  }
+
+  grouping evpn-ni-domain-evi {
+    description
+      "Grouping for evi configuration within network-instance domains";
+
+    list evi {
+      key "evi-id";
+      max-elements 1;
+      description "EVPN Instance ID";
+      must "(boolean(current()/../arc-evpn:vni) != 'true')" {
+        error-message "An EVPN domain can can only be either VXLAN or MPLS";
+      }
+  
+      must "boolean(current()/../../../arc-overlay:vni) or " +
+           "boolean(current()/../../arc-evpn:evi) " {
+        error-message "A default VNI or EVI must exist under the network-instance " +
+                      "when a domain EVI is configured.";
+      }
+
+      leaf evi-id {
+        type uint32 {
+          range "1 .. 65534";
+        }
+        description "EVPN Instance ID";
+      }
+
+      leaf control-word {
+        type boolean;
+        default false;
+        description
+          "Controls whether this router requests that other routers insert a
+           control word between the label stack and the MPLS payload.";
+      }
+
+      leaf flow-label {
+        type boolean;
+        default false;
+        description
+          "Controls whether this router is capable of
+           sending and receiving flow label";
+      }
+    }
+  }
+
+  grouping evpn-ni-domain-vni {
+    list vni {
+      key "vni-id";
+      max-elements 1;
+      description "EVPN Virtual Network Instance";
+
+      leaf vni-id {
+        type uint32 {
+          range "1 .. 16777215";
+        }
+        description "Virtual Network Instance ID";
+      }
+
+      leaf local-tunnel-endpoint-id {
+        type leafref {
+          path "/arc-overlay:overlay/arc-overlay:local-tunnel-endpoint/arc-overlay:ltep-id";
+        }
+        mandatory true;
+        description "Local tunnel endpoint ID associated with this VNI";
+      }
+      must "boolean(current()/../../../arc-overlay:vni)" {
+        error-message "VXLAN EVPN Domains cannot be configured without a default " +
+                      "domain vni directly under the network-instance";
+      }
+    }
+  }
+
+  grouping evpn-ni-domain-top {
+    description
+      "Top-level grouping for configuration of network-instance domains";
+
+    list domain {
+      key "name";
+      description "EVPN network-instance domain configuration";
+
+      leaf name {
+        type leafref {
+          path "/arc-evpn:evpn/arc-evpn:domains/arc-evpn:domain/arc-evpn:name";
+        }
+        description "EVPN Domain Name";
+      }
+
+      uses evpn-ni-domain-evi {
+        when "derived-from-or-self(../oc-netinst:type, 'oc-ni-types:L2VLAN')";
+      }
+
+      uses evpn-ni-domain-vni;
+
+      must "((boolean(arc-evpn:vni) or boolean(arc-evpn:evi)) and " +
+           " derived-from-or-self(../oc-netinst:type, 'oc-ni-types:L2VLAN')) or " +
+           "(boolean(arc-evpn:vni) and " +
+           " derived-from-or-self(../oc-netinst:type, 'oc-ni-types:L3VRF'))" {
+        error-message "Domain must contain either a vni or evi";
+      }
+      must "((boolean(current()/../../arc-overlay:vni) or " +
+           " boolean(current()/../arc-evpn:evi)) and " +
+           " derived-from-or-self(../oc-netinst:type, 'oc-ni-types:L2VLAN')) or " +
+           "derived-from-or-self(../oc-netinst:type, 'oc-ni-types:L3VRF')" {
+        error-message "EVPN Domains cannot be configured without a default " +
+                      "vni or evi under the network-instance";
+      }
+    }
+  }
+
+  augment "/oc-if:interfaces/oc-if:interface" {
+    when "starts-with(current()/oc-if:name, 'bond')" {
+      description "Active when the interface is set to type LAG";
+    }
+    uses evpn-interface-top;
+  }
+
+  augment "/oc-netinst:network-instances/oc-netinst:network-instance" +
+          "/oc-netinst:interfaces/oc-netinst:interface" {
+    when "../../oc-netinst:config/oc-netinst:type = 'arc-oc-ni-types:L2P2P_EVPN'";
+    uses vpws-interface-top;
+  }
+
+  augment "/oc-netinst:network-instances/oc-netinst:network-instance" +
+          "/oc-netinst:config" {
+    when "(oc-netinst:type = 'arc-oc-ni-types:L2P2P_EVPN') or " +
+         "(oc-netinst:type = 'oc-ni-types:L2VLAN') or " +
+         "(oc-netinst:type = 'arc-oc-ni-types:L2VLAN_AWARE_BUNDLE')";
+    uses evi-ni-top;
+  }
+
+  augment "/oc-netinst:network-instances/oc-netinst:network-instance" +
+          "/oc-netinst:config" {
+    when "oc-netinst:type = 'arc-oc-ni-types:L2VLAN_AWARE_BUNDLE'";
+    uses evpn-ni-top;
+  }
+
+  augment "/oc-netinst:network-instances/oc-netinst:network-instance" +
+          "/oc-netinst:config" {
+    when "(oc-netinst:type = 'oc-ni-types:L2VLAN') or " +
+         "(oc-netinst:type = 'oc-ni-types:L3VRF')";
+    uses evpn-ni-domain-top;
+  }
+}

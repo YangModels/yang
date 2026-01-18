@@ -1,0 +1,421 @@
+module arcos-mpls-te {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/arcos-mpls-te";
+  prefix "arc-mpls-te";
+
+  import openconfig-yang-types {
+    prefix yang;
+  }
+  import ietf-yang-types {
+    prefix ietf-yang;
+  }
+  import openconfig-inet-types {
+    prefix oc-inet;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import openconfig-network-instance {
+    prefix oc-netinst;
+  }
+  import openconfig-interfaces {
+    prefix oc-if;
+  }
+  import arcos-te {
+    prefix arc-te;
+  }
+  import arcos-te-types {
+    prefix arc-te-types;
+  }
+  
+  organization
+    "Arrcus, Inc.";
+
+  contact
+    "Arrcus, Inc.
+     2077 Gateway Place
+     Suite 400
+     San Jose, CA 95110
+
+     E-mail: yang-support@arrcus.com";
+
+  description
+    "This module defines configuration and state information
+     for MPLS-TE.
+
+     Copyright (c) 2022 by Arrcus, Inc.
+     All rights reserved.";
+
+  revision "2022-02-24" {
+    description
+      "Initial version.";
+  }
+
+  /*
+   * IGP Shortcuts
+   */
+  grouping igp-shortcut-config {
+    description
+      "TE tunnel IGP shortcut configs";
+
+    leaf shortcut-eligible {
+      type boolean;
+      default "true";
+      description
+        "Whether this LSP is considered to be eligible for us as a
+         shortcut in the IGP. In the case that this leaf is set to
+         true, the IGP SPF calculation uses the metric specified to
+         determine whether traffic should be carried over this LSP";
+    }
+
+    leaf metric-type {
+      type identityref {
+        base arc-te-types:lsp-metric-type;
+      }
+      default arc-te-types:lsp-metric-inherited;
+      description
+        "The type of metric specification that should be used to set
+         the LSP(s) metric";
+    }
+
+    leaf metric {
+      type int32;
+      description
+        "The value of the metric that should be specified. The value
+         supplied in this leaf is used in conjunction with the metric
+         type to determine the value of the metric used by the system.
+         Where the metric-type is set to lsp-metric-absolute - the
+         value of this leaf is used directly; where it is set to
+         lsp-metric-relative, the relevant (positive or negative)
+         offset is used to formulate the metric; where metric-type
+         is lsp-metric-inherited, the value of this leaf is not
+         utilized";
+    }
+
+    leaf-list routing-afs {
+      type oc-inet:ip-version;
+      description
+        "Address families";
+    }
+  }
+
+  grouping mpls-te-igp-shortcut-structure {
+    description
+      "This grouping defines MPLS-TE IGP shortcuts.";
+
+    container igp-shortcut {
+      description
+        "Tunnel IGP shortcut properties";
+
+      container config {
+        description
+          "Container for configuration portion of tunnel IGP
+           shortcut.";
+        uses igp-shortcut-config;
+      }
+
+      container state {
+        config false;
+        description
+          "Container for operational state of tunnel IGP
+           shortcut.";
+        uses igp-shortcut-config;
+      }
+    }
+  }
+
+
+  /*
+   * MPLS-TE Interfaces
+   */
+  grouping mpls-te-interface-config {
+    description
+      "MPLS-TE interface config.";
+
+    leaf interface-name {
+      type oc-if:interface-id;
+      description
+        "Name of the interface.";
+    }
+
+    leaf enable {
+      type boolean;
+      description
+        "Enable MPLS-TE on this interface.";
+    }
+
+    leaf metric {
+      type uint32 {
+        range "0..4261412864";
+      }
+      description
+        "MPLS-TE specific metric for the link";
+    }
+
+    leaf-list admin-groups {
+      type leafref {
+          path "/oc-netinst:network-instances" +
+               "/oc-netinst:network-instance/arc-te:te" +
+               "/arc-te:admin-groups" +
+               "/arc-te:admin-group/arc-te:config/arc-te:name";
+      }
+      description
+        "List of admin groups (by name) on the interface";
+    }
+  }
+
+  grouping mpls-te-interface-state {
+    description
+      "MPLS-TE interface state.";
+
+    leaf is-active {
+      type boolean;
+      description
+        "Indicates if the interface is active or inactive";
+    }
+  }
+
+  grouping mpls-te-interface-structure {
+    description
+      "This grouping defines MPLS-TE interfaces.";
+
+    container interfaces {
+      description
+        "MPLS-TE interfaces grouping.";
+
+      list interface {
+        key "interface-name";
+        description
+          "List of MPLS-TE enabled interfaces.";
+
+        leaf interface-name {
+          type leafref {
+            path "../config/interface-name";
+          }
+          description
+            "Reference to the interface name.";
+        }
+
+        container config {
+          description
+            "Container for MPLS-TE interface configuration.";
+          uses mpls-te-interface-config;
+        }
+
+        container state {
+          config false;
+          description
+            "Container for MPLS-TE interface state.";
+          uses mpls-te-interface-config;
+          uses mpls-te-interface-state;
+        }
+
+        uses oc-if:interface-ref;
+      }
+    }
+  }
+
+
+  /*
+   * MPLS-TE Tunnels
+   */
+  grouping mpls-te-tunnel-config {
+    description
+      "MPLS-TE tunnel config.";
+
+    leaf source-ip {
+      type ietf-yang:dotted-quad;
+
+      description
+        "Source IP address of the tunnel";
+    }
+
+    leaf destination-ip {
+      type ietf-yang:dotted-quad;
+
+      description
+        "Destination IP address of the tunnel";
+    }
+
+    leaf tunnel-id {
+      type uint16;
+
+      description
+        "Tunnel ID of the tunnel";
+    }
+  }
+
+  grouping mpls-te-tunnel-structure {
+    description
+      "This grouping defines MPLS-TE tunnels.";
+
+    container tunnels {
+      description
+        "MPLS-TE tunnels grouping.";
+
+      list tunnel {
+        key "source-ip destination-ip tunnel-id";
+
+        description
+          "List of MPLS-TE tunnels.";
+
+        leaf source-ip {
+          type leafref {
+            path "../config/source-ip";
+          }
+
+          description
+            "Source IP address";
+        }
+
+        leaf destination-ip {
+          type leafref {
+            path "../config/destination-ip";
+          }
+
+          description
+            "Destination IP address";
+        }
+
+        leaf tunnel-id {
+          type leafref {
+            path "../config/tunnel-id";
+          }
+
+          description
+            "Tunnel ID";
+        }
+
+        container config {
+          description
+            "Container for MPLS-TE tunnel configuration.";
+          uses mpls-te-tunnel-config;
+        }
+      }
+    }
+  }
+
+
+  /*
+   * Statistics
+   */
+  grouping mpls-te-global-statistics {
+    description
+      "This grouping defines MPLS-TE global statistics.";
+
+    leaf active-rsvp-te-tunnels {
+      type yang:counter64;
+      description
+        "This variable provides the number of active LSPs at
+         the node created using the RSVP-TE Signaling
+         protocol. The detailed info of the LSPs will be
+         displayed at the user terminal of the node.";
+    }
+
+    leaf active-lsps {
+      type yang:counter64;
+      description
+        "This variable provides the number of active LSPs at
+         the node created using the LSP Signaling protocol.
+         The detailed info of the LSPs will be displayed at
+         the user terminal of the node.";
+    }
+  }
+
+
+  /*
+   * MPLS-TE Global
+   */
+  grouping mpls-te-global-config {
+    description
+      "Grouping for all global configuration.";
+
+    leaf tie-breaking {
+      type identityref {
+        base "arc-te-types:TE-BANDWIDTH-FILL-OPTION";
+      }
+
+      description
+        "Bandwidth fill option when selecting among multiple paths.";
+    }
+  }
+
+  grouping mpls-te-global-state {
+    description
+      "Grouping for all global information.";
+
+  }
+
+  grouping mpls-te-global-structure {
+    description
+      "This grouping defines MPLS-TE global config and state.";
+
+    container global {
+      description
+        "MPLS-TE global configuration and state.";
+
+      container config {
+        description
+          "Global configuration.";
+
+        uses mpls-te-global-config;
+      }
+
+      container state {
+        config false;
+        description
+          "Global state.";
+
+        uses mpls-te-global-config;
+        uses mpls-te-global-state;
+      }
+
+      container statistics {
+        config false;
+        description
+          "Global MPLS-TE Statistics.";
+
+        uses mpls-te-global-statistics;
+      }
+    }
+  }
+
+
+  /*
+   * MPLS-TE top level structure
+   */
+  grouping mpls-te-top {
+    description
+      "This grouping defines top level structure of MPLS-TE.";
+
+    container mpls-te {
+      description
+        "Top level container for MPLS-TE configuration and state.";
+      presence "mpls-te configured";
+
+      leaf enable {
+        type boolean;
+        description
+          "Enable MPLS-TE. Internal node used only by l3fm set-hook.";
+      }
+
+      uses mpls-te-global-structure;
+      uses arc-te:te-admin-group-oper-structure;
+      uses mpls-te-tunnel-structure;
+      uses mpls-te-interface-structure;
+      uses mpls-te-igp-shortcut-structure;
+    }
+  }
+
+
+  /*
+   * Define mpls-te under mpls
+   */
+  augment "/oc-netinst:network-instances/oc-netinst:network-instance" +
+          "/oc-netinst:mpls" {
+    description
+      "MPLS TE augmentations";
+
+    uses mpls-te-top;
+  }
+}
