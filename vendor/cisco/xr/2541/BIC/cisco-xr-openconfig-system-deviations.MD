@@ -20,9 +20,7 @@ N/A
 
 ## XPaths Removed
 
-- (L102)	cisco-xr-openconfig-system-deviations:/
-- (L110)	cisco-xr-openconfig-system-deviations:/
-- (L294)	cisco-xr-openconfig-system-deviations:/
+- (L90)	cisco-xr-openconfig-system-deviations:/
 
 ## XPaths Modified
 

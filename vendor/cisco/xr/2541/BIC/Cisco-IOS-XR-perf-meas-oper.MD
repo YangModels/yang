@@ -1,4 +1,4 @@
-## Cisco-IOS-XR-um-bfd-sbfd-cfg.yang
+## Cisco-IOS-XR-perf-meas-oper.yang
 
 - [XPaths Obsoleted](#xpaths-obsoleted)
 - [XPaths Deprecated](#xpaths-deprecated)
@@ -8,7 +8,7 @@
 
 ### Description
 
-XR BFD UM2 Model Update.
+PM profiles are split into Liveness and delay profiles, removing liveness parameters from the delay profile grouping. Liveness parameters will only be associated with the liveness profile grouping.
 
 ## XPaths Obsoleted
 
@@ -20,11 +20,11 @@ N/A
 
 ## XPaths Added
 
-- (L193)	/bfd/multipath/destinations/destination[destination-ip-address]
+N/A
 
 ## XPaths Removed
 
-N/A
+- (L452)	{Ipm-threshold-alert}
 
 ## XPaths Modified
 

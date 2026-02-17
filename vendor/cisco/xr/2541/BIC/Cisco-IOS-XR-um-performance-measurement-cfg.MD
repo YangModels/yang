@@ -20,15 +20,11 @@ N/A
 
 ## XPaths Added
 
-- (L133)	/performance-measurement/interfaces/interface[interface-name]/delay-measurement/advertise-delay
-- (L1201)	/performance-measurement/delay-profile/rsvp-te/default/probe/measurement-mode/one-way
+N/A
 
 ## XPaths Removed
 
-- (L319)	/performance-measurement/endpoint/ipv4s/ipv4[address]/vrf[vrf-name]/liveness-detection/collect-hbh
-- (L618)	/performance-measurement/endpoint/ipv6s/ipv6[address]/vrf[vrf-name]/liveness-detection/collect-hbh
-- (L3152)	/performance-measurement/distribute-sessions
-- (L3168)	/performance-measurement/hardware-offload
+- (L1999)	/performance-measurement/delay-profile/endpoint/default/histogram
 
 ## XPaths Modified
 

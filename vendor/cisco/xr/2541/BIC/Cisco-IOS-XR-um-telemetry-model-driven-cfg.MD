@@ -16,7 +16,7 @@ N/A
 
 ## XPaths Deprecated
 
-N/A
+- (L96)	/telemetry/model-driven/max-containers-per-path
 
 ## XPaths Added
 
@@ -24,37 +24,9 @@ N/A
 
 ## XPaths Removed
 
-- (L792)	/telemetry/model-driven/gnmi/bundling/size
-- (L793)	/telemetry/model-driven/gnmi/bundling/size
-- (L383)	/telemetry/model-driven/destination-groups/destination-group[destination-group-id]/destinations/destination[destination-name][port-number]/address-family/ipv4
-- (L389)	/telemetry/model-driven/destination-groups/destination-group[destination-group-id]/destinations/destination[destination-name][port-number]/address-family/ipv6
-- (L399)	/telemetry/model-driven/destination-groups/destination-group[destination-group-id]/destinations/destination[destination-name][port-number]/protocol/grpc
-- (L427)	/telemetry/model-driven/destination-groups/destination-group[destination-group-id]/destinations/destination[destination-name][port-number]/protocol/tcp
-- (L433)	/telemetry/model-driven/destination-groups/destination-group[destination-group-id]/destinations/destination[destination-name][port-number]/protocol/udp
-- (L453)	/telemetry/model-driven/destination-groups/destination-group[destination-group-id]/destinations/destination[destination-name][port-number]/encoding/gpb
-- (L459)	/telemetry/model-driven/destination-groups/destination-group[destination-group-id]/destinations/destination[destination-name][port-number]/encoding/self-describing-gpb
-- (L465)	/telemetry/model-driven/destination-groups/destination-group[destination-group-id]/destinations/destination[destination-name][port-number]/encoding/json
-- (L360)	/telemetry/model-driven/destination-groups/destination-group[destination-group-id]/destinations/destination[destination-name][port-number]/destination-name
-- (L370)	/telemetry/model-driven/destination-groups/destination-group[destination-group-id]/destinations/destination[destination-name][port-number]/port-number
-- (L131)	/telemetry/model-driven/destination-groups/destination-group[destination-group-id]/destination-group-id
-- (L151)	/telemetry/model-driven/destination-groups/destination-group[destination-group-id]/address-family
-- (L483)	/telemetry/model-driven/subscriptions/subscription[subscription-id]/subscription-id
-- (L609)	/telemetry/model-driven/subscriptions/subscription[subscription-id]/sensor-groups
-- (L674)	/telemetry/model-driven/subscriptions/subscription[subscription-id]/destinations
-- (L110)	/telemetry/model-driven/sensor-groups/sensor-group[sensor-group-id]/sensor-paths/sensor-path[sensor-path-id]/sensor-path-id
-- (L93)	/telemetry/model-driven/sensor-groups/sensor-group[sensor-group-id]/sensor-group-id
+N/A
 
 ## XPaths Modified
 
-- (L117)	/telemetry/model-driven/strict-timer
-- (L149)	/telemetry/model-driven/include/select-leaves-on-events
-- (L157)	/telemetry/model-driven/include/empty/values
-- (L170)	/telemetry/model-driven/gnmi/heartbeat/always
-- (L196)	/telemetry/model-driven/destination-groups/destination-group[destination-group-string]
-- (L338)	/telemetry/model-driven/destination-groups/destination-group[destination-group-string]/destinations/destination[destination-string][port]
-- (L361)	/telemetry/model-driven/destination-groups/destination-group[destination-group-string]/destinations/destination[destination-string][port]/address-family
-- (L436)	/telemetry/model-driven/destination-groups/destination-group[destination-group-string]/destinations/destination[destination-string][port]/encoding
-- (L465)	/telemetry/model-driven/subscriptions/subscription[subscription-string]
-- (L714)	/telemetry/model-driven/sensor-groups/sensor-group[sensor-group-string]
-- (L731)	/telemetry/model-driven/sensor-groups/sensor-group[sensor-group-string]/sensor-paths/sensor-path[sensor-path-string]
+N/A
 

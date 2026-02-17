@@ -1,4 +1,4 @@
-## Cisco-IOS-XR-um-bfd-sbfd-cfg.yang
+## Cisco-IOS-XR-infra-xtc-cfg.yang
 
 - [XPaths Obsoleted](#xpaths-obsoleted)
 - [XPaths Deprecated](#xpaths-deprecated)
@@ -8,7 +8,7 @@
 
 ### Description
 
-XR BFD UM2 Model Update.
+Renamed and moved te-latency leaf to cspf container.
 
 ## XPaths Obsoleted
 
@@ -20,11 +20,11 @@ N/A
 
 ## XPaths Added
 
-- (L193)	/bfd/multipath/destinations/destination[destination-ip-address]
+N/A
 
 ## XPaths Removed
 
-N/A
+- (L716)	/pce/pcc-addresses
 
 ## XPaths Modified
 

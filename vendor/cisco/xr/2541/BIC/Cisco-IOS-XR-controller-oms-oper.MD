@@ -1,4 +1,4 @@
-## Cisco-IOS-XR-um-bfd-sbfd-cfg.yang
+## Cisco-IOS-XR-controller-oms-oper.yang
 
 - [XPaths Obsoleted](#xpaths-obsoleted)
 - [XPaths Deprecated](#xpaths-deprecated)
@@ -8,7 +8,7 @@
 
 ### Description
 
-XR BFD UM2 Model Update.
+egress-ampli-gain-config leaf data-type changed from uint32 to int32.
 
 ## XPaths Obsoleted
 
@@ -20,7 +20,7 @@ N/A
 
 ## XPaths Added
 
-- (L193)	/bfd/multipath/destinations/destination[destination-ip-address]
+N/A
 
 ## XPaths Removed
 
@@ -28,5 +28,5 @@ N/A
 
 ## XPaths Modified
 
-N/A
+- (L459)	{OMS-EDM-INFO}/ingress-ampli-gain-config
 

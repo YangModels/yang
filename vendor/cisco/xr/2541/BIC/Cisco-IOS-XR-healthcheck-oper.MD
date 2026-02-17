@@ -16,18 +16,7 @@ N/A
 
 ## XPaths Deprecated
 
-- (L126)	/health-check/metric-info/fpd
-- (L138)	/health-check/metric-info/redundancy
-- (L145)	/health-check/metric-info/fabric-health
-- (L157)	/health-check/metric-info/platform
-- (L164)	/health-check/metric-info/interface-counters
-- (L194)	/health-check/metric-info/asic-errors
-- (L229)	/health-check/metric-info/free-memory
-- (L241)	/health-check/metric-info/custom-metric
-- (L282)	/health-check/metric-info/fabric-stats
-- (L317)	/health-check/metric-info/filesystem
-- (L329)	/health-check/metric-info/shared-memory
-- (L351)	/health-check/metric-info/cpu
+N/A
 
 ## XPaths Added
 
@@ -35,7 +24,15 @@ N/A
 
 ## XPaths Removed
 
-- (L155)	{HCMGR-USE-CASE-SUMMARY-DATA}/timestamp
+- (L475)	{HCMGR-METRIC-DATA}/platform-stat
+- (L294)	{HCMGR-STATUS-DATA}/collector-pid
+- (L299)	{HCMGR-STATUS-DATA}/plat-collector-pid
+- (L324)	{HCMGR-STATUS-DATA}/cpu-avg-util
+- (L334)	{HCMGR-STATUS-DATA}/sys-resource
+- (L339)	{HCMGR-STATUS-DATA}/infra-service
+- (L344)	{HCMGR-STATUS-DATA}/platform-stat
+- (L349)	{HCMGR-STATUS-DATA}/custom-metric
+- (L124)	/health-check/metric-info
 
 ## XPaths Modified
 

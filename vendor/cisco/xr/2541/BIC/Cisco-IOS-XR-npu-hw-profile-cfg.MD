@@ -1,4 +1,4 @@
-## Cisco-IOS-XR-um-bfd-sbfd-cfg.yang
+## Cisco-IOS-XR-npu-hw-profile-cfg.yang
 
 - [XPaths Obsoleted](#xpaths-obsoleted)
 - [XPaths Deprecated](#xpaths-deprecated)
@@ -8,7 +8,7 @@
 
 ### Description
 
-XR BFD UM2 Model Update.
+Changed the options to the enum for which the asic compatibility can be enabled.
 
 ## XPaths Obsoleted
 
@@ -20,13 +20,13 @@ N/A
 
 ## XPaths Added
 
-- (L193)	/bfd/multipath/destinations/destination[destination-ip-address]
+N/A
 
 ## XPaths Removed
 
-N/A
+- (L464)	/npu-hw-module-profile-config/profile/tcam-table/key-format/compr-id-wide
 
 ## XPaths Modified
 
-N/A
+- (L507)	/npu-hw-module-profile-config/profile/tcam-table/key-format/compr-id-wide
 

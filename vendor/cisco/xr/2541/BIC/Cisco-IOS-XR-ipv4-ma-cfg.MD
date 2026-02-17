@@ -24,10 +24,9 @@ N/A
 
 ## XPaths Removed
 
-- (L102)	/ipv4-network-global/qppb
-- (L52)	/{Ipv4-qppb}
+N/A
 
 ## XPaths Modified
 
-N/A
+- (L116)	/subscriber-pta/tcp-mss-adjust
 

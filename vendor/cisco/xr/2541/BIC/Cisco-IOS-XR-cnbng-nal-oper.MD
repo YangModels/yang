@@ -24,11 +24,12 @@ N/A
 
 ## XPaths Removed
 
-- (L2190)	{NAL-MAIN-EDM-OC-SUMMARY}/replayed-oc-entries
+- (L564)	/cnbng-nal/nodes/node[node-name]/cp-server-table/cp-connection-sts-info
+- (L346)	/cnbng-nal/nodes/node[node-name]/srg-group-summaries
+- (L539)	/cnbng-nal/nodes/node[node-name]/srg-group-details
+- (L581)	/cnbng-nal/nodes/node[node-name]/dynamic-route-summary-tbl
 
 ## XPaths Modified
 
-- (L398)	{NAL-MAIN-EDM-32B-COUNTER}/counter-name
-- (L322)	{NAL-MAIN-EDM-HISTOGRAM-TABLE}/api-name
-- (L3953)	{NAL-MAIN-EDM-UTILS-API-STATS}/api-name
+N/A
 

@@ -16,8 +16,8 @@ N/A
 
 ## XPaths Deprecated
 
-- (L187)	/ssh/server/v1
-- (L464)	/ssh/server/algorithms/host-key/dsa
+- (L423)	/ssh/server/enable/cipher/threedes-cbc
+- (L903)	/ssh/client/enable/cipher/threedes-cbc
 
 ## XPaths Added
 

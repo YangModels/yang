@@ -24,10 +24,10 @@ N/A
 
 ## XPaths Removed
 
-N/A
+- (L73)	/sks-server
+- (L67)	/
 
 ## XPaths Modified
 
-- (L242)	/sks-server/profiles/profile[profile-name]/device-identifiers/device-identifier[device-identifier-name]/device-identifier-name
-- (L259)	/sks-server/profiles/profile[profile-name]/device-identifiers/device-identifier[device-identifier-name]/peer-identifiers/peer-identifier[peer-identifier-name]/peer-identifier-name
+N/A
 

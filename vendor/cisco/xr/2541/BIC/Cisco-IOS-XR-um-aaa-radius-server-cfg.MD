@@ -20,7 +20,7 @@ N/A
 
 ## XPaths Added
 
-N/A
+- (L1231)	/aaa/radius-server/attribute/list[list-name]/attribute/vendor-ids/vendor-id[id]/vendor-types
 
 ## XPaths Removed
 
@@ -28,9 +28,5 @@ N/A
 
 ## XPaths Modified
 
-- (L257)	/aaa/group/server/radius/server-groups/server-group[server-group-name]/server-privates/server-private[ordering-index][address][auth-port][acct-port]/key/six
-- (L514)	/aaa/server/radius/dynamic-author/server-key/six
-- (L581)	/aaa/server/radius/dynamic-author/clients/client[address][vrf]/server-key/six
-- (L664)	/aaa/radius-server/hosts/host[ordering-index][address][auth-port][acct-port]/key/six
-- (L765)	/aaa/radius-server/key/six
+N/A
 

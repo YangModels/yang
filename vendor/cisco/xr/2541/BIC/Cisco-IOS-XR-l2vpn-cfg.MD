@@ -16,7 +16,7 @@ N/A
 
 ## XPaths Deprecated
 
-- (L6215)	/l2vpn/mtu-mismatch-ignore-auto-discovery
+N/A
 
 ## XPaths Added
 
@@ -24,12 +24,11 @@ N/A
 
 ## XPaths Removed
 
-- (L2305)	/{BRIDGE-DOMAIN-TABLE}/bridge-domains/bridge-domain[name]/bridge-domain-pbb/pbb-core/pbb-core-evis
-- (L5721)	/l2vpn/pwoam-refresh
-- (L6326)	/evpn/evpn-tables/evpn-instances/evpn-instance[vpn-id][encapsulation][side]/evi-ecmp-disable
-- (L6558)	/evpn/evpn-tables/evpn-interfaces/evpn-interface[interface-name]/ethernet-segment/backbone-source-mac
+N/A
 
 ## XPaths Modified
 
-N/A
+- (L4486)	/l2vpn/database/xconnect-groups/xconnect-group[name]/p2p-xconnects/p2p-xconnect[name]/pseudowire-evpns/pseudowire-evpn[eviid][remote-acid][source-acid]/admission-control-bandwidth
+- (L4672)	/l2vpn/database/xconnect-groups/xconnect-group[name]/p2p-xconnects/p2p-xconnect[name]/pseudowire-neighbor-pseudowire-ids/{PSEUDOWIRE-CONTENT}/bandwidth
+- (L5028)	/l2vpn/database/xconnect-groups/xconnect-group[name]/p2p-xconnects/p2p-xconnect[name]/pseudowire-evpn-services/pseudowire-evpn-service[eviid][service-id]/admission-control-bandwidth
 

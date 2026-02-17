@@ -24,13 +24,7 @@ N/A
 
 ## XPaths Removed
 
-- (L772)	{SRV6-SID-INFO}/sid-context
-- (L772)	{SRV6-SID-INFO}/sid-context
-- (L1652)	{SRV6-LOCAL-SID-INFO}/sid-context
-- (L626)	{SRV6-STATIC-ENDPOINT-INFO}/sid-context
-- (L656)	{SRV6-STATIC-ENDPOINT-INFO}/context-configured
-- (L772)	{SRV6-SID-INFO}/sid-context
-- (L772)	{SRV6-SID-INFO}/sid-context
+- (L2277)	{SRV6-SIDMGR-PARAMS}/configured-encap-source-address
 
 ## XPaths Modified
 

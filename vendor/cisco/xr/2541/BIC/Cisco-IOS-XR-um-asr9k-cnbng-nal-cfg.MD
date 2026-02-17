@@ -20,11 +20,12 @@ N/A
 
 ## XPaths Added
 
-- (L531)	/{LOCATION-BODY}/cnbng-nal/cp-server/primary/ipv4
+N/A
 
 ## XPaths Removed
 
-N/A
+- (L83)	/{IF-BODY}/ipsubscriber
+- (L205)	/{IF-BODY}/cnbng
 
 ## XPaths Modified
 

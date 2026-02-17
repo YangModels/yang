@@ -1,4 +1,4 @@
-## Cisco-IOS-XR-um-bfd-sbfd-cfg.yang
+## Cisco-IOS-XR-ping-act.yang
 
 - [XPaths Obsoleted](#xpaths-obsoleted)
 - [XPaths Deprecated](#xpaths-deprecated)
@@ -8,7 +8,7 @@
 
 ### Description
 
-XR BFD UM2 Model Update.
+Updated data-size leaf in destination container with min value 36.
 
 ## XPaths Obsoleted
 
@@ -16,11 +16,11 @@ N/A
 
 ## XPaths Deprecated
 
-N/A
+- (L89)	/destination/data-size
 
 ## XPaths Added
 
-- (L193)	/bfd/multipath/destinations/destination[destination-ip-address]
+N/A
 
 ## XPaths Removed
 

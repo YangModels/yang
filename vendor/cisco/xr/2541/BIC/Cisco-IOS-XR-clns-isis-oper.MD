@@ -20,32 +20,16 @@ N/A
 
 ## XPaths Added
 
-- (L4330)	{ISIS-SH-PROTO}/srgb-start
-- (L4340)	{ISIS-SH-PROTO}/srgb-end
-- (L4365)	{ISIS-SH-PROTO}/srgb-allocated
-- (L4366)	{ISIS-SH-PROTO}/srgb-allocated
+N/A
 
 ## XPaths Removed
 
-- (L2352)	{Isis-sh-lsp-db-install-reason}
-- (L3815)	{ISIS-SH-ERR-LOG-ENT}/error-log-level
-- (L3820)	{ISIS-SH-ERR-LOG-ENT}/error-code
-- (L3825)	{ISIS-SH-ERR-LOG-ENT}/error-reason
-- (L3764)	{ISIS-SH-CHKPT-IDB}/checkpoint-interface-handle
-- (L3635)	{ISIS-TRAFFIC-INTF-P2P-TYPE}/lsp-retransmit-count
-- (L3587)	{ISIS-TRAFFIC-INTF-AREA-TYPE}/lsp-drop-count
-- (L3593)	{ISIS-TRAFFIC-INTF-AREA-TYPE}/lsp-flooding-dup-count
-- (L3439)	{ISIS-SH-PROTO}/srgb-start
-- (L3444)	{ISIS-SH-PROTO}/srgb-end
-- (L3434)	{ISIS-SH-PROTO}/srgb-allocated
-- (L3074)	{ISIS-SH-GLOBAL-STATS}
-- (L3075)	{ISIS-SH-GLOBAL-STATS}/statistics
-- (L899)	/{INSTANCE}/instance[instance-name]/summary
-- (L1192)	/{INSTANCE}/instance[instance-name]/sr-labels
+- (L8327)	{ISIS-SH-TE-TUNNEL}/te-next-hop-ip-address
+- (L3057)	{ISIS-SH-CHKPT-TE-TUNNEL}/checkpoint-te-nexthop
 
 ## XPaths Modified
 
-- (L4329)	{ISIS-SH-PROTO}/srgb-start
-- (L4339)	{ISIS-SH-PROTO}/srgb-end
-- (L4364)	{ISIS-SH-PROTO}/srgb-allocated
+- (L8316)	{ISIS-SH-TE-TUNNEL}/te-next-hop-ip-address
+- (L5722)	{ISIS-SH-FLEX-ALGO-AREA}/definition-priority
+- (L3036)	{ISIS-SH-CHKPT-TE-TUNNEL}/checkpoint-te-nexthop
 

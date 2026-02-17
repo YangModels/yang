@@ -1,14 +1,10 @@
-## Cisco-IOS-XR-um-bfd-sbfd-cfg.yang
+## Cisco-IOS-XR-cfgmgr-rollback-act.yang
 
 - [XPaths Obsoleted](#xpaths-obsoleted)
 - [XPaths Deprecated](#xpaths-deprecated)
 - [XPaths Added](#xpaths-added)
 - [XPaths Removed](#xpaths-removed)
 - [XPaths Modified](#xpaths-modified)
-
-### Description
-
-XR BFD UM2 Model Update.
 
 ## XPaths Obsoleted
 
@@ -20,7 +16,7 @@ N/A
 
 ## XPaths Added
 
-- (L193)	/bfd/multipath/destinations/destination[destination-ip-address]
+- (L53)	/{ROLLBACK-ATTRIBUTES}/force
 
 ## XPaths Removed
 

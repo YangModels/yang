@@ -1,4 +1,4 @@
-## Cisco-IOS-XR-um-bfd-sbfd-cfg.yang
+## Cisco-IOS-XR-tunnel-ip-ea-oper.yang
 
 - [XPaths Obsoleted](#xpaths-obsoleted)
 - [XPaths Deprecated](#xpaths-deprecated)
@@ -8,7 +8,7 @@
 
 ### Description
 
-XR BFD UM2 Model Update.
+Changed ea_flags datatype from enum to uint32_t.
 
 ## XPaths Obsoleted
 
@@ -20,7 +20,7 @@ N/A
 
 ## XPaths Added
 
-- (L193)	/bfd/multipath/destinations/destination[destination-ip-address]
+N/A
 
 ## XPaths Removed
 
@@ -28,5 +28,6 @@ N/A
 
 ## XPaths Modified
 
-N/A
+- (L293)	{Tunl-ip-mode}
+- (L294)	{Tunl-ip-mode}
 

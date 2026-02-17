@@ -16,7 +16,12 @@ N/A
 
 ## XPaths Deprecated
 
-N/A
+- (L1542)	/sr/traffic-engineering/on-demand-colors/on-demand-color[color]/steering/labeled-services/disable
+- (L1702)	/sr/traffic-engineering/steering/labeled-services/disable-on-demand-policies
+- (L1710)	/sr/traffic-engineering/steering/labeled-services/disable-all-policies
+- (L1718)	/sr/traffic-engineering/steering/labeled-services/disable-pcep-policies
+- (L1726)	/sr/traffic-engineering/steering/labeled-services/disable-local-policies
+- (L1734)	/sr/traffic-engineering/steering/labeled-services/disable-bgp-sr-te-policies
 
 ## XPaths Added
 
@@ -24,12 +29,15 @@ N/A
 
 ## XPaths Removed
 
-- (L2105)	/sr/traffic-engineering/policies/policy[policy-name]/auto-route/include-prefixes/include-prefix[af-type]/af-type-all
-- (L2119)	/sr/traffic-engineering/policies/policy[policy-name]/auto-route/include-prefixes/include-prefix[af-type]/af-type-ipv4-or-af-type-ipv6[prefix-address][prefix-length]
-- (L2478)	/sr/traffic-engineering/pcc/profiles
+- (L1055)	/{SRV6}/srv6
+- (L1055)	/{SRV6}/srv6
+- (L1087)	/{SRV6}/srv6/enable
+- (L1054)	/{SRV6}
 
 ## XPaths Modified
 
-- (L1758)	/sr/traffic-engineering/segments/segment[path-name]/segments/segment[segment-index]/address
-- (L2160)	/sr/traffic-engineering/policies/policy[policy-name]/auto-route/include-prefixes/include-prefix[af-type][prefix-address][prefix-length]
+- (L366)	/{Xtc-behavior-srv6}
+- (L367)	/{Xtc-behavior-srv6}
+- (L382)	/{Xtc-behavior-srv6}
+- (L383)	/{Xtc-behavior-srv6}
 

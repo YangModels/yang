@@ -24,9 +24,10 @@ N/A
 
 ## XPaths Removed
 
-- (L368)	/nve/overlay-encap/vxlan/udp-port/source-port-msb
+- (L339)	/nve/decap-prefix/source/ipv4
+- (L349)	/nve/decap-prefix/source/object-group
 
 ## XPaths Modified
 
-N/A
+- (L340)	/nve/decap-prefix/source/ipv4
 

@@ -16,16 +16,11 @@ N/A
 
 ## XPaths Deprecated
 
-N/A
+- (L749)	/telemetry-model-driven/max-containers-per-path
 
 ## XPaths Added
 
-- (L416)	/telemetry-model-driven/sensor-groups/sensor-group[sensor-group-identifier]/sensor-paths/sensor-path[telemetry-sensor-path]/telemetry-sensor-path
-- (L425)	/telemetry-model-driven/sensor-groups/sensor-group[sensor-group-identifier]/sensor-group-identifier
-- (L481)	/telemetry-model-driven/subscriptions/subscription[subscription-identifier]/sensor-profiles/sensor-profile[sensorgroupid]/sensorgroupid
-- (L497)	/telemetry-model-driven/subscriptions/subscription[subscription-identifier]/destination-profiles/destination-profile[destination-id]/destination-id
-- (L541)	/telemetry-model-driven/subscriptions/subscription[subscription-identifier]/subscription-identifier
-- (L693)	/telemetry-model-driven/destination-groups/destination-group[destination-id]/destination-id
+N/A
 
 ## XPaths Removed
 

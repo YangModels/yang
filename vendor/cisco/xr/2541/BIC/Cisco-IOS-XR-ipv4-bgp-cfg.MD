@@ -24,15 +24,11 @@ N/A
 
 ## XPaths Removed
 
-- (L2223)	/{BGP-CFG-AS-OVERRIDE-MP}/as-override
-- (L2674)	/{NEIGHBOR-AF-LONG-LIVED-GRACEFUL-RESTART-CAPABLE}/neighbor-af-long-lived-graceful-restart-capable
-- (L2675)	/{NEIGHBOR-AF-LONG-LIVED-GRACEFUL-RESTART-CAPABLE}/neighbor-af-long-lived-graceful-restart-capable
-- (L4165)	/{NEIGHBOR-AF-LONG-LIVED-GRACEFUL-RESTART-STALE-TIME}/neighbor-af-long-lived-graceful-restart-stale-time/stale-time-send
-- (L4174)	/{NEIGHBOR-AF-LONG-LIVED-GRACEFUL-RESTART-STALE-TIME}/neighbor-af-long-lived-graceful-restart-stale-time/stale-time-accept
+N/A
 
 ## XPaths Modified
 
-- (L430)	/{Bgp-bfd-enable-mode}
-- (L431)	/{Bgp-bfd-enable-mode}
-- (L2868)	/{NEIGHBOR-AF-LONG-LIVED-GRACEFUL-RESTART-CAPABLE}/neighbor-af-long-lived-graceful-restart-capable
+- (L5888)	/bgp/instance[instance-name]/instance-as[as]/four-byte-as[as]/vrfs/vrf[vrf-name]/vrf-global/vrf-global-afs/vrf-global-af[af-name]/bestpath-nexthop-preference/bestpath-stage
+- (L7574)	/bgp/instance[instance-name]/instance-as[as]/four-byte-as[as]/default-vrf/global/global-afs/global-af[af-name]/vrf-all/bestpath-nexthop-preference
+- (L7715)	/bgp/instance[instance-name]/instance-as[as]/four-byte-as[as]/default-vrf/global/global-afs/global-af[af-name]/bestpath-nexthop-preference/bestpath-stage
 

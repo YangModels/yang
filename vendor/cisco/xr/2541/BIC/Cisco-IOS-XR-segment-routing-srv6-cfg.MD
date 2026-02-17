@@ -1,4 +1,4 @@
-## Cisco-IOS-XR-um-bfd-sbfd-cfg.yang
+## Cisco-IOS-XR-segment-routing-srv6-cfg.yang
 
 - [XPaths Obsoleted](#xpaths-obsoleted)
 - [XPaths Deprecated](#xpaths-deprecated)
@@ -8,7 +8,7 @@
 
 ### Description
 
-XR BFD UM2 Model Update.
+Move behavior from part of context to sibling leaf.
 
 ## XPaths Obsoleted
 
@@ -20,13 +20,13 @@ N/A
 
 ## XPaths Added
 
-- (L193)	/bfd/multipath/destinations/destination[destination-ip-address]
+N/A
 
 ## XPaths Removed
 
-N/A
+- (L499)	/sr/srv6/encapsulation/source-address
 
 ## XPaths Modified
 
-N/A
+- (L581)	/sr/srv6/encapsulation/source-address
 

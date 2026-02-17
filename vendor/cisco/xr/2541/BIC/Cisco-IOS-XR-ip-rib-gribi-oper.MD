@@ -24,15 +24,12 @@ N/A
 
 ## XPaths Removed
 
-- (L1484)	{RIB-EDM-ROUTE-SRV6-INFO}/is-srv6-endpoint
-- (L1057)	{IPV6-RIB-EDM-PATH}/ipv6-rib-edm-path
-- (L1688)	{IPV6-RIB-EDM-ROUTE}/paths-count
-- (L1780)	{IPV6-RIB-EDM-ROUTE}/number-of-algorithm-labels
-- (L1796)	{IPV6-RIB-EDM-ROUTE}/has-aft
+- (L783)	{Rib-opaque}
+- (L788)	{Rib-opaque}
+- (L793)	{Rib-opaque}
 
 ## XPaths Modified
 
-- (L854)	{Rib-opaque}
-- (L855)	{Rib-opaque}
-- (L1811)	{RIB-EDM-ROUTE}/route-path
+- (L876)	{Rib-opaque}
+- (L877)	{Rib-opaque}
 

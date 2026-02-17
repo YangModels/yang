@@ -28,18 +28,18 @@ N/A
 
 ## XPaths Modified
 
-- (L3830)	{BM-BUNDLE-DATA}/inter-chassis
-- (L3836)	{BM-BUNDLE-DATA}/is-active
-- (L3900)	{BM-BUNDLE-DATA}/cisco-extensions
-- (L3906)	{BM-BUNDLE-DATA}/lacp-nonrevertive
-- (L3959)	{BM-BUNDLE-DATA}/singleton
-- (L3712)	{BM-BUNDLE-BFD-DATA-TYPE}/fast-detect
-- (L2595)	{BMD-BAG-PROT-BDL-INFO}/interface-up
-- (L2600)	{BMD-BAG-PROT-BDL-INFO}/registered
-- (L2606)	{BMD-BAG-PROT-BDL-INFO}/slow-path-up
-- (L2611)	{BMD-BAG-PROT-BDL-INFO}/slow-path-trigger
-- (L2565)	{BMD-BAG-PROT-MBR-INFO}/active
-- (L2570)	{BMD-BAG-PROT-MBR-INFO}/notification-received
-- (L2575)	{BMD-BAG-PROT-MBR-INFO}/slow-path-up
-- (L2490)	{BMD-BAG-MLACP-RG}/singleton
+- (L3859)	{BM-BUNDLE-DATA}/inter-chassis
+- (L3865)	{BM-BUNDLE-DATA}/is-active
+- (L3929)	{BM-BUNDLE-DATA}/cisco-extensions
+- (L3935)	{BM-BUNDLE-DATA}/lacp-nonrevertive
+- (L3988)	{BM-BUNDLE-DATA}/singleton
+- (L3741)	{BM-BUNDLE-BFD-DATA-TYPE}/fast-detect
+- (L2624)	{BMD-BAG-PROT-BDL-INFO}/interface-up
+- (L2629)	{BMD-BAG-PROT-BDL-INFO}/registered
+- (L2635)	{BMD-BAG-PROT-BDL-INFO}/slow-path-up
+- (L2640)	{BMD-BAG-PROT-BDL-INFO}/slow-path-trigger
+- (L2594)	{BMD-BAG-PROT-MBR-INFO}/active
+- (L2599)	{BMD-BAG-PROT-MBR-INFO}/notification-received
+- (L2604)	{BMD-BAG-PROT-MBR-INFO}/slow-path-up
+- (L2519)	{BMD-BAG-MLACP-RG}/singleton
 
