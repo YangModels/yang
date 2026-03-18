@@ -325,6 +325,14 @@ module ietf-yp-lite {
       "Specifies a data encoding, e.g., for a data subscription.";
   }
 
+  typedef subscription-name {
+    type string {
+      length "1..255";
+    } 
+    description
+      "A user friendly name for a subscription.";
+  }
+
   typedef subscription-id {
     type uint32;
     description
@@ -402,37 +410,6 @@ module ietf-yp-lite {
       "Indicates the status of a subscription";
   }
 
-  typedef receiver-status {
-    type enumeration {
-      enum disconnected {
-        description
-          "The publish is not currently connected to the receiver.
-
-           Nornally, this is because there are no active
-           subscriptions for this receiver.";
-      }
-      enum connecting {
-        description
-          "The publisher is actively trying to connect to the
-           receiver.  This implies that there is at least one active
-           subscription for this receiver.
-
-           A receiver in connecting state may indicate that the
-           transport or associated security session could not be
-           established, and the publisher is periodically trying to
-           establish the connection.";
-      }
-      enum connected {
-        description
-          "The publisher has successfully connected to the receiver
-           and at least one active subscription is using this
-           receiver.";
-      }
-    }
-    description
-      "Indicates the status of a receiver";
-  }
-
   /*
    * GROUPINGS
    */
@@ -461,7 +438,7 @@ module ietf-yp-lite {
       description
         "The content filter specification for this request.";
 
-      leaf-list paths {
+      leaf path {
         type ypath;
         description
           "A basic path filter that allows wildcard, regex, or
@@ -476,7 +453,7 @@ module ietf-yp-lite {
           "RFC 6241: Network Configuration Protocol (NETCONF),
                      Section 6";
       }
-      leaf-list xpaths {
+      leaf xpath {
         if-feature "ypl:xpath";
         type yang:xpath1.0;
         description
@@ -590,6 +567,27 @@ module ietf-yp-lite {
     description
       "Common settings that are shared between dynamic and
        configured subscriptions.";
+
+    leaf name {
+      type subscription-name;
+      mandatory true;
+      description
+        "The client provided name for the subscription.
+
+         This MUST be unique across all subscriptions.  Configuring
+         a subscription with a name already used by a dynamic
+         subscription will replace the dynamic subscription, forcing
+         it to be terminated.";
+    }
+
+    leaf purpose {
+      type string {
+        length "1..1000";
+      }
+      description
+        "Open text allowing a configuring entity to embed the
+         originator or other specifics of this subscription.";
+    }
 
     container target {
       description
@@ -722,12 +720,11 @@ module ietf-yp-lite {
        where the 'error-info' field MAY contain a
        'delete-subscription-error-info' structure.";
     input {
-      leaf id {
-        type subscription-id;
+      leaf name {
+        type subscription-name;
         mandatory true;
         description
-          "Identifier of the dynamic subscription that is to be
-           deleted.";
+          "The name of the dynamic subscription to be deleted.";
       }
     }
   }
@@ -747,12 +744,11 @@ module ietf-yp-lite {
        where the 'error-info' field MAY contain a
        'delete-subscription-error-info' structure.";
     input {
-      leaf id {
-        type subscription-id;
+      leaf name {
+        type subscription-name;
         mandatory true;
         description
-          "Identifier of the dynamic subscription that is to be
-           deleted.";
+          "The name of the dynamic subscription to be deleted.";
       }
     }
   }
@@ -833,6 +829,12 @@ module ietf-yp-lite {
     description
       "This notification indicates that a subscription has been
        terminated.";
+    leaf name {
+      type subscription-name;
+      mandatory true;
+      description
+        "The name of the subscription that has been terminated.";
+    }
     leaf id {
       type subscription-id;
       mandatory true;
@@ -1008,7 +1010,7 @@ container datastore-telemetry {
         RPC primitives as well as subscriptions that have been
         established via configuration.";
       list subscription {
-        key "id";
+        key "name";
         description
           "The identity and specific parameters of a subscription.
           Subscriptions in this list can be created using a control
@@ -1018,31 +1020,8 @@ container datastore-telemetry {
           are used to delete a subscription, a
           'subscription-terminated' message is sent to any active or
           suspended receivers.";
-        leaf id {
-          type subscription-id;
-          description
-            "Identifier of a subscription; unique in a given
-            publisher.";
-        }
+
         uses subscription-common;
-
-        leaf purpose {
-          if-feature "configured";
-          type string;
-          description
-            "Open text allowing a configuring entity to embed the
-            originator or other specifics of this subscription.";
-        }
-
-        leaf status {
-          type subscription-status;
-          config false;
-          description
-            "The presence of this leaf indicates that the
-             subscription originated from configuration, not through
-             a controlchannel or RPC.  The value indicates the state
-             of the subscription as established by the publisher.";
-        }
 
         list receivers {
           key "name";
@@ -1061,47 +1040,98 @@ container datastore-telemetry {
               "Identifies a unique receiver for a subscription.";
           }
 
-          leaf encoding {
-            type encoding;
-            config false;
-            description
-              "The type of encoding for notification messages.";
-          }
-
           leaf status {
-            type receiver-status;
+            type enumeration {
+              enum disconnected {
+                description
+                  "This subscription does not have an active session
+                   with the receiver, and it is not trying to connect.
+
+                  E.g., this state may be reported if the subscription
+                  is not valid, or has not been started yet.";
+              }
+              enum connecting {
+                description
+                  "The publisher is trying to establish a session with
+                   the receiver for this subscription.
+
+                   For a session less transport, this state may be
+                   used to indicate that there is no route to the
+                   receiver.
+
+                   A receiver in connecting state may indicate that
+                   the transport or associated security session
+                   could not be established, and the publisher is
+                   periodically trying to establish the connection.";
+              }
+              enum active {
+                description
+                  "The publisher has successfully connected (if over a
+                   session based transport) to the receiver for this
+                   subscription, and the publisher is able to send
+                   notifications to the receiver.";
+              }
+            }
             config false;
             description
-              "Specifies the connection status of the receiver.
-               I.e., whether a conenction has been sucessfully
-              established";
+              "Specifies the connection status of the receiver for
+               this subscription.";
+          }
+        }
+
+        leaf id {
+          type subscription-id;
+          config false;
+          mandatory true;
+          description
+            "Publisher allocated identifier for a subscription;
+              Unique in a given publisher.";
+        }
+
+        leaf status {
+          type subscription-status;
+          config false;
+          description
+            "The presence of this leaf indicates that the
+             subscription originated from configuration, not through
+             a controlchannel or RPC.  The value indicates the state
+             of the subscription as established by the publisher.";
+        }
+
+        container statistics {
+          config false;
+          description
+            "Statistics related to the number of messages generated
+             for this subscription.";
+
+          leaf update-record-count {
+            type yang:zero-based-counter64;
+            config false;
+            description
+              "The number of update records generated for the
+               subscription, to be queued to one of more active
+               receivers.
+
+               The count is initialized when the subscription
+               first becomes active.
+
+               The count is incremented even if the update
+               record has been generated, but is not queued to
+               any receiver.
+
+               TODO - Does this count include lifecycle or only
+               update messages?";
           }
 
-          container statistics {
+          leaf excluded-event-records {
+            type yang:zero-based-counter64;
             config false;
             description
-              "Statistics related to the number of messages sent to
-              the receiver.";
-
-            leaf sent-event-records {
-              type yang:zero-based-counter64;
-              config false;
-              description
-                "The number of event records sent to the receiver.
-                 The count is initialized when a dynamic
-                 subscription is established or when a configured
-                 receiver transitions to the 'valid' state.";
-            }
-            leaf excluded-event-records {
-              type yang:zero-based-counter64;
-              config false;
-              description
-                "The number of event records explicitly removed via
-                either an event stream filter or an access control
-                filter so that they are not passed to a receiver.
-                This count is set to zero each time
-                'sent-event-records' is initialized.";
-            }
+              "The number of event records explicitly removed via
+              either an event stream filter or an access control
+              filter so that they are not passed to a receiver.
+              This count is set to zero each time
+              'sent-event-records' is initialized.";
           }
         }
 
