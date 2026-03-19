@@ -1,0 +1,416 @@
+module arcos-system {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/system";
+  prefix arc-sys;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  import openconfig-interfaces {
+    prefix oc-if;
+  }
+
+  import arcos-platform {
+    prefix arc-platform;
+  }
+
+  organization
+    "Arrcus, Inc.";
+
+  contact
+    "Arrcus, Inc.
+     2077 Gateway Place
+     Suite 400
+     San Jose, CA 95110
+
+     E-mail: yang-support@arrcus.com";
+
+  description
+    "This module contains definitions for the
+     native ArcOS system domain.
+
+     Copyright (c) 2016-2019 by Arrcus, Inc.
+     All rights reserved.";
+
+  revision 2022-06-29 {
+    description
+      "Support difference between Candidate and Running Datastores";
+  }
+
+  revision 2019-10-01 {
+    description "Initial version";
+  }
+
+  typedef status-code {
+    type enumeration {
+      enum SUCCESS {
+        description
+          "Operation succeeded";
+      }
+
+      enum FAILURE {
+        description
+          "Operation failed";
+      }
+    }
+  }
+
+
+  rpc request-configuration-factory-default-reboot {
+    description
+      "Reset config back to factory default and reboot device.
+       NOTE: This command cannot be used for ArcRR (container) images";
+
+    output {
+      leaf status {
+        type status-code;
+          description
+            "Result of the operation";
+      }
+
+      leaf message {
+        type string;
+          description
+            "Description of the result of the operation";
+      }
+    }
+  }
+
+  rpc request-system-ztp-stop {
+    description
+       "Stop ZTP process.
+       NOTE: This command cannot be used on container images";
+  }
+
+  rpc request-system-stateful-restart {
+    description
+       "Stop ZTP process.
+       NOTE: This command cannot be used on container images";
+  }
+
+  rpc load-configuration {
+    description
+      "Request to load a configuration to the candidate datastore
+       and either commit the configuration to the running datastore
+       or provide a diff back to the client in the native CLI text
+       format.
+
+       If the commit presence container is omitted from the request
+       then the request is a dry-run which will return a diff of the
+       candidate and running datastores back to the client in CLI text
+       format. For a diff to be returned, the encoding must be set to
+       CLI.";
+
+    input {
+      leaf operation {
+        mandatory true;
+        type enumeration {
+          enum MERGE {
+            description
+              "Merge the configuration specified in the config leaf
+               into the candidate datastore.";
+          }
+          enum OVERRIDE {
+            description
+              "Override the complete configuration specified in the
+               config leaf into the candidate datastore";
+          }
+          enum REPLACE {
+            description
+              "Replace the configuration specified in the config leaf
+               into the candidate datastore. All other configuration
+               remains as-is.";
+          }
+        }
+        description
+          "The load operation for the configuration specified within
+           the config leaf.";
+      }
+
+      leaf encoding {
+        type enumeration {
+          enum CLI {
+            description
+              "Native text based (CLI) configuration format encoding.";
+          }
+          enum JSON {
+            description
+              "JSON configuration format encoding.";
+          }
+        }
+        default CLI;
+        description
+          "The encoding format of the configuration specified within
+           the config leaf.";
+      }
+
+      leaf config {
+        mandatory true;
+        type string;
+        description
+          "The configuration in the encoding format specified from the
+           encoding leaf.";
+      }
+
+      container commit {
+        presence "Commit the candidate configuration";
+        description
+          "Commit the candidate configuration to the running datastore.
+           If this option is omitted then the server will attempt to
+           load the configuration specified in the config leaf and
+           return a diff (in CLI text based format) to the caller
+           within the output data node.  If the commit is successful,
+           an rpc-reply with an <ok/> is returned to the caller.";
+
+        leaf comment {
+          type string;
+          description
+            "Optional comment to be recorded for the commit
+             transaction.";
+        }
+      }
+    }
+
+    output {
+      leaf data {
+        type string;
+        description
+          "This leaf is returned if the commit node is omitted from the
+           request.  When this occurs, a dry-run takes effect and a
+           diff between the candidate and running datastore is returned
+           to the the client.  This is only returned if the request
+           encoding is set to 'CLI'. For all other encodings, an
+           rpc-error is returned to the client.";
+      }
+    }
+  }
+
+  rpc get-configuration {
+    description
+      "Request to retrieve a configuration from the running datastore
+       in the encoding format specified by the client.";
+
+    input {
+      leaf encoding {
+        type enumeration {
+          enum CLI {
+            description
+              "Native text based (CLI) configuration format encoding.";
+          }
+          enum JSON {
+            description
+              "JSON configuration format encoding.";
+          }
+        }
+        default CLI;
+        description
+          "The encoding format of the configuration to be returned
+           from the running datastore.";
+      }
+    }
+
+    output {
+      leaf data {
+        type string;
+        description
+          "Contains the full configuration of the running datastore in
+           the encoding format specified in the request.";
+      }
+    }
+  }
+
+  rpc get-diff {
+    description
+      "Request to retrieve a configuration diff between the candidate and the
+       running datastore in the encoding format specified by the client.";
+
+    input {
+      leaf encoding {
+        type enumeration {
+          enum CLI {
+            description
+              "Native text based (CLI) configuration format encoding.";
+          }
+          enum JSON {
+            description
+              "JSON configuration format encoding.";
+          }
+          enum XML {
+            description
+              "XML configuration format encoding.";
+          }
+        }
+        default XML;
+        description
+          "The encoding format of the configuration to be returned.";
+      }
+    }
+
+    output {
+      leaf data {
+        type string;
+        description
+          "Contains the configuration diff between the candidate datastore in
+           the current session and the running datastore in the encoding format
+           specified in the request.";
+      }
+    }
+  }
+
+  rpc request-system-reboot {
+    description
+      "Initiate a reboot to the system.  If no input options are given,
+       then a check is done to see if any outstanding exclusive locks
+       are held on the candidate database.  If so then an rpc-error is
+       returned to the caller.  To override this check, the force
+       option must be given in the RPC call.";
+
+    input {
+      leaf wait-time {
+        type uint8 {
+          range 1..120;
+        }
+        units minutes;
+        description
+          "Optional node to specify the wait time in minutes (up to 2hr)
+           before rebooting the system.";
+      }
+
+      leaf cancel {
+        type empty;
+        description
+          "Cancel a previous request for reboot.";
+      }
+
+      leaf force {
+        type empty;
+        description
+          "Force the reboot and do not check if any exclusive locks
+           exist.";
+      }
+    }
+  }
+
+  rpc request-software-load {
+    description
+      "Initiate the load of a software package";
+
+    input {
+      leaf package-name {
+        mandatory true;
+        type inet:uri {
+          length 1..max;
+        }
+        description
+          "A valid ArcOS installation executable either represented
+           as a valid URI scheme (e.g. scp://, sftp://, http://) or
+           a filesystem absolute path.";
+      }
+
+      leaf tag {
+        mandatory true;
+        type string {
+          length 1..128;
+        }
+        description
+          "Upgrade Bundle Tag";
+      }
+    }
+  }
+
+  rpc request-software-install {
+    description
+      "Initiate the installation (and optional download) of a
+       software package and configuration file to apply post
+       installation.";
+
+    input {
+      leaf package-name {
+        type inet:uri {
+          length 1..max;
+        }
+        description
+          "A valid ArcOS installation executable either represented
+           as a valid URI scheme (e.g. scp://, sftp://, http://) or
+           a filesystem absolute path.";
+      }
+
+      leaf upgrade-bundle-tag {
+        type inet:uri {
+          length 1..max;
+        }
+        description
+          "Upgrade Bundle Tag";
+
+        when "(/arc-platform:platform/arc-platform:deployment-type = 'arc-platform:DISTRIBUTED')";
+      }
+
+      leaf force {
+        type empty;
+        description
+          "Skip any safety checks and force installation process to continue.
+           Use with caution, may lead to traffic disruptions.";
+      }
+
+      leaf hitless {
+        type empty;
+        description
+          "Perform a hitless ugprade";
+
+        when "((/arc-platform:platform/arc-platform:type = 'arc-platform:IX8A') or " +
+             "(/arc-platform:platform/arc-platform:type = 'arc-platform:AS7712'))";
+      }
+
+      leaf config-filename {
+        type inet:uri {
+          length 1..max;
+        }
+        description
+          "A valid ArcOS configuration to be applied post-installation/
+           reboot. The configuration file must be compatible with the
+           destination software version and is either represented as a
+           valid URI scheme (e.g. scp://, sftp://, http://) or a
+           filesystem absolute path.";
+        when "not(../hitless)";
+      }
+
+      leaf source-interface {
+        type oc-if:base-interface-ref;
+        description
+          "Network-instance name to source any external requests from
+           for retrieval of package-name or config-filename from remote
+           destinations based off the URI scheme.";
+      }
+
+      leaf factory-default {
+        type empty;
+        description
+          "Reset the running configuration to factory-default post the
+           installation process.  If a config-filename is also passed
+           in, the factory-default option takes precedence.";
+        when "not(../hitless)";
+      }
+    }
+  }
+
+  rpc request-software-rollback {
+    description
+      "Initiate rollback of the last installated software package.";
+  }
+
+  rpc debug-process-smd {
+    description
+      "Control debugging for the System Management Daemon (smd)
+       process.  An RPC request with no input nodes indicates to
+       enable debugging for the entire process.";
+
+    input {
+      leaf disable {
+        type empty;
+        description
+          "Disable process debugging.";
+      }
+    }
+  }
+}

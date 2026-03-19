@@ -1,0 +1,297 @@
+submodule openconfig-network-instance-l2 {
+
+  belongs-to openconfig-network-instance {
+    prefix "oc-netinst";
+  }
+
+
+  // import some basic types
+  import openconfig-extensions { prefix "oc-ext"; }
+  import openconfig-interfaces { prefix "oc-if"; }
+  import ietf-yang-types { prefix "yang"; }
+  import openconfig-vlan { prefix "oc-vlan"; }
+
+  // meta
+  organization "OpenConfig working group";
+
+  contact
+    "OpenConfig working group
+    www.openconfig.net";
+
+  description
+    "This module contains groupings which specifically relate to
+    Layer 2 network instance configuration and operational state
+    parameters.";
+
+  oc-ext:openconfig-version "0.8.0";
+
+  revision "2017-02-28" {
+    description
+      "Add OSPFv2 to network instance";
+    reference "0.8.0";
+  }
+
+  revision "2017-01-26" {
+    description
+      "Add policy forwarding to network instance";
+    reference "0.7.0";
+  }
+    
+  revision "2017-01-13" {
+    description
+      "Add AFT to the network instance";
+    reference "0.6.0";
+  }
+
+  revision "2016-12-15" {
+    description
+      "Add segment routing to network instance";
+    reference "0.5.0";
+  }
+
+  revision "2016-11-10" {
+    description
+      "Update model to include IS-IS.";
+    reference "0.4.1";
+  }
+
+  revision "2016-10-12" {
+    description
+      "Update table connections";
+    reference "0.4.0";
+  }
+
+  revision "2016-09-28" {
+    description
+      "Change L2 instance to submodule; add MAC table";
+    reference "0.3.0";
+  }
+
+  revision "2016-08-11" {
+    description
+      "Resolve repeated container names in routing protocols";
+    reference "0.2.3";
+  }
+
+  revision "2016-07-08" {
+    description
+      "Updated with refactored routing protocol models";
+    reference "0.2.1";
+  }
+
+  revision "2016-03-29" {
+    description
+      "Initial revision";
+    reference "0.2.0";
+  }
+
+  revision "2015-11-20" {
+    description
+      "Initial revision";
+    reference "0.1.0";
+  }
+
+  grouping l2ni-instance {
+    description
+      "Configuration and operational state parameters relating
+      to a Layer 2 network instance";
+
+    container fdb {
+      description
+        "Operational state and configuration parameters relating to
+        the forwarding database of the network instance";
+
+      container config {
+        description
+          "Configuration parameters relating to the FDB";
+        uses l2ni-fdb-mac-config;
+      }
+      container state {
+        config false;
+        description
+          "Operational state parameters relating to the FDB";
+        uses l2ni-fdb-mac-config;
+      }
+
+       uses l2ni-mac-table-top;
+    }
+  }
+
+  grouping l2ni-instance-common-config {
+    description
+      "Common configuration options which are specific to Layer 2
+      network instances";
+
+    leaf mtu {
+      type uint16;
+      description
+        "The maximum frame size which should be supported for this
+        instance for Layer 2 frames";
+    }
+
+  }
+
+  grouping l2ni-fdb-mac-config {
+    description
+      "Parameters relating to FDB behaviour relating to MAC
+      addresses";
+
+    leaf mac-learning {
+      type boolean;
+      description
+        "When this leaf is set to true, MAC learning is enabled for
+        the network instance, such that MAC addresses are learned
+        from ingress frames and added to the FDB.";
+    }
+
+    leaf mac-aging-time {
+      // Cisco supports one aging time for local and remote, but
+      // can specify this time is absolute or against inactivity.
+      // ALU SROS supports different aging times for local and remote
+      // but does not allow absolute/inactivity specification.
+      // JNPR supports only a single aging time, and no specification
+      // of whether inactivity/absolute is used.
+      // It is easy to augment new options in here for local remote
+      // and an extra leaf to allow specification of the type of aging
+      // so this is left as a single value.
+      type uint16;
+      units seconds;
+      description
+        "The number of seconds of inactivity after which the entry
+        in the local FDB is timed out.";
+    }
+
+    leaf maximum-entries {
+      type uint16;
+      description
+        "The maximum number of MAC address entries that should be
+        accepted into the FDB";
+    }
+  }
+
+  grouping l2ni-encapsulation-config {
+    description
+      "Encapsulation related configuration parameters for a L2
+      network instance";
+
+    leaf control-word {
+      type boolean;
+      description
+        "Whether the control-word should be used for the network
+        instance";
+      reference "RFC3985";
+    }
+  }
+
+  grouping l2ni-mac-table-config {
+    description
+      "Configuration data for MAC table entries";
+
+    leaf mac-address {
+      type yang:mac-address;
+      description
+        "MAC address for the dynamic or static MAC table
+        entry";
+    }
+
+    leaf vlan {
+      //TODO(aashaikh): Consider whether this should just reflect the
+      //VLAN id or be a union type to also support displaying/setting
+      //the VLAN by name (i.e., global VLAN configured in the VLAN
+      // model).
+      type leafref {
+        //path "../../../../../../vlans/vlan/config/vlan-id";
+        path "/oc-vlan:vlans/oc-vlan:vlan/oc-vlan:config/oc-vlan:vlan-id";
+      }
+      description
+        "VLAN from which this MAC address was received";
+    }
+  }
+
+  grouping l2ni-mac-table-state {
+    description
+      "Operational state data for MAC table entries";
+
+    leaf age {
+      type uint64;
+      units seconds;
+      description
+        "The time in seconds since the MAC address has been in the
+        table";
+    }
+
+    leaf entry-type {
+      type enumeration {
+        enum STATIC {
+          description
+            "Statically programmed MAC table entry";
+        }
+        enum DYNAMIC {
+          description
+            "Dynamically learned MAC table entry";
+        }
+      }
+      description
+        "Indicates whether the entry was statically configured, or
+        dynamically learned.";
+    }
+
+  }
+
+  grouping l2ni-mac-table-top {
+    description
+      "Top-level grouping for MAC table list";
+
+
+    container mac-table {
+      description
+        "Table of learned or statically configured MAC addresses and
+        corresponding VLANs in the bridge domain";
+
+      container entries {
+        description
+          "Enclosing container for list of MAC table entries";
+
+        list entry {
+          key "mac-address";
+          description
+            "List of learned MAC addresses";
+
+          leaf mac-address {
+            type leafref {
+              path "../config/mac-address";
+            }
+            description
+              "Reference to mac-address list key";
+          }
+
+          container config {
+            description
+              "Configuration data for MAC table entries";
+
+            uses l2ni-mac-table-config;
+          }
+
+          container state {
+
+            config false;
+
+            description
+              "Operational state data for MAC table entries";
+
+            uses l2ni-mac-table-config;
+            uses l2ni-mac-table-state;
+          }
+
+          container interface {
+            description
+              "Reference to the base and/or subinterface for the
+              MAC table entry";
+
+            uses oc-if:interface-ref;
+          }
+        }
+      }
+    }
+  }
+}

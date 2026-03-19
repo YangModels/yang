@@ -1,0 +1,281 @@
+module arcos-multicloud {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/multicloud";
+  prefix multicloud;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  import arcos-system-types { 
+    prefix arc-sys-types;
+  }
+
+  import arcos-platform {
+    prefix arc-platform;
+  }
+
+  organization
+    "Arrcus, Inc.";
+
+  contact
+    "Arrcus, Inc.
+     2077 Gateway Place
+     Suite 400
+     San Jose, CA 95110
+     E-mail: yang-support@arrcus.com";
+
+  description
+    "This module contains definitions for
+     ArcOS Multicloud.
+     Copyright (c) 2020-2022 by Arrcus, Inc.
+     All rights reserved.";
+
+  revision "2023-09-25" {
+    description
+      "Add when statement for EDGE platform.";
+  }
+
+  revision "2022-02-17" {
+    description
+      "Initial commit for mcn.";
+  }
+
+  revision "2020-04-28" {
+    description "initial version";
+  }
+
+  typedef conntype {
+    type enumeration {
+      enum HUB-SPOKE;
+      enum HUB-HUB;
+      enum PEER-PEER;
+    }
+  }
+
+  typedef arcos-intf {
+    type enumeration {
+      enum swp2 {
+        value 2;
+      }
+      enum swp3 {
+        value 3;
+      }
+    }
+  }
+
+  grouping aws-config {
+    description "AWS config parameters";
+    leaf route-table {
+      type string {
+        length "1..31";
+      }
+      description "Route Table of the private subnet";
+    }
+    leaf eni {
+      type string {
+        length "1..31";
+      }
+      description "Private interface ID";
+    }
+  }
+
+  grouping gcp-config {
+    description "Google Cloud config parameters";
+    leaf route-table {
+      type string {
+        length "1..79";
+      }
+      description "Route Table of the private subnet";
+    }
+  }
+
+  grouping azure-config {
+    description "Azure config parameters";
+    leaf resource-group {
+      type string {
+        length "1..80";
+      }
+      description "Azure Resource Group";
+    }
+  }
+
+  grouping mcat-entries {
+    list mcat-entry {
+      key "spoke hostip";
+      max-elements 2048;
+      leaf spoke {
+        type string;
+      }
+      leaf hostname {
+        type string;
+      }
+      leaf hostip {
+        type inet:ip-address;
+      }
+      leaf mcat {
+        type string;
+      }
+      leaf subif {
+        type int32;
+      }
+      leaf mac {
+        type string;
+      }
+    }
+  }
+
+  grouping ha-entries {
+    list ha-entry {
+      key "spoke host";
+      max-elements 2048;
+      leaf spoke {
+        type string;
+      }
+      leaf host {
+        type inet:ip-address;
+      }
+      leaf mac {
+        type string;
+      }
+    }
+  }
+
+  container multicloud {
+    when "(/arc-platform:platform/arc-platform:type = 'arc-platform:EDGE')";
+
+    leaf ha-peer {
+      type inet:ip-address;
+      description "High Availability Peer IPv4 address";
+    }
+    list hub {
+      key name;
+      description "Hub specific configuration";
+      max-elements 1;
+      leaf name {
+        type string {
+          length "1..31";
+        }
+      }
+      leaf number {
+        type uint8 {
+          range "0 .. 31";
+        }
+        description "Hub number";
+        mandatory true;
+      }
+      leaf user {
+        type string {
+          length "1..31";
+        }
+        description "User name";
+        mandatory true;
+      }
+      leaf password {
+        type arc-sys-types:encrypted-string {
+          length "1..1024";
+        }
+        description "Shared secret between hub and spoke. When configured, the password is encrypted, and shows up as an encrypted string in show commands";
+        mandatory true;
+      }
+    }
+    list spoke {
+      key name;
+      description "Spoke specific configuration";
+      unique interface;
+      max-elements 2;
+      leaf name {
+        type string {
+          length "1..31";
+        }
+      }
+      leaf connection {
+        type conntype;
+        description "Connection Type";
+        default HUB-SPOKE;
+      }
+      leaf hubip {
+        type inet:ip-address;
+        description "Hub IPv4 address";
+        mandatory true;
+      }
+      leaf user {
+        type string {
+          length "1..31";
+        }
+        description "User name";
+        mandatory true;
+      }
+      leaf password {
+        type arc-sys-types:encrypted-string {
+          length "1..1024";
+        }
+        description "Shared secret between hub and spoke. When configured, the password is encrypted, and shows up as an encrypted string in show commands";
+        mandatory true;
+      }
+      leaf interface {
+        type arcos-intf;
+        description "Spoke interface";
+        mandatory true;
+      }
+    }
+    container provider {
+      description "Cloud provider specific configuration";
+      container aws {
+        uses aws-config;
+      }
+      container azure {
+        uses azure-config;
+      }
+      container google {
+        uses gcp-config;
+      }
+    }
+    container mcat-table {
+      description "Operational state of MCAT";
+      config false;
+
+      uses mcat-entries;
+    }
+    container ha-table {
+      description "Operational state of HA table";
+      config false;
+
+      uses ha-entries;
+    }
+  }
+
+  notification dns-add {
+    leaf mcatip {
+      type string {
+        length "1..16";
+      }
+      description "MCAT ip of the private host";
+      mandatory true;
+    }
+    leaf hostname {
+      type string {
+        length "1..299";
+      }
+      description "Hostname of the private instance";
+      mandatory true;
+    }
+  }
+
+  notification dns-delete {
+    leaf mcatip {
+      type string {
+        length "1..16";
+      }
+      description "MCAT ip of the private host";
+      mandatory true;
+    }
+    leaf hostname {
+      type string {
+        length "1..299";
+      }
+      description "Hostname of the private instance";
+      mandatory true;
+    }
+  }
+}

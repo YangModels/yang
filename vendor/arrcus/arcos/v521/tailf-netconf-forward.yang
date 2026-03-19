@@ -1,0 +1,129 @@
+module tailf-netconf-forward {
+  yang-version 1.1;
+  namespace "http://tail-f.com/ns/netconf/forward/1.0";
+  prefix fwd;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+
+  description
+    "Copyright 2019 Cisco Systems, Inc.
+     All rights reserved.
+     Permission is hereby granted to redistribute this file without
+     modification.";
+
+  grouping sasl-failure-type {
+    container failure {
+      choice reason {
+        leaf incorrect-encoding { type empty; }
+        leaf invalid-authzid { type empty; }
+        leaf invalid-mechanism { type empty; }
+        leaf mechanism-too-weak { type empty; }
+        leaf not-authorized { type empty; }
+        leaf temporary-auth-failure { type empty; }
+      }
+    }
+  }
+
+  grouping forward-response-type {
+    choice result {
+      case connected {
+        container capabilities {
+          description
+            "The capabilities of the target NETCONF server.";
+          leaf-list capability {
+            type inet:uri;
+          }
+        }
+      }
+      case challenge {
+        container challenge {
+          description
+            "Sent when the forwarding request failed because the
+             target server challenged the authentication request.
+
+             The challenge response is sent as the 'response'
+             parameter in the 'challenge-response' rpc.";
+          leaf challenge {
+            type string;
+          }
+        }
+      }
+    }
+  }
+
+  rpc forward {
+    input {
+      leaf target {
+        type string;
+        mandatory true;
+      }
+      container auth {
+        presence "Provides authentication parameters";
+        leaf mechanism {
+          type string;
+          mandatory true;
+        }
+        leaf initial-response {
+          type string;
+        }
+      }
+    }
+    output {
+      uses forward-response-type;
+    }
+    description
+      "May return 'connection-failure', 'sasl-authentication-needed', or
+       'sasl-failure' error.";
+  }
+
+  tailf:error-info {
+    container connection-failure {
+      description
+        "The error-message element MAY contain a human readable reason
+         for the connection failure.";
+      leaf error {
+        type string;
+        description
+          "A POSIX error name or one of:
+             subsystem-not-supported
+          ";
+      }
+    }
+
+    container sasl-authentication-needed {
+      description
+        "Sent when the forwarding request failed because the no
+         suitable authentication mechanism was present in the
+         forwarding request.";
+      container mechanisms {
+        leaf-list mechanism {
+          type string;
+        }
+      }
+    }
+
+    container sasl-failure {
+      uses sasl-failure-type;
+    }
+  }
+
+  rpc challenge-response {
+    input {
+      leaf response {
+        type string;
+        mandatory true;
+      }
+    }
+    output {
+      uses forward-response-type;
+    }
+    description
+      "May return 'sasl-failure' error.";
+
+  }
+}

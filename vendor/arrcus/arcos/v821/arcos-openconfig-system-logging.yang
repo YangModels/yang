@@ -1,0 +1,268 @@
+module arcos-openconfig-system-logging {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/openconfig/system/logging";
+  prefix arc-oc-sys-logging;
+
+  import openconfig-system {
+    prefix oc-sys;
+  }
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  import openconfig-system-logging {
+    prefix oc-sys-logging;
+  }
+
+  import openconfig-interfaces {
+    prefix oc-if;
+  }
+
+  organization
+    "Arrcus, Inc.";
+
+  contact
+    "Arrcus, Inc.
+     2077 Gateway Place
+     Suite 400
+     San Jose, CA 95110
+
+     E-mail: yang-support@arrcus.com";
+
+  description
+    "This module augments the OpenConfig system logging model
+     to add Arrcus specific configuration.
+
+     Copyright (c) 2023 by Arrcus, Inc.
+     All rights reserved.";
+
+  revision "2024-04-23" {
+    description
+      "Adding ability to configure syslog SNMP Trap source address/interface";
+  }
+
+  revision 2023-12-04 {
+    description
+      "Added configurations for confd internal debugging/logging options.";
+  }
+
+  revision "2023-02-06" {
+    description
+      "Initial version";
+  }
+
+  //typedefs
+  typedef developer-log-level-type {
+    // Values are taken from confd internal implementation, confd_dyncfg module
+    type enumeration {
+      enum "error" {
+        value 126243105;
+      }
+      enum "info" {
+        value 2062105651;
+      }
+      enum "trace" {
+        value 1896625767;
+      }
+    }
+  }
+
+  // Groupings
+  grouping snmp-trap {
+    leaf source-address {
+      type inet:ipv4-address;
+      description
+        "Source IP of the traps";
+    }
+
+    leaf source-interface {
+      type oc-if:base-interface-ref;
+      must "(not(boolean(../arc-oc-sys-logging:source-address)))" {
+        error-message "source-address and source-interface " +
+                      "are mutually exclusive";
+      }
+      description
+        "Source interface of the traps. The IPv4 address on the
+        interface will be used for the SNMP traps";
+    }
+
+    leaf address {
+      type inet:ipv4-address;
+      description
+        "The IP address of the destination where the traps need
+         to be sent. Ideally, this should be a mandatory value,
+         however, because of YANG rules, a non-mandatory node cannot
+         be augmented with a mandatory node.";
+    }
+
+    leaf port {
+      type inet:port-number;
+      default 162;
+      description
+        "The port of the destination where the traps need to be
+         sent to.";
+    }
+
+    leaf severity {
+      type oc-sys-logging:syslog-severity;
+      default ERROR;
+      description
+        "Specifies that only messages of the given severity (or
+         greater severity) are sent as SNMP Traps.";
+    }
+
+    leaf action {
+      type enumeration {
+        enum BLOCK {
+          description
+            "Specifies that all syslogs should be blocked
+             from being sent as SNMP Traps.";
+        }
+        enum SEND {
+          description
+            "Specifies that if the syslog message severity is greater than
+             the configured severity, it will be sent as an SNMP Trap.";
+        }
+      }
+      default BLOCK;
+      description
+        "Specifies if the syslog message should be sent based on
+         the configured severity or entirely blocked.";
+    }
+    description
+      "Grouping for additional parameters namely severity and action.
+       If the action is configured as SEND, a syslog with severity
+       greater than or equal to the configured severity will be sent
+       as an SNMP Trap. If the action is configured as BLOCK, all
+       syslog messages will be blocked from being sent as SNMP Traps.";
+  }
+
+  grouping snmp-trap-top {
+    description
+      "Grouping for config and state of sending syslog messages
+       as SNMP traps.";
+
+    container snmp-trap {
+      description
+        "Container for config and state of sending syslog messages
+         as SNMP traps.";
+
+      container config {
+        description
+          "Container for configuration of sending syslog messages.";
+
+	presence
+          "This container is present and therefore the feature" +
+          "enabled, if any of these values are configured.";
+
+        uses snmp-trap;
+      }
+
+      container state {
+
+        config false;
+
+        description
+          "Container for state of sending syslog messages
+           as SNMP traps.";
+
+        uses snmp-trap;
+      }
+    }
+  }
+
+  grouping confd-debug-config {
+    description
+      "Grouping of confd debugging configurations";
+
+    leaf developer-log-level {
+      type developer-log-level-type;
+      default "info";
+      description
+        "Controls which level of developer messages are printed in
+         the developer log. This configuration parameter takes
+         effect for both existing and new sessions.";
+    }    
+  }
+
+  grouping confd-debug-xpath-trace-config {
+    description
+      "Grouping of config for setting confd xpath tracing logs";
+
+    leaf enabled {
+      type boolean;
+      default "false";
+      description
+        "If 'true', all XPath execution is logged.";
+    }
+  }
+
+  grouping confd-debug-progress-trace-config {
+    description
+      "Grouping of config for setting confd progress trace logs";
+
+    leaf enabled {
+      type boolean;
+      default "false";
+      description 
+        "If 'true', progress trace files are written to the log directory.";
+    }
+  }
+
+  grouping confd-debug-top {
+    description
+      "Grouping of configurations for setting confd internal debugging/logging features";
+
+    container confd {
+      description
+        "ConfD debug logs settings";
+
+      container config {
+        description
+          "Container for configuration of confd debugging";
+
+        uses confd-debug-config;
+      }
+
+      container xpath-trace-log {
+        description
+          "xpath trace log is a log for understanding and
+           troubleshooting XPath evaluations.  When this log is
+           enabled, the execution of all XPath queries evaluated by
+           ConfD is logged to a file.
+
+           This will slow down ConfD, so be careful when enabling
+           this log.  This log is not rotated, i.e. use logrotate(8).";
+
+        container config {
+          description
+            "Container for configuration of confd xpath trace log settings";
+
+          uses confd-debug-xpath-trace-config;
+        } 
+      }
+
+      container progress-trace {
+        description
+          "Progress trace is used for tracing progress events emitted by
+           transactions and actions in ConfD. It provides useful
+           information for debugging, diagnostics and profiling.
+           Enabling this setting allows progress trace files to be
+           written to the configured directory.";
+
+        container config {
+          description
+            "Container for configuration of confd progress trace log settings";
+
+          uses confd-debug-progress-trace-config;
+        } 
+      }
+    }
+  }
+
+  augment "/oc-sys:system/oc-sys:logging" {
+    uses snmp-trap-top;
+    uses confd-debug-top;
+  }
+}

@@ -1,0 +1,135 @@
+module arcos-openconfig-mpls-augments {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/openconfig/mpls/augments";
+  
+  prefix arc-oc-mpls-aug;
+
+  /*
+   * Import basic things
+   */
+  import openconfig-network-instance { prefix oc-netinst; }
+
+  revision 2023-01-13 {
+    description
+      "* Add evpn, evpn-imet and evpn-esi label-blocks.";
+  }
+
+  revision 2018-10-20 {
+    description
+      "Initial Revision
+       * Add index field to the state MPLS reserved label block
+      ";
+    reference
+      "RFC 7950: The YANG 1.1 Data Modeling Language";
+  }
+
+  /*
+   * Add index field to MPLS reserved block
+   * This is because reserved blocks are maintained in an array
+   */
+  augment "/oc-netinst:network-instances/oc-netinst:network-instance" +
+    "/oc-netinst:mpls/oc-netinst:global/oc-netinst:reserved-label-blocks" +
+    "/oc-netinst:reserved-label-block/oc-netinst:state"  {
+    leaf index {
+      type uint32;
+      config false;
+      description
+        "For speed we maintain label blocks in an array and each SRGB
+         just stores the indeces of the blocks which it uses. So to
+         ease debugging we want to display that index when showing a
+         reserved block";
+    }
+
+    leaf allocated-by {
+      type string;
+      description "Application which use this block";
+    }
+  }
+
+  grouping dynamic-label-block-used-labels {
+    leaf-list used-labels {
+      type uint32;
+      description
+        "List of labels that have already been allocated by protocols
+        referencing the dynamic label block.";
+    }
+  }
+
+  grouping label-block-list {
+    leaf-list mpls-label-blocks {
+      type leafref {
+        path "/oc-netinst:network-instances/oc-netinst:network-instance" +
+             "/oc-netinst:mpls/oc-netinst:global/oc-netinst:reserved-label-blocks" +
+             "/oc-netinst:reserved-label-block/oc-netinst:config/oc-netinst:local-id";
+      }
+      description
+        "A list of references to the label blocks that are used to make
+        up dynamic label block.";
+    }
+  }
+
+  grouping dynamic-label-block-top {
+    description "Configuration and state parameters relating to
+                 Dynamic Label Blocks.";
+
+    container config {
+      description "Configuration parameters relating to Dynamic Label Blocks.";
+
+      uses label-block-list;
+    }
+
+    container state {
+      config false;
+      description "State parameters relating to Dynamic Label Blocks.";
+
+      uses label-block-list;
+
+      leaf total-reserved-labels {
+        type uint32;
+        description
+          "The total number of labels that are available for dynamic label block.";
+      }
+
+      leaf total-used-labels {
+        type uint32;
+        description
+          "The total number of labels that have already been allocated by
+           protocols referencing the dynamic label block.";
+      }
+
+      uses dynamic-label-block-used-labels;
+    }
+  }
+
+  augment "/oc-netinst:network-instances/oc-netinst:network-instance" +
+    "/oc-netinst:mpls" {
+    container dynamic-label {
+      description "Configuration and operational parameters relating to
+                   Dynamic Label Blocks.";
+      uses dynamic-label-block-top;
+    }
+    container evpn-label {
+      description "Configuration and operational parameters relating to
+                   EVPN common Label Blocks.";
+      uses dynamic-label-block-top;
+    }
+    container evpn-imet-label {
+      description "Configuration and operational parameters relating to
+                   EVPN IMET Label Blocks.";
+      uses dynamic-label-block-top {
+        refine "config/mpls-label-blocks" {
+          max-elements 1;
+        }
+      }
+    }
+    container evpn-esi-label {
+      description "Configuration and operational parameters relating to
+                   EVPN ESI Label Blocks.";
+      uses dynamic-label-block-top {
+        refine "config/mpls-label-blocks" {
+          max-elements 1;
+        }
+      }
+    }
+  }
+}

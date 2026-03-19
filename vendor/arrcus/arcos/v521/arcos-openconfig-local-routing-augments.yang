@@ -1,0 +1,167 @@
+module arcos-openconfig-local-routing-augments {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/openconfig/local-routing/augments";
+  prefix arc-oc-loc-rt-aug;
+
+  import openconfig-network-instance {
+    prefix oc-netinst;
+  }
+
+  import openconfig-local-routing {
+    prefix oc-loc-rt;
+  }
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  organization
+    "Arrcus, Inc.";
+
+  contact
+    "Arrcus, Inc.
+     Customer Service
+     Postal: 2077 Gateway Place
+     San Jose, CA 95110
+     Tel: +1 (408) 884-1965
+     E-mail: yang-support@arrcus.com";
+
+  description
+    "This module defines augment statements for Arrcus
+     implemention of the openconfig local-routing module.
+     Copyright (c) 2016-2022 by Arrcus, Inc.
+     All rights reserved.";
+
+  revision 2022-06-20 {
+    description
+       "Static Route next-hop next-network-instance added";
+  }
+
+  revision 2019-06-11 {
+    description
+       "
+       * Static route next-hop implicit null label added;
+      ";
+  }
+
+  revision 2017-06-11 {
+    description
+      "Initial Revision
+       * Static route next-hop preference added;
+       * Static route next-hop optional link local address added;
+      ";
+
+    reference
+      "RFC 6020: YANG - A Data Modeling Language for the
+       Network Configuration Protocol (NETCONF)";
+  }
+
+
+  // identity statements
+
+  identity SPECIAL_MPLS_LABEL {
+    description
+      "A base identity type of reserved label types";
+  }
+
+  identity IMPLICIT-NULL {
+    base SPECIAL_MPLS_LABEL;
+    description
+      "Implicit Null Label";
+  }
+
+  // typedef statements
+
+  typedef special-next-hop-label {
+    type identityref {
+      base SPECIAL_MPLS_LABEL;
+    }
+    description
+      "Special remote label to be used in the nexthop for locally generated
+      routes";
+  }
+
+  grouping static-route-config {
+    leaf description {
+      type string;
+      description
+        "An optional textual description for the route.";
+    }
+
+    leaf preference {
+      type uint32;
+      description
+        "Specify the preference (or administrative distance) for the
+         configured static route when it is injected into RIB.";
+    }
+
+    leaf local-label-index {
+      type uint32 {
+        range 0..1048575;
+      }
+      description
+        "Specify local label index for the configured static route; The label
+         is then assigned based on the configured label range and index.";
+    }
+  }
+
+  augment "/oc-netinst:network-instances/oc-netinst:network-instance" +
+          "/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:static-routes" +
+          "/oc-netinst:static/oc-netinst:config" {
+    uses static-route-config;
+  }
+
+  grouping link-local-addr-config {
+    leaf link-local-address {
+      type inet:ipv6-address;
+      description
+        "Specify the link-local address as next-hop if LOCAL_LINK type
+         has been configured.";
+    }
+  }
+
+  augment "/oc-netinst:network-instances/oc-netinst:network-instance" +
+          "/oc-netinst:protocols/oc-netinst:protocol" +
+          "/oc-netinst:static-routes/oc-netinst:static/oc-netinst:next-hops" +
+          "/oc-netinst:next-hop/oc-netinst:config" {
+    when "oc-netinst:next-hop = 'oc-loc-rt:LOCAL_LINK'";
+    uses link-local-addr-config;
+  }
+
+  augment "/oc-netinst:network-instances/oc-netinst:network-instance" +
+          "/oc-netinst:protocols/oc-netinst:protocol" +
+          "/oc-netinst:static-routes/oc-netinst:static/oc-netinst:next-hops" +
+          "/oc-netinst:next-hop/oc-netinst:config" {
+   
+    leaf next-network-instance-name {
+      description
+        "Reference to network-instance.";
+      type oc-netinst:network-instance-ref;
+    }
+  }
+
+  grouping remote-label-stack-config {
+    leaf-list remote-label-stack {
+      max-elements 3;
+      ordered-by user;
+      type union  {
+        type uint32 {
+          range 0..1048575;
+        }
+        type special-next-hop-label;
+      }
+      must "boolean(../../oc-netinst:interface-ref/oc-netinst:config/oc-netinst:interface)" {
+        error-message "Interface must be configured.";
+      }
+      description
+        "Specify a stack of up-to 3 outgoing labels per-next-hop.";
+    }
+  }
+
+  augment "/oc-netinst:network-instances/oc-netinst:network-instance" +
+          "/oc-netinst:protocols/oc-netinst:protocol" +
+          "/oc-netinst:static-routes/oc-netinst:static/oc-netinst:next-hops" +
+          "/oc-netinst:next-hop/oc-netinst:config" {
+    uses remote-label-stack-config;
+  }
+}

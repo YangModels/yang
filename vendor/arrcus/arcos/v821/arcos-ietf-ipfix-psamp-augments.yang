@@ -1,0 +1,137 @@
+module arcos-ietf-ipfix-psamp-augments {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/ietf/ipfix/psamp/augments";
+  prefix arc-ietf-ipfix-psamp-aug;
+
+  import ietf-ipfix-psamp {
+    prefix ietf-ipfix;
+  }
+
+  import openconfig-interfaces {
+    prefix "oc-if";
+  }
+
+  import ietf-yang-types { prefix yang; }
+
+  organization
+    "Arrcus, Inc.";
+
+  contact
+    "Email: eng@arrcus.com";
+
+  description
+    "This module defines deviation statements for Arrcus
+     implemention of the IETF IPFIX Packet Sampling.";
+
+  revision 2023-12-24 {
+    description "Added line card to Observation Point";
+  }
+
+  revision 2023-07-10 {
+    description "Initial Revision";
+
+    reference
+      "RFC 6728: https://datatracker.ietf.org/doc/html/rfc6728";
+  }
+
+  typedef samp-afi {
+    type enumeration {
+      enum "IPv4" {
+        value 1;
+      }
+      enum "IPv6" {
+        value 2;
+      }
+      enum "MPLS" {
+        value 3;
+      }
+      enum "ALL" {
+        value 4;
+      }
+    }
+  }
+
+  grouping observation-point-aguments {
+    description
+      "Observation point aguments";
+
+      leaf hw-offload {
+        type boolean;
+        default false;
+        description
+          "HardWare offload for IPFIX exporter";
+      }
+
+      leaf-list interface {
+        type oc-if:base-interface-ref;
+        description
+          "List of sampling interfaces.";
+        must "not(starts-with(/oc-if:interfaces/oc-if:interface[oc-if:name=current()]"
+           + "/oc-if:name, 'ma1'))" {
+          error-message "Management interface cannot be used for sampling";
+        }
+        must "not(starts-with(/oc-if:interfaces/oc-if:interface[oc-if:name=current()]"
+           + "/oc-if:name, 'loopback'))" {
+          error-message "Loopback interface cannot be used for sampling";
+        }
+      }
+
+      leaf line-card {
+        type string;
+        description
+          "Line Card name";
+      }
+  }
+
+  grouping sampling-point-aguments {
+    description
+      "Sampling point aguments";
+
+      leaf-list sample-afi {
+        type samp-afi;
+        default "IPv4";
+        description
+          "AFI to be sampled";
+      }
+  }
+
+  grouping packet-stats {
+    description
+      "Packet stats for exporting process";
+
+    leaf packetsDropped{
+      type yang:zero-based-counter64;
+      config false;
+      description "Packet drop count";
+    }
+
+    leaf packetsSent{
+      type yang:zero-based-counter64;
+      config false;
+      description "Packet drop count";
+    }
+  }
+
+  grouping exporting-process {
+    description
+      "Records are exported by all Exporting Processes in the list.";
+      leaf-list exportingProcess {
+        type leafref { path "/ietf-ipfix:ipfix/ietf-ipfix:exportingProcess/ietf-ipfix:name"; }
+        description "Selection Processes in this list process
+          packets in parallel.";
+      }
+  }
+
+  augment  "/ietf-ipfix:ipfix/ietf-ipfix:observationPoint" {
+    uses observation-point-aguments;
+    uses exporting-process;
+  }
+
+  augment "/ietf-ipfix:ipfix/ietf-ipfix:selectionProcess" {
+    uses sampling-point-aguments;
+  }
+
+  augment "/ietf-ipfix:ipfix/ietf-ipfix:exportingProcess/ietf-ipfix:destination/ietf-ipfix:DestinationParameters/ietf-ipfix:udpExporter/ietf-ipfix:udpExporter/ietf-ipfix:transportSession" {
+    uses packet-stats;
+  }
+}

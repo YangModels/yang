@@ -1,0 +1,264 @@
+module arcos-openconfig-if-aggregate-augments {
+  yang-version 1.1;
+  namespace "http://yang.arrcus.com/arcos/openconfig/interfaces/aggregate/augments";
+  prefix arc-oc-if-agg-aug;
+
+  import openconfig-interfaces {
+    prefix oc-if;
+  }
+
+  import openconfig-if-ethernet {
+    prefix oc-eth;
+  }
+
+  import iana-if-type {
+    prefix ianaift;
+  }
+
+  import openconfig-types {
+    prefix oc-types;
+  }
+
+  import openconfig-if-aggregate {
+    prefix oc-lag;
+  }
+
+  organization
+    "Arrcus, Inc.";
+
+  contact
+    "Arrcus, Inc.
+     2077 Gateway Place
+     Suite 400
+     San Jose, CA 95110
+
+     E-mail: yang-support@arrcus.com";
+
+  description
+    "Ths module defines augments for managing aggregated (aka bundle, LAG)
+     interfaces.
+
+     Copyright (c) 2016-2020 by Arrcus, Inc.
+     All rights reserved.";
+
+  revision "2020-06-19" {
+    description "Initial version";
+  }
+
+
+  typedef fallback-type {
+    type enumeration {
+      enum INDIVIDUAL {
+        value 1;
+        description
+          "All LAG members will be forwarding when all the members stop
+          receiving LACP PDUs";
+      }
+    }
+    description
+      "Type to define the LACP fallback type";
+  }
+
+  grouping lacp-fallback-config {
+    description
+      "Configuration data for LACP fallback";
+
+    leaf mode {
+      type fallback-type;
+      description
+        "LACP fallback type";
+    }
+
+    leaf timeout {
+      type uint16 {
+        range 3..600;
+      }
+      default 3;
+      units seconds;
+      description
+        "Amoount of time in seconds to wait before entering fallback mode";
+    }
+
+    leaf primary-interface {
+      type leafref {
+        path "/oc-if:interfaces/oc-if:interface/oc-if:config/oc-if:name";
+      }
+      description
+        "The member interface of the aggregate which acts as primary
+        interface when the fallback mode is active";
+      must '/oc-if:interfaces/oc-if:interface[oc-if:name=current()]/oc-eth:ethernet/oc-eth:config/oc-lag:aggregate-id = ../../../../../oc-if:config/oc-if:name' {
+        error-message "Interface is not a member of the aggregate";
+      }
+    }
+  }
+
+  grouping lacp-fallback-state {
+    description
+      "Operational data for LACP fallback";
+
+      leaf active {
+        type boolean;
+        description
+          "Fallback active state of the aggregate";
+      }
+  }
+
+  grouping lacp-fallback-top {
+    description
+      "LACP fallback data";
+
+    container fallback {
+      description
+        "LACP fallback configuration";
+
+      container config {
+        description
+          "Configuration variables for LACP fallback";
+
+        uses lacp-fallback-config;
+      }
+
+      container state {
+        config false;
+        description
+          "Operational state variables for LACP fallback";
+
+        uses lacp-fallback-config;
+        uses lacp-fallback-state;
+      }
+    }
+  }
+
+  grouping aggregation-lacp-top {
+    description
+      "Configuration data for aggregation LACP";
+
+    container lacp {
+      description
+        "LACP configuration";
+
+      uses lacp-fallback-top;
+    }
+  }
+
+  // grouping statements
+
+  grouping agg-members-top {
+    description
+      "Top-level grouping for aggregate members list";
+
+    container members {
+      description
+        "Enclosing container for the list of members interfaces of
+        the aggregate. This list is considered operational state
+        only so is labeled config false and has no config container";
+
+      list member {
+        key "member-name";
+        description
+          "List of member interfaces and their associated status for
+          a LACP-controlled aggregate interface.  Member list is not
+          configurable here -- each interface indicates items
+          its participation in the LAG.";
+
+        leaf member-name {
+          type leafref {
+            path "../state/member-name";
+          }
+        }
+
+        container state {
+
+          description
+            "Operational state data for aggregate members";
+
+          leaf member-name {
+            type oc-if:base-interface-ref;
+            description
+              "Reference to aggregate member interface";
+
+            must "(/oc-if:interfaces/oc-if:interface[oc-if:name=current()]"
+              + "/oc-if:config/oc-if:type = 'ianaift:ethernetCsmacd')" {
+                error-message "Invalid interface type";
+              }
+          }
+
+          leaf active {
+            type boolean;
+            description
+              "Active state";
+          }
+
+          container counters {
+            description
+              "Counters which describe the percentage distribution values
+              for the various categories of packets";
+            leaf in-unicast {
+              type string;
+              description
+                "Percentage of unicast packets recieved on this member interface";
+            }
+
+            leaf out-unicast {
+              type string;
+              description
+                "Percentage of unicast packets transmitted from this member interface";
+            }
+
+            leaf in-multicast {
+              type string;
+              description
+                "Percentage of multicast packets recieved on this member interface";
+            }
+
+            leaf out-multicast {
+              type string;
+              description
+                "Percentage of multicast packets transmitted from this member interface";
+            }
+
+            leaf in-broadcast {
+              type string;
+              description
+                "Percentage of broadcast packets recieved on this member interface";
+            }
+
+            leaf out-broadcast {
+              type string;
+              description
+                "Percentage of broadcast packets transmitted from this member interface";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  grouping aggregation-load-balance-top {
+    description
+      "Top level operational data containers  for aggregated interfaces data";
+
+    container load-balance {
+      config false;
+      description
+        "Packet statistics  for the member links of aggregate interfaces";
+      uses agg-members-top;
+    }
+  }
+  // data definition statements
+
+  // augment statements
+  augment "/oc-if:interfaces/oc-if:interface/oc-lag:aggregation" {
+    uses aggregation-load-balance-top;
+  }
+
+  augment "/oc-if:interfaces/oc-if:interface/oc-lag:aggregation" {
+    when "./oc-lag:config/oc-lag:lag-type = 'LACP'" {
+      description "active when the interface aggregation is set to type LACP";
+    }
+    description "Adds LAG fallback configuration to the interface module";
+
+    uses aggregation-lacp-top;
+  }
+
+}

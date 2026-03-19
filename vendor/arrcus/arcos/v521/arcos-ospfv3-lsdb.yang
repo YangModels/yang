@@ -1,0 +1,907 @@
+submodule arcos-ospfv3-lsdb {
+
+  yang-version "1.1";
+
+  belongs-to arcos-ospfv3 {
+    prefix "arc-ospfv3";
+  }
+
+  import ietf-yang-types { prefix "yang"; }
+  import ietf-inet-types { prefix "inet"; }
+  import arcos-ospf-types { prefix "arc-ospf-types"; }
+  import arcos-ospf-ext-types { prefix "arc-ospf-ext-types"; }
+
+  // Include submodules
+  include arcos-ospfv3-common;
+
+  description
+    "An OpenConfig model for the Open Shortest Path First (OSPF)
+    version 3 link-state database (LSDB)";
+
+  grouping ospfv3-lsdb-lsa-prefix-options {
+    description
+      "Prefix options";
+
+    leaf nu-bit {
+      type boolean;
+      description
+        "The no unicast capability bit";
+    }
+
+    leaf la-bit {
+      type boolean;
+      description
+        "The local address capability bit";
+    }
+
+    leaf p-bit {
+      type boolean;
+      description
+        "The propagate bit";
+    }
+
+    leaf dn-bit {
+      type boolean;
+      description
+        "This bit controls an inter-area-prefix-LSAs or AS-external-LSAs
+         re-advertisement in a VPN environment";
+    }
+  }
+
+  grouping ospfv3-lsdb-common-prefix-properties {
+    description
+      "Common properties used in the LSDB that relate to IPv4 prefixes";
+
+    leaf prefix-length {
+      type uint8 {
+        range "0..32";
+      }
+      description
+        "The length of the IPv4 prefix contained in the Extended Prefix LSA";
+    }
+
+    leaf address-family {
+      // TODO: should this be an identity?
+      type enumeration {
+        enum IPV4_UNICAST {
+          value 0;
+          description
+            "The prefix contained within the Extended Prefix LSA is an IPv4
+            unicast prefix";
+        }
+      }
+      description
+        "The address family of the prefix contained in the Extended Prefix
+        LSA";
+    }
+  }
+
+
+  grouping ospfv3-lsdb-common-sr-sid-spec {
+    description
+      "Re-usable specification of a segment routing SID";
+
+    leaf sid-type {
+      type arc-ospf-types:sr-sid-type;
+      description
+        "The type of the value contained within the sub-TLV";
+    }
+
+    leaf sid-value {
+      type uint32;
+      description
+        "The value of the binding included within the sub-TLV. The type of
+        this binding is indicated by the type leaf.";
+    }
+  }
+
+  grouping ospfv3-lsdb-area-state {
+    description
+      "Per-area operational state parameters for an OSPFv3 area";
+
+    leaf identifier {
+      type arc-ospf-types:ospf-area-identifier;
+      description
+        "An identifier for the area, expressed as a dotted quad or
+        an unsigned 32-bit integer";
+    }
+  }
+
+  grouping ospfv3-lsdb-area-lsa-type-state {
+    description
+      "Per-LSA type operational state parameters for an OSPFv3 area";
+
+    leaf type {
+      type identityref {
+        base "arc-ospf-types:OSPF_LSA_TYPE";
+      }
+      description
+        "The type of LSA being described. The type of the LSA is
+        expressed as a canonical name.";
+    }
+
+    leaf u-bit {
+      type boolean;
+      description
+        "The U-bit indicates how the LSA should be handled by a 
+         router that does not recognize the LSA's function code";
+    }
+
+    leaf s1-bit {
+      type boolean;
+      description
+        "The S1 and S2 bits indicate the flooding scope of the LSA";
+    }
+
+    leaf s2-bit {
+      type boolean;
+      description
+        "The S1 and S2 bits indicate the flooding scope of the LSA";
+    }
+
+    leaf function-code {
+      type uint16;
+      description
+        "The function code of the LSA type";
+    }
+  }
+
+  grouping ospfv3-lsdb-area-lsa-state {
+    description
+      "Generic parameters of an OSPFv3 LSA";
+
+    leaf link-state-id {
+      type yang:dotted-quad;
+      description
+        "The Link State ID for the specified LSA type. The exact
+        defined value of the Link State ID is dependent on the LSA
+        type.";
+    }
+
+    leaf advertising-router {
+      type yang:dotted-quad;
+      description
+        "The router ID of the router that originated the LSA";
+    }
+
+    leaf sequence-number {
+      type int32;
+      description
+        "A signed 32-bit integer used to detect old and duplicate
+        LSAs. The greater the sequence number the more recent the
+        LSA.";
+    }
+
+    leaf checksum {
+      type uint16;
+      description
+        "The checksum of the complete contents of the LSA excluding
+        the age field.";
+    }
+
+    leaf age {
+      type uint16;
+      units seconds;
+      description
+        "The time since the LSA's generation in seconds";
+    }
+  }
+
+  grouping ospfv3-lsdb-router-lsa-structure {
+    description
+      "Structural grouping for Router LSA contents within the LSDB";
+
+    container router-lsa {
+      description
+        "Contents of the router LSA";
+
+      container state {
+        description
+          "State parameters of the router LSA";
+        uses ospfv3-lsdb-router-lsa-state;
+      }
+    }
+  }
+
+  grouping ospfv3-lsdb-network-lsa-structure {
+    description
+      "Structural grouping for Network LSA contents within the LSDB";
+
+    container network-lsa {
+      description
+        "Contents of the network LSA";
+
+      container state {
+        description
+          "State parameters of the network LSA";
+        uses ospfv3-lsdb-network-lsa-state;
+      }
+    }
+  }
+
+  grouping ospfv3-lsdb-inter-area-prefix-lsa-structure {
+    description
+      "Structural grouping for the inter area prefix LSA contents within the
+      LSDB";
+
+    container inter-area-prefix-lsa {
+      description
+        "Contents of the inter area prefix LSA";
+
+      container state {
+        description
+          "State parameters of the inter area prefix LSA";
+        uses ospfv3-lsdb-inter-area-prefix-lsa-state;
+      }
+
+    }
+  }
+
+  grouping ospfv3-lsdb-inter-area-router-lsa-structure {
+    description
+      "Structural grouping for the inter area router LSA contents within the
+      LSDB";
+
+    container inter-area-router-lsa {
+      description
+        "Contents of the inter area router LSA";
+
+      container state {
+        description
+          "State parameters of the inter area router LSA";
+        uses ospfv3-lsdb-inter-area-router-lsa-state;
+      }
+    }
+  }
+
+  grouping ospfv3-lsdb-asexternal-lsa-structure {
+    description
+      "Structural grouping for the AS External LSA contents within
+      the LSDB";
+
+    container as-external-lsa {
+      description
+        "Contents of the AS External LSA";
+
+      container state {
+        description
+          "State parameters for the AS external LSA";
+        uses ospfv3-lsdb-asexternal-lsa-state;
+      }
+    }
+  }
+
+  grouping ospfv3-lsdb-nssa-external-lsa-structure {
+    description
+      "Structural grouping for the NSSA External LSA contents within
+      the LSDB";
+
+    container nssa-external-lsa {
+      description
+        "Contents of the NSSA External LSA";
+
+      container state {
+        description
+          "State parameters for the AS external LSA";
+        // Other than the LS type, the type 7 LSA format is exactly the same
+        // as AS-external LSAs
+        uses ospfv3-lsdb-asexternal-lsa-state;
+      }
+    }
+  }
+
+  grouping ospfv3-lsdb-link-lsa-structure {
+    description
+      "Structural grouping for the Link  LSA contents within
+      the LSDB";
+
+    container link-lsa {
+      description
+        "Contents of the Link LSA";
+
+      container state {
+        description
+          "State parameters for the Link LSA";
+        uses ospfv3-lsdb-link-lsa-state;
+      }
+    }
+  }
+
+  grouping ospfv3-lsdb-intra-area-prefix-lsa-structure {
+    description
+      "Structural grouping for the Intra Area Prefix LSA contents within
+      the LSDB";
+                  
+    container intra-area-prefix-lsa {
+      description   
+        "Contents of the Intra Area Prefix LSA";
+
+      container state {
+        description
+          "State parameters for the Intra Area Prefix LSA";
+        uses ospfv3-lsdb-intra-area-prefix-lsa-state;
+      }
+    }
+  }
+
+  grouping ospfv3-lsdb-grace-lsa-structure {
+    description
+      "Structural grouping for the Grace LSA contents within
+      the LSDB";
+
+    container grace-lsa {
+      description
+        "Contents of the Grace LSA";
+
+      container state {
+        description
+          "State parameters for the Intra Area Prefix LSA";
+        uses ospfv3-lsdb-grace-state;
+      }
+    }
+  }
+
+
+  grouping ospfv3-lsdb-router-lsa-state {
+    description
+      "Parameters of the router LSA";
+
+    leaf in-maintenance {
+      type boolean;
+      description
+        "Indicates if this LSA was originated in maintenance-mode";
+    }
+
+    leaf v-bit {
+      type boolean;
+      description
+        "When set, the router is an endpoint of one or more fully adjacent
+         virtual links having the described area as transit area";
+    }
+
+    leaf e-bit {
+      type boolean;
+      description
+        "When set, the router is an AS boundary router";
+    }
+
+    leaf b-bit {
+      type boolean;
+      description
+        "When set, the router is an area border router";
+    }
+
+    leaf nt-bit {
+      type boolean;
+      description
+        "When set, the router is an NSSA border router that is
+         unconditionally translating NSSA-LSAs into AS-external-LSAs";
+    }
+
+    uses ospfv3-packet-options;
+
+    leaf advertised-metric {
+      type arc-ospf-types:ospf-metric;
+      description
+        "The metric advertised for all links of this LSA";
+    }
+   
+    container neighbors {
+      list neighbor {
+        leaf type {
+          type identityref {
+            base "arc-ospf-types:ROUTER_LSA_TYPES";
+          }
+          description
+            "The sub-type of the Router LSA.";
+        }
+   
+        leaf metric {
+          type arc-ospf-types:ospf-metric;
+          description
+            "The cost of utilising the link specified independent of TOS";
+        }
+   
+        leaf interface-id {
+          type uint32;
+          description
+            "The Interface ID assigned to the interface being described";
+        }
+   
+        leaf neighbor-interface-id {
+          type uint32;
+          description
+            "The Interface ID the neighbor router has associated with the link,
+             as advertised in the neighbor's Hello packets";
+        }
+   
+        leaf neighbor-router-id {
+          type yang:dotted-quad;
+          description
+            "The router ID of the remote system";
+        }
+      }
+    }
+  }
+
+  grouping ospfv3-lsdb-network-lsa-state {
+    description
+      "Parameters of the Network LSA";
+
+    uses ospfv3-packet-options;
+
+    leaf-list attached-router {
+      type yang:dotted-quad;
+      description
+        "A list of the router ID of the routers that are attached to
+        the network described by the Network LSA";
+    }
+  }
+
+  grouping ospfv3-lsdb-inter-area-prefix-lsa-state {
+    description
+      "Parameters of the inter area prefix LSA";
+
+    leaf in-maintenance {
+      type boolean;
+      description
+        "Indicates if this LSA was originated in maintenance-mode";
+    }
+
+    leaf metric {
+      type uint32;
+      description
+        "The cost of the route.";
+    }
+
+    uses ospfv3-lsdb-lsa-prefix-options;
+
+    leaf prefix {
+      type inet:ipv6-prefix;
+      description
+        "The IPv6 prefix";
+    }
+  }
+
+  grouping ospfv3-lsdb-inter-area-router-lsa-state {
+    description
+      "Parameters of the inter area router LSA";
+
+    leaf in-maintenance {
+      type boolean;
+      description
+        "Indicates if this LSA was originated in maintenance-mode";
+    }
+
+    uses ospfv3-packet-options;
+
+    leaf metric {
+      type uint32;
+      description
+        "The cost of the route.";
+    }
+
+    leaf destination-router-id {
+      type yang:dotted-quad;
+      description
+        "The Router ID of the router being described by the LSA";
+    }
+  }
+
+  grouping ospfv3-lsdb-asexternal-lsa-optional-parameters {
+    description
+      "Common parameters that are used for OSPFv3 AS External LSAs";
+
+    leaf forwarding-address {
+      type inet:ipv6-address-no-zone;
+      description
+        "The destination to which traffic for the external prefix
+        should be advertised.";
+    }
+
+    leaf external-route-tag {
+      type uint32;
+      description
+        "An opaque tag that set by the LSA originator to carry
+        information relating to the external route";
+    }
+
+    leaf referenced-link-state-id {
+      type yang:dotted-quad;
+      description
+        "Included if and only if Reference LS Type is non-zero.";
+    }
+  }
+
+  grouping ospfv3-lsdb-asexternal-lsa-state {
+    description
+      "Parameters for the AS External LSA";
+
+    leaf in-maintenance {
+      type boolean;
+      description
+        "Indicates if this LSA was originated in maintenance-mode";
+    }
+
+    leaf e-bit {
+      type boolean;
+      description
+        "The type of external metric";
+    }
+
+    leaf f-bit {
+      type boolean;
+      description
+        "If set, a Forwarding Address has been included in the LSA";
+    }
+
+    leaf t-bit {
+      type boolean;
+      description
+        "If set, an External Route Tag has been included in the LSA";
+    }
+
+    leaf metric-type {
+      type arc-ospf-types:ospf-metric-type;
+      description
+        "The type of metric included within the AS External LSA.";
+    }
+
+    leaf metric {
+      type uint32;
+      description
+        "The cost of this route.  Interpretation depends on the external
+         type indication.";
+    }
+
+    leaf referenced-ls-type {
+      type uint16;
+      description
+        "If non-zero, an LSA with this LS type is to be associated with
+         this LSA";
+    }
+
+    uses ospfv3-lsdb-lsa-prefix-options;
+
+    leaf prefix {
+      description
+        "The IPv6 prefix";
+      
+      type inet:ipv6-prefix;
+    }
+
+    uses ospfv3-lsdb-asexternal-lsa-optional-parameters;
+  }
+
+  grouping ospfv3-lsdb-link-lsa-state {
+    description
+      "Parameters for the Link LSA";
+
+    leaf router-priority {
+      type uint8;
+      description
+        "The Router Priority of the interface attaching the originating
+         router to the link.";
+    }
+
+    uses ospfv3-packet-options; 
+
+    leaf link-local-interface-address {
+      type inet:ipv6-address-no-zone;
+      description
+        "The originating router's link-local interface address on the link";
+    }
+
+    leaf number-of-prefixes {
+      type uint32;
+      description
+        "The number of IPv6 address prefixes contained in the LSA";
+    }
+
+    container prefixes {
+      list prefix {
+        uses ospfv3-lsdb-lsa-prefix-options;
+   
+        leaf prefix {
+          description
+            "The IPv6 prefix";
+   
+          type inet:ipv6-prefix;
+        }
+      }
+    }
+  }
+
+  grouping ospfv3-lsdb-intra-area-prefix-lsa-state {
+    description
+      "Parameters for the Intra Area Prefix LSA";
+
+    leaf in-maintenance {
+      type boolean;
+      description
+        "Indicates if this LSA was originated in maintenance-mode";
+    }
+
+    leaf advertised-metric {
+      type arc-ospf-types:ospf-metric;
+      description
+        "The metric advertised for all prefixes of this LSA";
+    }
+
+    leaf number-of-prefixes {
+      type uint16;
+      description
+        "The number of IPv6 address prefixes contained in the LSA";
+    }   
+
+    leaf referenced-ls-type {
+      type identityref {
+        base "arc-ospf-types:OSPF_LSA_TYPE";
+      }
+      description
+        "The LS type";
+    }
+
+    leaf referenced-link-state-id {
+      type yang:dotted-quad;
+      description
+        "The referenced LS id";
+    }
+
+    leaf referenced-advertising-router {
+      type yang:dotted-quad;
+      description
+        "The referenced advertising router id";
+    }
+
+    container prefixes {
+      list prefix {
+        leaf metric {
+          type uint16;
+          description
+            "The cost of this prefix";
+        }
+    
+        uses ospfv3-lsdb-lsa-prefix-options;
+    
+        leaf prefix {
+          description
+            "The IPv6 prefix";
+        
+          type inet:ipv6-prefix;
+        }
+      }
+    }
+
+  }
+
+  grouping ospfv3-lsdb-grace-state {
+    description
+      "State parameters on a per-TLV basis of the Grace LSA";
+
+    leaf type {
+      type identityref {
+        base "arc-ospf-ext-types:GRACE_LSA_TLV_TYPES";
+      }
+      description
+        "The type of the sub-TLV received within the Grace LSA";
+    }
+
+    leaf period {
+      when "../type = 'GRACE_PERIOD'" {
+        description
+          "Include the period specification when the sub-TLV type is indicated
+          to be of this type";
+      }
+
+      type uint32;
+      units seconds;
+      description
+        "The number of seconds that the router's neighbors should advertise
+        the local system as fully adjacent regardless of database
+        synchronization state";
+      reference "RFC5187";
+    }
+
+    leaf reason {
+      when "../type = 'GRACE_RESTART_REASON'" {
+        description
+          "Include the restart reason when the sub-TLV type specifies this
+          is included";
+      }
+
+      type enumeration {
+        enum UNKNOWN {
+          value 0;
+          description
+            "The reason for the graceful restart is unknown";
+        }
+        enum SOFTWARE_RESTART {
+          value 1;
+          description
+            "The local system is restarting due to a software component
+            restart";
+        }
+        enum SOFTWARE_RELOAD_UPGRADE {
+          value 2;
+          description
+            "The local system is restarting due to a software reload or
+            upgrade";
+        }
+        enum CONTROL_PROCESSOR_SWITCH {
+          value 3;
+          description
+            "The local system is restarting due to a switch to a redundant
+            control plane element";
+        }
+      }
+      description
+        "The reason for the graceful restart event occurring, as advertised
+        by the restarting system";
+      reference "RFC5187";
+    }
+  }
+
+
+
+  grouping ospfv3-lsdb-structure {
+    description
+      "Structural grouping for LSDB contents";
+
+    container lsdb {
+      // Top-level RO, if this were ever to become writeable then
+      // the state containers lower down need config false added
+      config false;
+      description
+        "The link-state database for OSPFv3";
+
+      container state {
+        description
+          "Operational state parameters relating to the OSPFv3
+          LSDB";
+
+        uses ospfv3-lsdb-area-state;
+      }
+
+      container lsa-types {
+        description
+          "Enclosing container for a list of LSA types that are
+          in the LSDB";
+
+        list lsa-type {
+          key "type";
+
+          description
+            "List of LSA types in the LSDB";
+
+          leaf type {
+            type leafref {
+              path "../state/type";
+            }
+            description
+              "A reference for the LSA type being described within
+              the LSDB";
+          }
+
+          container state {
+            description
+              "Top-level operational state parameters relating to
+              an LSA";
+            uses ospfv3-lsdb-area-lsa-type-state;
+          }
+
+          container lsas {
+            description
+              "Enclosing container for a list of the LSAs of
+              the specified type received by the system";
+
+            list lsa {
+              key "link-state-id advertising-router";
+
+              description
+                "List of the LSAs of a specified type in the
+                LSDB";
+
+              leaf link-state-id {
+                type leafref {
+                  path "../state/link-state-id";
+                }
+                description
+                  "Reference to the Link State ID of the LSA";
+              }
+
+              leaf advertising-router {
+                type leafref {
+                  path "../state/advertising-router";
+                }
+                description
+                  "Reference to the advertising router of the LSA";
+              }
+
+              container state {
+                description
+                  "Operational state parameters relating to all
+                  LSA types";
+                uses ospfv3-lsdb-area-lsa-state;
+              }
+
+              uses ospfv3-lsdb-router-lsa-structure {
+                when "../../state/type = 'arc-ospf-types:ROUTER_LSA'" {
+                  description
+                    "Include the router LSA hierarchy solely when
+                    that LSA type is being described";
+                }
+              }
+
+              uses ospfv3-lsdb-network-lsa-structure {
+                when "../../state/type = 'arc-ospf-types:NETWORK_LSA'" {
+                  description
+                    "Include the network LSA hierarchy solely when
+                    that LSA type is being described";
+                }
+              }
+
+              uses ospfv3-lsdb-inter-area-prefix-lsa-structure {
+                when "../../state/type = " +
+                  "'arc-ospf-types:OSPFV3_INTER_AREA_PREFIX_LSA'" {
+                  description
+                    "Include the inter area prefix LSA hierarchy solely when
+                    that LSA type is being described";
+                }
+              }
+
+              uses ospfv3-lsdb-inter-area-router-lsa-structure {
+                when "../../state/type = " +
+                  "'arc-ospf-types:OSPFV3_INTER_AREA_ROUTER_LSA'" {
+                  description
+                    "Include the inter area router LSA hierarchy solely when
+                    that LSA type is being described";
+                }
+              }
+
+              uses ospfv3-lsdb-asexternal-lsa-structure {
+                when "../../state/type = 'arc-ospf-types:AS_EXTERNAL_LSA'" {
+                  description
+                    "Include the AS external LSA hierarchy solely when
+                    that LSA type is being described";
+                }
+              }
+
+              uses ospfv3-lsdb-nssa-external-lsa-structure {
+                when "../../state/type = 'arc-ospf-types:NSSA_AS_EXTERNAL_LSA'" {
+                  description
+                    "Include the NSSA External LSA hierarchy solely
+                    when that LSA type is being described";
+                }
+              }
+
+              uses ospfv3-lsdb-link-lsa-structure {
+                when "../../state/type = 'arc-ospf-types:OSPFV3_LINK_LSA'" {
+                  description
+                    "Include the link LSA hierarchy solely when
+                    that LSA type is being described";
+                }
+              }
+
+              uses ospfv3-lsdb-intra-area-prefix-lsa-structure {
+                when "../../state/type = 'arc-ospf-types:OSPFV3_INTRA_AREA_PREFIX_LSA'" {
+                  description
+                    "Include the intra area prefix LSA hierarchy solely when
+                    that LSA type is being described";
+                }
+              }
+
+              uses ospfv3-lsdb-grace-lsa-structure {
+                when "../../state/type = 'arc-ospf-types:GRACE_LSA'" {
+                  description
+                    "Include the Grace LSA hierarchy solely when
+                    that LSA type is being described";
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

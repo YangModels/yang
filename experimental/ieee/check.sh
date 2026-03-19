@@ -7,13 +7,12 @@ cwd=$(pwd)
 ietf_dir="standard/ietf"
 ieee_dir="standard/ieee"
 ieee_experimental_dir="experimental/ieee"
-#to_check="802.1 802.3 1588"
-to_check="802.1 1588 1906.1"
+to_check="802 802.1 802.3 1906.1"
 
 # relax constraint for now
 # add --ietf if you want to do strict IETF checking
 ietf_dir_flag="--path $cwd/$ietf_dir/RFC/"
-pyang_flags="--verbose --path $ietf_dir_flag --path $cwd/$ieee_dir/published/802 --path $cwd/$ieee_dir/published/802.1/ --path $cwd/$ieee_dir/published/802.3/ --path $cwd/$ieee_experimental_dir/1588/ --path $cwd/$ieee_experimental_dir/1588/ --path $cwd/$ieee_dir/draft/802.1/Qcw --path $cwd/$ieee_dir/draft/802.1/Qcr "
+pyang_flags="--verbose $ietf_dir_flag --path $cwd/$ieee_dir/published/802 --path $cwd/$ieee_dir/published/802.1/ --path $cwd/$ieee_dir/published/802.3/ --path $cwd/$ieee_experimental_dir/1588/ --path $cwd/$ieee_experimental_dir/1588/ --path $cwd/$ieee_dir/draft/802.1/Qcw --path $cwd/$ieee_dir/draft/802.1/Qcr "
 
 checkDir() {
     local dir="$ieee_experimental_dir/$1"
