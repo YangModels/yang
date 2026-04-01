@@ -22,6 +22,10 @@ checkDir() {
     cd $dir
     printf "\n"
     for f in *.yang; do
+        if echo $f | grep -E '^ietf-template'; then
+            echo "Ignoring template module."
+            continue
+        fi
         printf "pyang $pyang_flags $f\n"
         errors=$(pyang $pyang_flags $f 2>&1 | grep "error:")
         if [ ! -z "$errors" ]; then
