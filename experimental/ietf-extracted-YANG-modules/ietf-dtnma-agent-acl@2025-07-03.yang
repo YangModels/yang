@@ -56,39 +56,13 @@ module ietf-dtnma-agent-acl {
       "draft-ietf-dtn-adm-yang";
   }
   amm:enum 2;
-  amm:typedef tag {
-    amm:enum 0;
-    description
-      "Datatype for access control list tags";
-    amm:type "./TYPEDEF/permissions";
-  }
-  amm:typedef permissions {
-    amm:enum 1;
-    amm:type "/ARITYPE/BYTE" {
-      amm:int-labels {
-        bit tag-read {
-          position 0;
-          description
-            "Permission bit for Read";
-        }
-        bit tag-write {
-          position 1;
-          description
-            "Permission bit for Write";
-        }
-        bit tag-execute {
-          position 2;
-          description
-            "Permission bit for Execute/Evaluate";
-        }
-      }
-    }
-  }
+
+  // Common types in this model
   amm:typedef entry-id {
     amm:enum 2;
     description
       "The identifier for an entry in any access control table.";
-    amm:type "/ARITYPE/UVAST";
+    amm:type "/ARITYPE/UINT";
   }
   amm:typedef optional-entry-id {
     amm:enum 3;
@@ -99,27 +73,86 @@ module ietf-dtnma-agent-acl {
       amm:type "/ARITYPE/null";
     }
   }
-  amm:typedef result {
-    amm:enum 4;
-    amm:type "/ARITYPE/INT" {
-      amm:int-labels {
-        enum success {
-          value 0;
-          description
-            "Execution was successful";
-        }
-        enum error-generic {
-          value 1;
-          description
-            "Generic execution failure";
-        }
-        enum error-permission-denied {
-          value 2;
-          description
-            "Manager does not have permission";
-        }
+
+  // Atomic permission objects
+  amm:ident permission {
+    amm:enum 0;
+    description
+      "The base IDENT for objects usable as permissions in the
+       access control table.
+       Derived objects MUST define the specific conditions in which
+       the permission is exercised.
+       Derived objects MAY be parameterized as needed to control
+       specific access granted by each permission.
+       This object itself is abstract and provides not specific
+       permission.";
+    amm:abstract true;
+  }
+  amm:typedef permission-list {
+    amm:enum 0;
+    description
+      "A list of permission object (IDENT) references.";
+    amm:ulist {
+      amm:type "/aritype/ident" {
+        amm:base "./ident/permission";
       }
     }
+  }
+
+  // built-in permissions
+  amm:ident execute {
+    amm:enum 10;
+    description
+      "Permission to allow executing specific CTRL objects.
+       This includes objects used directly as EXECSET targets,
+       indirectly within macros, or as actions of TBR or SBR
+       objects.";
+    amm:base "./ident/permission";
+  }
+  amm:ident produce {
+    amm:enum 11;
+    description
+      "Permission to allow producing values from CONST, VAR, or
+       EDD objects.
+       This includes production for use by reporting or evaluating
+       procedures of the Agent.";
+    amm:base "./ident/permission";
+  }
+  amm:ident modify-var {
+    amm:enum 12;
+    description
+      "Permission to allow modifying state on VAR objects.";
+    amm:base "./ident/permission";
+  }
+  amm:ident create-odm {
+    amm:enum 13;
+    description
+      "Permission to allow creating a new ODM within an Agent.";
+    amm:base "./ident/permission";
+  }
+  amm:ident delete-odm {
+    amm:enum 14;
+    description
+      "Permission to allow deleting an ODM within an Agent.";
+    amm:base "./ident/permission";
+  }
+  amm:ident create-object {
+    amm:enum 15;
+    description
+      "Permission to allow creating a new object within an ODM.
+       The permission itself does not restrict the type of object,
+       but the access list can limit the item to specific object
+       types and names.";
+    amm:base "./ident/permission";
+  }
+  amm:ident delete-object {
+    amm:enum 16;
+    description
+      "Permission to allow deleting an object within an ODM.
+       The permission itself does not restrict the type of object,
+       but the access list can limit the item to specific object
+       types and names.";
+    amm:base "./ident/permission";
   }
 
   // Default access permission
@@ -127,8 +160,8 @@ module ietf-dtnma-agent-acl {
     amm:enum 1;
     description
       "The default permission for any object if no specific access
-       are present in the ./EDD/access-list table.";
-    amm:type "./TYPEDEF/tag";
+       are present in the <./EDD/access-list> table.";
+    amm:type "./TYPEDEF/permission-list";
   }
 
   // Access control table and modifier controls
@@ -137,27 +170,43 @@ module ietf-dtnma-agent-acl {
     description
       "List the current group--object access.";
     amm:tblt {
-      amm:key "id";
-      amm:column id {
+      amm:key "access-id";
+      amm:column access-id {
+        description
+          "A unique identifier for this access list item.";
         amm:type "./TYPEDEF/entry-id";
       }
-      amm:column group {
+      amm:column group-ids {
         description
-          "A cross-reference to the group getting access, or null to
-           match all groups.";
-        amm:type "./TYPEDEF/optional-entry-id";
+          "A cross-reference to the groups getting access, or the
+           empty list to match all groups.";
+        amm:ulist {
+          amm:type "./TYPEDEF/entry-id";
+        }
       }
-      amm:column object-pattern {
+      amm:column objects {
         description
-          "A pattern for objects being accessed, which may match
-           all objects.";
-        amm:type "/ARITYPE/TEXTSTR";
+          "A pattern for objects being granted access, which may
+           match all objects.";
+        amm:type "//ietf/amm-base/typedef/ari-pattern";
       }
-      amm:column tag {
+      amm:column permissions {
         description
-          "A pattern for objects being accessed, which may match
-           all objects.";
-        amm:type "./TYPEDEF/tag";
+          "Refernces to specific permissions being granted.
+           Individual permission references MAY be parameterized
+           as necessary.
+           The absence of permissions does not grant any access.";
+        amm:type "./TYPEDEF/permission-list";
+      }
+      amm:column added-at {
+        description
+          "Agent timestamp when this group was added.";
+        amm:type "//ietf/amm-base/typedef/timestamp";
+      }
+      amm:column updated-at {
+        description
+          "Agent timestamp when this group was added or updated.";
+        amm:type "//ietf/amm-base/typedef/timestamp";
       }
     }
   }
@@ -166,76 +215,71 @@ module ietf-dtnma-agent-acl {
     description
       "Ensures that an access control permission is set for the
        given group and ARI pattern.";
-    amm:parameter group {
+    amm:parameter access-id {
       description
-        "Identify the group being assigned the permission";
-      amm:type "./TYPEDEF/optional-entry-id";
+        "A unique identifier for this access list item.";
+      amm:type "./TYPEDEF/entry-id";
     }
-    amm:parameter object-pattern {
+    amm:parameter group-ids {
       description
-        "ARI pattern to determine which objects shall be assigned
-         the permission";
-      amm:type "/ARITYPE/TEXTSTR";
+        "Identify the groups being assigned the permission,
+         or the empty list for all-groups.";
+      amm:ulist {
+        amm:type "./TYPEDEF/entry-id";
+      }
     }
-    amm:parameter tag {
+    amm:parameter objects {
       description
-        "Permission tag value to set";
-      amm:default "0";
-      amm:type "./TYPEDEF/tag";
+        "ARI pattern to determine which objects will be assigned
+         the permissions.";
+      amm:type "//ietf/amm-base/typedef/ari-pattern";
     }
-    amm:result error-code {
+    amm:parameter permissions {
       description
-        "If non-zero, an indicator of an error.";
-      amm:type "./TYPEDEF/result";
+        "Permissions to grant to the associated group and objects";
+      amm:type "./TYPEDEF/permission-list";
     }
   }
   amm:ctrl discard-access {
     amm:enum 4;
     description
-      "Discard any permissions for the given group and ARI pattern.";
-    amm:parameter group {
+      "Discard any access item with the given ID.";
+    amm:parameter access-id {
       description
-        "Identify the group";
-      amm:type "./TYPEDEF/optional-entry-id";
-    }
-    amm:parameter object-pattern {
-      description
-        "ARI pattern";
-      amm:type "/ARITYPE/TEXTSTR";
-    }
-    amm:result error-code {
-      description
-        "If non-zero, an indicator of an error.";
-      amm:type "./TYPEDEF/result";
+        "Uniquely identify the access";
+      amm:type "./TYPEDEF/entry-id";
     }
   }
 
   //
   // Group management
   //
-  amm:edd current-group-id {
+  amm:edd current-groups {
     amm:enum 3;
     description
-      "Get the group ID for the current execution context, which may
-       be the implicit Agent group ID zero.";
-    amm:type "./TYPEDEF/entry-id";
+      "Get the group IDs for the current execution context, which may
+       incude the implicit Agent group ID zero.";
+    amm:ulist {
+      amm:type "./TYPEDEF/entry-id";
+    }
   }
   amm:edd group-list {
     amm:enum 4;
     description
       "Get the defined access control groups.";
     amm:tblt {
-      amm:key "id";
-      amm:column id {
+      amm:key "group-id";
+      amm:column group-id {
         description
           "The unique identifier for a group.
-           The agent itself has implicit group ID zero.";
+           The agent itself has implicit group ID zero which cannot
+           be modified.";
         amm:type "./TYPEDEF/entry-id";
       }
       amm:column name {
         description
           "The human-friendly name of the group.";
-        amm:type "/ARITYPE/TEXTSTR";
+        amm:type "//ietf/amm-base/typedef/id-text";
       }
       amm:column members {
         description
@@ -245,6 +289,16 @@ module ietf-dtnma-agent-acl {
           amm:type "//ietf/network-base/TYPEDEF/endpoint-pattern";
         }
       }
+      amm:column added-at {
+        description
+          "Agent timestamp when this group was added.";
+        amm:type "//ietf/amm-base/typedef/timestamp";
+      }
+      amm:column updated-at {
+        description
+          "Agent timestamp when this group was added or updated.";
+        amm:type "//ietf/amm-base/typedef/timestamp";
+      }
     }
   }
   amm:ctrl ensure-group {
@@ -252,7 +306,7 @@ module ietf-dtnma-agent-acl {
     description
       "Ensure that after the control completes a group exists with
        the given information";
-    amm:parameter id {
+    amm:parameter group-id {
       description
         "Uniquely identify the group";
       amm:type "./TYPEDEF/entry-id";
@@ -260,12 +314,7 @@ module ietf-dtnma-agent-acl {
     amm:parameter name {
       description
         "Name of the group";
-      amm:type "/ARITYPE/TEXTSTR";
-    }
-    amm:result error-code {
-      description
-        "If non-zero, an indicator of an error.";
-      amm:type "./TYPEDEF/result";
+      amm:type "//ietf/amm-base/typedef/id-text";
     }
   }
   amm:ctrl ensure-group-members {
@@ -273,7 +322,7 @@ module ietf-dtnma-agent-acl {
     description
       "Ensure that the membership of a group has a specific set of
        endpoint patterns.";
-    amm:parameter id {
+    amm:parameter group-id {
       description
         "Uniquely identify the group";
       amm:type "./TYPEDEF/entry-id";
@@ -283,25 +332,15 @@ module ietf-dtnma-agent-acl {
         amm:type "//ietf/network-base/TYPEDEF/endpoint-pattern";
       }
     }
-    amm:result error-code {
-      description
-        "If non-zero, an indicator of an error.";
-      amm:type "./TYPEDEF/result";
-    }
   }
   amm:ctrl discard-group {
     amm:enum 6;
     description
       "Discard any group with the given ID.";
-    amm:parameter group {
+    amm:parameter group-id {
       description
         "Uniquely identify the group";
       amm:type "./TYPEDEF/entry-id";
-    }
-    amm:result error-code {
-      description
-        "If non-zero, an indicator of an error.";
-      amm:type "./TYPEDEF/result";
     }
   }
 }

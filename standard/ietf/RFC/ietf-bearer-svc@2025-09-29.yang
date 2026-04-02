@@ -1,0 +1,471 @@
+module ietf-bearer-svc {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-bearer-svc";
+  prefix bearer-svc;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types, Section 4";
+  }
+  import ietf-vpn-common {
+    prefix vpn-common;
+    reference
+      "RFC 9181: A Common YANG Data Model for Layer 2 and Layer 3
+                 VPNs";
+  }
+  import ietf-ac-common {
+    prefix ac-common;
+    reference
+      "RFC 9833: A Common YANG Data Model for Attachment Circuits";
+  }
+  import ietf-ac-svc {
+    prefix ac-svc;
+    reference
+      "RFC 9834: YANG Data Models for Bearers and Attachment
+                 Circuits as a Service (ACaaS)";
+  }
+
+  organization
+    "IETF OPSAWG (Operations and Management Area Working Group)";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/opsawg/>
+     WG List:  <mailto:opsawg@ietf.org>
+
+     Editor:   Mohamed Boucadair
+               <mailto:mohamed.boucadair@orange.com>
+     Editor:   Richard Roberts
+               <mailto:rroberts@juniper.net>
+     Author:   Oscar Gonzalez de Dios
+               <mailto:oscar.gonzalezdedios@telefonica.com>
+     Author:   Samier Barguil
+               <mailto:ssamier.barguil_giraldo@nokia.com>
+     Author:   Bo Wu
+               <mailto:lana.wubo@huawei.com>";
+  description
+    "This YANG module defines a generic YANG module for exposing
+     network bearers as a service.
+
+     Copyright (c) 2025 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Revised BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC xxx; see the
+     RFC itself for full legal notices.";
+
+  revision 2025-09-29 {
+    description
+      "Initial revision.";
+    reference
+      "RFC 9834: YANG Data Models for Bearers and Attachment
+                 Circuits as a Service (ACaaS)";
+  }
+
+  // Identities
+
+  identity identification-type {
+    description
+      "Base identity for identification of bearers.";
+  }
+
+  identity device-id {
+    base identification-type;
+    description
+      "Identification of bearers based on device.";
+  }
+
+  identity site-id {
+    base identification-type;
+    description
+      "Identification of bearers based on site.";
+  }
+
+  identity site-and-device-id {
+    base identification-type;
+    description
+      "Identification of bearers based on site and device.";
+  }
+
+  identity custom {
+    base identification-type;
+    description
+      "Identification of bearers based on other custom criteria.";
+  }
+
+  identity bearer-type {
+    description
+      "Base identity for bearers type.";
+  }
+
+  identity ethernet {
+    base bearer-type;
+    description
+      "Ethernet.";
+  }
+
+  identity wireless {
+    base bearer-type;
+    description
+      "Wireless.";
+  }
+
+  identity lag {
+    base bearer-type;
+    description
+      "Link Aggregation Group (LAG).";
+  }
+
+  identity network-termination-hint {
+    base vpn-common:placement-diversity;
+    description
+      "A hint about the termination at the network side
+       is provided (e.g., geoproximity).";
+  }
+
+  identity sync-phy-type {
+    description
+      "Base identity for physical layer synchronization.";
+  }
+
+  identity sync-e {
+    base sync-phy-type;
+    description
+      "Sync Ethernet (SyncE).";
+    reference
+      "ITU-T G.781: Synchronization layer functions for frequency
+                    synchronization based on the physical layer";
+  }
+
+  // Typedef to ease referencing cross-modules
+
+  typedef bearer-ref {
+    type leafref {
+      path "/bearer-svc:bearers/bearer-svc:bearer/bearer-svc:name";
+    }
+    description
+      "Defines a type to reference a bearer.";
+  }
+
+  // Reusable groupings
+
+  grouping location-information {
+    description
+      "Basic location information.";
+    leaf name {
+      type string;
+      description
+        "Provides a location name.  This data node can be mapped,
+         e.g., to the 3GPP NRM IOC ManagedElement.";
+    }
+    leaf address {
+      type string;
+      description
+        "Address (number and street) of the device/site.";
+    }
+    leaf city {
+      type string;
+      description
+        "City of the device/site.";
+    }
+    leaf postal-code {
+      type string;
+      description
+        "Postal code of the device/site.";
+    }
+    leaf state {
+      type string;
+      description
+        "State of the device/site.  This leaf can also be used to
+         describe a region for a country that does not have
+         states.";
+    }
+    leaf country-code {
+      type string {
+        pattern '[A-Z]{2}';
+      }
+      description
+        "Country of the device/site.
+         Expressed as ISO ALPHA-2 code.";
+    }
+  }
+
+  grouping placement-constraints {
+    description
+      "Constraints related to placement of a bearer.";
+    list constraint {
+      if-feature "vpn-common:placement-diversity";
+      key "constraint-type";
+      description
+        "List of constraints.";
+      leaf constraint-type {
+        type identityref {
+          base vpn-common:placement-diversity;
+        }
+        must "not(derived-from-or-self(current(), "
+           + "'vpn-common:bearer-diverse') or "
+           + "derived-from-or-self(current(), "
+           + "'vpn-common:same-bearer'))" {
+          error-message "Only bearer-specific diversity"
+                      + "constraints must be provided.";
+        }
+        description
+          "Diversity constraint type for bearers.";
+      }
+      container target {
+        description
+          "The constraint will apply against this list of
+           groups.";
+        choice target-flavor {
+          description
+            "Choice for the group definition.";
+          case id {
+            list group {
+              key "group-id";
+              description
+                "List of groups.";
+              leaf group-id {
+                type string;
+                description
+                  "The constraint will apply against this
+                   particular group ID.";
+              }
+            }
+          }
+          case all-bearers {
+            leaf all-other-bearers {
+              type empty;
+              description
+                "The constraint will apply against all other
+                 bearers of a site.";
+            }
+          }
+          case all-groups {
+            leaf all-other-groups {
+              type empty;
+              description
+                "The constraint will apply against all other
+                 groups managed by the customer.";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  container locations {
+    description
+      "Retrieves the available provider locations for terminating
+       bearers for a given customer.";
+
+    list customer {
+      key "name peer-as";
+      description
+        "List of locations per customer.";
+      leaf name {
+        type string;
+        description
+          "Indicates the name of the customer.";
+      }
+      leaf peer-as {
+        type inet:as-number;
+        description
+          "Indicates the customer's ASN.
+           0 is used when the customer does not have an ASN.";
+        reference
+          "RFC 7607: Codification of AS 0 Processing";
+      }
+      list location {
+        key "name";
+        config false;
+        description
+          "Reports the list of available locations.";
+        uses location-information;
+      }
+    }
+  }
+  container bearers {
+    description
+      "Main container for the bearers.  The timing constraints
+       indicated at the bearer level take precedence over the
+       global values indicated at the bearers level.";
+    uses ac-common:op-instructions;
+    container placement-constraints {
+      description
+        "Diversity constraint type.";
+      uses placement-constraints;
+    }
+    list bearer {
+      key "name";
+      description
+        "Maintains a list of bearers.";
+      leaf name {
+        type string;
+        description
+          "A name that uniquely identifies a bearer for
+           a given customer.";
+      }
+      leaf description {
+        type string;
+        description
+          "A description of this bearer.";
+      }
+      leaf customer-name {
+        type string;
+        description
+          "Indicates the name of the customer that requested this
+           bearer.";
+      }
+      uses vpn-common:vpn-components-group;
+      leaf op-comment {
+        type string;
+        description
+          "Includes comments that can be shared with operational
+           teams and that may be useful for the activation of a
+           bearer.  This may include, for example, information
+           about the building, level, etc.";
+      }
+      leaf bearer-parent-ref {
+        type bearer-svc:bearer-ref;
+        description
+          "Specifies the parent bearer.  This can be used, e.g.,
+           for a Link Aggregation Group (LAG).";
+      }
+      leaf-list bearer-lag-member {
+        type bearer-svc:bearer-ref;
+        config false;
+        description
+          "Reports LAG members.";
+      }
+      leaf sync-phy-capable {
+        type boolean;
+        config false;
+        description
+          "Indicates, when set to true, that a mechanism for physical
+           layer synchronization is supported for this bearer.
+           No such mechanism is supported if set to false.";
+      }
+      leaf sync-phy-enabled {
+        type boolean;
+        description
+          "Indicates, when set to true, that a mechanism for physical
+           layer synchronization is enabled for this bearer.  No such
+           mechanism is enabled if set to false.";
+      }
+      leaf sync-phy-type {
+        when "../sync-phy-enabled='true'";
+        type identityref {
+          base sync-phy-type;
+        }
+        description
+          "Type of the physical layer synchronization that is enabled
+           for this bearer.";
+      }
+      leaf provider-location-reference {
+        type string;
+        description
+          "Specifies the provider's location reference.";
+      }
+      container customer-point {
+        description
+          "Base container to link the bearer existence.";
+        leaf identified-by {
+          type identityref {
+            base identification-type;
+          }
+          description
+            "Specifies how the customer point is identified.";
+        }
+        container device {
+          when "derived-from-or-self(../identified-by, "
+             + "'bearer-svc:device-id') or "
+             + "derived-from-or-self(../identified-by, "
+             + "'bearer-svc:site-and-device-id')" {
+            description
+              "Only applicable if identified-by is device.";
+          }
+          description
+            "Bearer is linked to device.";
+          leaf device-id {
+            type string;
+            description
+              "Identifier for the device where that bearer belongs.";
+          }
+          container location {
+            description
+              "Location of the node.";
+            uses location-information;
+          }
+        }
+        container site {
+          when "derived-from-or-self(../identified-by, "
+             + "'bearer-svc:site-id') or "
+             + "derived-from-or-self(../identified-by, "
+             + "'bearer-svc:site-and-device-id')" {
+            description
+              "Only applicable if identified-by is site.";
+          }
+          description
+            "Bearer is linked to a site.";
+          leaf site-id {
+            type string;
+            description
+              "Identifier for the site or sites where that bearer
+               belongs.";
+          }
+          container location {
+            description
+              "Location of the node.";
+            uses location-information;
+          }
+        }
+        leaf custom-id {
+          when "derived-from-or-self(../identified-by, "
+             + "'bearer-svc:custom')" {
+            description
+              "Only enabled if identified-by is custom.";
+          }
+          type string;
+          description
+            "The semantics of this identifier is shared between the
+             customer/provider using out-of-band means.";
+        }
+      }
+      leaf type {
+        type identityref {
+          base bearer-type;
+        }
+        description
+          "Type of the bearer (e.g., Ethernet or wireless).";
+      }
+      leaf test-only {
+        type empty;
+        description
+          "When present, this indicates that this is a feasibility
+           check request.  No resources are committed for such bearer
+           requests.";
+      }
+      leaf bearer-reference {
+        if-feature "ac-common:server-assigned-reference";
+        type string;
+        config false;
+        description
+          "This is an internal reference for the service provider
+           to identify the bearers.";
+      }
+      leaf-list ac-svc-ref {
+        type ac-svc:attachment-circuit-reference;
+        config false;
+        description
+          "Specifies the set of ACs that are bound to the bearer.";
+      }
+      uses ac-common:op-instructions;
+      uses ac-common:service-status;
+    }
+  }
+}
