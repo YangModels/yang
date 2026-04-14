@@ -27,7 +27,7 @@
 platform_dir="vendor/cisco/xe"
 
 # NOTE: please just have the directories you are checking here
-to_check="17181 17181/MIBS"
+to_check="2611 2611/MIBS"
 
 inc_path="."
 debug=0
