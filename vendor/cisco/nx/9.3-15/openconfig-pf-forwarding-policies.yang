@@ -1,0 +1,264 @@
+submodule openconfig-pf-forwarding-policies {
+  belongs-to openconfig-policy-forwarding {
+    prefix "oc-pf";
+  }
+
+  import openconfig-extensions { prefix "oc-ext"; }
+  import openconfig-packet-match { prefix "oc-pmatch"; }
+  import ietf-yang-types { prefix "yang"; }
+  import ietf-inet-types { prefix "inet"; }
+
+  include openconfig-pf-path-groups;
+
+  organization
+    "OpenConfig working group";
+
+  contact
+    "OpenConfig working group
+    www.openconfig.net";
+
+  description
+    "This submodule contains configuration and operational state
+    relating to the definition of policy-forwarding policies.";
+
+  oc-ext:openconfig-version "0.2.0";
+
+  revision "2017-06-21" {
+    description
+      "Amend policy forwarding model based on ACL changes.";
+    reference "0.2.0";
+  }
+
+  revision "2017-02-28" {
+    description
+      "Initial public release of policy forwarding.";
+    reference "0.1.0";
+  }
+
+  revision "2016-11-08" {
+    description
+      "Initial revision";
+    reference "0.0.1";
+  }
+
+  grouping pf-forwarding-policy-structural {
+    description
+      "Structural grouping defining forwarding policies under the
+      policy- forwarding module.";
+
+    container policies {
+      description
+        "Forwarding policies defined to enact policy-based forwarding
+        on the local system.";
+
+      list policy {
+        key "policy-id";
+
+        description
+          "A forwarding policy is defined to have a set of match
+          criteria, allowing particular fields of a packet's header to
+          be matched, and a set of forwarding actions which determines
+          how the local system should forward the packet.";
+
+        leaf policy-id {
+          type leafref {
+            path "../config/policy-id";
+          }
+          description
+            "Reference to the identifier for the forwarding-policy.";
+        }
+
+        container config {
+          description
+            "Configuration options relating to the forwarding
+            policy.";
+          uses pf-forwarding-policy-config;
+        }
+
+        container state {
+          config false;
+          description
+            "Operational state parameters relating to the forwarding
+            policy.";
+          uses pf-forwarding-policy-config;
+        }
+
+        container rules {
+          description
+            "The criteria that should be matched for a packet to be
+            forwarded according to the policy action.";
+
+          list rule {
+            key "sequence-id";
+
+            description
+              "A match rule for the policy. In the case that multiple
+              criteria are specified within a single ";
+
+            leaf sequence-id {
+              type leafref {
+                path "../config/sequence-id";
+              }
+              description
+                "A unique sequence identifier for the match rule.";
+            }
+
+            container config {
+              description
+                "Configuration parameters relating to the match
+                rule.";
+              uses pf-forwarding-policy-rule-config;
+            }
+
+            container state {
+              config false;
+              description
+                "Operational state parameters relating to the match
+                rule.";
+              uses pf-forwarding-policy-rule-config;
+              uses pf-forwarding-policy-rule-state;
+            }
+
+            uses oc-pmatch:ethernet-header-top;
+            uses oc-pmatch:ipv4-protocol-fields-top;
+            uses oc-pmatch:ipv6-protocol-fields-top;
+            uses oc-pmatch:transport-fields-top;
+
+            container action {
+              description
+                "The forwarding policy action to be applied for
+                packets matching the rule.";
+
+              container config {
+                description
+                  "Configuration parameters relating to the forwarding
+                  rule's action.";
+                uses pf-forwarding-policy-action-config;
+              }
+
+              container state {
+                config false;
+                description
+                  "Operational state parameters relating to the
+                  forwarding rule's action.";
+                uses pf-forwarding-policy-action-config;
+              }
+
+            }
+          }
+        }
+      }
+    }
+  }
+
+  grouping pf-forwarding-policy-config {
+    description
+      "Configuration parameters relating to the forwarding policy.";
+
+    leaf policy-id {
+      type string;
+      description
+        "A unique name identifying the forwarding policy. This name is
+        used when applying the policy to a particular interface.";
+    }
+  }
+
+  grouping pf-forwarding-policy-rule-config {
+    description
+      "Configuration parameters relating to a policy rule.";
+
+    leaf sequence-id {
+      type uint32;
+      description
+        "Unique sequence number for the policy rule.";
+    }
+  }
+
+  grouping pf-forwarding-policy-rule-state {
+    description
+      "Operational state parameters relating to a policy rule.";
+
+    leaf matched-pkts {
+      type yang:counter64;
+      description
+        "Number of packets matched by the rule.";
+    }
+
+    leaf matched-octets {
+      type yang:counter64;
+      description
+        "Bytes matched by the rule.";
+    }
+  }
+
+  grouping pf-forwarding-policy-action-config {
+    description
+      "Forwarding policy action configuration parameters.";
+
+    leaf discard {
+      type boolean;
+      default false;
+      description
+        "When this leaf is set to true, the local system should drop
+        packets that match the rule.";
+    }
+
+    leaf decapsulate-gre {
+      type boolean;
+      default false;
+      description
+        "When this leaf is set to true, the local system should remove
+        the GRE header from the packet matching the rule. Following
+        the decapsulation it should subsequently forward the
+        encapsulated packet according to the relevant lookup (e.g., if
+        the encapsulated packet is IP, the packet should be routed
+        according to the IP destination).";
+    }
+
+    leaf network-instance {
+      type leafref {
+
+        // We are at:
+        // $NIROOT/policy-forwarding/policies/
+        // policy/rules/rule/action/config/
+        // network-instance
+        path "../../../../../../../../config/name";
+      }
+      description
+        "When this leaf is set, packets matching the match criteria
+        for the forwarding rule should be looked up in the
+        network-instance that is referenced rather than the
+        network-instance with which the interface is associated.
+        Such configuration allows policy-routing into multiple
+        sub-topologies from a single ingress access interface, or
+        different send and receive contexts for a particular
+        interface (sometimes referred to as half-duplex VRF).";
+    }
+
+    leaf path-selection-group {
+      type leafref {
+        // We are at:
+        // $NIROOT/policy-forwarding/policies/
+        // policy/rules/rule/action/config/to-path-group
+        path "../../../../../../../path-selection-groups/" +
+             "path-selection-group/config/group-id";
+      }
+      description
+        "When path-selection-group is set, packets matching the
+        match criteria for the forwarding rule should be forwarded
+        only via one of the paths that is specified within the
+        referenced path-selection-group. The next-hop of the packet
+        within the routing context should be used to determine between
+        multiple paths that are specified within the group.";
+    }
+
+    leaf next-hop {
+      type inet:ip-address-no-zone;
+      description
+        "When an IP next-hop is specified in the next-hop field,
+        packets matching the match criteria for the forwarding rule
+        should be forwarded to the next-hop IP address, bypassing any
+        lookup on the local system.";
+    }
+  }
+}
