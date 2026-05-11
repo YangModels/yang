@@ -1,0 +1,290 @@
+module openconfig-network-instance-static {
+
+  yang-version "1";
+
+  // namespace
+  namespace "http://openconfig.net/yang/network-instance-static";
+
+  prefix "oc-ni-static";
+
+  import openconfig-extensions { prefix "oc-ext"; }
+  import openconfig-aft { prefix "oc-aft"; }
+  import openconfig-aft-types { prefix "oc-aftt"; }
+  import openconfig-local-routing { prefix "oc-loc-rt"; }
+
+  // meta
+  organization "OpenConfig working group";
+
+  contact
+    "OpenConfig working group
+    www.openconfig.net";
+
+  description
+    "Static configurations associated with a network instance";
+
+  oc-ext:openconfig-version "0.1.0";
+
+  revision "2025-02-20" {
+    description
+      "Initial revision adding static next-hop-groups and encapsulation headers.";
+    reference "0.1.0";
+  }
+
+  grouping ni-static-structural {
+    description
+      "Logical grouping for static configurations.";
+
+    container static {
+      description
+        "Surrounding container for static configurations.";
+
+      uses next-hop-groups-top {
+        description
+          "Configuration and state parameters relating to
+          statically configured next hop group";
+      }
+
+      uses static-next-hops-top {
+        description
+          "Configuration and state parameters relating to
+          statically configured next hop";
+      }
+
+    }
+  }
+
+  grouping next-hop-groups-top {
+    description
+      "Logical grouping for statically configured next-hop-groups";
+
+    container next-hop-groups {
+      description
+        "Surrounding container for groups of next-hops.";
+
+      list next-hop-group {
+        key "name";
+        description
+          "A list of user defined next-hop-groups.  Each next-hop-group contains a
+          list of next-hops noting where packets should be forwarded, plus any
+          packet header fields that may be set.  Static routes and policy-forwarding
+          actions in OpenConfig may reference a next-hop-group name to indicate
+          where packets should be forwarded.";
+
+        leaf name {
+          type leafref {
+            path "../config/name";
+          }
+          description
+            "A reference to a unique identifier for the next-hop-group.";
+        }
+
+        container config {
+          description
+            "Configuration parameters relating to next-hop-groups.";
+          uses static-nhg-top;
+        }
+
+        container state {
+          config false;
+          description
+            "State parameters relating to next-hop-groups.";
+          uses static-nhg-top;
+        }
+
+        container next-hops {
+          description
+            "Surrounding container for the list of next-hops within
+            the next-hop-group.";
+          list next-hop {
+            key "index";
+            description
+              "An individual next-hop within the next-hop-group. Each
+              next-hop is a reference to an entry within the next-hop
+              list.";
+            leaf index {
+              type leafref {
+                path "../config/index";
+              }
+              description
+                "A reference to the index for the next-hop within the
+                the next-hop-group.";
+            }
+            container config {
+              description
+                "Configuration parameters related to a next-hop
+                within the next-hop-group.";
+              uses static-nhg-next-hop;
+            }
+            container state {
+              config false;
+              description
+                "State parameters related to a next-hop
+                within the next-hop-group.";
+              uses static-nhg-next-hop;
+            }
+          }
+        }
+
+      }
+    }
+  }
+
+  grouping static-nhg-top {
+    description
+      "Logical grouping for statically configured next-hop-groups";
+    leaf name {
+      type string;
+      description
+        "A user defined name that uniquely identifies the next-hop-group.";
+    }
+  }
+
+  grouping static-nhg-next-hop {
+    description
+      "Configuration parameters relating to an individual next-hop
+      within the next-hop-group.";
+
+    leaf index {
+      type leafref {
+        // We are at network-instance/static/next-hop-groups/next-hop-group/next-hops/next-hop/index
+        path "../../../../../../next-hops/next-hop/index";
+      }
+
+      description
+        "A reference to the identifier for the next-hop to which
+        the entry in the next-hop group corresponds.";
+    }
+  }
+
+  grouping static-next-hops-top {
+    description
+      "Logical grouping for statically configured next-hops.";
+
+    container next-hops {
+      description
+        "The list of next-hops that are to be used for entry within
+        the network instance. The structure of each next-hop is address
+        family independent, such that it is possible to resolve fully
+        how the next-hop is treated. For example:
+        - Where ingress IPv4 unicast packets are to be forwarded via
+          an MPLS LSP, the next-hop list should indicate the MPLS
+          label stack that is used to the next-hop.
+        - Where ingress MPLS labelled packets are to be forwarded to
+          an IPv6 nexthop (for example, a CE within a VPN), then the
+          popped label stack, and IPv6 next-hop address should be
+          indicated.";
+
+      list next-hop {
+        key "index";
+
+        description
+          "A next-hop associated with the forwarding instance.";
+
+        leaf index {
+          type leafref {
+            path "../config/index";
+          }
+          description
+            "A unique index identifying the next-hop entry";
+        }
+
+        container config {
+          description
+            "Configuration parameters relating to the next-hop entry";
+
+          uses oc-loc-rt:local-static-nexthop-config;
+        }
+
+        container state {
+          config false;
+          description
+            "State parameters relating to the next-hop entry";
+
+          uses oc-loc-rt:local-static-nexthop-config;
+        }
+
+        uses static-encap-headers;
+
+      }
+    }
+  }
+
+  grouping static-encap-headers {
+    description
+      "Grouping for encapsulation headers.";
+
+    container encap-headers {
+      description
+        "Container for packet encapsulation headers.  When leaves in this
+        container are populated, it indicates encapsulation of the packet
+        matching the next-hop is performed using a stack of one or more
+        headers defined in the list encap-header.
+        Each entry in the list must indicate an encapsulation type and
+        populate a container with the parameters for that encapsulation
+        header.";
+
+      list encap-header {
+        description
+          "A list of headers added on top of a packet ordered by the
+          index value.  The inner-most header is the 0th value and is
+          adjacent to the original packet.  Additional headers may be
+          added in index order.
+          For example, in an encapsulation stack for MPLS in UDPv4, the
+          first index in the list is the MPLS header and the second
+          index is a UDPv4 header.";
+
+        key "index";
+
+        leaf index {
+          type leafref {
+            path "../config/index";
+          }
+
+          description
+            "A unique index identifying an encapsulation header in a stack
+            of encapsulation headers.";
+        }
+
+        container config {
+          description
+            "Config parameters relating to encapsulation headers.";
+
+          uses oc-aft:aft-common-nexthop-encap-headers-state;
+        }
+
+        container state {
+          config false;
+          description
+            "State parameters relating to encapsulation headers.";
+
+          uses oc-aft:aft-common-nexthop-encap-headers-state;
+        }
+
+        container udp-v4 {
+          when "../config/type = 'oc-aftt:UDPV4'";
+          description
+            "Container of nodes for UDP in IPv4 encapsulation.  When this
+            container is used, an IPv4 header with a UDP header is added
+            to the encapsulation list.";
+
+          container config {
+            description
+              "Configuration parameters relating to encapsulation headers.";
+
+            uses oc-aft:aft-common-entry-nexthop-encap-udp-v4-state;
+          }
+
+          container state {
+            config false;
+            description
+              "State parameters relating to encapsulation headers.";
+
+            uses oc-aft:aft-common-entry-nexthop-encap-udp-v4-state;
+          }
+        }
+
+      }
+    }
+  }
+
+}
