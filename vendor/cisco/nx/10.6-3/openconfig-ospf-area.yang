@@ -1,0 +1,228 @@
+submodule openconfig-ospf-area {
+
+  belongs-to openconfig-ospf {
+    prefix "oc-ospf";
+  }
+
+  import openconfig-extensions { prefix "oc-ext"; }
+  import openconfig-ospf-types { prefix "oc-ospf-types"; }
+  import openconfig-ospf-types { prefix "oc-ospft"; }
+  import ietf-inet-types { prefix "inet"; }
+
+  // include other required submodules
+  include openconfig-ospf-area-interface;
+
+  // meta
+  organization "OpenConfig working group";
+
+  contact
+    "OpenConfig working group
+    www.openconfig.net";
+
+  description
+    "This submodule provides common OSPF configuration and operational
+    state parameters that are specific to the area context";
+
+  oc-ext:openconfig-version "0.0.1";
+
+  revision "2025-02-13" {
+    description
+      "Initial revision";
+    reference "0.0.1";
+  }
+
+
+  grouping address-range-config {
+    description
+      "Configuration data for address ranges.";
+
+    leaf prefix {
+      type inet:ip-prefix;
+      description
+        "IP address range";
+    }
+
+    leaf status {
+      type enumeration {
+        enum ADVERTISE {
+          description
+            "The route is advertised.";
+        }
+        enum DONOTADVERTISE {
+          description
+            "The route is not advertised.";
+        }
+      }
+      default ADVERTISE;
+      description
+        "Set to either Advertise or DoNotAdvertise.  Routing information
+         is condensed at area boundaries.  External to the area, at most
+         a single route is advertised (via a inter-area-prefix-LSA) for
+         each address range.  The route is advertised if and only if the
+         address range's Status is set to Advertise.  Unadvertised
+         ranges allow the existence of certain networks to be
+         intentionally hidden from other areas.";
+    }
+  }
+
+  grouping ospf-area-config {
+    description
+      "Configuration parameters relating to an OSPF area";
+
+    leaf identifier {
+      type oc-ospf-types:ospf-area-identifier;
+      description
+        "An identifier for the OSPF area - described as either a
+        32-bit unsigned integer, or a dotted-quad";
+    }
+
+    leaf type {
+      type identityref {
+        base "oc-ospft:OSPF_AREA_TYPE";
+      }
+      default oc-ospft:NORMAL;
+      description
+        "OSPF area type.";
+    }
+
+    leaf stub-default-cost {
+      /* when "../area-type = 'STUB' or ../area-type = 'NSSA'" {
+        description
+          "Default cost for LSA advertised into stub or
+            NSSA area."
+      } */
+
+      type uint32 {
+        range "1..16777215";
+      }
+      description
+        "If the area has been configured as a stub area,
+         and the router itself is an area border router,
+         then the StubDefaultCost indicates the cost of
+         the default inter-area-prefix-LSA that the router
+         should advertise into the area.";
+    }
+
+    leaf import-summaries {
+      /* when "../area-type = 'STUB' or ../area-type = 'NSSA'" {
+        description
+          "Summary generation valid for stub/NSSA area."
+      } */
+
+      type boolean;
+      default true;
+      description
+        "When set to enabled, prefixes external to the
+         area are imported into the area via the advertisement
+         of inter-area-prefix-LSAs. When set to disabled,
+         inter-area routes are not imported into the
+         area.";
+    }
+  }
+
+  grouping ospf-area-virtual-link-config {
+    description
+      "Configuration parameters relating to a virtual-link within
+      the OSPF area";
+
+    leaf remote-router-id {
+      type inet:ipv4-address-no-zone;
+      description
+        "The router ID of the device which terminates the remote end
+        of the virtual link";
+    }
+  }
+
+  grouping ospf-area-structure {
+    description
+      "Structural grouping for configuration and operational state
+      parameters that relate to an individual area";
+
+    container config {
+      description
+        "Configuration parameters relating to an OSPFv2 area";
+
+      uses ospf-area-config;
+    }
+
+    container state {
+      config false;
+      description
+        "Operational state parameters relating to an OSPFv2 area";
+      uses ospf-area-config;
+    }
+
+    uses ospf-area-interfaces-structure;
+
+    container virtual-links {
+      description
+        "Configuration and state parameters relating to virtual
+        links from the source area to a remote router";
+
+      list virtual-link {
+        key "remote-router-id";
+
+        description
+          "Configuration and state parameters relating to a
+          virtual link";
+
+        leaf remote-router-id {
+          type leafref {
+            path "../config/remote-router-id";
+          }
+          description
+            "Reference to the remote router ID";
+        }
+
+        container config {
+          description
+            "Configuration parameters relating to the OSPF virtual link";
+          uses ospf-area-virtual-link-config;
+        }
+
+        container state {
+          config false;
+          description
+            "State parameters relating to the OSPF virtual link";
+          uses ospf-area-virtual-link-config;
+          uses ospf-area-interface-neighbor-state;
+        }
+      }
+    }
+
+    container address-ranges {
+      description
+        "Configuration and state parameters relating to a list of address
+         ranges";
+
+      list address-range {
+        key "prefix";
+
+        description
+          "Configuration and state parameters relating to an address range";
+
+        leaf prefix {
+          type leafref {
+            path "../config/prefix";
+          }
+          description
+            "Reference to the prefix";
+        }
+
+        container config {
+          description
+            "Configuration parameters relating to an address range";
+          uses address-range-config;
+        }
+
+        container state {
+          config false;
+          description
+            "State parameters relating to an address range";
+          uses address-range-config;
+        }
+
+      }
+    }
+  }
+}
