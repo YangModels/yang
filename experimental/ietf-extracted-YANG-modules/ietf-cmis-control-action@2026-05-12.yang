@@ -1,0 +1,175 @@
+module ietf-cmis-control-action {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-cmis-control-action";
+  prefix cmis-ctrl-act;
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  organization
+    "IETF CCAMP Working Group";
+
+  contact
+    "WG Web:   <http://tools.ietf.org/wg/ccamp/>
+    WG List:  <mailto:ccamp@ietf.org>
+
+    Editor:   Shunsuke Homma
+      <mailto:shunsuke.homma.ietf@gmail.com>
+
+    Editor:   Hitoshi Irino
+      <mailto:hitoshi.irino.ntt@gmail.com>";
+
+  description
+    "This YANG module defines a data model for action-based
+    management of CMIS (Common Management Interface Specification)
+    pages as specified by OIF. It enables configuration and
+    retrieval of CMIS page data, including access types and value
+    fields, to support the management of pluggable optical modules
+    via NETCONF or RESTCONF.
+
+    The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+    NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+    'MAY', and 'OPTIONAL' in this document are to be interpreted as
+    described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+    they appear in all capitals, as shown here.
+
+    Copyright (c) 2026 IETF Trust and the persons identified
+    as authors of the code.  All rights reserved.
+
+    Redistribution and use in source and binary forms, with or
+    without modification, is permitted pursuant to, and
+    subject to the license terms contained in, the Revised
+    BSD License set forth in Section 4.c of the IETF Trust's
+    Legal Provisions Relating to IETF Documents
+    (http://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC XXXX
+    (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+    for full legal notices.";
+
+// RFC Ed.: replace XXXX with actual RFC number and remove this note
+  revision "2026-05-12" {
+    description
+      "Updated action definitions to respect governance policy
+       defined in ietf-cmis-control.";
+    reference
+      "RFC XXXX: A YANG Data Model for CMIS Access and Control";
+  }
+
+  revision "2025-10-11" {
+    description "Initial revision.";
+    reference
+      "RFC XXXX: A YANG Data Model for CMIS Access and Control";
+  }
+
+  augment "/if:interfaces/if:interface" {
+    description
+      "Add CMIS read/write actions under interface.";
+
+    action cmis-read {
+      description
+        "Read CMIS register via action context.
+         The operation MUST respect the governance policy defined
+         in the 'cmis-control' container of the target interface.
+         If the target page is not accessible (e.g., default-policy
+         is 'disabled' and the page is not in the read/write
+         whitelists), the server MUST return an error.
+         Note: Care should be taken when accessing Lower Memory
+         (Address 0-127, typically Page 00h) as it may contain
+         Clear-on-Read registers.";
+      input {
+        leaf page {
+          type uint8;
+          mandatory true;
+          description "The number of the CMIS page.";
+        }
+        leaf bank {
+          type uint8;
+          mandatory true;
+          description "The banks corresponding to the CMIS page.";
+        }
+        leaf offset {
+          type uint8;
+          mandatory true;
+          description "The memory address of the value.";
+        }
+        leaf size {
+          type uint8{
+            range "1 .. 128";
+          }
+          mandatory true;
+          description "The memory size of the value.";
+        }
+      }
+      output {
+        leaf data {
+          type binary;
+          description "Raw register data.";
+        }
+      }
+    }
+
+    action cmis-write {
+      description
+        "Write CMIS register data via action context.
+         The operation MUST respect the governance policy defined
+         in the 'cmis-control' container of the target interface.
+         If the target page is not in the 'remote-write-allowed-pages'
+         list, the server MUST reject the request.
+         Writing to Lower Memory (Address 0-127) MUST NOT be performed
+         to prevent interference with Host management.";
+      input {
+        leaf page {
+          type uint8;
+          mandatory true;
+          description "The number of the CMIS page.";
+        }
+        leaf bank {
+          type uint8;
+          mandatory true;
+          description "The banks corresponding to the CMIS page.";
+        }
+        leaf offset {
+          type uint8;
+          mandatory true;
+          description "The memory address of the value.";
+        }
+        leaf data {
+          type binary;
+          mandatory true;
+          description "Data to write.";
+        }
+      }
+      output {
+        leaf status {
+          type enumeration {
+            enum success {
+              description "Write operation succeeded.";
+            }
+            enum not-permitted {
+              description
+                "Write request was rejected due to access-type or
+                 governance policy (e.g., page not in whitelist).";
+            }
+            enum io-error {
+              description "I/O error during write";
+            }
+            enum invalid-params {
+              description "Bad parameters";
+            }
+          }
+          description "Result of the write operation.";
+        }
+        leaf post-write-value {
+          type binary;
+          description
+            "Optional read-back of the target value after write.
+             Present only if the implementation performed a read-back
+             (e.g., for 'rw' registers). Not present for 'wo' registers
+             or when no-readback was requested/possible.";
+        }
+      }
+    }
+  }
+}
