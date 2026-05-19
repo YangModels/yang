@@ -9,7 +9,6 @@ module ietf-cmis-control {
 
   organization
     "IETF CCAMP Working Group";
-
   contact
     "WG Web:   <http://tools.ietf.org/wg/ccamp/>
     WG List:  <mailto:ccamp@ietf.org>
@@ -18,7 +17,7 @@ module ietf-cmis-control {
       <mailto:shunsuke.homma.ietf@gmail.com>
 
     Editor:   Hitoshi Irino
-      <mailto:hitoshi.irino.ge@west.ntt.co.jp>";
+      <mailto:hitoshi.irino.ntt@gmail.com>";
 
   description
     "This YANG module defines a data model for the management
@@ -28,7 +27,13 @@ module ietf-cmis-control {
     to support the management of pluggable optical modules via
     NETCONF or RESTCONF.
 
-    Copyright (c) 2025 IETF Trust and the persons identified
+    The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+    NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+    'MAY', and 'OPTIONAL' in this document are to be interpreted as
+    described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+    they appear in all capitals, as shown here.
+
+    Copyright (c) 2026 IETF Trust and the persons identified
     as authors of the code.  All rights reserved.
 
     Redistribution and use in source and binary forms, with or
@@ -43,6 +48,14 @@ module ietf-cmis-control {
     for full legal notices.";
 
 // RFC Ed.: replace XXXX with actual RFC number and remove this note
+
+  revision "2026-05-12" {
+    description
+      "Revised control model to use whitelist approach.
+       Added remote-read-allowed-pages for granular access control.";
+    reference
+      "RFC XXXX: A YANG Data Model for CMIS Access and Control";
+  }
 
   revision "2025-04-21" {
     description
@@ -79,7 +92,8 @@ module ietf-cmis-control {
           effect.";
         }
       }
-      description "Defines access types for CMIS elements.";
+      description
+        "Defines access types for CMIS elements as defined in OIF-CMIS.";
   }
 
   grouping cmis-page {
@@ -165,14 +179,14 @@ module ietf-cmis-control {
 
     list cmis-page {
       key "page-num";
+      description "A CMIS page supported by the device.";
       uses cmis-page;
       }
   }
 
   grouping cmis-control {
     description
-      "Parameters for primitive CMIS control of the pluggable device
-      equipped in the interface.";
+      "Parameters for CMIS control and governance.";
 
     leaf cmis-enabled {
       type boolean;
@@ -191,6 +205,68 @@ module ietf-cmis-control {
         "The version of the CMIS by the pluggable device.";
     }
 
+    leaf default-policy {
+      type enumeration {
+        enum disabled {
+          description
+            "Remote access is completely disabled for pages not
+             listed in the whitelists.";
+        }
+        enum read-only {
+          description
+            "Remote access is restricted to monitoring only for pages
+             not listed in 'remote-write-allowed-pages'.";
+        }
+      }
+      default "read-only";
+      description
+        "Defines the default access policy for CMIS pages.";
+    }
+
+    list remote-read-allowed-pages {
+      key "page-num";
+      description
+        "A whitelist of pages that are allowed to be READ by
+         a remote controller, even if the default-policy is 'disabled'.
+         This list is useful when 'default-policy' is set to 'disabled'
+         but specific pages need to be monitored.
+
+         Note: Lower Memory (Address 0-127) SHOULD NOT be included in
+         this list if it contains Clear-on-Read (CoR) registers that
+         are managed by the Host NOS.";
+
+      leaf page-num {
+        type uint8;
+        description "The CMIS page number allowed for remote read.";
+      }
+    }
+
+    list remote-write-allowed-pages {
+      key "page-num";
+      description
+        "A whitelist of pages that are allowed to be modified by
+         a remote controller (Read/Write).
+         If a page is listed in both this list and
+         'remote-read-allowed-pages', this list takes precedence,
+         granting Read/Write access.
+
+         Note: Lower Memory (Address 0-127) MUST NOT be included in
+         this list as it contains critical Host management flags.
+
+         When a page is removed from this list, or when the default-policy
+         changes to 'disabled' (and the page is not in the read-whitelist),
+         the Host NOS MUST strictly enforce its local configuration
+         (running-config) to the target CMIS pages.
+         Values modified by a remote controller MUST be overwritten by
+         the Host's local configuration or reset to default values to
+         maintain configuration consistency.";
+
+      leaf page-num {
+        type uint8;
+        description "The CMIS page number allowed for remote write.";
+      }
+    }
+
     uses cmis-pages;
 
   }
@@ -200,7 +276,9 @@ module ietf-cmis-control {
    */
 
   augment "/if:interfaces/if:interface" {
+    description "Augments interface with CMIS control parameters.";
     container cmis-control {
+      description "Container for CMIS control.";
       uses cmis-control;
     }
   }
