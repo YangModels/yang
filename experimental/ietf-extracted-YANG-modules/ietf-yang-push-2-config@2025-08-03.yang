@@ -1,0 +1,534 @@
+module ietf-yang-push-2-config {
+  yang-version 1.1;
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-yang-push-2-config";
+  prefix yp2co;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-interfaces {
+    prefix if;
+    reference
+      "RFC 8343: A YANG Data Model for Interface Management";
+  }
+  import ietf-network-instance {
+    prefix ni;
+    reference
+      "RFC 8529: YANG Data Model for Network Instances";
+  }
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  import ietf-yang-push-2 {
+    prefix yp2;
+    reference
+      "RFC XXXX: YANG Datastore Telemetry (YANG Push version 2)";
+  }
+
+  organization
+    "IETF NETCONF (Network Configuration) Working Group";
+  contact
+    "WG Web:  <https:/datatracker.ietf.org/wg/netconf/>
+     WG List: <mailto:netconf@ietf.org>
+
+     Author:  Robert Wilton
+              <mailto:rwilton@cisco.com>";
+  description
+    "This module contains YANG specifications for YANG-Push version 2
+     configuration and operational state model.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.
+
+     Copyright (c) 2025 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+     for full legal notices.";
+
+  revision 2025-08-03 {
+    description
+      "Initial revision.";
+    reference
+      "XXX: YANG Datastore Telemetry (YANG Push version 2)";
+  }
+
+  /*
+   * FEATURES
+   */
+
+  feature interface-designation {
+    description
+      "This feature indicates that a publisher supports sourcing all
+       receiver interactions for a configured subscription from a
+       single designated egress interface.";
+  }
+
+  feature supports-vrf {
+    description
+      "This feature indicates that a publisher supports VRF
+       configuration for configured subscriptions.  VRF support for
+       dynamic subscriptions does not require this feature.";
+    reference
+      "RFC 8529: YANG Data Model for Network Instances,
+                 Section 6";
+  }
+
+  /*
+   * TYPEDEFs
+   */
+
+  typedef filter-ref {
+    type leafref {
+      path "/datastore-telemetry/filters/filter/name";
+    }
+    description
+      "This type is used to reference a selection filter.";
+  }
+
+  /*
+   * GROUPINGS
+   */
+  grouping filter-ref {
+    description
+      "This grouping is used to reference a selection filter.";
+    leaf filter-ref {
+      type filter-ref;
+      mandatory true;
+      description
+        "References an existing selection filter that is to be
+        applied to the subscription.";
+    }
+  }
+
+  /*
+   * DATA NODES
+   */
+
+  container datastore-telemetry {
+    presence "Enables datastore telemetry";
+    description
+    "YANG Push v2 Datastore Telemetry Configuration and State.";
+    container filters {
+      description
+        "Contains a list of configurable filters that can be applied
+         to subscriptions.  This facilitates the reuse of complex
+         filters once defined.";
+
+      list filter {
+        key "name";
+        description
+          "A list of preconfigured filters that can be applied
+          to datastore subscriptions.";
+        leaf name {
+          type string {
+            length "1..64";
+            pattern '[A-Za-z0-9._-]+';
+          }
+          description
+            "A unique name to identify the selection filters.";
+        }
+        uses yp2:filter-choice;
+      }
+    }
+    container subscriptions {
+      description
+        "Contains the list of currently active subscriptions, i.e.,
+        subscriptions that are currently in effect, used for
+        subscription management and monitoring purposes.  This
+        includes subscriptions that have been set up via
+        RPC primitives as well as subscriptions that have been
+        established via configuration.";
+      list subscription {
+        key "id";
+        description
+          "The identity and specific parameters of a subscription.
+          Subscriptions in this list can be created using a control
+          channel or RPC or can be established through configuration.
+
+          If the 'kill-subscription' RPC or configuration operations
+          are used to delete a subscription, a
+          'subscription-terminated' message is sent to any active or
+          suspended receivers.";
+
+        uses yp2:client-subscription-id;
+        uses yp2:subscription-common;
+
+        leaf receiver {
+          type leafref {
+            path "/datastore-telemetry/receivers/receiver/name";
+          }
+          mandatory true;
+          description
+            "Identifies the receiver for a subscription.";
+        }
+
+        // leaf status {
+        //   type enumeration {
+        //     enum disconnected {
+        //       description
+        //         "This subscription does not have an active session
+        //           with the receiver, and it is not trying to
+        //           connect.
+
+        //         E.g., this state may be reported if the
+        //         subscription is not valid, or has not been started
+        //         yet.";
+        //     }
+        //     enum connecting {
+        //       description
+        //         "The publisher is trying to establish a session
+        //           with the receiver for this subscription.
+
+        //           For a session less transport, this state may be
+        //           used to indicate that there is no route to the
+        //           receiver.
+
+        //           A receiver in connecting state may indicate that
+        //           the transport or associated security session
+        //           could not be established, and the publisher is
+        //         periodically trying to establish the connection.";
+        //     }
+        //     enum active {
+        //       description
+        //         "The publisher has successfully connected (if over
+        //           a session based transport) to the receiver for
+        //           this subscription, and the publisher is able to
+        //           send notifications to the receiver.";
+        //     }
+        //   }
+        //   config false;
+        //   description
+        //     "Specifies the connection status of the receiver for
+        //       this subscription.";
+        // }
+
+        leaf status {
+          type yp2:subscription-status;
+          config false;
+          description
+            "The presence of this leaf indicates that the
+             subscription originated from configuration, not through
+             a control channel or RPC.  The value indicates the state
+             of the subscription as established by the publisher.";
+        }
+
+        leaf type {
+          type yp2:subscription-type;
+          default "configured";
+          config false;
+          description
+            "Whether the subscription is configured or dynamic.";
+        }
+
+        leaf encoding {
+          type yp2:encoding;
+          config false;
+          description
+            "The type of encoding for notification messages.";
+        }
+
+        container message-publishers {
+          config false;
+          description
+            "Holds the publisher-ids for all processes
+             currently associated with the subscription";
+            uses yp2:publishers;
+        }
+
+        leaf last-sequence-number {
+          type yang:zero-based-counter64;
+          config false;
+          description
+            "The envelope sequence number for the last notification
+             sent for this subscription.
+
+             The sequence number is initialized to zero when the
+             subscription first becomes active and the first
+             subscription-started notification is sent.";
+        }
+
+        leaf last-notification-time {
+          type yang:date-and-time;
+          config false;
+          description
+            "The notification envelope event-time timestamp of the
+             last notification sent for this subscription.
+
+             The timestamp is initialized to the time when the
+             subscription first becomes active and the first
+             subscription-started notification is sent.";
+        }
+
+        leaf last-periodic-collection-time {
+          type yang:date-and-time;
+          config false;
+          description
+            "The event-time timestamp of the last completed periodic
+             collection or resynchronization collection for this
+             subscription, and used as the event-time in the
+             notification header.
+
+             The timestamp is initialized to the time when the
+             subscription first becomes active and the first
+             subscription-started notification is sent.";
+        }
+
+        leaf last-on-change-notification-time {
+          type yang:date-and-time;
+          config false;
+          description
+            "The notification envelope event-time timestamp of the
+             last on-change notification sent for this subscription.
+
+             The timestamp is initialized to the time when the
+             subscription first becomes active and the first
+             subscription-started notification is sent.";
+        }
+
+        container statistics {
+          config false;
+          description
+            "Statistics related to the number of messages generated
+             for this subscription.";
+
+          leaf started-notifications {
+            type yang:zero-based-counter64;
+            config false;
+            description
+              "The number of subscription-started notifications
+               sent for this subscription since the subscription
+               list entry was created and the configuration
+               was applied by the publisher.";
+          }
+
+          leaf terminated-notifications {
+            type yang:zero-based-counter64;
+            config false;
+            description
+              "The number of subscription-terminated notifications
+               sent for this subscription since the subscription
+               list entry was created and the configuration
+               was applied by the publisher.";
+          }
+
+          leaf update-notifications {
+            type yang:zero-based-counter64;
+            config false;
+            description
+              "The number of update records generated for the
+               subscription, to be queued to one of more active
+               receivers.
+
+               The count is re-initialized to 0 when the
+               subscription first becomes active and the
+               subscription-started notification is sent.
+
+               The count is incremented even if the update
+               record has been generated, but is not queued to
+               any receiver.";
+          }
+
+          leaf periodic-collections {
+            type yang:zero-based-counter64;
+            config false;
+            description
+              "The number of periodic collections completed for
+               the subscription.
+
+               The count is re-initialized to 0 when the
+               subscription first becomes active and the
+               subscription-started notification is sent.
+
+               The count is incremented even if the update
+               record has been generated, but is not queued to
+               any receiver.";
+          }
+
+          leaf excluded-events {
+            type yang:zero-based-counter64;
+            config false;
+            description
+              "The number of event records explicitly removed via
+              either an event stream filter or an access control
+              filter so that they are not passed to a receiver.
+              This count is set to zero each time
+              'sent-event-records' is initialized.";
+          }
+
+          leaf receiver-disconnects {
+            type yang:zero-based-counter64;
+            config false;
+            description
+              "The number of times that the receiver has been
+                disconnected since the subscription
+                receiver entry was created and the configuration
+                was applied by the publisher";
+          }
+        }
+
+        action reset {
+          description
+            "Reset the subscription.
+
+             This action will cause a new subscription-started
+             message to be sent for the subscription";
+        }
+      }
+    }
+    container receivers {
+      description
+        "A container for all instances of configured receivers.";
+
+      list receiver {
+        key "name";
+
+        leaf name {
+          type string {
+            length "1..64";
+            pattern '[A-Za-z0-9._-]+';
+          }
+          description
+            "An arbitrary but unique name for this receiver
+            instance.";
+        }
+
+        leaf encoding {
+  /*        when 'not(../transport) or derived-from(../transport,
+          "yp2:configurable-encoding")';*/
+          type yp2:encoding;
+          mandatory true;
+          description
+            "The type of encoding for notification messages.  For a
+             dynamic subscription, if not included as part of an
+             'establish-subscription' RPC, the encoding will be
+             populated with the encoding used by that RPC.  For a
+             configured subscription, if not explicitly configured,
+             the encoding will be the default encoding for an
+             underlying transport.";
+        }
+
+        uses yp2:dscp;
+
+        action reset {
+          description
+            "Resets all configured subscriptions that reference
+             this receiver.
+
+             This action is similar to invoking the 'reset' action
+             on all subscriptions that reference this receiver
+             configuration.";
+        }
+
+        choice notification-message-origin {
+          description
+            "Identifies the egress interface on the publisher
+            from which notification messages are to be sent.";
+          case interface-originated {
+            description
+              "When notification messages are to egress a specific,
+              designated interface on the publisher.";
+            leaf source-interface {
+              if-feature "interface-designation";
+              type if:interface-ref;
+              description
+                "References the interface for notification
+                 messages.";
+            }
+          }
+          case address-originated {
+            description
+              "When notification messages are to depart from a
+              publisher using a specific originating address and/or
+              routing context information.";
+            leaf source-vrf {
+              if-feature "supports-vrf";
+              type leafref {
+                path
+                  '/ni:network-instances/ni:network-instance/' 
+                  + 'ni:name';
+              }
+              description
+                "VRF from which notification messages should egress a
+                publisher.";
+            }
+            leaf source-address {
+              type inet:ip-address-no-zone;
+              description
+                "The source address for the notification messages.
+                If a source VRF exists but this object doesn't, a
+                publisher's default address for that VRF must
+                be used.";
+            }
+          }
+        }
+
+        choice transport-type {
+          mandatory true;
+          description
+            "Choice of different types of transports used to
+             send notifications.  The 'case' statements must
+             be augmented in by other modules.";
+        }
+
+        description
+          "A list of all receiver instances.";
+      }
+    }
+  }
+
+  augment "/yp2:subscription-started/yp2:target" {
+
+    description
+      "Allow a subscription-started notification to include a
+       referenced named filter";
+    uses filter-ref {
+      refine "filter-ref" {
+        mandatory false;
+      }
+    }
+  }
+
+  augment "/yp2:subscription-modified/yp2:target" {
+
+    description
+      "Allow a subscription-modified notification to include a
+       referenced named filter";
+    uses filter-ref {
+      refine "filter-ref" {
+        mandatory false;
+      }
+    }
+  }
+
+  augment "/datastore-telemetry/subscriptions/subscription/"
+        + "target/filter" {
+
+    description
+      "Augment the subscription filter to allow
+       referencing a filter configured separately.";
+
+    case by-reference {
+      description
+        "Incorporates a filter that has been configured
+         separately.";
+      uses filter-ref;
+    }
+  }
+}
