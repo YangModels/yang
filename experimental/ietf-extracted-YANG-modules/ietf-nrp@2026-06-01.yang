@@ -45,8 +45,7 @@ module ietf-nrp {
   import ietf-srv6-types {
     prefix srv6-types;
     reference
-      "draft-ietf-spring-srv6-yang: YANG Data Model for SRv6 Base
-       and Static";
+      "draft-ietf-spring-srv6-yang-base: YANG Data Model for SRv6 Base";
   }
   import ietf-topology-filter {
     prefix topo-filt;
@@ -64,6 +63,7 @@ module ietf-nrp {
 
      Editor:   Bo Wu
             <mailto:lana.wubo@huawei.com>
+
      Editor:   Dhruv Dhody
             <mailto:dhruv.ietf@gmail.com>
 
@@ -93,7 +93,7 @@ module ietf-nrp {
      (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
      for full legal notices.";
 
-  revision 2026-01-22 {
+  revision 2026-06-01 {
     description
       "Initial revision.";
     reference
@@ -101,9 +101,52 @@ module ietf-nrp {
                  Partitions (NRPs)";
   }
 
+  /* Features - NRP Selector Mechanisms */
+
+  feature ipv4-selector {
+    description
+      "Indicates support for IPv4-derived NRP selection
+       (destination prefix based).";
+  }
+
+  feature ipv6-hbh-selector {
+    description
+      "Indicates support for dedicated IPv6 Hop?by?Hop
+       extension header selector ID.";
+  }
+
+  feature srv6-selector {
+    description
+      "Indicates support for SRv6 SID?based NRP selection.";
+  }
+
+  feature ipv6-destination-selector {
+    description
+      "Indicates support for IPv6 destination prefix?based
+       NRP selection.";
+  }
+
+  feature mpls-mna-selector {
+    description
+      "Indicates support for in?stack MPLS MNA?based
+       NRP selection (NRPS13, NRPS20, ENRPS20).";
+  }
+
+  feature mpls-post-stack-selector {
+    description
+      "Indicates support for post?stack MPLS PSD?based
+       NRP selection.";
+  }
+
+  feature acl-selector {
+    description
+      "Indicates support for ACL?based NRP selection.";
+  }
+
   /*
    * I D E N T I T I E S
    */
+
   identity nrp-partition-mode {
     description
       "Base identity for NRP partition type.";
@@ -214,8 +257,12 @@ module ietf-nrp {
        configuration.";
     container selector-id {
       description
-        "Container for NRP selector ID.";
+        "Container for NRP selector ID.  It can contain one or more
+         selector mechanisms (IPv4 prefixes, IPv6 Hop-by-Hop options,
+         SRv6 SIDs, MPLS labels, or ACLs) depending on the features
+         supported by the implementation.";
       container ipv4-derived {
+        if-feature "ipv4-selector";
         description
           "Container for IPv4 NRP selector ID.";
         leaf-list destination-prefix {
@@ -226,12 +273,16 @@ module ietf-nrp {
         }
       }
       container ipv6 {
+        if-feature
+          "ipv6-hbh-selector or srv6-selector or
+           ipv6-destination-selector";
         description
           "Container for IPv6 NRP selector ID.";
         choice selector-type {
           description
             "Choices for IPv6 selector ID type.";
           case dedicated {
+            if-feature "ipv6-hbh-selector";
             leaf ipv6-hbh-eh {
               type uint32;
               description
@@ -244,6 +295,7 @@ module ietf-nrp {
             }
           }
           case srv6-derived {
+            if-feature "srv6-selector";
             leaf-list srv6-sid {
               type srv6-types:srv6-sid;
               description
@@ -256,6 +308,7 @@ module ietf-nrp {
             }
           }
           case ipv6-destination-derived {
+            if-feature "ipv6-destination-selector";
             leaf-list destination-prefix {
               type inet:ipv6-prefix;
               description
@@ -266,6 +319,7 @@ module ietf-nrp {
         }
       }
       container mpls {
+        if-feature "mpls-mna-selector or mpls-post-stack-selector";
         description
           "Container for MPLS NRP selector ID. Supports both
            In-Stack (MNA) and Post-Stack (PSD) encoding mechanisms.";
@@ -273,6 +327,7 @@ module ietf-nrp {
           description
             "Selects the MPLS NRP Selector encoding mechanism.";
           case mna-in-stack {
+            if-feature "mpls-mna-selector";
             description
               "In-Stack NRP Selector action.
                Refers to draft-ietf-mpls-mna-nrp-selector.";
@@ -313,6 +368,7 @@ module ietf-nrp {
             }
           }
           case post-stack {
+            if-feature "mpls-post-stack-selector";
             description
               "Post-Stack NRP Selector (PS-NRP).
                Refers to draft-ietf-mpls-mna-psd-nrp-selector.";
@@ -327,6 +383,7 @@ module ietf-nrp {
         }
       }
       leaf-list acl-ref {
+        if-feature "acl-selector";
         type acl-ref;
         description
           "NRP selection is done based on the specified list of
@@ -353,7 +410,9 @@ module ietf-nrp {
         description
           "List of PHB profiles.";
         leaf id {
-          type string;
+          type string {
+            length "1..max";
+          }
           description
             "Uniquely identifies the PHB.
              The profile only has significance within the service
@@ -367,7 +426,7 @@ module ietf-nrp {
    * Grouping - NRP QoS Per-Hop Behavior (PHB) profile
    */
 
-  grouping qos-phb-profile {
+  grouping phb-profile-ref {
     description
       "Grouping for NRP QoS Per-Hop Behavior (PHB) profile.";
     leaf phb-profile {
@@ -399,14 +458,20 @@ module ietf-nrp {
         "The presence of the container node describes NRP IGP
          congruent, which indicates that the NRP instance uses the
          same IGP topology with the specified 'multi-topology-id'
-         and 'algo-id'. That is, the nodes and termination point of
-         the NRP topology and the IGP topology are the same, while
-         the link attributes of the NRP are different from those of
-         the IGP.";
+         and/or 'algo-id'. That is, the nodes and termination point
+         of the NRP topology and the IGP topology are the same,
+         while the link attributes of the NRP are different from
+         those of the IGP.
+         If not explicitly configured, both
+         (multi-topology-id, algo-id) pair default to 0 (standard
+         topology with standard SPF algorithm), corresponding to
+         the base IGP instance.";
       leaf multi-topology-id {
         type uint32;
+        default "0";
         description
-          "Indicates the MT-id of the NRP IGP instance.";
+          "Indicates the MT-id of the NRP IGP instance.
+           MT-id 0 is reserved for the standard topology";
         reference
           "RFC 5120:  M-ISIS: Multi Topology (MT) Routing in
            Intermediate System to Intermediate Systems (IS-ISs)
@@ -414,8 +479,10 @@ module ietf-nrp {
       }
       leaf algo-id {
         type uint32;
+        default "0";
         description
-          "Indicates the algo-id of the NRP IGP instance.";
+          "Indicates the algo-id of the NRP IGP instance.
+           algo-id 0 is reserved for the standard SPF algorithm";
         reference
           "RFC 9350: IGP Flexible Algorithm";
       }
@@ -452,7 +519,7 @@ module ietf-nrp {
         }
         uses resource-reservation;
         uses selector-id;
-        uses qos-phb-profile;
+        uses phb-profile-ref;
       }
     }
   }
@@ -473,7 +540,9 @@ module ietf-nrp {
           "List of groups for NRP topology elements (node or links)
            that share common attributes.";
         leaf group-id {
-          type string;
+          type string {
+            length "1..max";
+          }
           description
             "The NRP topology group identifier.";
         }
@@ -505,7 +574,7 @@ module ietf-nrp {
           description
             "Indicates the resource reservation type of an NRP link.";
         }
-        uses qos-phb-profile;
+        uses phb-profile-ref;
       }
     }
   }
@@ -527,12 +596,15 @@ module ietf-nrp {
         description
           "List of NRP policies.";
         leaf name {
-          type string;
+          type string {
+            length "1..max";
+          }
           description
             "A string that uniquely identifies the NRP policy.";
         }
         leaf nrp-id {
           type uint32;
+          mandatory true;
           description
             "A 32-bit ID that uniquely identifies the NRP
              created by the enforcement of this NRP policy.";
@@ -541,6 +613,7 @@ module ietf-nrp {
           type identityref {
             base nrp-partition-mode;
           }
+          mandatory true;
           description
             "Indicates the resource partition mode of the NRP, such
              as control plane partition, data plane partition,
@@ -548,7 +621,7 @@ module ietf-nrp {
         }
         uses resource-reservation;
         uses selector-id;
-        uses qos-phb-profile;
+        uses phb-profile-ref;
         container topology {
           description
             "Container for NRP topology.";
@@ -764,6 +837,7 @@ module ietf-nrp {
     description
       "Augments node with NRP state attributes.";
     choice nrp-attachment-type {
+      config false;
       description
         "Determines how NRP information is attached to node:
          single-nrp for NRP-specific topology, multi-nrp for
@@ -791,6 +865,7 @@ module ietf-nrp {
     description
       "Augments link with NRP state attributes.";
     choice nrp-attachment-type {
+      config false;
       description
         "Determines how NRP information is attached to link:
          single-nrp for NRP-specific topology, multi-nrp for
