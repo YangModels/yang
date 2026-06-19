@@ -1,0 +1,715 @@
+module ietf-pm-collection {
+  yang-version 1.1;
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-pm-collection";
+  prefix pm-coll;
+
+  import ietf-yang-types {
+    prefix yang;
+    reference "RFC 6991: Common YANG Data Types";
+  }
+
+  organization
+    "IETF Common Control and Measurement Plane (ccamp)
+     Working Group";
+  contact
+    "WG Web: <https://datatracker.ietf.org/wg/ccamp/>
+     Editor: Bin Yeong Yoon <mailto:byyun@etri.re.kr>";
+  description
+    "This YANG module defines a data model for performance
+     management (PM) streaming from network equipment to clients,
+     based on ITU-T G.7710. It supports real-time streaming of
+     performance measurements using three core collection types:
+     counts (cumulative events), snapshot (instantaneous values),
+     and tidemarks (extreme values), as defined in ITU-T G.7710.
+
+     The module enables proactive network monitoring through
+     configurable sampling and measurement intervals, supporting
+     both high-frequency real-time monitoring and long-term trend
+     analysis. It provides threshold event notifications for both
+     periodic measurements and non-periodic events (BUT, EUT,
+     CSES).
+
+     The design supports AI-driven applications, network digital
+     twins, and dynamic network environments by enabling multiple
+     simultaneous views of the same performance parameter with
+     different temporal resolutions. This hierarchical structure
+     allows operators, analytics systems, and digital twin
+     platforms to access performance data at appropriate
+     granularities while maintaining operational efficiency and
+     cross-vendor interoperability.
+
+     The module integrates with IETF YANG-Push protocols for
+     subscription-based streaming, enabling clients to receive
+     continuous performance data and threshold event notifications
+     for real-time monitoring, historical analysis, and automated
+     network management.";
+
+  revision 2026-05-02 {
+    description
+      "Renamed the module from ietf-pm-measurements to
+       ietf-pm-collection (including namespace and prefix).
+
+       Terminology and model alignment: prior wording and the
+       measurement-methods container for counts, snapshot, and
+       tidemarks were replaced by collection types and the
+       collection-types container, per ITU-T G.7710 collection-
+       type concepts.";
+    reference
+      "RFC XXXX: A YANG Data Model of Performance Management
+       Streaming";
+  }
+
+  /*
+   * TYPEDEFs
+   */
+  typedef profile-names {
+    type string {
+      pattern '[a-zA-Z][a-zA-Z0-9_-]*-[a-zA-Z][a-zA-Z0-9_-]*-'
+            + '[a-zA-Z][a-zA-Z0-9_-]*(-[a-zA-Z][a-zA-Z0-9_-]*)?';
+    }
+    description
+      "Parameter profile name following the format:
+       <source>-<network>-<purpose>[-<characteristic>]
+
+       Where:
+       - <source>: Standards body or organization
+         (e.g., itu, ieee, ietf)
+       - <network>: Network domain or layer
+         (e.g., transport, access, core)
+       - <purpose>: Intended use or function
+         (e.g., maintenance, qos, availability)
+       - <characteristic>: Optional qualifying information
+         (e.g., 15min, 24hr, high-priority)
+
+       Examples:
+       - itu-transport-maintenance-15min
+       - itu-transport-maintenance-24hr
+       - itu-transport-qos-24hr
+       - ieee-access-availability";
+  }
+
+  typedef time-interval-unit {
+    type enumeration {
+      enum millisecond {
+        description "Time interval in milliseconds.";
+      }
+      enum second {
+        description "Time interval in seconds.";
+      }
+      enum minute {
+        description "Time interval in minutes.";
+      }
+      enum hour {
+        description "Time interval in hours.";
+      }
+    }
+    description "Units for expressing time intervals.";
+  }
+
+  /*
+   * IDENTITIES
+   */
+  identity periodic-events {
+    description
+      "Base identity for periodic event notifications.";
+  }
+
+  identity counts-transient {
+    base periodic-events;
+    description
+      "Notification for transient threshold events in counts
+       measurements.";
+  }
+
+  identity counts-standing {
+    base periodic-events;
+    description
+      "Notification for standing threshold events in counts
+       measurements.";
+  }
+
+  identity snapshot {
+    base periodic-events;
+    description
+      "Notification for snapshot measurement threshold events.";
+  }
+
+  identity tidemarks {
+    base periodic-events;
+    description
+      "Notification for tidemarks measurement threshold events.";
+  }
+
+  identity non-periodic-events {
+    description
+      "Base identity for non-periodic event notifications.";
+  }
+
+  identity but {
+    base non-periodic-events;
+    description
+      "Notification for Begin Unavailable Time (BUT) events.";
+  }
+
+  identity eut {
+    base non-periodic-events;
+    description
+      "Notification for End Unavailable Time (EUT) events.";
+  }
+
+  identity cses {
+    base non-periodic-events;
+    description
+      "Notification for Consecutive Severely Errored Seconds
+       (CSES) events.";
+  }
+
+  /*
+   * COMMON GROUPINGS
+   */
+  grouping threshold-config {
+    description
+      "Common threshold configuration for snapshot and tidemarks
+       measurement types (high and low thresholds).";
+    leaf high-threshold {
+      type uint32;
+      description
+        "High threshold that triggers alerts when exceeded.";
+    }
+    leaf low-threshold {
+      type uint32;
+      description
+        "Low threshold that triggers alerts when performance
+         falls below acceptable levels.";
+    }
+  }
+
+  grouping transient-threshold-config {
+    description
+      "Threshold configuration for transient conditions.
+       Transient thresholds only support high threshold crossings
+       and report immediately when the count value reaches or
+       crosses the configured transient threshold value.
+       Transient thresholds do not support low threshold
+       (underflow) conditions, unlike snapshot and tidemarks
+       measurements which support both high and low thresholds.";
+    leaf transient-threshold {
+      type uint32;
+      description
+        "Transient threshold that triggers alerts when exceeded.
+         Transient thresholds report immediately when the count
+         value reaches or crosses this threshold value.";
+    }
+  }
+
+  grouping event-state-info {
+    description
+      "Common event state information for all event types.";
+    leaf event-occurred {
+      type boolean;
+      description
+        "Indicates whether a threshold crossing or performance
+         event has occurred.";
+    }
+    leaf event-time {
+      type yang:date-and-time;
+      description
+        "Precise timestamp of when the event occurred.";
+    }
+  }
+
+  grouping oor-event-type {
+    description
+      "Common out-of-range event type definition.";
+    leaf event-type {
+      type enumeration {
+        enum High-OOR-event {
+          description "High OOR threshold exceeded.";
+        }
+        enum Low-OOR-event {
+          description "Low OOR threshold crossed.";
+        }
+      }
+      description
+        "Specifies whether the high or low OOR threshold was
+         crossed.";
+    }
+  }
+
+  grouping triggered-oor-event-info {
+    description
+      "Combined threshold event type and event information.";
+    uses oor-event-type;
+    uses event-state-info;
+  }
+
+  grouping count-transient-event-type {
+    description
+      "Transient threshold event type definition for counts
+       measurements. Transient thresholds report immediately when
+       the count value reaches or crosses a configured threshold
+       value.";
+    leaf event-type {
+      type enumeration {
+        enum Threshold-Crossed-Event {
+          description
+            "Threshold crossing event generated when count value
+             reaches or crosses the configured threshold value.";
+        }
+      }
+      description
+        "Specifies that a threshold crossing event occurred.";
+    }
+  }
+
+  grouping triggered-count-transient-event-info {
+    description
+      "Combined transient threshold event type and event
+       information for counts measurements. Transient thresholds
+       are independent threshold mechanisms that report
+       immediately when count values cross configured threshold
+       values.";
+    uses count-transient-event-type;
+    uses event-state-info;
+  }
+
+  grouping time-interval-config {
+    description "Common time interval configuration.";
+    leaf interval-value {
+      type uint32;
+      description "Numeric value for the interval.";
+    }
+    leaf unit {
+      type time-interval-unit;
+      description "Time unit for the interval value.";
+    }
+  }
+
+  /*
+   * COLLECTION TYPE GROUPINGS
+   */
+  grouping count-measurement-gr {
+    description
+      "Counts measurement for cumulative event tracking over a
+       measurement interval. Supports transient and standing
+       threshold reporting, as defined in G.7710.";
+    container counts {
+      description
+        "Contains counts measurement values and configuration.";
+      container transient-condition-config {
+        description
+          "Configuration for transient threshold conditions.
+           Transient thresholds report immediately when the
+           count value reaches or crosses the configured
+           transient threshold value. Transient thresholds do
+           not support low threshold (underflow) conditions,
+           unlike snapshot and tidemarks measurements which
+           support both high and low thresholds.";
+        uses transient-threshold-config;
+      }
+      container standing-condition-config {
+        description
+          "Configuration for standing condition monitoring.
+           When both thresholds are set, standing-threshold
+           must be greater than or equal to reset-threshold
+           (hysteresis).";
+        must "not(standing-threshold and reset-threshold) or "
+           + "standing-threshold >= reset-threshold" {
+          error-message
+            "Standing threshold must be >= reset threshold.";
+        }
+        leaf standing-threshold {
+          type uint32;
+          description
+            "Threshold value that triggers standing condition
+             alerts.";
+        }
+        leaf reset-threshold {
+          type uint32;
+          description
+            "Reset threshold value that clears standing
+             conditions.";
+        }
+      }
+      leaf measurement-value {
+        type uint32;
+        config false;
+        description
+          "Current cumulative count value for the measurement
+           interval.";
+      }
+    }
+  }
+
+  grouping snapshot-measurement-gr {
+    description
+      "Snapshot measurements for instantaneous values at uniform
+       time within each measurement interval. Supports high/low
+       OOR threshold reporting, as defined in G.7710.";
+    container snapshot {
+      description
+        "Contains snapshot measurement configuration and values.";
+      container uniform-time-config {
+        description
+          "Configuration for uniform time intervals between
+           snapshots.";
+        leaf interval-value {
+          type uint32;
+          default 1;
+          description
+            "Numeric value for the sampling interval between
+             snapshots.";
+        }
+        leaf unit {
+          type time-interval-unit;
+          description
+            "Time unit for the snapshot sampling interval.";
+        }
+      }
+      container threshold-config {
+        description
+          "Configuration for snapshot threshold monitoring.";
+        uses threshold-config;
+      }
+      leaf measurement-value {
+        type uint32;
+        config false;
+        description
+          "Current instantaneous snapshot value.";
+      }
+    }
+  }
+
+  grouping tidemarks-measurement-gr {
+    description
+      "Tidemarks measurements for maximum and minimum values
+       over the measurement interval. Supports high/low OOR
+       threshold reporting, as defined in G.7710.";
+    container tidemarks {
+      description
+        "Contains tidemarks measurement values and threshold
+         configuration.";
+      container threshold-config {
+        description
+          "Configuration for tidemarks threshold monitoring.";
+        uses threshold-config;
+      }
+      leaf high-measurement-value {
+        type uint32;
+        config false;
+        description
+          "Current maximum value recorded during the measurement
+           interval.";
+      }
+      leaf low-measurement-value {
+        type uint32;
+        config false;
+        description
+          "Current minimum value recorded during the measurement
+           interval.";
+      }
+    }
+  }
+
+  grouping collection-types-gr {
+    description
+      "Grouping for the three core collection types (counts,
+       snapshot, tidemarks) per ITU-T G.7710.";
+    container collection-types {
+      description
+        "Container for the counts, snapshot, and tidemarks
+         collection types.";
+      uses count-measurement-gr;
+      uses snapshot-measurement-gr;
+      uses tidemarks-measurement-gr;
+    }
+  }
+
+  /*
+   * EVENT GROUPINGS
+   */
+  grouping counts-transient-event-gr {
+    description
+      "Transient threshold events for counts measurements.
+       Transient thresholds are independent threshold mechanisms
+       that report immediately when count values cross configured
+       threshold values.";
+    container counts-transient {
+      description
+        "Contains information about transient threshold events
+         for counts.";
+      uses triggered-count-transient-event-info;
+    }
+  }
+
+  grouping counts-standing-event-gr {
+    description
+      "Standing condition events for counts measurements.";
+    container counts-standing {
+      description
+        "Contains information about standing threshold events
+         for counts.";
+      leaf event-type {
+        type enumeration {
+          enum Threshold-Report {
+            description
+              "Threshold Report (TR) generated when the count
+               value reaches or exceeds the standing-threshold
+               configured in standing-condition-config.";
+          }
+          enum Reset-Threshold-Report {
+            description
+              "Reset Threshold Report (RTR) generated at the end
+               of the period when the count value is at or below
+               the reset-threshold (G.7710 standing condition
+               clear).";
+          }
+        }
+        description
+          "Specifies the type of standing threshold event that
+           occurred, as defined in G.7710. A Threshold-Report
+           (TR) is generated when the measurement-value reaches
+           or exceeds the standing-threshold. A
+           Reset-Threshold-Report (RTR) is generated at the end
+           of the period when the measurement-value is at or
+           below the reset-threshold.";
+      }
+      uses event-state-info;
+    }
+  }
+
+  grouping snapshot-events-gr {
+    description
+      "Threshold events for snapshot measurements.";
+    container snapshot {
+      description
+        "Contains snapshot threshold event information.";
+      uses triggered-oor-event-info;
+    }
+  }
+
+  grouping tidemarks-events-gr {
+    description
+      "Threshold events for tidemarks measurements.";
+    container tidemarks {
+      description
+        "Contains tidemarks threshold event information.";
+      uses triggered-oor-event-info;
+    }
+  }
+
+  /*
+   * MEASUREMENT INTERVAL STRUCTURES
+   */
+  grouping periodic-measurement-intervals {
+    description
+      "Hierarchical structure for periodic measurement timing
+       and collection types.";
+    list sampling-interval {
+      key "id";
+      description
+        "List of sampling intervals defining data collection
+         frequency.";
+      leaf id {
+        type string;
+        description
+          "Unique identifier for this sampling interval
+           configuration.";
+      }
+      leaf interval-value {
+        type uint32;
+        default 1;
+        description "Numeric value for the sampling interval.";
+      }
+      leaf unit {
+        type time-interval-unit;
+        default second;
+        description "Time unit for the sampling interval value.";
+      }
+      list measurement-interval {
+        key "id";
+        description
+          "List of measurement intervals defining aggregation
+           periods.";
+        leaf id {
+          type string;
+          description
+            "Unique identifier for this measurement interval
+             configuration.";
+        }
+        leaf interval-value {
+          type uint32;
+          default 15;
+          description
+            "Numeric value for the measurement interval.";
+        }
+        leaf unit {
+          type time-interval-unit;
+          default minute;
+          description
+            "Time unit for the measurement interval value.";
+        }
+        uses collection-types-gr;
+      }
+    }
+  }
+
+  grouping non-periodic-events-gr {
+    description
+      "Grouping for non-periodic performance event parameters
+       (BUT, EUT, CSES).";
+    container BUT-event {
+      description "Begin Unavailable Time (BUT) event.";
+      uses event-state-info;
+    }
+    container EUT-event {
+      description "End Unavailable Time (EUT) event.";
+      uses event-state-info;
+      leaf duration {
+        type uint32;
+        units "seconds";
+        description
+          "Total duration of unavailability in seconds.";
+      }
+    }
+    container CSES-event {
+      description
+        "Consecutive Severely Errored Seconds (CSES) event.";
+      leaf event-occurred {
+        type boolean;
+        description
+          "Indicates whether a CSES event was generated.";
+      }
+      leaf start {
+        type yang:date-and-time;
+        description
+          "Timestamp indicating when the CSES period began.";
+      }
+      leaf end {
+        type yang:date-and-time;
+        description
+          "Timestamp indicating when the CSES period ended.";
+      }
+      leaf duration {
+        type uint32;
+        units "seconds";
+        description "Duration of the CSES period in seconds.";
+      }
+      leaf error-count {
+        type uint32;
+        description
+          "Number of errors during the CSES period.";
+      }
+    }
+  }
+
+  grouping pm-periodic-measurement-gr {
+    description
+      "Hierarchical structure for periodic performance
+       measurements.";
+    list parameter-profile {
+      key "name";
+      description "List of performance parameter profiles.";
+      leaf name {
+        type profile-names;
+        description "Name of the parameter profile.";
+      }
+      list pm-parameter {
+        key "name";
+        description
+          "List of PM parameters within the parameter profile.";
+        leaf name {
+          type string;
+          description
+            "Name of the performance parameter being measured.";
+        }
+        uses periodic-measurement-intervals;
+      }
+    }
+  }
+
+  /*
+   * MAIN CONTAINER
+   */
+  container pm-periodic-measurement {
+    description
+      "Main container for periodic performance measurements.";
+    uses pm-periodic-measurement-gr;
+  }
+
+  /*
+   * NOTIFICATIONS
+   */
+  notification pm-threshold-events {
+    description
+      "Notification for periodic threshold crossing events and
+       non-periodic performance events (BUT, EUT, CSES).";
+    container periodic-events {
+      description "Container for periodic threshold events.";
+      list parameter-profile {
+        key "name";
+        description
+          "List of performance parameter profiles for event
+           monitoring.";
+        leaf name {
+          type profile-names;
+          description "Name of the parameter profile.";
+        }
+        list pm-parameter {
+          key "name";
+          description
+            "List of PM parameters within the parameter
+             profile.";
+          leaf name {
+            type string;
+            description
+              "Name of the performance parameter being
+               monitored.";
+          }
+          list sampling-interval {
+            key "id";
+            description
+              "List of sampling intervals for event monitoring.";
+            leaf id {
+              type string;
+              description
+                "Unique identifier for this sampling interval
+                 configuration.";
+            }
+            uses time-interval-config;
+            list measurement-interval {
+              key "id";
+              description
+                "List of measurement intervals for event
+                 aggregation.";
+              leaf id {
+                type string;
+                description
+                  "Unique identifier for this measurement
+                   interval configuration.";
+              }
+              uses time-interval-config;
+              container event-types {
+                description
+                  "Container for different threshold event
+                   types.";
+                uses counts-transient-event-gr;
+                uses counts-standing-event-gr;
+                uses snapshot-events-gr;
+                uses tidemarks-events-gr;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    container non-periodic-events {
+      description
+        "Container for non-periodic performance events (BUT,
+         EUT, CSES).";
+      uses non-periodic-events-gr;
+    }
+  }
+}
