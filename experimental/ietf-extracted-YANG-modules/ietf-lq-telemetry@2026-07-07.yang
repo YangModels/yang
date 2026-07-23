@@ -1,0 +1,716 @@
+module ietf-lq-telemetry {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-lq-telemetry";
+  prefix lqt;
+
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 9911: Common YANG Data Types";
+  }
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 9911: Common YANG Data Types";
+  }
+  import ietf-yang-structure-ext {
+    prefix sx;
+    reference
+      "RFC 8791: YANG Data Structure Extensions";
+  }
+
+  organization
+    "IETF FANN (Fast Network Notifications) Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/fann/>
+     WG List:  <mailto:fann@ietf.org>
+
+     Author:   S. Praveen K. Pasalapudi
+               <mailto:praveenp@hpe.com>
+     Author:   Vishnu Pavan Beeram
+               <mailto:vishnu-pavan-kumar.beeram@hpe.com>";
+  description
+    "This module defines the data model for link quality
+     (LQ) telemetry in CLOS (leaf-spine) data center fabrics,
+     together with the configuration and operational state of
+     nodes that generate and consume LQ telemetry.
+
+     The 'lq-advertisement' structure (RFC 8791) is the
+     transport-independent information model of a single LQ
+     advertisement.  Transport binding documents specify how
+     instances of this structure are serialized on the wire.
+
+     The 'lq-telemetry' container holds node configuration and
+     the operational state derived from generated and received
+     advertisements.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this document
+     are to be interpreted as described in BCP 14 (RFC 2119)
+     (RFC 8174) when, and only when, they appear in all
+     capitals, as shown here.
+
+     Copyright (c) 2026 IETF Trust and the persons identified
+     as authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with
+     or without modification, is permitted pursuant to, and
+     subject to the license terms contained in, the Revised
+     BSD License set forth in Section 4.c of the IETF Trust's
+     Legal Provisions Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC
+     itself for full legal notices.";
+
+  revision 2026-07-07 {
+    description
+      "Initial revision.  Models the LQ advertisement as an
+       RFC 8791 structure, separate from device configuration
+       and operational state, with node identity as an
+       (AS Number, Router-ID) pair where the reserved value 0
+       (RFC 7607) means unqualified.";
+    reference
+      "RFC XXXX: A YANG Data Model for Link Quality Telemetry
+       in CLOS Data Center Fabrics";
+  }
+
+  /*
+   * Features
+   */
+
+  feature diagnostics {
+    description
+      "Support for optional Tier 3 diagnostic metrics.  When
+       not advertised, diagnostic data is neither generated in
+       LQ advertisements nor retained in operational state.";
+  }
+
+  /*
+   * Identities
+   */
+
+  identity lq-transport {
+    description
+      "Base identity for LQ transport bindings.  Documents
+       that specify a transport binding for the LQ Telemetry
+       data model derive an identity from this base;
+       such derived identities MAY be defined in the binding
+       document's own YANG module.";
+  }
+
+  identity lq-transport-udp {
+    base lq-transport;
+    description
+      "Lightweight UDP transport binding using a compact,
+       fixed-offset binary encoding suitable for
+       forwarding-plane (ASIC) generation and consumption.
+       As a leaf value, denotes the binding's native UDP
+       carriage; see 'lq-transport-udp-router-info' for the
+       Router-Info carriage of the same payload.";
+    reference
+      "RFC YYYY: A UDP Transport Binding for Link Quality
+       Telemetry in CLOS Data Center Fabrics";
+  }
+
+  identity lq-transport-udp-router-info {
+    base lq-transport-udp;
+    description
+      "Carriage of the UDP binding's LQ payload as a TLV
+       within the Router-Info advertisement mechanism,
+       gaining that mechanism's authentication and
+       refresh-rate negotiation.";
+    reference
+      "RFC YYYY: A UDP Transport Binding for Link Quality
+       Telemetry in CLOS Data Center Fabrics";
+  }
+
+  /*
+   * Type Definitions
+   */
+
+  typedef link-quality-score {
+    type uint8;
+    description
+      "Composite link quality score (LQS) in the range 0-255,
+       where 0 means unusable (failed or fully congested) and
+       255 means fully available.  The computation of the
+       score from hardware signals is implementation-defined
+       but MUST be monotonic in each congestion indicator:
+       worsening conditions MUST produce equal or lower
+       values.";
+  }
+
+  typedef congestion-level {
+    type uint8 {
+      range "0..7";
+    }
+    description
+      "Coarse congestion severity (CL) in the range 0-7,
+       where 0 means no congestion and 7 means critical (data
+       loss occurring or link unusable).  The mapping from
+       hardware signals is implementation-defined but MUST be
+       monotonic: worsening conditions MUST produce equal or
+       higher values.";
+  }
+
+  typedef bandwidth-gbps {
+    type decimal64 {
+      fraction-digits 3;
+    }
+    units "Gbps";
+    description
+      "Bandwidth in gigabits per second.  A transport binding
+       MAY serialize values of this type as an IEEE 754
+       binary32 value per RFC 7471 and RFC 8571 conventions;
+       in that case, values are rounded to the nearest
+       representable binary32 value on encoding, and the
+       decoded value is rounded to three fractional digits.";
+  }
+
+  typedef node-identifier {
+    type yang:dotted-quad;
+    description
+      "4-octet Router-ID (RFC 4271, RFC 6286) identifying a
+       node, used regardless of IPv4/IPv6 underlay.  A
+       Router-ID is only guaranteed unique within an
+       Autonomous System (RFC 6286); for a globally unique
+       node identity, it is qualified by an AS Number (see
+       'as-qualifier').";
+  }
+
+  typedef as-qualifier {
+    type inet:as-number;
+    description
+      "AS Number qualifying a node's Router-ID.  Together with
+       a Router-ID, it forms a globally unique node identity,
+       since a Router-ID is only unique within an AS
+       (RFC 6286).
+       The reserved value 0 (RFC 7607) is a sentinel meaning
+       'unqualified': the Router-ID alone identifies the node
+       within the receiver's scope.  This is the expected
+       value in single-AS fabrics and in fabrics that
+       administratively guarantee fabric-wide unique
+       Router-IDs.
+
+       When a transport binding omits AS Numbers from the wire
+       (e.g., when the UDP binding's AS-Qualified (Q) flag is
+       clear), the receiver populates leaves of this type with
+       0.  As a key component, a leaf of this type is always
+       present in the datastore, keeping lookup keys (and any
+       hardware path quality table) a fixed width.";
+  }
+
+  /*
+   * Groupings - Reusable Building Blocks
+   */
+
+  grouping lq-entry-key {
+    description
+      "Composite key identifying a per-destination, per-link
+       quality entry: (remote-as, remote-node-id, link-id).
+       Supports parallel links, shared media, and
+       point-to-point topologies.";
+    leaf remote-as {
+      type as-qualifier;
+      description
+        "AS Number qualifying 'remote-node-id'.  0 (RFC 7607)
+         when unqualified.";
+    }
+    leaf remote-node-id {
+      type node-identifier;
+      description
+        "Router-ID of the far-end neighbor on the reported
+         link.  In a CLOS fabric, this identifies the remote
+         leaf reachable through the advertising spine.
+         Qualified by 'remote-as' for a globally unique
+         identity (RFC 6286).";
+    }
+    leaf link-id {
+      type uint32;
+      description
+        "Local interface identifier on the advertising node.
+         Together with (remote-as, remote-node-id), it forms a
+         composite key that uniquely identifies a
+         (destination, link) pair.
+
+         This field supports three topology cases:
+
+         1. Single link to a single remote node: link-id
+            SHOULD be set to the ifIndex of the link.
+
+         2. Parallel links to the same remote node: each link
+            produces a separate entry with the same
+            remote-node-id but distinct link-id values (one
+            per physical link or LAG member).
+
+         3. Multiple remote nodes reachable via the same link
+            (shared medium or multi-access segment): each
+            destination produces a separate entry with the
+            same link-id but distinct remote-node-id values.
+            The helper MAY report different LQS values per
+            destination on the same link if per-destination
+            quality differs.
+
+         When the advertising node treats parallel links as a
+         LAG and advertises aggregate quality, this field
+         SHOULD be set to the ifIndex of the LAG bundle
+         interface.";
+    }
+  }
+
+  grouping lq-entry-data {
+    description
+      "Core per-link quality data (Tier 1).  The MINIMUM data
+       a receiver needs for forwarding decisions.";
+    leaf available-bandwidth {
+      type bandwidth-gbps;
+      mandatory true;
+      description
+        "Estimated currently available bandwidth (Gbps).
+         Accounts for utilization and flow control.";
+    }
+    leaf lqs {
+      type link-quality-score;
+      mandatory true;
+      description
+        "Composite quality score.  Implementation-defined
+         computation; standardized semantic ranges.";
+    }
+    leaf cl {
+      type congestion-level;
+      mandatory true;
+      description
+        "Congestion severity.  Implementation-defined
+         mapping; standardized semantic levels.";
+    }
+  }
+
+  grouping lq-diagnostics {
+    description
+      "Optional per-link diagnostics (Tier 3), for analytics,
+       troubleshooting, and visualization.  NOT for forwarding
+       decisions.";
+    leaf link-capacity {
+      type bandwidth-gbps;
+      description
+        "Configured/negotiated link speed (Gbps).";
+    }
+    leaf queue-depth {
+      type uint8;
+      description
+        "Normalized egress queue occupancy in the range 0-255,
+         where 0 means an empty buffer and 255 means a full
+         buffer.";
+    }
+    leaf ecn-marking-rate {
+      type uint8 {
+        range "0..31";
+      }
+      description
+        "ECN marking rate in ~3.2% steps.  0 = none,
+         31 = 100%.";
+    }
+    leaf pfc-pause-fraction {
+      type uint8 {
+        range "0..31";
+      }
+      description
+        "PFC pause time fraction in ~3.2% steps.  Meaningful
+         only when the advertising node reports a PFC-enabled
+         fabric ('pfc-fabric' is true).";
+    }
+    leaf drops-active {
+      type boolean;
+      default "false";
+      description
+        "True if packet drops were detected in the current
+         interval.";
+    }
+  }
+
+  grouping lq-advertisement-header {
+    description
+      "Advertisement-level metadata (Tier 2), present in every
+       LQ advertisement regardless of transport.";
+    leaf node-id {
+      type node-identifier;
+      mandatory true;
+      description
+        "Router-ID of the sending node.";
+    }
+    leaf node-as {
+      type as-qualifier;
+      default "0";
+      description
+        "AS Number qualifying the sending node's Router-ID.
+         0 (unqualified) unless the node is configured for
+         AS-qualified operation.";
+    }
+    leaf sequence-number {
+      type uint16;
+      mandatory true;
+      description
+        "Monotonically increasing per sending node, wrapping
+         from 65535 to 0.  Used for loss, reordering, and
+         replay detection.  Receivers MUST compare sequence
+         numbers using serial number arithmetic (RFC 1982)
+         with SERIAL_BITS = 16.";
+      reference
+        "RFC 1982: Serial Number Arithmetic";
+    }
+    leaf timestamp-ms {
+      type yang:milliseconds32;
+      description
+        "Milliseconds since the sending node booted, modulo
+         2^32 (the value wraps approximately every 49.7 days).
+         Meaningful only relative to other advertisements from
+         the same sender; not comparable across nodes.";
+    }
+    leaf pfc-fabric {
+      type boolean;
+      default "false";
+      description
+        "True if the sender operates in a PFC-enabled
+         (lossless) fabric.  When false, PFC-related
+         diagnostic fields are not meaningful.";
+    }
+    leaf signaling-mode {
+      type enumeration {
+        enum periodic {
+          description
+            "Scheduled heartbeat advertisement.";
+        }
+        enum triggered {
+          description
+            "Change-detected advertisement.";
+        }
+        enum solicited {
+          description
+            "Response to an explicit query.  Not used by the
+             UDP transport binding, which operates only in
+             unsolicited mode; defined for future transport
+             bindings that support solicited retrieval.";
+        }
+      }
+      description
+        "How this advertisement was generated.";
+    }
+  }
+
+  /*
+   * LQ Advertisement Information Model (RFC 8791 Structure)
+   *
+   * This structure is the transport-independent definition
+   * of an LQ advertisement.  It is not part of any datastore;
+   * transport binding documents specify its serialization.
+   */
+
+  sx:structure lq-advertisement {
+    description
+      "A single LQ advertisement as generated by a helper node
+       and consumed by a load-balancer node.";
+    uses lq-advertisement-header;
+    list link-quality {
+      key "remote-as remote-node-id link-id";
+      description
+        "Per-egress-link quality entries carried in this
+         advertisement.";
+      uses lq-entry-key;
+      uses lq-entry-data;
+      container diagnostics {
+        if-feature "diagnostics";
+        presence
+          "Tier 3 diagnostic metrics are included for this
+           entry.";
+        description
+          "Optional diagnostic metrics.  The presence of this
+           container indicates that diagnostics were included
+           in the advertisement.";
+        uses lq-diagnostics;
+      }
+    }
+  }
+
+  /*
+   * Configuration and Operational State
+   */
+
+  container lq-telemetry {
+    description
+      "Configuration and operational state for link quality
+       telemetry.";
+    leaf enabled {
+      type boolean;
+      default "false";
+      description
+        "Enable LQ telemetry on this node.";
+    }
+    leaf role {
+      type enumeration {
+        enum helper {
+          description
+            "Generate LQ advertisements.  Spine in a 3-stage
+             CLOS.";
+        }
+        enum load-balancer {
+          description
+            "Consume LQ data.  Leaf in a 3-stage CLOS.";
+        }
+        enum dual {
+          description
+            "Both roles.  Spine in a 5-stage CLOS.";
+        }
+      }
+      description
+        "Node role in the LQ telemetry system.";
+    }
+    leaf-list active-transports {
+      type identityref {
+        base lq-transport;
+      }
+      description
+        "Transport bindings enabled on this node.  Multiple
+         bindings may be active simultaneously.";
+    }
+    leaf as-qualified {
+      type boolean;
+      default "false";
+      description
+        "When true, this node operates in AS-qualified mode
+         and includes AS Numbers (the sender AS in the
+         advertisement header and a remote AS per entry) in
+         its advertisements.  Enable in multi-AS fabrics where
+         Router-IDs are not unique fabric-wide (RFC 6286).
+         When false, advertisements carry Router-IDs only and
+         AS qualifiers are treated as 0 (unqualified).  This
+         value MUST be configured consistently on all nodes of
+         a fabric.";
+    }
+    leaf local-as {
+      type inet:as-number;
+      description
+        "This node's BGP Autonomous System Number, used to
+         populate the sender AS qualifier when 'as-qualified'
+         is true.  If absent, the node uses its BGP local AS.";
+    }
+    leaf pfc-fabric {
+      type boolean;
+      default "false";
+      description
+        "True if this node operates in a PFC-enabled
+         (lossless) fabric.  Advertised in the 'pfc-fabric'
+         leaf of generated advertisements.";
+    }
+    leaf notify-interval-ms {
+      type uint16 {
+        range "10..100";
+      }
+      units "milliseconds";
+      default "20";
+      description
+        "Periodic advertisement interval (T_notify).  All
+         helper nodes in a fabric MUST use the same value.";
+    }
+    leaf change-threshold {
+      type uint8 {
+        range "10..50";
+      }
+      default "25";
+      description
+        "LQS delta relative to the last advertised value that
+         triggers an immediate advertisement.  All helper
+         nodes in a fabric MUST use the same value.";
+    }
+    leaf miss-count {
+      type uint8 {
+        range "2..10";
+      }
+      default "3";
+      description
+        "Consecutive missed heartbeats before declaring
+         neighbor failure.";
+    }
+    leaf diagnostics-enabled {
+      if-feature "diagnostics";
+      type boolean;
+      default "false";
+      description
+        "Include Tier 3 diagnostic metrics in generated
+         advertisements.";
+    }
+    container local {
+      config false;
+      description
+        "Operational state of LQ data generated by this node
+         (helper role).";
+      leaf last-sequence-number {
+        type uint16;
+        description
+          "Sequence number of the most recently transmitted
+           advertisement.";
+      }
+      list link-quality {
+        key "remote-as remote-node-id link-id";
+        description
+          "Per-egress-link quality as most recently computed
+           and advertised by this node.";
+        uses lq-entry-key;
+        uses lq-entry-data;
+        container diagnostics {
+          if-feature "diagnostics";
+          presence
+            "Diagnostics are being generated for this entry.";
+          description
+            "Optional diagnostic metrics.";
+          uses lq-diagnostics;
+        }
+      }
+    }
+    container neighbors {
+      config false;
+      description
+        "Operational state of LQ data received from neighbor
+         nodes (load-balancer role).";
+      list neighbor {
+        key "node-as node-id";
+        description
+          "Per-neighbor received state.";
+        leaf node-as {
+          type as-qualifier;
+          description
+            "AS Number qualifying the neighbor's Router-ID.
+             0 (RFC 7607) when unqualified.";
+        }
+        leaf node-id {
+          type node-identifier;
+          description
+            "Neighbor's Router-ID.";
+        }
+        leaf last-seen {
+          type yang:date-and-time;
+          description
+            "Time at which the last LQ advertisement was
+             received from this neighbor.";
+        }
+        leaf last-sequence {
+          type uint16;
+          description
+            "Sequence number of the last accepted
+             advertisement, compared using serial number
+             arithmetic (RFC 1982).";
+        }
+        leaf transport {
+          type identityref {
+            base lq-transport;
+          }
+          description
+            "Transport binding over which LQ advertisements
+             are received from this neighbor.";
+        }
+        leaf state {
+          type enumeration {
+            enum active {
+              description
+                "Receiving LQ advertisements normally.";
+            }
+            enum stale {
+              description
+                "No advertisement received for more than
+                 T_notify but less than
+                 miss-count * T_notify.";
+            }
+            enum failed {
+              description
+                "No advertisement received for more than
+                 miss-count * T_notify.  All paths through
+                 this neighbor are set to quality zero.";
+            }
+          }
+          description
+            "Neighbor health state.";
+        }
+        list link-quality {
+          key "remote-as remote-node-id link-id";
+          description
+            "Per-link quality most recently received from this
+             neighbor.";
+          uses lq-entry-key;
+          uses lq-entry-data;
+          container diagnostics {
+            if-feature "diagnostics";
+            presence
+              "Diagnostics were received for this entry.";
+            description
+              "Diagnostic data, if received.";
+            uses lq-diagnostics;
+          }
+        }
+      }
+    }
+  }
+
+  /*
+   * Notifications
+   */
+
+  notification lq-threshold-crossed {
+    description
+      "Generated when a link's congestion level (CL) changes.
+       This notification can be consumed by management systems
+       subscribing to YANG notifications via any compatible
+       transport.";
+    leaf node-id {
+      type node-identifier;
+      mandatory true;
+      description
+        "Node reporting the change.";
+    }
+    leaf node-as {
+      type as-qualifier;
+      default "0";
+      description
+        "AS Number qualifying the reporting node's Router-ID.
+         0 when unqualified.";
+    }
+    leaf remote-as {
+      type as-qualifier;
+      default "0";
+      description
+        "AS Number qualifying 'remote-node-id'.  0 when
+         unqualified.";
+    }
+    leaf remote-node-id {
+      type node-identifier;
+      mandatory true;
+      description
+        "Affected link's far end.";
+    }
+    leaf link-id {
+      type uint32;
+      mandatory true;
+      description
+        "Local interface identifier on the reporting node.
+         Identifies the specific link to the remote node.";
+    }
+    leaf old-cl {
+      type congestion-level;
+      mandatory true;
+      description
+        "Previous congestion level.";
+    }
+    leaf new-cl {
+      type congestion-level;
+      mandatory true;
+      description
+        "New congestion level.";
+    }
+    leaf lqs {
+      type link-quality-score;
+      description
+        "Current LQS value.";
+    }
+  }
+}

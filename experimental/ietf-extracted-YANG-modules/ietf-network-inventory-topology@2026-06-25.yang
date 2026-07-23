@@ -1,0 +1,261 @@
+module ietf-network-inventory-topology {
+  yang-version 1.1;
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-network-inventory-topology";
+  prefix nwit;
+
+  import ietf-network {
+    prefix nw;
+    reference
+      "RFC 8345: A YANG Data Model for Network Topologies,
+                 Section 4.1";
+  }
+  import ietf-network-topology {
+    prefix nt;
+    reference
+      "RFC 8345: A YANG Data Model for Network Topologies,
+                 Section 4.2";
+  }
+  import ietf-network-inventory {
+    prefix nwi;
+    reference
+      "RFC AAAA: A YANG Data Model for Network Inventory";
+  }
+
+  organization
+    "IETF Network Inventory YANG (ivy) Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/ivy>
+     WG List:  IVY <mailto:inventory-yang@ietf.org>
+
+     Editor: Bo Wu
+             <lana.wubo@huawei.com>
+     Editor: Mohamed Boucadair
+             <mohamed.boucadair@orange.com>
+     Author: Cheng Zhou
+             <zhouchengyjy@chinamobile.com>
+     Author: Qin Wu
+             <bill.wu@huawei.com>";
+  description
+    "This YANG module defines a YANG module for network
+     topology and inventory mapping.
+
+     Copyright (c) 2026 IETF Trust and the persons identified
+     as authors of the code. All rights reserved.
+
+     Redistribution and use in source and binary forms, with
+     or without modification, is permitted pursuant to, and
+     subject to the license terms contained in, the Revised
+     BSD License set forth in Section 4.c of the IETF Trust's
+     Legal Provisions Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     All revisions of IETF and IANA published modules can be found
+     at the YANG Parameters registry group
+     (https://www.iana.org/assignments/yang-parameters).
+
+     This version of this YANG module is part of RFC XXXX; see
+     the RFC itself for full legal notices.";
+
+  revision 2026-06-25 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX: A Network Data Model for Inventory Topology
+                 Mapping";
+  }
+
+  identity link-type {
+    description
+      "Base identity for classifying the physical media type of a
+       link at the inventory topology layer.  Specialized inventory
+       models are expected to define derived identities for specific
+       media, e.g., fiber, copper, or wireless.";
+  }
+
+  identity copper {
+    base link-type;
+    description
+      "Copper-based physical link.";
+  }
+
+  identity fiber {
+    base link-type;
+    description
+      "Fiber-based physical link.";
+  }
+
+  identity coax {
+    base link-type;
+    description
+      "Coaxial cable-based physical link.";
+  }
+
+  identity microwave {
+    base link-type;
+    description
+      "Microwave-based wireless link.
+       Detailed microwave radio attributes are defined in the
+       microwave topology data model.";
+    reference
+      "RFC 9656: A YANG Data Model for Microwave Topology";
+  }
+
+  identity wlan {
+    base link-type;
+    description
+      "IEEE 802.11 wireless link.";
+  }
+
+  identity unknown {
+    base link-type;
+    description
+      "The link media type is unknown or could not be determined.
+       This identity is used as a fallback when the physical medium
+       cannot be classified into any of the other defined types.";
+  }
+
+  identity leased-fiber {
+    base fiber;
+    description
+      "Leased fiber link.  The physical medium is fiber, but the link
+       is provided by a third-party operator.  Detailed physical
+       attributes are typically not visible to the lessee.";
+  }
+
+  // Main blocks
+
+  augment "/nw:networks/nw:network/nw:network-types" {
+    description
+      "Introduces a new network type for inventory topology
+       mapping.";
+    container inventory-topology {
+      presence
+        "Indicates a physical network topology, containing
+         physical-layer attributes including inventory mapping, port
+         breakout capabilities, and link media types.";
+      description
+        "Container for the inventory-topology network type.
+         When present, it signals that the network contains
+         physical-layer augmentations as defined in this module.
+         This network type is intended to serve as the underlay
+         for logical network topologies (Layer 2, Layer 3,
+         Traffic Engineering (TE), etc.).";
+    }
+  }
+
+  augment "/nw:networks/nw:network/nw:node" {
+    when '../nw:network-types/nwit:inventory-topology';
+    description
+      "Augments the network topology node with inventory mapping
+       attributes. This enables correlation between the logical node
+       and its physical network element.";
+    container inventory-mapping-attributes {
+      presence
+        "If present, it indicates this is a physical node, which
+         maps to a network element. If not present, it indicates it
+         is an abstract node.";
+      description
+        "Container for inventory mapping attributes of a node.";
+      leaf ne-ref {
+        type nwi:ne-ref;
+        description
+          "Reference to the NE in the inventory that corresponds to
+           this topology node.
+
+           This reference establishes a 1:1 mapping between the
+           logical node and its physical NE.";
+      }
+    }
+  }
+
+  augment "/nw:networks/nw:network/nt:link" {
+    when '../nw:network-types/nwit:inventory-topology';
+    description
+      "Augments the network topology link with inventory-related
+       attributes.";
+    container inventory-mapping-attributes {
+      presence "Indicates a physical link, at the lowest underlay
+                abstraction level.";
+      description
+        "Container for inventory-related attributes of a link.
+
+         This container provides lightweight media classification.
+         The link-type indicates which specialized inventory model
+         contains detailed resource information:
+
+         - Wired media (fiber, copper): passive network inventory
+         - Wireless media (microwave, Wi-Fi): wireless-specific
+           inventory
+
+           Detailed inventory references may be added in future
+           modules.";
+      leaf link-type {
+        type identityref {
+          base link-type;
+        }
+        description
+          "Classification of the link media type at the topology
+           layer.
+
+           The base identity 'link-type' is extensible. Examples
+           of derived identities include 'copper', 'fiber',
+           'coax', 'microwave', and 'wlan'.
+
+           This leaf serves as a lightweight discriminator.  When
+           the value is 'microwave', detailed microwave link
+           attributes are defined in the microwave topology data
+           model. Wired media (e.g., fiber, copper, or coax) may
+           be detailed in a passive network inventory data
+           model.";
+      }
+    }
+  }
+
+  augment "/nw:networks/nw:network/nw:node/nt:termination-point" {
+    when '../../nw:network-types/nwit:inventory-topology';
+    description
+      "Augments the TP with inventory mapping and port breakout.";
+    container inventory-mapping-attributes {
+      presence
+        "If present, it indicates this is a physical termination
+         point (TP), which maps to a port component. If not present,
+         it indicates it is a logical TP.";
+      description
+        "Container for inventory mapping attributes of a TP.";
+      uses nwi:port-ref {
+        refine "port-ref" {
+          description
+            "Reference to the physical port component in the
+             network inventory. This reference establishes a 1:1
+             mapping between the logical TP and its physical port
+             component.";
+        }
+      }
+    }
+    // breakout channels (lightweight, per physical port)
+    container port-breakout {
+      presence "Indicates the port supports channel breakout.";
+      config false;
+      description
+        "Breakout capability of the physical port represented by
+         this TP. One TP maps to one physical port; channels are
+         listed here. This container is present only when the
+         underlying hardware supports partitioning the port into
+         multiple independent channels (e.g., 400G to 4x100G).";
+      list breakout-channel {
+        key "channel-id";
+        description
+          "List of breakout channels available on this port.
+           Each entry represents an independent lane or sub-port
+           that can be used for channelized interfaces.";
+        leaf channel-id {
+          type uint16;
+          description
+            "Unique identifier for the breakout channel within the
+             scope of the parent port.";
+        }
+      } // breakout-channel
+    } // port-breakout       
+  }
+}

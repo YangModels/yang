@@ -1,0 +1,639 @@
+module ietf-bmp-tlv {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-bmp-tlv";
+  prefix btlv;
+
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 9911: Common YANG Data Types";
+  }
+
+  organization
+    "IETF Draft";
+  contact
+    "Author:    Thomas Graf
+                <mailto:thomas.graf@swisscom.com>
+                Paolo Lucente
+                <mailto:paolo@ntt.net>
+                Leonardo Rodoni
+                <mailto:leonardo.rodoni@swisscom.com>";
+
+  description
+    "Defines TLV groupings for BMP (BGP Monitoring Protocol) messages.
+     The groupings in this module correspond to TLV types defined
+     across the core BMP specifications and extensions:
+
+       - RFC 7854  (BMP base): Information TLVs, Termination TLVs,
+                               Route Mirroring TLVs.
+       - RFC 9069  (Loc-RIB):  VRF/Table Name TLV (type 3), Peer Down
+                               reason code 6.
+       - draft-ietf-grow-bmp-tlv (BMP v4): Cross-cutting TLVs
+                               applicable to all message types:
+                               Sequence Number (type 1), Extended Flags
+                               (type 2), Timestamp (type 3). Also
+                               Route Monitoring-specific TLVs: Group
+                               (4), VRF/Table Name (5), Stateless
+                               Parsing (6), BGP Message (7).
+       - draft-ietf-grow-bmp-path-marking-tlv: Path Status TLV for
+                               Route Monitoring messages.
+
+     This module models the decoded content of TLVs (i.e., what is
+     carried in each TLV's Value field), not the wire-format TLV
+     headers.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this document
+     are to be interpreted as described in BCP 14 (RFC 2119)
+     (RFC 8174) when, and only when, they appear in all
+     capitals, as shown here.
+
+     Copyright (c) 2026 IETF Trust and the persons identified as
+       authors of the code. All rights reserved.
+
+     Redistribution and use in source and binary forms, with or without
+     modification, is permitted pursuant to, and subject to the license
+     terms contained in, the Revised BSD License set forth in Section
+     4.c of the IETF Trust's Legal Provisions Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX; see the RFC
+     itself for full legal notices.";
+
+  revision 2026-06-30 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX";
+  }
+
+  // ---------------------------------------------------------------
+  // Typedefs
+  // ---------------------------------------------------------------
+  typedef timestamp-type {
+    type enumeration {
+      enum trigger-time {
+        value 0;
+        description
+          "Timestamp of the event which triggered BMP to report, e.g.,
+           a received message or a BGP/BMP session state transition.";
+        reference
+          "draft-ietf-grow-bmp-tlv: Section 5.6.1.1.1.";
+      }
+      enum message-export-time {
+        value 1;
+        description
+          "Time at which the BMP message was generated for export.";
+        reference
+          "draft-ietf-grow-bmp-tlv: Section 5.6.1.1.2.";
+      }
+      enum adj-rib-in-time {
+        value 2;
+        description
+          "Time at which the route was installed in the Adj-RIB-In,
+           as per RFC 7854.";
+        reference
+          "draft-ietf-grow-bmp-tlv: Section 5.6.1.1.3.";
+      }
+      enum local-rib-time {
+        value 3;
+        description
+          "Time at which the route was installed in the Loc-RIB,
+           as per RFC 9069.";
+        reference
+          "draft-ietf-grow-bmp-tlv: Section 5.6.1.1.4.";
+      }
+      enum adj-rib-out-time {
+        value 4;
+        description
+          "Time at which the route was installed in the Adj-RIB-Out,
+           as per RFC 8671.";
+        reference
+          "draft-ietf-grow-bmp-tlv: Section 5.6.1.1.5.";
+      }
+    }
+    description
+      "BMP Timestamp types for the Timestamp TLV (type 3). Indicates
+       which event the accompanying timestamp value refers to.";
+    reference
+      "draft-ietf-grow-bmp-tlv: Section 5.6.1.";
+  }
+
+  grouping path-status-flags {
+    description
+      "Boolean flags encoding path roles and states for a BGP route.
+       Multiple flags may be true when multiple statuses apply.
+       All flags absent or false indicates a path with no marking.";
+    reference
+      "draft-ietf-grow-bmp-path-marking-tlv: Section 3.1.";
+    leaf invalid {
+      type boolean;
+      default false;
+      description
+        "Route does not enter the BGP decision process as indicated
+         in Section 9.1.2 of RFC 4271.";
+    }
+    leaf best {
+      type boolean;
+      default false;
+      description
+        "Best route as defined in Section 9.1 of RFC 4271.";
+    }
+    leaf nonselected {
+      type boolean;
+      default false;
+      description
+        "Route not selected in the BGP decision process. Backup
+         routes are considered nonselected, while best and primary
+         routes are not.";
+    }
+    leaf primary {
+      type boolean;
+      default false;
+      description
+        "Path used for traffic forwarding. A prefix can have more
+         than one primary path when multipath is configured. The
+         best path is also a primary path.";
+    }
+    leaf backup {
+      type boolean;
+      default false;
+      description
+        "Path installed in the RIB but not used until some or all
+         primary paths become unreachable. Used for fast
+         convergence.";
+    }
+    leaf non-installed {
+      type boolean;
+      default false;
+      description
+        "Route not installed into the IP routing table.";
+    }
+    leaf best-external {
+      type boolean;
+      default false;
+      description
+        "Best external path.";
+    }
+    leaf add-path {
+      type boolean;
+      default false;
+      description
+        "Advertisement includes multiple paths for the same address
+         prefix without the new paths implicitly replacing any
+         previous ones, as per RFC 7911.";
+    }
+    leaf filtered-inbound-policy {
+      type boolean;
+      default false;
+      description
+        "Route filtered in the Adj-RIB-In policy.";
+    }
+    leaf filtered-outbound-policy {
+      type boolean;
+      default false;
+      description
+        "Route filtered in the Adj-RIB-Out policy.";
+    }
+    leaf stale {
+      type boolean;
+      default false;
+      description
+        "Path declared stale by the BGP Graceful Restart mechanism
+         as described in Section 4.1 of RFC 4724.";
+    }
+    leaf suppressed {
+      type boolean;
+      default false;
+      description
+        "Path declared suppressed by the BGP Route Flap Damping
+         mechanism as described in Section 2.2 of RFC 2439.";
+    }
+  }
+
+  typedef path-status-reason-code {
+    type enumeration {
+      enum invalid-as-loop {
+        value 1;
+        description
+          "Invalid due to AS loop as defined in Section 9.1.2 of
+           RFC 4271.";
+      }
+      enum invalid-unresolvable-nexthop {
+        value 2;
+        description
+          "Invalid due to unresolvable nexthop as defined in
+           Section 9.1.2 of RFC 4271.";
+      }
+      enum not-preferred-local-preference {
+        value 3;
+        description
+          "Not preferred because of local preference as described in
+           Section 9.1.2.2 of RFC 4271.";
+      }
+      enum not-preferred-as-path-length {
+        value 4;
+        description
+          "Not preferred because of AS Path Length as described in
+           Section 9.1.2.2 of RFC 4271.";
+      }
+      enum not-preferred-origin {
+        value 5;
+        description
+          "Not preferred because of origin as described in
+           Section 9.1.2.2 of RFC 4271.";
+      }
+      enum not-preferred-med {
+        value 6;
+        description
+          "Not preferred because of MED as described in
+           Section 9.1.2.2 of RFC 4271.";
+      }
+      enum not-preferred-peer-type {
+        value 7;
+        description
+          "Not preferred because of peer type (eBGP vs iBGP) as
+           described in Section 9.1.2.2 of RFC 4271.";
+      }
+      enum not-preferred-igp-cost {
+        value 8;
+        description
+          "Not preferred because of IGP cost as described in
+           Section 9.1.2.2 of RFC 4271.";
+      }
+      enum not-preferred-router-id {
+        value 9;
+        description
+          "Not preferred because of router ID as described in
+           Section 9.1.2.2 of RFC 4271.";
+      }
+      enum not-preferred-peer-address {
+        value 10;
+        description
+          "Not preferred because of peer address as described in
+           Section 9.1.2.2 of RFC 4271.";
+      }
+      enum not-preferred-aigp {
+        value 11;
+        description
+          "Not preferred because of AIGP as described in RFC 7311.";
+      }
+    }
+    description
+      "Reason codes for the BMP Path Status TLV. Indicates the
+       reason a path has the indicated path status.";
+    reference
+      "draft-ietf-grow-bmp-path-marking-tlv: Section 3.2.";
+  }
+
+  // TODO: move to a separate module?
+  // ---------------------------------------------------------------
+  // Per-Peer Header Flags (shared by per-peer header and
+  // Extended Flags TLV)
+  // RFC 7854 Section 4.2 / draft-ietf-grow-bmp-tlv Section 5.6.3
+  // ---------------------------------------------------------------
+  grouping peer-header-flags {
+    description
+      "Flags from the BMP Per-Peer Header (RFC 7854 Section 4.2).";
+    reference
+      "RFC 7854: Section 4.2";
+    leaf ipv6-peer {
+      type boolean;
+      default false;
+      description
+        "V flag: Peer address is an IPv6 address.";
+      reference
+        "RFC 7854: Section 4.2.";
+    }
+    leaf post-policy {
+      type boolean;
+      default false;
+      description
+        "L flag: true indicates post-policy Adj-RIB-In;
+         false indicates pre-policy Adj-RIB-In.";
+      reference
+        "RFC 7854: Section 4.2.";
+    }
+    leaf legacy-as-path {
+      type boolean;
+      default false;
+      description
+        "A flag: Message is formatted using the legacy 2-byte
+         AS_PATH format.";
+      reference
+        "RFC 7854: Section 4.2.";
+    }
+    leaf adj-rib-out {
+      type boolean;
+      default false;
+      description
+        "O flag: Message reflects Adj-RIB-Out.";
+      reference
+        "RFC 8671: Support for Adj-RIB-Out in BMP, Section 4.";
+    }
+    leaf filtered {
+      type boolean;
+      default false;
+      description
+        "F flag: Loc-RIB is filtered. Set when a filter is
+         applied to Loc-RIB routes sent to the BMP collector.";
+      reference
+        "RFC 9069: Section 4.2.";
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Cross-cutting TLVs (applicable to all BMP message types)
+  // draft-ietf-grow-bmp-tlv Section 5.6
+  // ---------------------------------------------------------------
+  grouping common {
+    description
+      "TLVs applicable to all BMP message types as defined in
+       draft-ietf-grow-bmp-tlv Section 5.6. These TLVs carry
+       per-message metadata and are allocated the same code point
+       value in every TLV code point registry.";
+    reference
+      "draft-ietf-grow-bmp-tlv: Section 5.6.";
+    leaf sequence-number {
+      type uint64;
+      description
+        "Sequence Number TLV (type 1). Carries the per-BMP-session
+         sequence number of this message starting at 0. If the
+         sequence number would overflow, the BMP session MUST be
+         reset.";
+      reference
+        "draft-ietf-grow-bmp-tlv: Section 5.6.2.";
+    }
+    list timestamps {
+      key "timestamp-type";
+      description
+        "Timestamp TLV (type 3). Carries a typed timestamp for
+         this BMP message. Multiple instances MAY be present,
+         one per timestamp type. A timestamp MUST NOT be included
+         if it is not available.";
+      reference
+        "draft-ietf-grow-bmp-tlv: Section 5.6.1.";
+      leaf timestamp-type {
+        type timestamp-type;
+        description
+          "Type of the timestamp, indicating which event the
+           timestamp value refers to.";
+      }
+      leaf timestamp {
+        type yang:date-and-time;
+        mandatory true;
+        description
+          "Timestamp value expressed as a date and time.";
+      }
+    }
+    container extended-flags {
+      presence
+        "Extended Flags TLV (type 2) is present in this message.
+         When this container is present, the X Flag in the
+         Per-Peer Header Flags is set to 1.";
+      description
+        "Extended Flags TLV (type 2). Carries an extended set of
+         per-peer flags, extending the Flags field of the Per-Peer
+         Header to a variable-length sequence of bytes. The first
+         byte carries the flags defined prior to this document
+         (V, L, A, O, F); subsequent bytes carry newly allocated
+         flags. When this TLV is present, the X Flag in the
+         Per-Peer Header Flags MUST be set to 1 to signal that
+         the authoritative flags are carried here. Collectors
+         that do not understand the X Flag continue to use the
+         Per-Peer Header flags directly.";
+      reference
+        "draft-ietf-grow-bmp-tlv: Section 5.6.3.";
+      // TODO: discuss extensibility of this extended-flags container...
+      // Extension point for future flag bits (RFC 8791 sx:augment-structure).
+      // The augment path starts from the sx:structure root of the module
+      // that instantiates btlv:common, e.g. for ietf-bmp-telemetry-message:
+      //
+      // sx:augment-structure
+      // "/bmptm:message/bmptm:route-monitoring/btlv:extended-flags" {
+      // leaf <new-flag> { type boolean; default false; ... }
+      // }
+      //
+      uses peer-header-flags;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Initiation and Peer Up Information TLVs
+  // RFC 7854 Section 4.4 + RFC 9069 Section 5.2.1
+  // ---------------------------------------------------------------
+  grouping information {
+    description
+      "BMP Information TLVs used in Initiation messages and Peer Up
+       notifications. RFC 9069 renamed the registry to 'BMP
+       Initiation and Peer Up Information TLVs', confirming both
+       message types share these TLV type codes.
+
+       For Initiation messages, sysDescr (type 1) and sysName
+       (type 2) MUST be present; string (type 0) MAY appear multiple
+       times; vrf-table-name is not applicable.
+
+       For Peer Up notifications, only string (type 0) is defined in
+       RFC 7854 (and may be repeated); RFC 9069 adds vrf-table-name
+       (type 3) for Loc-RIB Instance Peers. If vrf-table-name is
+       included in Peer Up it MUST also be included in the
+       corresponding Peer Down notification.";
+    reference
+      "RFC 7854: Section 4.4;
+       RFC 9069: Section 5.2.1.";
+    leaf-list string {
+      type string {
+        length "1..65535";
+      }
+      ordered-by user;
+      description
+        "String TLV (type 0). Free-form UTF-8 string. Multiple
+         instances are permitted; their ordering MUST be preserved
+         when reported.";
+      reference
+        "RFC 7854: Section 4.4.";
+    }
+    leaf sys-descr {
+      type string {
+        length "1..65535";
+      }
+      description
+        "sysDescr TLV (type 1). ASCII string whose value MUST be
+         equal to the value of the sysDescr MIB-II (RFC 1213)
+         object. MUST be present in Initiation messages.";
+      reference
+        "RFC 7854: Section 4.4.";
+    }
+    leaf sys-name {
+      type string {
+        length "1..65535";
+      }
+      description
+        "sysName TLV (type 2). ASCII string whose value MUST be
+         equal to the value of the sysName MIB-II (RFC 1213)
+         object. MUST be present in Initiation messages.";
+      reference
+        "RFC 7854: Section 4.4.";
+    }
+    leaf vrf-table-name {
+      type string {
+        length "1..255";
+      }
+      description
+        "VRF/Table Name TLV (type 3). UTF-8 string equal to the
+         value of the VRF or table name (e.g., RD instance name)
+         being conveyed. The default value 'global' MUST be used
+         for the default Loc-RIB instance with a zero-filled
+         distinguisher. If included in a Peer Up notification, it
+         MUST also be included in the corresponding Peer Down
+         notification.";
+      reference
+        "RFC 9069: Section 5.2.1.";
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Termination Message TLVs
+  // RFC 7854 Section 4.5
+  // ---------------------------------------------------------------
+  grouping termination {
+    description
+      "BMP Termination Message TLVs.";
+    reference
+      "RFC 7854: Section 4.5.";
+    leaf-list string {
+      type string {
+        length "1..65535";
+      }
+      ordered-by user;
+      description
+        "String TLV (type 0). Free-form UTF-8 string. Inclusion
+         is optional. Multiple instances are permitted.";
+      reference
+        "RFC 7854: Section 4.5.";
+    }
+    leaf reason {
+      type enumeration {
+        enum administratively-closed {
+          value 0;
+          description
+            "Session administratively closed. The session might
+             be re-initiated.";
+        }
+        enum unspecified {
+          value 1;
+          description
+            "Unspecified reason.";
+        }
+        enum out-of-resources {
+          value 2;
+          description
+            "Out of resources. The router has exhausted resources
+             available for the BMP session.";
+        }
+        enum redundant-connection {
+          value 3;
+          description
+            "Redundant connection. The router has determined that
+             this connection is redundant with another one.";
+        }
+        enum permanently-administratively-closed {
+          value 4;
+          description
+            "Session permanently administratively closed and will
+             not be re-initiated. Monitoring station should
+             reduce (potentially to 0) the rate at which it
+             attempts reconnection.";
+        }
+      }
+      mandatory true;
+      description
+        "Reason TLV (type 1). Indicates why the session was
+         terminated. Inclusion is REQUIRED.";
+      reference
+        "RFC 7854: Section 4.5.";
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Peer Down TLVs
+  // RFC 9069 Section 5.3 (reason code 6 / TLV data follows)
+  // ---------------------------------------------------------------
+  grouping peer-down {
+    description
+      "BMP Peer Down TLVs. Present when the Peer Down reason code
+       is 6 ('local-system-closed-tlv-data-follows'), as defined
+       in RFC 9069 for Loc-RIB Instance Peers.";
+    reference
+      "RFC 9069: Section 5.3.";
+    leaf vrf-table-name {
+      type string {
+        length "1..255";
+      }
+      description
+        "VRF/Table Name TLV (type 3). UTF-8 string equal to the
+         VRF or table name. MUST be included if it was present in
+         the corresponding Peer Up notification.";
+      reference
+        "RFC 9069: Section 5.3.";
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Route Monitoring TLVs
+  // draft-ietf-grow-bmp-tlv Section 5.2
+  // draft-ietf-grow-bmp-path-marking-tlv
+  // ---------------------------------------------------------------
+  grouping path-status-info {
+    description
+      "BMP Path Status TLV for Route Monitoring messages. Conveys
+       the status of a BGP path after processing by the BGP decision
+       process. Carried as an indexed TLV in Route Monitoring
+       messages; the index identifies the specific NLRI within the
+       BGP Update PDU to which the status applies (index 0 applies
+       to all NLRIs).";
+    reference
+      "draft-ietf-grow-bmp-path-marking-tlv: Section 2.";
+    uses path-status-flags;
+    leaf reason-code {
+      type path-status-reason-code;
+      description
+        "Optional reason code indicating why the path has the
+         indicated status. Absent when no reason code is carried.";
+    }
+  }
+
+  grouping route-monitoring {
+    description
+      "TLVs specific to BMP Route Monitoring messages. These appear
+       in addition to the common metadata that applies to all BMP message
+       types.";
+    reference
+      "draft-ietf-grow-bmp-tlv: Section 5.2;
+       draft-ietf-grow-bmp-path-marking-tlv.";
+    container path-status {
+      presence
+        "Path Status TLV is present for this route";
+      description
+        "Path Status TLV. Conveys the BGP decision-process status
+         of the route. As a per-NLRI indexed TLV this container
+         represents the status applicable to the route entry in
+         rib-entry.";
+      uses path-status-info;
+    }
+    leaf vrf-table-name {
+      type string {
+        length "1..255";
+      }
+      description
+        "VRF/Table Name TLV (type 5 in Route Monitoring TLVs).
+         UTF-8 string equal to the VRF or table name (i.e., RD
+         instance name) being conveyed, consistent with
+         RFC 9069 Section 5.2.1.";
+      reference
+        "draft-ietf-grow-bmp-tlv: Section 5.2.2.";
+    }
+  }
+}
+
