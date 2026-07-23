@@ -1,0 +1,183 @@
+## Cisco-IOS-XR-openconfig-platform-pipeline-counters-q200-ext.yang
+
+- [XPaths Obsoleted](#xpaths-obsoleted)
+- [XPaths Deprecated](#xpaths-deprecated)
+- [XPaths Added](#xpaths-added)
+- [XPaths Removed](#xpaths-removed)
+- [XPaths Modified](#xpaths-modified)
+
+## XPaths Obsoleted
+
+N/A
+
+## XPaths Deprecated
+
+N/A
+
+## XPaths Added
+
+N/A
+
+## XPaths Removed
+
+- (L983)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg0_rxpp_top_dropped_packets
+- (L988)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg0_sbif_ext_dma_eng0_dropped_packets
+- (L993)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg0_sbif_ext_dma_eng10_dropped_packets
+- (L998)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg0_sbif_ext_dma_eng11_dropped_packets
+- (L1003)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg0_sbif_ext_dma_eng1_dropped_packets
+- (L1008)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg0_sbif_ext_dma_eng2_dropped_packets
+- (L1013)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg0_sbif_ext_dma_eng3_dropped_packets
+- (L1018)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg0_sbif_ext_dma_eng4_dropped_packets
+- (L1023)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg0_sbif_ext_dma_eng5_dropped_packets
+- (L1028)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg0_sbif_ext_dma_eng6_dropped_packets
+- (L1033)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg0_sbif_ext_dma_eng7_dropped_packets
+- (L1038)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg0_sbif_ext_dma_eng8_dropped_packets
+- (L1043)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg0_sbif_ext_dma_eng9_dropped_packets
+- (L1813)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg1_rxpp_top_dropped_packets
+- (L1818)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg1_sbif_ext_dma_eng0_dropped_packets
+- (L1823)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg1_sbif_ext_dma_eng10_dropped_packets
+- (L1828)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg1_sbif_ext_dma_eng11_dropped_packets
+- (L1833)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg1_sbif_ext_dma_eng1_dropped_packets
+- (L1838)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg1_sbif_ext_dma_eng2_dropped_packets
+- (L1843)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg1_sbif_ext_dma_eng3_dropped_packets
+- (L1848)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg1_sbif_ext_dma_eng4_dropped_packets
+- (L1853)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg1_sbif_ext_dma_eng5_dropped_packets
+- (L1858)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg1_sbif_ext_dma_eng6_dropped_packets
+- (L1863)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg1_sbif_ext_dma_eng7_dropped_packets
+- (L1868)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg1_sbif_ext_dma_eng8_dropped_packets
+- (L1873)	/{cisco-q200-adverse-drop-counters}/counters_slice0_ifg1_sbif_ext_dma_eng9_dropped_packets
+- (L2708)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg0_rxpp_top_dropped_packets
+- (L2713)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg0_sbif_ext_dma_eng0_dropped_packets
+- (L2718)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg0_sbif_ext_dma_eng10_dropped_packets
+- (L2723)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg0_sbif_ext_dma_eng11_dropped_packets
+- (L2728)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg0_sbif_ext_dma_eng1_dropped_packets
+- (L2733)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg0_sbif_ext_dma_eng2_dropped_packets
+- (L2738)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg0_sbif_ext_dma_eng3_dropped_packets
+- (L2743)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg0_sbif_ext_dma_eng4_dropped_packets
+- (L2748)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg0_sbif_ext_dma_eng5_dropped_packets
+- (L2753)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg0_sbif_ext_dma_eng6_dropped_packets
+- (L2758)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg0_sbif_ext_dma_eng7_dropped_packets
+- (L2763)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg0_sbif_ext_dma_eng8_dropped_packets
+- (L2768)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg0_sbif_ext_dma_eng9_dropped_packets
+- (L3538)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg1_rxpp_top_dropped_packets
+- (L3543)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg1_sbif_ext_dma_eng0_dropped_packets
+- (L3548)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg1_sbif_ext_dma_eng10_dropped_packets
+- (L3553)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg1_sbif_ext_dma_eng11_dropped_packets
+- (L3558)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg1_sbif_ext_dma_eng1_dropped_packets
+- (L3563)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg1_sbif_ext_dma_eng2_dropped_packets
+- (L3568)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg1_sbif_ext_dma_eng3_dropped_packets
+- (L3573)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg1_sbif_ext_dma_eng4_dropped_packets
+- (L3578)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg1_sbif_ext_dma_eng5_dropped_packets
+- (L3583)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg1_sbif_ext_dma_eng6_dropped_packets
+- (L3588)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg1_sbif_ext_dma_eng7_dropped_packets
+- (L3593)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg1_sbif_ext_dma_eng8_dropped_packets
+- (L3598)	/{cisco-q200-adverse-drop-counters}/counters_slice1_ifg1_sbif_ext_dma_eng9_dropped_packets
+- (L4433)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg0_rxpp_top_dropped_packets
+- (L4438)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg0_sbif_ext_dma_eng0_dropped_packets
+- (L4443)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg0_sbif_ext_dma_eng10_dropped_packets
+- (L4448)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg0_sbif_ext_dma_eng11_dropped_packets
+- (L4453)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg0_sbif_ext_dma_eng1_dropped_packets
+- (L4458)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg0_sbif_ext_dma_eng2_dropped_packets
+- (L4463)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg0_sbif_ext_dma_eng3_dropped_packets
+- (L4468)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg0_sbif_ext_dma_eng4_dropped_packets
+- (L4473)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg0_sbif_ext_dma_eng5_dropped_packets
+- (L4478)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg0_sbif_ext_dma_eng6_dropped_packets
+- (L4483)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg0_sbif_ext_dma_eng7_dropped_packets
+- (L4488)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg0_sbif_ext_dma_eng8_dropped_packets
+- (L4493)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg0_sbif_ext_dma_eng9_dropped_packets
+- (L5263)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg1_rxpp_top_dropped_packets
+- (L5268)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg1_sbif_ext_dma_eng0_dropped_packets
+- (L5273)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg1_sbif_ext_dma_eng10_dropped_packets
+- (L5278)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg1_sbif_ext_dma_eng11_dropped_packets
+- (L5283)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg1_sbif_ext_dma_eng1_dropped_packets
+- (L5288)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg1_sbif_ext_dma_eng2_dropped_packets
+- (L5293)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg1_sbif_ext_dma_eng3_dropped_packets
+- (L5298)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg1_sbif_ext_dma_eng4_dropped_packets
+- (L5303)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg1_sbif_ext_dma_eng5_dropped_packets
+- (L5308)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg1_sbif_ext_dma_eng6_dropped_packets
+- (L5313)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg1_sbif_ext_dma_eng7_dropped_packets
+- (L5318)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg1_sbif_ext_dma_eng8_dropped_packets
+- (L5323)	/{cisco-q200-adverse-drop-counters}/counters_slice2_ifg1_sbif_ext_dma_eng9_dropped_packets
+- (L6158)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg0_rxpp_top_dropped_packets
+- (L6163)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg0_sbif_ext_dma_eng0_dropped_packets
+- (L6168)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg0_sbif_ext_dma_eng10_dropped_packets
+- (L6173)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg0_sbif_ext_dma_eng11_dropped_packets
+- (L6178)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg0_sbif_ext_dma_eng1_dropped_packets
+- (L6183)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg0_sbif_ext_dma_eng2_dropped_packets
+- (L6188)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg0_sbif_ext_dma_eng3_dropped_packets
+- (L6193)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg0_sbif_ext_dma_eng4_dropped_packets
+- (L6198)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg0_sbif_ext_dma_eng5_dropped_packets
+- (L6203)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg0_sbif_ext_dma_eng6_dropped_packets
+- (L6208)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg0_sbif_ext_dma_eng7_dropped_packets
+- (L6213)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg0_sbif_ext_dma_eng8_dropped_packets
+- (L6218)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg0_sbif_ext_dma_eng9_dropped_packets
+- (L6988)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg1_rxpp_top_dropped_packets
+- (L6993)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg1_sbif_ext_dma_eng0_dropped_packets
+- (L6998)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg1_sbif_ext_dma_eng10_dropped_packets
+- (L7003)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg1_sbif_ext_dma_eng11_dropped_packets
+- (L7008)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg1_sbif_ext_dma_eng1_dropped_packets
+- (L7013)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg1_sbif_ext_dma_eng2_dropped_packets
+- (L7018)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg1_sbif_ext_dma_eng3_dropped_packets
+- (L7023)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg1_sbif_ext_dma_eng4_dropped_packets
+- (L7028)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg1_sbif_ext_dma_eng5_dropped_packets
+- (L7033)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg1_sbif_ext_dma_eng6_dropped_packets
+- (L7038)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg1_sbif_ext_dma_eng7_dropped_packets
+- (L7043)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg1_sbif_ext_dma_eng8_dropped_packets
+- (L7048)	/{cisco-q200-adverse-drop-counters}/counters_slice3_ifg1_sbif_ext_dma_eng9_dropped_packets
+- (L7883)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg0_rxpp_top_dropped_packets
+- (L7888)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg0_sbif_ext_dma_eng0_dropped_packets
+- (L7893)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg0_sbif_ext_dma_eng10_dropped_packets
+- (L7898)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg0_sbif_ext_dma_eng11_dropped_packets
+- (L7903)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg0_sbif_ext_dma_eng1_dropped_packets
+- (L7908)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg0_sbif_ext_dma_eng2_dropped_packets
+- (L7913)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg0_sbif_ext_dma_eng3_dropped_packets
+- (L7918)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg0_sbif_ext_dma_eng4_dropped_packets
+- (L7923)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg0_sbif_ext_dma_eng5_dropped_packets
+- (L7928)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg0_sbif_ext_dma_eng6_dropped_packets
+- (L7933)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg0_sbif_ext_dma_eng7_dropped_packets
+- (L7938)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg0_sbif_ext_dma_eng8_dropped_packets
+- (L7943)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg0_sbif_ext_dma_eng9_dropped_packets
+- (L8713)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg1_rxpp_top_dropped_packets
+- (L8718)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg1_sbif_ext_dma_eng0_dropped_packets
+- (L8723)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg1_sbif_ext_dma_eng10_dropped_packets
+- (L8728)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg1_sbif_ext_dma_eng11_dropped_packets
+- (L8733)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg1_sbif_ext_dma_eng1_dropped_packets
+- (L8738)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg1_sbif_ext_dma_eng2_dropped_packets
+- (L8743)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg1_sbif_ext_dma_eng3_dropped_packets
+- (L8748)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg1_sbif_ext_dma_eng4_dropped_packets
+- (L8753)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg1_sbif_ext_dma_eng5_dropped_packets
+- (L8758)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg1_sbif_ext_dma_eng6_dropped_packets
+- (L8763)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg1_sbif_ext_dma_eng7_dropped_packets
+- (L8768)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg1_sbif_ext_dma_eng8_dropped_packets
+- (L8773)	/{cisco-q200-adverse-drop-counters}/counters_slice4_ifg1_sbif_ext_dma_eng9_dropped_packets
+- (L9608)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg0_rxpp_top_dropped_packets
+- (L9613)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg0_sbif_ext_dma_eng0_dropped_packets
+- (L9618)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg0_sbif_ext_dma_eng10_dropped_packets
+- (L9623)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg0_sbif_ext_dma_eng11_dropped_packets
+- (L9628)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg0_sbif_ext_dma_eng1_dropped_packets
+- (L9633)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg0_sbif_ext_dma_eng2_dropped_packets
+- (L9638)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg0_sbif_ext_dma_eng3_dropped_packets
+- (L9643)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg0_sbif_ext_dma_eng4_dropped_packets
+- (L9648)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg0_sbif_ext_dma_eng5_dropped_packets
+- (L9653)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg0_sbif_ext_dma_eng6_dropped_packets
+- (L9658)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg0_sbif_ext_dma_eng7_dropped_packets
+- (L9663)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg0_sbif_ext_dma_eng8_dropped_packets
+- (L9668)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg0_sbif_ext_dma_eng9_dropped_packets
+- (L10438)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg1_rxpp_top_dropped_packets
+- (L10443)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg1_sbif_ext_dma_eng0_dropped_packets
+- (L10448)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg1_sbif_ext_dma_eng10_dropped_packets
+- (L10453)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg1_sbif_ext_dma_eng11_dropped_packets
+- (L10458)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg1_sbif_ext_dma_eng1_dropped_packets
+- (L10463)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg1_sbif_ext_dma_eng2_dropped_packets
+- (L10468)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg1_sbif_ext_dma_eng3_dropped_packets
+- (L10473)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg1_sbif_ext_dma_eng4_dropped_packets
+- (L10478)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg1_sbif_ext_dma_eng5_dropped_packets
+- (L10483)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg1_sbif_ext_dma_eng6_dropped_packets
+- (L10488)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg1_sbif_ext_dma_eng7_dropped_packets
+- (L10493)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg1_sbif_ext_dma_eng8_dropped_packets
+- (L10498)	/{cisco-q200-adverse-drop-counters}/counters_slice5_ifg1_sbif_ext_dma_eng9_dropped_packets
+
+## XPaths Modified
+
+N/A
+
