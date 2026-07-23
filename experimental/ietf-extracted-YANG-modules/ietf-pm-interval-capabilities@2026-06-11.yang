@@ -1,0 +1,253 @@
+module ietf-pm-interval-capabilities {
+  yang-version 1.1;
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-pm-interval-capabilities";
+  prefix ipc;
+
+  import ietf-pm-collection {
+    prefix pm-coll;
+    reference
+      "RFC XXXX: A YANG Data Model for Collection Measurement";
+  }
+
+  import ietf-system-capabilities {
+    prefix sysc;
+    reference
+      "RFC 9196: YANG Modules Describing Capabilities for
+       Systems and Datastore Update Notifications";
+  }
+
+  organization
+    "IETF IP Performance Metrics (ippm) Working Group";
+  contact
+    "WG Web: <https://datatracker.ietf.org/wg/ippm/>
+     Editor: Bin Yeong Yoon <mailto:byyun@etri.re.kr>";
+  description
+    "This YANG module defines a data model for advertising
+     performance management (PM) collection interval capabilities
+     in network equipment.  The module enables clients to discover
+     which sampling and collection intervals a server supports
+     for different performance parameters within various parameter
+     profiles, before configuring collection measurements.
+
+     This module provides hierarchical interval capability
+     discovery where collection intervals must be multiples of
+     their corresponding sampling intervals, and each parameter
+     can have different interval capabilities within each
+     parameter profile.
+
+     This module imports the profile-names type from
+     ietf-pm-collection and mirrors its profile-and-parameter
+     structure.  It does not define measurement data structures,
+     collection types, or any delivery mechanism; those are
+     defined in ietf-pm-collection.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.
+
+     Copyright (c) 2026 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Revised BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+     for full legal notices.";
+
+  revision 2026-06-11 {
+    description
+      "Initial revision as standalone interval capability module,
+       separated from the combined PM streaming document and
+       updated to import ietf-pm-collection.  The interval
+       capabilities are advertised by augmenting the
+       system-capabilities container defined in RFC 9196.";
+    reference
+      "RFC XXXX: A YANG Data Model for Collection
+       Interval Capabilities";
+  }
+
+  /*
+   * TYPEDEFs
+   */
+  typedef interval-unit {
+    type enumeration {
+      enum millisecond {
+        description "Time interval in milliseconds.";
+      }
+      enum second {
+        description "Time interval in seconds.";
+      }
+      enum minute {
+        description "Time interval in minutes.";
+      }
+      enum hour {
+        description "Time interval in hours.";
+      }
+      enum day {
+        description "Time interval in days.";
+      }
+    }
+    description "Supported units for expressing time intervals.";
+  }
+
+  /*
+   * GROUPINGS
+   */
+  grouping interval-constraints {
+    description
+      "Capability constraints for a single interval type,
+       covering the supported range, units, default, and
+       granularity.  Used for both sampling intervals and
+       collection intervals.";
+    leaf min-value {
+      type uint32;
+      description
+        "Minimum supported value for this interval.";
+    }
+    leaf max-value {
+      type uint32;
+      description
+        "Maximum supported value for this interval.";
+    }
+    leaf-list units {
+      type interval-unit;
+      description
+        "List of supported time units for this interval.";
+    }
+    leaf default-value {
+      type uint32;
+      description
+        "Default value recommended for this interval.";
+    }
+    leaf default-unit {
+      type interval-unit;
+      description
+        "Default unit recommended for this interval.";
+    }
+    leaf granularity {
+      type uint32;
+      description
+        "Granularity step for interval values.  Only values
+         that are multiples of this granularity are supported.
+         For example, if granularity is 5, valid values are
+         5, 10, 15, 20, and so on.";
+    }
+  }
+
+  grouping parameter-interval-capabilities {
+    description
+      "Interval capabilities for a single PM parameter within
+       a profile.  The structure nests collection intervals
+       within their corresponding sampling interval, reflecting
+       the constraint that collection intervals must be
+       multiples of their sampling interval.";
+    leaf name {
+      type string;
+      description
+        "Name of the performance parameter (e.g., es, ses,
+         bbe).  This value corresponds to the pm-parameter
+         name leaf in ietf-pm-collection.";
+    }
+    container interval-relationships {
+      description
+        "Hierarchical relationships between sampling and
+         collection intervals for this parameter.
+         Collection intervals MUST be multiples of their
+         corresponding sampling intervals.";
+      list sampling-interval {
+        key "id";
+        description
+          "List of supported sampling intervals and their
+           compatible collection intervals.";
+        leaf id {
+          type string;
+          description
+            "Unique identifier for this sampling interval
+             capability entry.";
+        }
+        uses interval-constraints;
+        list collection-interval {
+          key "id";
+          description
+            "List of supported collection intervals for
+             this sampling interval.";
+          leaf id {
+            type string;
+            description
+              "Unique identifier for this collection
+               interval capability entry.";
+          }
+          uses interval-constraints;
+        }
+      }
+    }
+  }
+
+  grouping profile-parameter-capabilities {
+    description
+      "Interval capabilities for all PM parameters within a
+       single parameter profile.";
+    leaf name {
+      type pm-coll:profile-names;
+      description
+        "Name of the parameter profile.  This value
+         corresponds to the parameter-profile name leaf in
+         ietf-pm-collection (e.g.,
+         itu-transport-maintenance-15min).";
+    }
+    list pm-parameter {
+      key "name";
+      description
+        "List of PM parameters and their interval capabilities
+         within this profile.";
+      uses parameter-interval-capabilities;
+    }
+  }
+
+  /*
+   * AUGMENTATION OF ietf-system-capabilities (RFC 9196)
+   *
+   * The interval capabilities are advertised by augmenting the
+   * "system-capabilities" container defined in RFC 9196.  This
+   * places the PM measurement interval capabilities at the same
+   * well-known location at which a NETCONF/RESTCONF client
+   * discovers subscription and notification capabilities
+   * (ietf-notification-capabilities, RFC 9196 Section 3), so that
+   * both can be retrieved in a single, standardised query.  The
+   * "pm-interval-capabilities" wrapper container cleanly separates
+   * this capability group from other capabilities augmented into
+   * the same anchor.  All augmented nodes inherit "config false"
+   * from sysc:system-capabilities and therefore reside in the
+   * operational datastore.
+   */
+  augment "/sysc:system-capabilities" {
+    description
+      "Augments the system capabilities with PM collection
+       interval capabilities, advertising the sampling and
+       collection intervals that this server supports, organised
+       by parameter profile and PM parameter.";
+    container pm-interval-capabilities {
+      description
+        "Read-only advertisement of the sampling and collection
+         interval capabilities of this server, organised by
+         parameter profile and PM parameter.  A client reads this
+         container to determine which interval values are valid
+         before configuring measurements in ietf-pm-collection.";
+      list parameter-profile {
+        key "name";
+        description
+          "List of parameter profiles and their per-parameter
+           interval capabilities.";
+        uses profile-parameter-capabilities;
+      }
+    }
+  }
+}
