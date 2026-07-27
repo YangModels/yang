@@ -1,0 +1,512 @@
+module ietf-bgp-rib-entry {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-bgp-rib-entry";
+  prefix bre;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 9911: Common YANG Data Types.";
+  }
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 9911: Common YANG Data Types.";
+  }
+  import iana-bgp-types {
+    prefix bt;
+    reference
+      "RFC XXXX: YANG Model for Border Gateway Protocol (BGP-4).";
+  }
+
+  // TODO: in the future import the single capabilities module if at idr
+  // they decide to move from submodules to a modules
+  import ietf-bgp {
+    prefix bgp;
+    reference
+      "RFC XXXX: YANG Model for Border Gateway Protocol (BGP-4).";
+  }
+
+  organization
+    "IETF Draft";
+  contact
+    "Author:    Thomas Graf
+                <mailto:thomas.graf@swisscom.com>
+                Paolo Lucente
+                <mailto:paolo@ntt.net>
+                Leonardo Rodoni
+                <mailto:leonardo.rodoni@swisscom.com>";
+
+  description
+    "Defines a module for representing a single entry from a BGP
+     Routing Information Base (RIB). The submodule supports entries
+     from 5 logical RIB types per address family:
+
+     loc-rib: An entry from the main BGP routing table for the local
+     routing instance, containing best-path selections for each
+     prefix. The key for the loc-rib entry corresponds either to a
+     route in the adj-rib-in-post table or a route redistributed
+     from another protocol.
+
+     adj-rib-in-pre: An entry from the per-neighbor table containing
+     the BGP routes received from the neighbor before any local
+     input policy rules have been applied. This can be considered
+     the 'raw' routes from a given neighbor.
+
+     adj-rib-in-post: An entry from the per-neighbor table containing
+     the routes received from the neighbor that are eligible for
+     best-path selection after local input policy rules have been
+     applied. The 'best-path' leaf is attached to the route selected
+     by the BGP Decision Process (RFC 4271, Section 9.1). Such
+     routes may be present in the loc-rib, described above,
+     when local configuration determines that the BGP best-path will
+     be used for that destination.
+
+     adj-rib-out-pre: An entry from the per-neighbor table containing
+     routes eligible for sending (advertising) to the neighbor before
+     output policy rules have been applied.
+
+     adj-rib-out-post: An entry from the per-neighbor table containing
+     routes eligible for sending (advertising) to the neighbor after
+     output policy rules have been applied.
+
+     Copyright (c) 2026 IETF Trust and the persons identified as
+     authors of the code. All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+     for full legal notices.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.";
+
+  revision 2026-06-30 {
+    description
+      "Initial Version";
+    reference
+      "RFC XXXX";
+  }
+
+  grouping bgp-common-route-attributes {
+    description
+      "BGP path attributes and communities.";
+    uses bgp-path-attributes;
+    uses bgp:bgp-community-attr-state;
+    uses bgp:ext-community-attributes;
+    uses bgp:ipv6-ext-community-attributes;
+    uses bgp:large-community-attributes;
+  }
+
+  grouping bgp-path-attributes {
+    description
+      "BGP path attributes.";
+    container attributes {
+      description
+        "BGP path attribute parameters.";
+      leaf origin {
+        type bt:bgp-origin-attr-type;
+        mandatory true;
+        description
+          "BGP attribute defining the origin of the path information.";
+        reference
+          "RFC 4271: A Border Gateway Protocol 4 (BGP-4), Section 5.1.1.";
+      }
+      container as-path {
+        description
+          "Enclosing container for the list of AS path segments.";
+        reference
+          "RFC 4271: A Border Gateway Protocol 4 (BGP-4), Section 5.1.2.
+           RFC 6793: BGP Support for Four-Octet Autonomous System (AS)
+           Number Space.
+           RFC 5065: Autonomous System Confederations for BGP.";
+        list segment {
+          uses bgp:bgp-as-path-segment;
+          description
+            "List of AS PATH segments.";
+        }
+      }
+      leaf next-hop {
+        type inet:ip-address;
+        description
+          "BGP next hop attribute.";
+        reference
+          "RFC 4271: A Border Gateway Protocol 4 (BGP-4), Section 5.1.3.";
+      }
+      leaf link-local-next-hop {
+        type inet:ipv6-address;
+        description
+          "Link-local next-hop when using RFC 2545 procedures.";
+        reference
+          "RFC 2545: Use of BGP-4 Multiprotocol Extensions for IPv6
+           Inter-Domain Routing.";
+      }
+      leaf med {
+        type uint32;
+        description
+          "BGP multi-exit discriminator attribute.";
+        reference
+          "RFC 4271: A Border Gateway Protocol 4 (BGP-4), Section 5.1.4.";
+      }
+      leaf local-pref {
+        type uint32;
+        description
+          "BGP local preference attribute.";
+        reference
+          "RFC 4271: A Border Gateway Protocol 4 (BGP-4), Section 5.1.5.";
+      }
+      container as4-path {
+        description
+          "AS4_PATH attribute for 4-octet AS numbers in Adj-RIB-In/Out.
+           Not populated in Loc-RIB.";
+        reference
+          "RFC 6793: BGP Support for Four-octet AS Number Space.";
+        list segment {
+          uses bgp:bgp-as-path-segment;
+          description
+            "List of AS PATH segments.";
+        }
+      }
+      container aggregator {
+        description
+          "BGP AGGREGATOR attribute.";
+        reference
+          "RFC 4271: A Border Gateway Protocol 4 (BGP-4), Section 5.1.7.
+           RFC 6793: BGP Support for Four-octet AS Number Space.";
+        leaf as {
+          type inet:as-number;
+          description
+            "AS number of the aggregating router.";
+          reference
+            "RFC 4271: A Border Gateway Protocol 4 (BGP-4), Section 5.1.7.";
+        }
+        leaf identifier {
+          type yang:dotted-quad;
+          description
+            "BGP Identifier of the aggregating router.";
+          reference
+            "RFC 4271: A Border Gateway Protocol 4 (BGP-4), Section 5.1.7.";
+        }
+      }
+      container aggregator4 {
+        description
+          "AS4_AGGREGATOR attribute. Not populated in Loc-RIB.";
+        reference
+          "RFC 6793: BGP Support for Four-Octet Autonomous System (AS)
+           Number Space.";
+        leaf as4 {
+          type inet:as-number;
+          description
+            "4-octet AS number of the aggregating router.";
+          reference
+            "RFC 6793: BGP Support for Four-Octet Autonomous System (AS)
+             Number Space, Section 3.";
+        }
+        leaf identifier {
+          type yang:dotted-quad;
+          description
+            "BGP Identifier of the aggregating router.";
+          reference
+            "RFC 6793: BGP Support for Four-Octet Autonomous System (AS)
+             Number Space, Section 3.";
+        }
+      }
+      leaf atomic-aggregate {
+        type boolean;
+        description
+          "BGP ATOMIC_AGGREGATE attribute.";
+        reference
+          "RFC 4271: A Border Gateway Protocol 4 (BGP-4), Section 5.1.6.";
+      }
+      leaf originator-id {
+        type yang:dotted-quad;
+        description
+          "BGP ORIGINATOR_ID attribute for route reflection.";
+        reference
+          "RFC 4456: BGP Route Reflection, Section 8.";
+      }
+      leaf-list cluster-list {
+        type yang:dotted-quad;
+        description
+          "BGP CLUSTER_LIST attribute for route reflection.";
+        reference
+          "RFC 4456: BGP Route Reflection, Section 8.";
+      }
+      leaf aigp-metric {
+        type uint64;
+        description
+          "BGP AIGP attribute.";
+        reference
+          "RFC 7311: The Accumulated IGP Metric Attribute for BGP.";
+      }
+    }
+  }
+
+  grouping ipv4-loc-rib-common {
+    description
+      "IPv4 Loc-RIB route entry.";
+    container route {
+      description
+        "A single IPv4 Loc-RIB route entry.";
+      leaf prefix {
+        type inet:ipv4-prefix;
+        mandatory true;
+        description
+          "The IPv4 prefix.";
+      }
+      uses bgp:bgp-loc-rib-common-keys;
+      uses bgp-common-route-attributes;
+      uses bgp:bgp-common-route-annotations-state;
+      uses bgp:bgp-unknown-attr-top;
+      uses bgp:rib-ext-route-annotations;
+    }
+  }
+
+  grouping ipv6-loc-rib-common {
+    description
+      "IPv6 Loc-RIB route entry.";
+    container route {
+      description
+        "A single IPv6 Loc-RIB route entry.";
+      leaf prefix {
+        type inet:ipv6-prefix;
+        mandatory true;
+        description
+          "The IPv6 prefix.";
+      }
+      uses bgp:bgp-loc-rib-common-keys;
+      uses bgp-common-route-attributes;
+      uses bgp:bgp-common-route-annotations-state;
+      uses bgp:bgp-unknown-attr-top;
+      uses bgp:rib-ext-route-annotations;
+    }
+  }
+
+  grouping ipv4-adj-rib-common {
+    description
+      "IPv4 Adj-RIB route entry (In-Pre, Out-Pre, Out-Post).";
+    container route {
+      description
+        "A single IPv4 Adj-RIB route entry.";
+      leaf prefix {
+        type inet:ipv4-prefix;
+        mandatory true;
+        description
+          "The IPv4 prefix.";
+      }
+      uses bgp:bgp-adj-rib-attr-state;
+      uses bgp-common-route-attributes;
+      uses bgp:bgp-common-route-annotations-state;
+      uses bgp:bgp-unknown-attr-top;
+      uses bgp:rib-ext-route-annotations;
+    }
+  }
+
+  grouping ipv4-adj-rib-in-post {
+    description
+      "IPv4 Adj-RIB-In post-policy route entry.";
+    container route {
+      description
+        "A single IPv4 Adj-RIB-In post-policy route entry.";
+      leaf prefix {
+        type inet:ipv4-prefix;
+        mandatory true;
+        description
+          "The IPv4 prefix.";
+      }
+      uses bgp:bgp-adj-rib-attr-state;
+      uses bgp-common-route-attributes;
+      uses bgp:bgp-common-route-annotations-state;
+      uses bgp:bgp-adj-rib-in-post-route-annotations-state;
+      uses bgp:bgp-unknown-attr-top;
+      uses bgp:rib-ext-route-annotations;
+    }
+  }
+
+  grouping ipv6-adj-rib-common {
+    description
+      "IPv6 Adj-RIB route entry (In-Pre, Out-Pre, Out-Post).";
+    container route {
+      description
+        "A single IPv6 Adj-RIB route entry.";
+      leaf prefix {
+        type inet:ipv6-prefix;
+        mandatory true;
+        description
+          "The IPv6 prefix.";
+      }
+      uses bgp:bgp-adj-rib-attr-state;
+      uses bgp-common-route-attributes;
+      uses bgp:bgp-common-route-annotations-state;
+      uses bgp:bgp-unknown-attr-top;
+      uses bgp:rib-ext-route-annotations;
+    }
+  }
+
+  grouping ipv6-adj-rib-in-post {
+    description
+      "IPv6 Adj-RIB-In post-policy route entry.";
+    container route {
+      description
+        "A single IPv6 Adj-RIB-In post-policy route entry.";
+      leaf prefix {
+        type inet:ipv6-prefix;
+        mandatory true;
+        description
+          "The IPv6 prefix.";
+      }
+      uses bgp:bgp-adj-rib-attr-state;
+      uses bgp-common-route-attributes;
+      uses bgp:bgp-common-route-annotations-state;
+      uses bgp:bgp-adj-rib-in-post-route-annotations-state;
+      uses bgp:bgp-unknown-attr-top;
+      uses bgp:rib-ext-route-annotations;
+    }
+  }
+
+  grouping rib-entry {
+    description
+      "Grouping for a BGP RIB entry organized by AFI-SAFI.";
+
+    leaf afi-safi-type {
+      type identityref {
+        base bt:afi-safi-type;
+      }
+      mandatory true;
+      description
+        "AFI,SAFI name.";
+    }
+
+    container rib-entry {
+      description
+        "Encapsulates the route entry for a specific AFI-SAFI.";
+      choice afi-safi {
+        mandatory true;
+        description
+          "Choice of AFI-SAFI content, enforced by the afi-safi-type leaf.";
+
+        case ipv4-unicast {
+          when "derived-from-or-self(../afi-safi-type, 'bt:ipv4-unicast')";
+          container ipv4-unicast {
+            description
+              "Routing tables for IPv4 unicast.";
+
+            choice rib-type {
+              mandatory true;
+              description
+                "The specific RIB table type from which the route originates.";
+
+              case loc-rib {
+                container loc-rib {
+                  description
+                    "Route from the main BGP routing table for the local
+                     routing instance, containing best-path selections
+                     for each prefix.";
+                  uses ipv4-loc-rib-common;
+                }
+              }
+              case adj-rib-in-pre {
+                container adj-rib-in-pre {
+                  description
+                    "Route received from the neighbor before any local
+                     input policy rules or filters have been applied.";
+                  uses ipv4-adj-rib-common;
+                }
+              }
+              case adj-rib-in-post {
+                container adj-rib-in-post {
+                  description
+                    "Route received from the neighbor after local
+                     input policy rules have been applied.";
+                  uses ipv4-adj-rib-in-post;
+                }
+              }
+              case adj-rib-out-pre {
+                container adj-rib-out-pre {
+                  description
+                    "Route eligible to be sent to the neighbor
+                     before output policy rules have been applied.";
+                  uses ipv4-adj-rib-common;
+                }
+              }
+              case adj-rib-out-post {
+                container adj-rib-out-post {
+                  description
+                    "Route eligible to be sent to the neighbor
+                     after output policy rules have been applied.";
+                  uses ipv4-adj-rib-common;
+                }
+              }
+            }
+          }
+        }
+
+        case ipv6-unicast {
+          when "derived-from-or-self(../afi-safi-type, 'bt:ipv6-unicast')";
+          container ipv6-unicast {
+            description
+              "Routing tables for IPv6 unicast.";
+
+            choice rib-type {
+              mandatory true;
+              description
+                "Choice between Local RIB and Neighbor-specific Adj-RIBs.";
+
+              case loc-rib {
+                container loc-rib {
+                  description
+                    "Route from the main BGP routing table for the local
+                     routing instance, containing best-path selections
+                     for each prefix.";
+                  uses ipv6-loc-rib-common;
+                }
+              }
+
+              case adj-rib-in-pre {
+                container adj-rib-in-pre {
+                  description
+                    "Route received from the neighbor before local
+                     input policy rules have been applied.";
+                  uses ipv6-adj-rib-common;
+                }
+              }
+              case adj-rib-in-post {
+                container adj-rib-in-post {
+                  description
+                    "Route received from the neighbor after local
+                     input policy rules have been applied.";
+                  uses ipv6-adj-rib-in-post;
+                }
+              }
+              case adj-rib-out-pre {
+                container adj-rib-out-pre {
+                  description
+                    "Route eligible to be sent to the neighbor
+                     before output policy rules have been applied.";
+                  uses ipv6-adj-rib-common;
+                }
+              }
+              case adj-rib-out-post {
+                container adj-rib-out-post {
+                  description
+                    "Route eligible to be sent to the neighbor
+                     after output policy rules have been applied.";
+                  uses ipv6-adj-rib-common;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+

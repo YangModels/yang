@@ -1,0 +1,261 @@
+module ietf-petra {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-petra";
+  prefix ietf-petra;
+
+  import ietf-inet-types {
+    prefix ietf-inet-types;
+    reference "RFC 9911: Common YANG Data Types";
+  }
+
+  import ietf-yang-types {
+    prefix ietf-yang-types;
+    reference "RFC 9911: Common YANG Data Types";
+  }
+
+  import ietf-network-slice-service {
+    prefix ietf-nss;
+    revision-date 2026-05-27;
+    reference
+      "draft-ietf-teas-ietf-network-slice-nbi-yang-26:
+      A YANG Data Model for the RFC 9543 Network Slice Service.";
+  }
+
+  import ietf-power-and-energy {
+    prefix eo;
+    reference "draft-bcmj-green-power-and-energy-yang";
+  }
+
+  organization
+    "IETF GREEN Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/green/>
+    WG List:  <mailto:green@ietf.org>";
+  description
+    "Initial YANG rendition of the PETRA Energy API, v1.0.1
+
+    Copyright (c) 2025 IETF Trust and the persons identified as
+    authors of the code. All rights reserved.
+
+    Redistribution and use in source and binary forms, with or
+    without modification, is permitted pursuant to, and subject to
+    the license terms contained in, the Revised BSD License set
+    forth in Section 4.c of the IETF Trust's Legal Provisions
+    Relating to IETF Documents
+    (https://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC XXXX
+    (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+    for full legal notices.
+
+    The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+    'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+    'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this document
+    are to be interpreted as described in BCP 14 (RFC 2119)
+    (RFC 8174) when, and only when, they appear in all
+    capitals, as shown here.
+    ";
+
+/*
+    If you have an implementation of this YANG module, you could
+    access it like something this over RESTCONF:
+
+    $ curl --location --request POST \
+      'https://localhost:8008/restconf/operations/energy/query' \
+      --header 'Content-Type: application/yang-data+json' \
+      --user 'admin:admin' \
+      --data-raw '{
+          'input' : {
+              'source': {
+                  'ip-prefix': '10.10.10.0/24'
+              },
+              'destination': {
+                  'ip-prefix': '10.20.20.0/24'
+              },
+              'throughput': '40'
+          }
+        }'
+
+    And if all goes well, you might receive (besides all the
+    HTTP headers) a reply body with something like this:
+
+    {
+      'output': {
+        'success': {
+          'watts-per-gigabit': '191.855'
+        }
+      }
+    }
+*/
+
+  revision 2026-07-06 {
+    description
+      "Initial YANG rendition of the PETRA Energy API, v1.0.1";
+    reference
+      "RFC XXXX: ...";
+  }
+
+  grouping endpoint-g {
+    description
+      "Identifies one endpoint of an energy-measurement path.";
+    choice identifier {
+      mandatory true;
+      description
+        "Endpoint represented as an IP address, IP prefix, MAC address,
+        or Service Demarcation Point (SDP) identifier.";
+      case ip-address {
+        leaf ip-address {
+          type ietf-inet-types:ip-address;
+          mandatory true;
+          description
+            "IPv4 or IPv6 address.";
+        }
+      }
+      case ip-prefix {
+        leaf ip-prefix {
+          type ietf-inet-types:ip-prefix;
+          mandatory true;
+          description
+            "IPv4 or IPv6 network prefix.";
+        }
+      }
+      case mac-address {
+        leaf mac-address {
+          type ietf-yang-types:mac-address;
+          mandatory true;
+          description
+            "IEEE 802 MAC address.";
+        }
+      }
+      case sdp-id {
+        leaf sdp-id {
+          type leafref {
+            path "/ietf-nss:network-slice-services"
+               + "/ietf-nss:slice-service"
+               + "/ietf-nss:sdps"
+               + "/ietf-nss:sdp"
+               + "/ietf-nss:id";
+            require-instance true;
+          }
+          mandatory true;
+          description
+            "Reference to a Service Demarcation Point (SDP) within the
+            scope of a Network Slice Controller (NSC).";
+        }
+      }
+    }
+  }
+
+  grouping energy-metrics-g {
+    description
+      "Grouping for query result metrics.";
+    leaf watts-per-gigabit {
+      type decimal64 {
+        fraction-digits 3;
+      }
+      units W/Gb;
+      description
+        "Watts consumed per Gigabit transmitted";
+    }
+    leaf data-source-accuracy {
+      type identityref { base eo:data-source-accuracy; }
+      description
+        "Accuracy classification of the watts-per-gigabit value,
+        using the GREEN data-source-accuracy hierarchy.
+        Implementations SHOULD populate this leaf to enable
+        consumers to assess reliability. For path-aggregated
+        values derived from multiple components, the RECOMMENDED
+        value is the LEAST accurate accuracy class among all
+        contributing energy objects.";
+    }
+  }
+
+  container energy {
+    description
+      "PETRA API top level container.";
+    action query {
+      description
+        "Query the network for energy consumption";
+      input {
+        must "throughput or (time-window/start-time and
+              time-window/end-time and data-transmitted)" {
+          error-message
+            "Provide either throughput or a time window with start
+            and end times together with data-transmitted.";
+        }
+        container source {
+          description
+            "Source endpoint.";
+          uses endpoint-g;
+        }
+        container destination {
+          description
+            "Destination endpoint.";
+          uses endpoint-g;
+        }
+        choice traffic-characterization {
+          default throughput;
+          description
+            "Characterizes the traffic either by its throughput or by
+            the amount of data transmitted during a time window.";
+          case throughput {
+            leaf throughput {
+              type decimal64 {
+                fraction-digits 3;
+              }
+              units Gb/s;
+              description
+                "Throughput between source and destination
+                (in gigabits per second).";
+            }
+          }
+          case time-window-and-data-transmitted {
+            container time-window {
+              description
+                "Interval during which the data was transmitted.";
+              leaf start-time {
+                type ietf-yang-types:date-and-time;
+                mandatory true;
+                description
+                  "Start date and time of the interval.";
+              }
+              leaf end-time {
+                type ietf-yang-types:date-and-time;
+                mandatory true;
+                description
+                  "End date and time of the interval.";
+              }
+            }
+            leaf data-transmitted {
+              type decimal64 {
+                fraction-digits 3;
+              }
+              units Gb;
+              mandatory true;
+              description
+                "Amount of data transmitted between source and
+                destination during the time window (in gigabits).";
+            }
+          }
+        }
+      }
+      output {
+        choice result {
+          description
+            "Choice of which kind of result the query gave.";
+          container success {
+            description
+              "Successful operation";
+            uses energy-metrics-g;
+          }
+          container invalid-endpoint {
+            presence
+              "Indicates that an invalid endpoint was supplied.";
+            description
+              "Invalid source or destination endpoint supplied.";
+          }
+        }
+      }
+    }
+  }
+}

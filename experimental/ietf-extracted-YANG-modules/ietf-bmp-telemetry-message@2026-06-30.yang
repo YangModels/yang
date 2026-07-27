@@ -1,0 +1,511 @@
+module ietf-bmp-telemetry-message {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-bmp-telemetry-message";
+  prefix bmptm;
+
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 9911: Common YANG Data Types";
+  }
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 9911: Common YANG Data Types";
+  }
+  import ietf-yang-structure-ext {
+    prefix sx;
+    reference
+      "RFC 8791: YANG Data Structure Extensions";
+  }
+  import ietf-routing-types {
+    prefix rt-types;
+    reference
+      "RFC 8294: Common YANG Data Types for the Routing Area.";
+  }
+
+  import ietf-bgp-open {
+    prefix bgo;
+    reference
+      "RFC XXXX: YANG Model for a BGP OPEN Message.";
+  }
+  import ietf-bgp-rib-entry {
+    prefix bre;
+    reference
+      "RFC XXXX: YANG Model for a BGP RIB Entry.";
+  }
+  import ietf-bmp-tlv {
+    prefix btlv;
+    reference
+      "RFC XXXX: YANG Model for BMP TLVs.";
+  }
+
+  organization
+    "IETF Draft";
+  contact
+    "Author:    Thomas Graf
+                <mailto:thomas.graf@swisscom.com>
+                Paolo Lucente
+                <mailto:paolo@ntt.net>
+                Leonardo Rodoni
+                <mailto:leonardo.rodoni@swisscom.com>";
+
+  description
+    "Adds BMP specific subscription metadata to the data collection
+     protocol provenance of the ietf-telemetry-message envelope.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this document
+     are to be interpreted as described in BCP 14 (RFC 2119)
+     (RFC 8174) when, and only when, they appear in all
+     capitals, as shown here.
+
+     Copyright (c) 2026 IETF Trust and the persons identified as
+       authors of the code. All rights reserved.
+
+     Redistribution and use in source and binary forms, with or without
+     modification, is permitted pursuant to, and subject to the license
+     terms contained in, the Revised BSD License set forth in Section
+     4.c of the IETF Trust's Legal Provisions Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX; see the RFC
+     itself for full legal notices.";
+
+  revision 2026-06-30 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX";
+  }
+
+  typedef peer-type {
+    type enumeration {
+      enum global-instance-peer {
+        value 0;
+        description
+          "Global Instance Peer";
+        reference
+          "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.2.";
+      }
+      enum rd-instance-peer {
+        value 1;
+        description
+          "RD Instance Peer";
+        reference
+          "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.2.";
+      }
+      enum local-instance-peer {
+        value 2;
+        description
+          "Local Instance Peer";
+        reference
+          "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.2.";
+      }
+      enum loc-rib-instance-peer {
+        value 3;
+        description
+          "Loc-RIB Instance Peer";
+        reference
+          "RFC 9069: Support for Local RIB in the BGP Monitoring
+           Protocol (BMP)";
+      }
+    }
+    description
+      "BMP Peer Type.";
+    reference
+      "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.2.";
+  }
+
+  grouping per-peer {
+    description
+      "BMP per-peer header.";
+    reference
+      "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.2.";
+    leaf peer-type {
+      type peer-type;
+      mandatory true;
+      description
+        "BMP peer type from per-peer header.";
+      reference
+        "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.2.";
+    }
+    container peer-flags {
+      when "not(../extended-flags)" {
+        description
+          "Present only when the Extended Flags TLV is absent.
+           When extended-flags is present it is authoritative
+           and peer-flags MUST NOT be emitted.";
+      }
+      description
+        "BMP Per-Peer Header Flags decoded from the Per-Peer Header
+         Flags field.";
+      reference
+        "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.2.";
+      uses btlv:peer-header-flags;
+    }
+    leaf peer-distinguisher {
+      type rt-types:route-distinguisher;
+      mandatory true;
+      description
+        "BMP peer distinguisher from per-peer header.
+         The routing instance on which the encapsulated PDU was
+         received.";
+      reference
+        "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.2.";
+    }
+    leaf peer-address {
+      type inet:ip-address;
+      mandatory true;
+      description
+        "BMP peer IP address from per-peer header.";
+      reference
+        "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.2. The
+         remote IP address associated with the TCP session over which
+         the encapsulated PDU was received.";
+    }
+    leaf peer-as {
+      type uint32;
+      mandatory true;
+      description
+        "BMP peer autonomous system number from per-peer header. The
+         Autonomous System number of the peer from which the
+         encapsulated PDU was received.";
+      reference
+        "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.2.";
+    }
+    leaf peer-bgp-id {
+      type inet:ipv4-address;
+      mandatory true;
+      description
+        "BMP Peer BGP ID from per-peer header. The BGP Identifier of
+         the peer from which the encapsulated PDU was received.";
+      reference
+        "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.2.";
+    }
+    leaf timestamp {
+      type yang:date-and-time;
+      description
+        "BMP timestamp from the Per-Peer Header (RFC 7854 Section 4.2).
+         Represents the time the encapsulated routes were received or
+         installed in the Adj-RIB-In. Absent when the value was zero
+         (unavailable) in the wire header.
+
+         // TODO: check with bmp-tlv regarding authoritative timestamp
+         The Timestamp TLV (message-timestamp in btlv:common) MAY
+         also be present and carries a typed timestamp. When
+         message-timestamp with type 'adj-rib-in-time' is present, it
+         is the authoritative value for this same event; the other
+         Timestamp TLV types (trigger-time, message-export-time,
+         local-rib-time, adj-rib-out-time) carry additional timing
+         information with no Per-Peer Header equivalent.";
+      reference
+        "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.2.;
+         draft-ietf-grow-bmp-tlv: Section 5.6.1.";
+    }
+  }
+
+  typedef peer-down-reason-code {
+    type enumeration {
+      enum local-system-closed-notification {
+        value 1;
+        description
+          "The local system closed the session. A BGP PDU containing
+           a BGP NOTIFICATION message that would have been sent to
+           the peer follows the reason code.";
+        reference
+          "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.9.";
+      }
+      enum local-system-closed-fsm-event {
+        value 2;
+        description
+          "The local system closed the session. No NOTIFICATION
+           message was sent. A 2-byte field containing the FSM
+           Event code follows the reason code.";
+        reference
+          "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.9.";
+      }
+      enum remote-system-closed-notification {
+        value 3;
+        description
+          "The remote system closed the session with a NOTIFICATION
+           message. The BGP PDU containing the NOTIFICATION follows
+           the reason code.";
+        reference
+          "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.9.";
+      }
+      enum remote-system-closed-no-data {
+        value 4;
+        description
+          "The remote system closed the session without a NOTIFICATION
+           message. Includes any unexpected termination of the
+           transport session.";
+        reference
+          "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.9.";
+      }
+      enum peer-de-configured {
+        value 5;
+        description
+          "Information for this peer will no longer be sent to the
+           monitoring station for configuration reasons.";
+        reference
+          "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.9.";
+      }
+      enum local-system-closed-tlv-data-follows {
+        value 6;
+        description
+          "The local system closed the Loc-RIB instance peer session.
+           TLV data follows (see btlv:peer-down), including the
+           VRF/Table Name TLV if it was present in the Peer Up.";
+        reference
+          "RFC 9069: Support for Local RIB in BMP, Section 5.3.";
+      }
+    }
+    description
+      "BMP Peer Down reason codes.";
+    reference
+      "RFC 7854: Section 4.9; RFC 9069: Section 5.3.";
+  }
+
+  grouping mirroring {
+    description
+      "BMP Route Mirroring Information TLV content (type 1 in the
+       Route Mirroring TLVs registry). Conveys a 2-byte information
+       code about the mirrored message or message stream.";
+    reference
+      "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.7.";
+    leaf information {
+      type enumeration {
+        enum error-pdu {
+          value 0;
+          description
+            "Errored PDU. The contained message was found to have
+             an error causing it to be treated-as-withdraw
+             (RFC 7606). A BGP Message TLV MUST also be present.";
+        }
+        enum message-lost {
+          value 1;
+          description
+            "Messages Lost. One or more messages may have been
+             lost, e.g., due to buffer exhaustion.";
+        }
+      }
+      description
+        "Route Mirroring Information code.";
+    }
+  }
+
+  // TODO: design better grouping for statistics
+  grouping statistics {
+    description
+      "BMP Statistics.";
+    reference
+      "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.8.";
+    leaf statistics-type {
+      type string {
+      }
+      description
+        "BMP statistics type. Defines the type of the statistic carried
+         in the Stat Data field.";
+    }
+    leaf statistics-data {
+      type uint64;
+      description
+        "BMP statistics data. Defines the value of the statistic.";
+    }
+  }
+
+  grouping peer-up {
+    description
+      "BMP Peer Up Notification fields.";
+    reference
+      "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.10.";
+    leaf local-address {
+      type inet:ip-address;
+      description
+        "Local address from the Peer Up Notification. Set to
+         '0::' for Loc-RIB Instance Peers.";
+      reference
+        "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.10.";
+    }
+    leaf local-port {
+      type inet:port-number;
+      description
+        "Local port from the Peer Up Notification. Set to 0
+         for Loc-RIB Instance Peers.";
+      reference
+        "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.10.";
+    }
+    leaf remote-port {
+      type inet:port-number;
+      description
+        "Remote port from the Peer Up Notification. Set to 0
+         for Loc-RIB Instance Peers.";
+      reference
+        "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.10.";
+    }
+
+    container sent-open {
+      description
+        "BGP OPEN message sent by the local router to its peer.";
+      reference
+        "RFC 4271: A Border Gateway Protocol 4 (BGP-4), Section 4.2.
+         RFC 7854: BGP Monitoring Protocol (BMP), Section 4.10.";
+      uses bgo:bgp-open;
+    }
+    container received-open {
+      description
+        "BGP OPEN message received from the peer.";
+      reference
+        "RFC 4271: A Border Gateway Protocol 4 (BGP-4), Section 4.2.
+         RFC 7854: BGP Monitoring Protocol (BMP), Section 4.10.";
+      uses bgo:bgp-open;
+    }
+  }
+
+  sx:structure message {
+    description
+      "Augments telemetry-message-metadata with BMP specific
+       subscription metadata";
+
+    leaf version {
+      type uint8;
+      mandatory true;
+      description
+        "BMP version from common header.";
+      reference
+        "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.1.";
+    }
+
+    container session-metadata {
+      presence
+        "BMP Initiation message information cached by a collector
+         to enrich this message with router identity context.";
+      description
+        "Optional metadata derived from the BMP Initiation message
+         for this BMP session. A collector MAY populate sys-name,
+         sys-descr or a free-form string leaf-list to make this
+         message self-contained for consumers that did not process
+         or store the Initiation message directly.";
+      uses btlv:information;
+    }
+
+    choice message-type {
+      description
+        "BMP message type from common header.";
+      reference
+        "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.1.";
+      case route-monitoring {
+        container route-monitoring {
+          description
+            "BMP Route Monitoring message. Used for initial
+             synchronization of Adj-RIBs-In and for ongoing
+             incremental route monitoring.";
+          uses per-peer;
+          uses bre:rib-entry;
+          uses btlv:route-monitoring;
+          uses btlv:common;
+        }
+      }
+      case statistics-report {
+        container statistics-report {
+          description
+            "BMP Statistics Report message. Carries one or more
+             counters reflecting activity on the monitored router.";
+          uses per-peer;
+          uses statistics;
+          uses btlv:common;
+        }
+      }
+      case peer-down-notification {
+        container peer-down-notification {
+          description
+            "BMP Peer Down Notification message. Indicates that a
+             peering session was terminated.";
+          uses per-peer;
+          leaf reason {
+            type peer-down-reason-code;
+            mandatory true;
+            description
+              "Reason why the peering session was closed.";
+            reference
+              "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.9;
+               RFC 9069: Support for Local RIB in BMP, Section 5.3.";
+          }
+          container peer-down {
+            when "../reason = 'local-system-closed-tlv-data-follows'" {
+              description
+                "TLV data is present only when reason code 6 is
+                 used (Loc-RIB instance peer session closed).";
+            }
+            description
+              "Peer Down TLV data following reason code 6. Contains
+               the VRF/Table Name TLV if it was present in the
+               corresponding Peer Up notification.";
+            uses btlv:peer-down;
+          }
+          uses btlv:common;
+        }
+      }
+      case peer-up-notification {
+        container peer-up-notification {
+          description
+            "BMP Peer Up Notification message. Indicates that a
+             peering session has come up.";
+          uses per-peer;
+          uses peer-up;
+          container information {
+            presence
+              "Information TLVs are present in this Peer Up
+               notification";
+            description
+              "Optional Information TLVs at the end of the Peer Up
+               message. For standard peers only the string type
+               (type 0) is defined; for Loc-RIB Instance Peers the
+               VRF/Table Name TLV (type 3, RFC 9069) MUST be
+               included when a name is configured.";
+            reference
+              "RFC 7854: Section 4.10;
+               RFC 9069: Section 5.2.1.";
+            uses btlv:information;
+          }
+          uses btlv:common;
+        }
+      }
+      case initiation-message {
+        container initiation-message {
+          description
+            "BMP Initiation Message. Provides information about the
+             monitored router. MUST be the first message sent after
+             the TCP session comes up. The sysDescr and sysName
+             TLVs MUST be present.";
+          uses btlv:information;
+          uses btlv:common;
+        }
+      }
+      case termination-message {
+        container termination-message {
+          description
+            "BMP Termination Message. Provides a reason why the
+             monitored router is closing the BMP session.";
+          uses btlv:termination;
+          uses btlv:common;
+        }
+      }
+      case route-mirroring-message {
+        container route-mirroring-message {
+          description
+            "BMP Route Mirroring Message. Used for verbatim
+             duplication of messages as received, e.g., for
+             full-fidelity monitoring or error reporting.";
+          uses per-peer;
+          uses bre:rib-entry;
+          uses mirroring;
+          uses btlv:common;
+        }
+      }
+    }
+  }
+}
+
