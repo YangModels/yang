@@ -1,0 +1,863 @@
+module tailf-common-monitoring {
+  namespace "http://tail-f.com/yang/common-monitoring";
+  prefix tfcg;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  organization "Tail-f Systems";
+
+  description
+    "This module defines common status objects for monitoring of
+     Tail-f products.";
+
+  revision 2013-06-14 {
+    description
+      "Released as part of ConfD-4.3 and NCS-2.3.
+
+       Added 'relay-slave' enum for HA mode.";
+  }
+
+  revision 2013-03-07 {
+    description
+      "Released as part of ConfD-4.2 and NCS-2.2.
+
+       Added container 'loaded-data-models'.
+
+       Added container 'rest' for status of the REST server.";
+  }
+
+  revision 2012-11-08 {
+    description
+      "Released as part of ConfD-4.1 and NCS-2.1.
+
+       Fixed bug in 'when' expression in 'cluster-info' choice.";
+  }
+
+  revision 2012-03-08 {
+    description
+      "Released as part of ConfD-3.9 and NCS-1.9.
+
+       Added 'pending-read' and 'pending-subscription' values for
+       internal/cdb/client/lock.";
+  }
+
+  revision 2011-12-08 {
+    description
+      "Released as part of ConfD-3.8.
+
+       Added CDB status.";
+  }
+
+  revision 2011-09-22 {
+    description
+      "Initial revision.";
+  }
+
+  /*
+   * Typedefs
+   */
+
+  typedef ha-node-id {
+    type string;
+    description
+      "The node identifier, as provided by the HA framework.";
+  }
+
+  typedef size-in-bytes {
+    type uint64;
+    units bytes;
+  }
+
+  /*
+   * Groupings
+   */
+
+  grouping callpoint-entry {
+    leaf id {
+      type string;
+      description
+        "Callpoint id";
+    }
+    uses registration-info;
+  }
+
+  grouping registration-info {
+
+    grouping daemon-info {
+      leaf id {
+        type uint32;
+        description
+          "The numerical id assigned to the application daemon
+           that has registered for a callpoint.";
+      }
+      leaf name {
+        type string;
+        description
+          "The name of the application daemon that has
+           registered for a callpoint.";
+      }
+      leaf error {
+        description
+          "If this leaf exists, there is a problem
+           with the daemon registration.";
+        type enumeration {
+          enum "PENDING" {
+            description
+              "This value means that the application daemon has not
+               completed the registration (with confd_register_done()).";
+          }
+        }
+      }
+    }
+
+    choice registration-type {
+      case daemon {
+        container daemon {
+          uses daemon-info;
+        }
+      }
+      case range {
+        leaf path {
+          type string;
+          description
+            "The path of the list that a range registration
+             pertains to.";
+        }
+        list range {
+          leaf lower {
+            type string;
+            description
+              "The space-separated set of keys that defines the lower
+               endpoint of the range for a non-default registration.";
+          }
+          leaf upper {
+            type string;
+            description
+              "The space-separated set of keys that defines the upper
+               endpoint of the range for a non-default registration.";
+          }
+          leaf default {
+            type empty;
+            description
+              "If this leaf exists, this is a default registration
+               - in this case 'lower' and 'upper' do not exist.";
+          }
+          container daemon {
+            uses daemon-info;
+          }
+        }
+      }
+      case file {
+        leaf file {
+          type string;
+          description
+            "The pathname of the shared object implementing the type
+             for a typepoint.";
+        }
+      }
+    }
+
+    leaf error {
+      description
+        "If this leaf exists, there is a problem
+         with the callpoint registration.";
+      type enumeration {
+        enum "NOT-REGISTERED" {
+          description
+            "This value means that there is no registration
+             for the callpoint.";
+        }
+        enum "UNKNOWN" {
+          description
+            "This value means that the callpoint does not exist,
+             but there is a registration for it.";
+        }
+      }
+    }
+  }
+
+  grouping common-monitoring-objects {
+
+    grouping ip-port {
+      leaf ip {
+        type inet:ip-address;
+      }
+      leaf port {
+        type inet:port-number;
+      }
+    }
+
+
+    /*
+     * Common Status objects
+     */
+
+    leaf version {
+      type string;
+      description
+        "Tail-f product version number.";
+    }
+
+    container smp {
+      presence "Indicates that symmetric multiprocessing is used";
+      leaf number-of-threads {
+        type uint16;
+        description
+          "Number of threads used by the daemon.";
+      }
+    }
+
+    leaf epoll {
+      type boolean;
+      description
+        "Indicates whether an enhanced poll() function is used";
+    }
+
+    leaf daemon-status {
+      type enumeration {
+        enum "starting" {
+          description
+            "The daemon is starting up.";
+        }
+        enum "phase0" {
+          description
+            "The daemon is running in start phase 0.";
+        }
+        enum "phase1" {
+          description
+            "The daemon is running in start phase 1.";
+        }
+        enum "started" {
+          description
+            "The daemon is started.";
+        }
+        enum "stopping" {
+          description
+            "The daemon is stopping.";
+        }
+      }
+    }
+
+    leaf read-only-mode {
+      type empty;
+    }
+
+    leaf upgrade-mode {
+      type empty;
+      description
+        "Note that if the node is in upgrade mode, it is not possible to
+         get any information from the system over NETCONF.
+         The error-app-tag will be upgrade-in-progress.
+
+         Existing CLI sessions can get system information.";
+    }
+
+    /*
+     * High Availability Status
+     */
+
+    container ha {
+      presence "The daemon is running in a High Availability (HA) cluster.";
+
+      leaf mode {
+        type enumeration {
+          enum none;
+          enum slave;
+          enum master;
+          enum relay-slave;
+        }
+        description
+          "The current HA mode of the node in the HA cluster.";
+      }
+
+      leaf node-id {
+        type ha-node-id;
+        when "../mode != 'none'";
+        description
+          "The node identifier of this node in the HA cluster.";
+      }
+
+      leaf master-node-id {
+        when "../mode = 'slave' or ../mode = 'relay-slave'";
+        type string;
+        description
+          "The node identifier of this node's parent node.
+           This is the HA cluster's master node unless relay slaves
+           are used.";
+      }
+
+      leaf-list connected-slave {
+        when "../mode = 'master' or ../mode = 'relay-slave'";
+        type string;
+        description
+          "The node identifiers of the currently connected slaves.";
+      }
+      leaf-list pending-slave {
+        when "../mode = 'master' or ../mode = 'relay-slave'";
+        type string;
+        description
+          "The node identifiers of slaves with pending acknowledgement
+           of synchronous replication.";
+      }
+    }
+
+    /*
+     * User sessions are defined in ietf-netconf-monitoring, with
+     *   additional information in tailf-netconf-monitoring.
+     *
+     * Notification streams are defined in netconf_netmod.yang.
+     */
+
+    /*
+     * Data Models
+     */
+
+    container loaded-data-models {
+      list data-model {
+        description
+          "This list contains all loaded YANG data modules.
+
+           This list is a superset of the 'schema' list defined in
+           ietf-netconf-monitoring, which only lists modules exported
+           through NETCONF.";
+
+        key name;
+
+        leaf name {
+          type string;
+          description
+            "The YANG module name.";
+        }
+        leaf revision {
+          type string;
+          description
+            "The YANG module revision.";
+        }
+        leaf namespace {
+          type inet:uri;
+          description
+            "The YANG module namespace.";
+        }
+        leaf prefix {
+          type string;
+          description
+            "The prefix defined in the YANG module.";
+        }
+        choice exported {
+          leaf exported-to-all {
+            type empty;
+            description
+              "This leaf is present if the module is exported to all
+               northbound interfaces.";
+          }
+          leaf-list exported-to {
+            type union {
+              type enumeration {
+                enum "netconf";
+                enum "cli";
+                enum "webui";
+                enum "rest";
+                enum "snmp";
+              }
+              type string;
+            }
+            description
+              "A list of the contexts (northbound interfaces) this module
+               is exported to.";
+          }
+        }
+      }
+    }
+
+    /*
+     * NETCONF server
+     */
+
+    container netconf {
+      presence "Indicates that the NETCONF server is running.";
+
+      container listen {
+        description
+          "The transport addresses the NETCONF server is listening on.
+
+           Note that other mechanisms can be put in front of the TCP
+           addresses below, e.g., an OpenSSH server.  Such mechanisms
+           are not known to the daemon and not listed here.";
+        list tcp {
+          uses ip-port;
+        }
+        list ssh {
+          uses ip-port;
+        }
+      }
+    }
+
+    /*
+     * CLI server
+     */
+
+    container cli {
+      presence "Indicates that the CLI server is running.";
+
+      container listen {
+        description
+          "The transport addresses the CLI server is listening on.
+
+           In addition to the SSH addresses listen below, the CLI can
+           always be invoked through the daemons IPC port.
+
+           Note that other mechanisms can be put in front of the IPC
+           port, e.g., an OpenSSH server.  Such mechanisms are not
+           known to the daemon and not listed here.";
+        list ssh {
+          uses ip-port;
+        }
+      }
+    }
+
+    /*
+     * WebUI server
+     */
+
+    container webui {
+      presence "Indicates that the WebUI server is running.";
+
+      container listen {
+        description
+          "The transport addresses the WebUI server is listening on.";
+        list tcp {
+          uses ip-port;
+        }
+        list ssl {
+          uses ip-port;
+        }
+      }
+    }
+
+    /*
+     * REST server
+     */
+
+    container rest {
+      presence "Indicates that the REST server is running.";
+
+      container listen {
+        description
+          "The transport addresses the REST server is listening on.";
+        list tcp {
+          uses ip-port;
+        }
+        list ssl {
+          uses ip-port;
+        }
+      }
+    }
+
+    /*
+     * SNMP Agent
+     */
+
+    container snmp {
+      presence "Indicates that the SNMP agent is running.";
+
+      container listen {
+        description
+          "The transport addresses the SNMP agent is listening on.";
+        list udp {
+          uses ip-port;
+        }
+      }
+
+      leaf-list mib {
+        type string;
+        description
+          "MIBs loaded by the SNMP agent.";
+      }
+
+      container version {
+        description
+          "SNMP version used by the engine.";
+        leaf v1 {
+          type empty;
+        }
+        leaf v2c {
+          type empty;
+        }
+        leaf v3 {
+          type empty;
+        }
+      }
+
+      leaf engine-id {
+        type string {
+          pattern '([0-9a-fA-F]){2}(:([0-9a-fA-F]){2}){4,31}';
+        }
+        description
+          "The local Engine ID specified as a list of colon-specified
+           hexadecimal octets e.g. '4F:4C:41:71'.";
+      }
+    }
+
+    /*
+     * Internal Information
+     */
+
+    container internal {
+
+      container callpoints {
+
+        list callpoint {
+          key id;
+          uses callpoint-entry;
+        }
+
+        list validationpoint {
+          key id;
+          uses callpoint-entry;
+        }
+
+        list actionpoint {
+          key id;
+          uses callpoint-entry;
+        }
+
+        list snmp-inform-callback {
+          key id;
+          uses callpoint-entry;
+        }
+
+        list snmp-notification-subscription {
+          key id;
+          uses callpoint-entry;
+        }
+
+        list error-formatting-callback {
+          key id;
+          uses callpoint-entry;
+        }
+
+        list typepoint {
+          key id;
+          uses callpoint-entry;
+        }
+
+        list notification-stream-replay {
+          key name;
+          leaf name {
+            type string;
+            description
+              "Name of the notification stream.";
+          }
+          leaf replay-support {
+            type enumeration {
+              enum "none";
+              enum "builtin";
+              enum "external";
+            }
+          }
+          uses registration-info;
+        }
+
+        container authentication-callback {
+          presence "Indicates that the authentication callback
+                    is enabled or registered";
+          leaf enabled {
+            type boolean;
+          }
+          uses registration-info;
+        }
+
+        container authorization-callbacks {
+          presence "Indicates that the authorization callbacks
+                    are enabled or registered";
+          leaf enabled {
+            type boolean;
+          }
+          uses registration-info;
+        }
+      }
+
+
+      container cdb {
+
+        typedef datastore-name {
+          type enumeration {
+            enum "running";
+            enum "startup";
+            enum "operational";
+          }
+          description
+            "Name of one of the datastores implemented by CDB.";
+        }
+
+        typedef subscription-id {
+          type uint32;
+          description
+            "The numerical subscription identifier (subscription point)
+             that uniquely identifies a subscription.";
+        }
+
+        typedef subscription-priority {
+          type int32;
+          description
+            "The numerical priority associated with a subscripition
+             for configuration data changes.";
+        }
+
+        list datastore {
+          key name;
+
+          leaf name {
+            type datastore-name;
+          }
+
+          leaf transaction-id {
+            type string;
+            description
+              "The id of the last committed transaction for the 'running'
+               datastore, or the last update for the 'operational' datastore.
+               For the 'operational' datastore, it is only present when HA
+               is enabled.";
+          }
+
+          leaf write-queue {
+            type uint32;
+            description
+              "Number of pending write requests for the 'operational'
+               datastore on a HA slave that is in the process of syncronizing
+               with the master.";
+          }
+
+          leaf filename {
+            type string;
+            description
+              "The pathname of the file that is used for persistent storage
+               for the datastore. Not present for 'running' when 'startup'
+               exists.";
+          }
+
+          leaf disk-size {
+            type size-in-bytes;
+            description
+              "The size of the file that is used for persistent storage
+               for the datastore. Only present if 'filename' is present.";
+          }
+
+          leaf ram-size {
+            type size-in-bytes;
+            description
+              "The size of the in-memory representation of the datastore.";
+          }
+
+          leaf read-locks {
+            type uint32;
+            description
+              "The number of read locks on the datastore. Not present for
+               the 'operational' data store.";
+          }
+
+          leaf write-lock-set {
+            type boolean;
+            description
+              "Indicates whether a write lock is in effect for the datastore.
+               Not present for the 'operational' datastore.";
+          }
+
+          leaf subscription-lock-set {
+            type boolean;
+            description
+              "Indicates whether a subscription lock is in effect for the
+               'operational' datastore.";
+          }
+
+          leaf waiting-for-replication-sync {
+            type boolean;
+            description
+              "Indicates whether synchronous replication from HA master to
+               HA slave is in progress for the datastore. Not present for the
+               'operational' datastore.";
+          }
+
+          container pending-subscription-sync {
+            presence "waiting for subscription sync";
+            description
+              "Information pertaining to subscription notifications that have
+               been delivered to, but not yet acknowledged by, subscribing
+               clients. Not present for the 'startup' datastore.";
+            leaf priority {
+              type subscription-priority;
+              description
+                "The priority of the subscriptions that generated the
+                 notifications that are waiting for acknowledgement.
+                 Not present for the 'operational' datastore.";
+            }
+            list notification {
+              leaf client-name {
+                type string;
+                description
+                  "The name of the client that is the recipient of the
+                   notification.";
+              }
+              leaf-list subscription-ids {
+                type subscription-id;
+                description
+                  "The subscription identifiers for the subscriptions that
+                   generated the notification.";
+              }
+            }
+            leaf time-remaining {
+              type union {
+                type uint64;
+                type enumeration {
+                  enum infinity;
+                }
+              }
+              description
+                "The remaining time in seconds until subscribing clients
+                 that have not acknowledged their notifications are
+                 considered unresponsive and will be disconnected. See
+                 /confdConfig/cdb/clientTimeout in the confd.conf(5) manual
+                 page. The value 'infinity' means that no timeout has been
+                 configured in confd.conf.";
+            }
+          }
+
+          list pending-notification-queue {
+            description
+              "Queues of notifications that have been generated but not
+               yet delivered to subscribing clients. Not present for the
+               'startup' datastore.";
+            list notification {
+              leaf priority {
+                type subscription-priority;
+                description
+                  "The priority of the subscriptions that generated the
+                   notification. Not present for the the 'operational'
+                   datastore.";
+              }
+              leaf client-name {
+                type string;
+                description
+                  "The name of the client that is the recipient of the
+                   notification.";
+              }
+              leaf-list subscription-ids {
+                type subscription-id;
+                description
+                  "The subscription identifiers for the subscriptions that
+                   generated the notification.";
+              }
+            }
+          }
+
+        }
+
+        list client {
+          leaf name {
+            type string;
+            description
+              "The client name.";
+          }
+          leaf info {
+            type string;
+            description
+              "Additional information about the client obtained at connect
+               time. If present, it consists of client PID and socket file
+               descriptor number.";
+          }
+          leaf type {
+            type enumeration {
+              enum inactive;
+              enum client;
+              enum subscriber;
+              enum waiting;
+            }
+            description
+              "The type of client: 'inactive' is a client connection without
+               any specific state. 'client' means that the client has an
+               active session towards a datastore. A 'subscriber' has made
+               one or more subscriptions. 'waiting' means that the client is
+               waiting for completion of a call such as cdb_wait_start().";
+          }
+          leaf datastore {
+            type union {
+              type datastore-name;
+              type enumeration {
+                enum pre_commit_running {
+                  value 9;
+                }
+              }
+            }
+            description
+              "The name of the datastore when 'type' = 'client'. The value
+               'pre_commit_running' is the 'pseudo' datastore representing
+               'running' before a commit.";
+          }
+          leaf lock {
+            type enumeration {
+              enum read;
+              enum subscription;
+              enum pending-read;
+              enum pending-subscription;
+            }
+            description
+              "Set when 'type' = 'client' and the client has requested or
+               acquired a lock on the datastore. The 'pending-read' and
+               'pending-subscription' values indicate that the client has
+               requested but not yet acquired the corresponding lock.
+               A 'read' lock is never taken for the 'operational' datastore,
+               a 'subscription' lock is never taken for any other datastore
+               than 'operational'.";
+          }
+
+          list subscription {
+            leaf datastore {
+              type datastore-name;
+              description
+                "The name of the datastore for the subscription - only
+                 'running' and 'operational' can have subscriptions.";
+            }
+            leaf twophase {
+              type empty;
+              description
+                "Present if this is a 'twophase' subscription, i.e.
+                 notifications will be delivered at 'prepare' in addition
+                 to 'commit'. Only for the 'running' datastore.";
+            }
+            leaf priority {
+              type subscription-priority;
+              description
+                "The priority of the subscription.";
+            }
+            leaf id {
+              type subscription-id;
+              description
+                "The subscription identifier for the subscription.";
+            }
+            leaf path {
+              type string;
+              description
+                "The path that the subscription pertains to.";
+            }
+            leaf error {
+              description
+                "If this leaf exists, there is a problem
+                  with the subscription.";
+              type enumeration {
+                enum "PENDING" {
+                  description
+                    "This value means that the subscribing client has not
+                     completed the subscription (with cdb_subscribe_done()).";
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+}
+
