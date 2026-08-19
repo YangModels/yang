@@ -1,6 +1,7 @@
 ## YANG Models and Platform Capabilities for Cisco NX-OS 10.6(4)
 
 The YANG files in this directory detail the native and OpenConfig YANG models with deviations supported by NX-OS 10.6(4) release.
+These YANG files are based on the snapshot of Openconfig YANG models [v5.3.0](https://github.com/openconfig/public/releases/tag/v5.3.0).
 
 As a convenience, a copy of the "hello" message is also provided (netconf-capabilities.xml).
 
@@ -29,5 +30,4 @@ The native YANG models are not fully compliant with all IETF guidelines as exemp
 ### Revision Statements
 
 From NX-OS 7.0.3 and onwards, the revision statements embedded in the YANG files **should** accurately reflect whether or not a new revision has been introduced. However, there are some bugs. These will be noted by running the ```check-models.sh``` script with the ```-b``` option.
-
 
