@@ -33,7 +33,7 @@ module ietf-lisp-address-types {
       (LCAF) for LISP. The module can be extended by vendors to
       define vendor-specific parameters.
 
-      Copyright (c) 2024 IETF Trust and the persons identified as
+      Copyright (c) 2026 IETF Trust and the persons identified as
       authors of the code.  All rights reserved.
 
       Redistribution and use in source and binary forms, with or
@@ -54,7 +54,7 @@ module ietf-lisp-address-types {
   reference
     "RFC XXXX";
 
-  revision 2024-10-20 {
+  revision 2026-09-03 {
     description
       "Initial revision.";
     reference
@@ -151,12 +151,6 @@ module ietf-lisp-address-types {
       "Application Data LCAF type.";
   }
 
-  identity geo-coordinates-lcaf {
-    base lcaf;
-    description
-      "Geo-coordinates LCAF type.";
-  }
-
   identity opaque-key-lcaf {
     base lcaf;
     description
@@ -223,10 +217,10 @@ module ietf-lisp-address-types {
       "Encapsulation Format LCAF type.";
   }
 
-  identity service-path-lcaf {
+  identity vendor-specific-lcaf {
     base lcaf;
     description
-      "Service Path LCAF type.";
+      "Vendor-Specific LCAF type.";
   }
 
   typedef instance-id-type {
@@ -235,14 +229,6 @@ module ietf-lisp-address-types {
     }
     description
       "Defines the range of values for an Instance ID.";
-  }
-
-  typedef service-path-id-type {
-    type uint32 {
-      range "0..16777215";
-    }
-    description
-      "Defines the range of values for a Service Path ID.";
   }
 
   typedef distinguished-name-type {
@@ -265,7 +251,6 @@ module ietf-lisp-address-types {
     description
       "Union of address types that can be part of LCAFs.";
   }
-
   typedef lisp-address-family-ref {
     type identityref {
       base lisp-address-family;
@@ -499,90 +484,44 @@ module ietf-lisp-address-types {
             "High end of remote port range.";
         }
       }
-      container geo-coordinates {
-        when "../address-type = 'laddr:geo-coordinates-lcaf'" {
+      container opaque-key {
+        when "../address-type = 'laddr:opaque-key-lcaf'" {
           description
-            "When LCAF type is Geo-coordinates.";
+            "When LCAF type is Opaque Key.";
         }
         description
-          "Geo-coordinates LCAF type. Coordinates are specified
-            using the WGS 84 (World Geodetic System 1984) reference
-            coordinate system. This YANG model follows the Geo-
-            coordinates format used in RFC 8060.";
+          "Opaque Key LCAF type. The key fields are encoded in user
+            order and MUST all have the same decoded-octet length.";
         reference
-          "RC8060: LISP Canonical Address Format (LCAF)
-            #section-4.3";
-        leaf latitude {
-          type bits {
-            bit N {
-              description
-                "Latitude bit.";
-            }
+          "draft-ietf-lisp-rfc8060bis: LISP Canonical Address Format
+            (LCAF), Section 4.5.";
+        list key-field {
+          key "key-field-id";
+          min-elements 1;
+          max-elements 16;
+          ordered-by user;
+          description
+            "Ordered key subfields. The list size and wildcard leaves
+              determine the Key Field Num and Key Wildcard Fields wire
+              values.";
+          leaf key-field-id {
+            type id-type;
+            description
+              "Management identifier for the key field; it is not
+                transmitted on the wire.";
           }
-          description
-            "Bit that selects between North and South latitude.";
-        }
-        leaf latitude-degrees {
-          type uint8 {
-            range "0 .. 90";
+          leaf wildcard {
+            type boolean;
+            default "false";
+            description
+              "Indicates that this key field is not used in a lookup.";
           }
-          description
-            "Degrees of latitude.";
-        }
-        leaf latitude-minutes {
-          type uint8 {
-            range "0..59";
+          leaf value {
+            type binary;
+            mandatory true;
+            description
+              "Opaque key-field value.";
           }
-          description
-            "Minutes of latitude.";
-        }
-        leaf latitude-seconds {
-          type uint8 {
-            range "0..59";
-          }
-          description
-            "Seconds of latitude.";
-        }
-        leaf longitude {
-          type bits {
-            bit E {
-              description
-                "Longitude bit.";
-            }
-          }
-          description
-            "Bit that selects between East and West longitude.";
-        }
-        leaf longitude-degrees {
-          type uint16 {
-            range "0 .. 180";
-          }
-          description
-            "Degrees of longitude.";
-        }
-        leaf longitude-minutes {
-          type uint8 {
-            range "0..59";
-          }
-          description
-            "Minutes of longitude.";
-        }
-        leaf longitude-seconds {
-          type uint8 {
-            range "0..59";
-          }
-          description
-            "Seconds of longitude.";
-        }
-        leaf altitude {
-          type int32;
-          description
-            "Height relative to sea level in meters.";
-        }
-        leaf address {
-          type simple-address;
-          description
-            "AFI address.";
         }
       }
       container nat-traversal {
@@ -625,6 +564,130 @@ module ietf-lisp-address-types {
           type simple-address;
           description
             "List of RTR RLOC addresses.";
+        }
+      }
+      container nonce-locator {
+        when "../address-type = 'laddr:nonce-locator-lcaf'" {
+          description
+            "When LCAF type is Nonce Locator.";
+        }
+        description
+          "Nonce Locator LCAF type.";
+        reference
+          "draft-ietf-lisp-rfc8060bis: LISP Canonical Address Format
+            (LCAF), Section 4.7.";
+        leaf nonce {
+          type uint32 {
+            range "0..16777215";
+          }
+          mandatory true;
+          description
+            "24-bit nonce value.";
+        }
+        leaf address {
+          type inet:ip-address;
+          mandatory true;
+          description
+            "IPv4 or IPv6 locator address.";
+        }
+      }
+      container multicast-info {
+        when "../address-type = 'laddr:multicast-info-lcaf'" {
+          description
+            "When LCAF type is Multicast Info.";
+        }
+        must "not(source-ipv4) or "
+           + "(source-mask-length <= 32 and "
+           + "group-mask-length <= 32)" {
+          error-message
+            "IPv4 source and group masks cannot exceed 32 bits.";
+        }
+        must "not(source-mac) or "
+           + "(source-mask-length <= 48 and "
+           + "group-mask-length <= 48)" {
+          error-message
+            "MAC source and group masks cannot exceed 48 bits.";
+        }
+        description
+          "Multicast Info LCAF type. Source and group addresses use
+            the same address family. The group address MUST be a
+            multicast or broadcast address.";
+        reference
+          "draft-ietf-lisp-rfc8060bis: LISP Canonical Address Format
+            (LCAF), Section 4.8.";
+        leaf instance-id {
+          type uint32;
+          mandatory true;
+          description
+            "32-bit LCAF Instance ID.";
+        }
+        leaf source-mask-length {
+          type uint8 {
+            range "0..128";
+          }
+          mandatory true;
+          description
+            "Source mask length. The maximum is 32 for IPv4, 128 for
+              IPv6, and 48 for a MAC address.";
+        }
+        leaf group-mask-length {
+          type uint8 {
+            range "0..128";
+          }
+          mandatory true;
+          description
+            "Group mask length. The maximum is 32 for IPv4, 128 for
+              IPv6, and 48 for a MAC address.";
+        }
+        choice address-family {
+          mandatory true;
+          description
+            "Address family shared by the source and group.";
+          case ipv4 {
+            leaf source-ipv4 {
+              type inet:ipv4-address;
+              mandatory true;
+              description
+                "IPv4 source or subnet address. An all-zero value is
+                  the wildcard source.";
+            }
+            leaf group-ipv4 {
+              type inet:ipv4-address;
+              mandatory true;
+              description
+                "IPv4 multicast or broadcast group address.";
+            }
+          }
+          case ipv6 {
+            leaf source-ipv6 {
+              type inet:ipv6-address;
+              mandatory true;
+              description
+                "IPv6 source or subnet address. An all-zero value is
+                  the wildcard source.";
+            }
+            leaf group-ipv6 {
+              type inet:ipv6-address;
+              mandatory true;
+              description
+                "IPv6 multicast group address.";
+            }
+          }
+          case mac {
+            leaf source-mac {
+              type yang:mac-address;
+              mandatory true;
+              description
+                "MAC source or subnet address. An all-zero value is
+                  the wildcard source.";
+            }
+            leaf group-mac {
+              type yang:mac-address;
+              mandatory true;
+              description
+                "Multicast or broadcast MAC group address.";
+            }
+          }
         }
       }
       container explicit-locator-path {
@@ -672,6 +735,59 @@ module ietf-lisp-address-types {
           }
         }
       }
+      container security-key {
+        when "../address-type = 'laddr:security-key-lcaf'" {
+          description
+            "When LCAF type is Security Key.";
+        }
+        description
+          "Security Key LCAF type. Key Count and each Key Length are
+            derived from the key-section list.";
+        reference
+          "draft-ietf-lisp-rfc8060bis: LISP Canonical Address Format
+            (LCAF), Section 4.10.";
+        leaf key-algorithm {
+          type uint8;
+          mandatory true;
+          description
+            "Algorithm that determines the key-material format.";
+        }
+        leaf revoke {
+          type boolean;
+          default "false";
+          description
+            "Indicates that the key is being revoked.";
+        }
+        list key-section {
+          key "key-id";
+          max-elements 255;
+          ordered-by user;
+          description
+            "Ordered key sections.";
+          leaf key-id {
+            type uint8 {
+              range "1..255";
+            }
+            description
+              "Management identifier for the key section; it is not
+                transmitted on the wire.";
+          }
+          leaf key-material {
+            type binary {
+              length "0..65535";
+            }
+            mandatory true;
+            description
+              "Key material for this section.";
+          }
+        }
+        leaf address {
+          type inet:ip-address;
+          mandatory true;
+          description
+            "IPv4 or IPv6 locator that owns the security key.";
+        }
+      }
       container source-dest-key {
         when "../address-type = 'laddr:source-dest-key-lcaf'" {
           description
@@ -693,6 +809,113 @@ module ietf-lisp-address-types {
             "Destination address.";
         }
       }
+      container replication-list {
+        when "../address-type = 'laddr:replication-list-lcaf'" {
+          description
+            "When LCAF type is Replication List.";
+        }
+        description
+          "Replication List LCAF type. All entries use the address
+            family selected by the enclosing choice.";
+        reference
+          "draft-ietf-lisp-rfc8060bis: LISP Canonical Address Format
+            (LCAF), Section 4.12.";
+        choice address-family {
+          mandatory true;
+          description
+            "Address family shared by all replication entries.";
+          case ipv4 {
+            list ipv4-entry {
+              key "entry-id";
+              min-elements 1;
+              ordered-by user;
+              description
+                "Ordered IPv4 replication entries.";
+              leaf entry-id {
+                type id-type;
+                description
+                  "Management identifier for the entry; it is not
+                    transmitted on the wire.";
+              }
+              leaf level {
+                type uint8;
+                mandatory true;
+                description
+                  "Overlay distribution-tree level.";
+              }
+              leaf address {
+                type inet:ipv4-address;
+                mandatory true;
+                description
+                  "IPv4 RTR or ETR address.";
+              }
+            }
+          }
+          case ipv6 {
+            list ipv6-entry {
+              key "entry-id";
+              min-elements 1;
+              ordered-by user;
+              description
+                "Ordered IPv6 replication entries.";
+              leaf entry-id {
+                type id-type;
+                description
+                  "Management identifier for the entry; it is not
+                    transmitted on the wire.";
+              }
+              leaf level {
+                type uint8;
+                mandatory true;
+                description
+                  "Overlay distribution-tree level.";
+              }
+              leaf address {
+                type inet:ipv6-address;
+                mandatory true;
+                description
+                  "IPv6 RTR or ETR address.";
+              }
+            }
+          }
+        }
+      }
+      container json-data-model {
+        when "../address-type = 'laddr:json-data-model-lcaf'" {
+          description
+            "When LCAF type is JSON Data Model.";
+        }
+        description
+          "JSON Data Model LCAF type. The selected encoding determines
+            the B bit, and the encoded value determines JSON Length.";
+        reference
+          "draft-ietf-lisp-rfc8060bis: LISP Canonical Address Format
+            (LCAF), Section 4.13.";
+        choice json-encoding {
+          mandatory true;
+          description
+            "JSON encoding carried by this LCAF.";
+          leaf json-text {
+            type string {
+              length "1..65535";
+            }
+            description
+              "RFC 8259 JSON text encoding.";
+          }
+          leaf json-binary {
+            type binary {
+              length "1..65535";
+            }
+            description
+              "Universal Binary JSON encoding.";
+          }
+        }
+        leaf address {
+          type simple-address;
+          description
+            "Optional address associated with the JSON data model.";
+        }
+      }
       container key-value-address {
         when "../address-type = 'laddr:key-value-address-lcaf'" {
           description
@@ -712,6 +935,97 @@ module ietf-lisp-address-types {
           type simple-address;
           description
             "Address as Value.";
+        }
+      }
+      container encapsulation-format {
+        when "../address-type = 'laddr:encapsulation-format-lcaf'" {
+          description
+            "When LCAF type is Encapsulation Format.";
+        }
+        description
+          "Encapsulation Format LCAF type.";
+        reference
+          "draft-ietf-lisp-rfc8060bis: LISP Canonical Address Format
+            (LCAF), Section 4.15.";
+        leaf encapsulations {
+          type bits {
+            bit no-encapsulation {
+              position 0;
+              description
+                "No encapsulation.";
+            }
+            bit gue {
+              position 25;
+              description
+                "Generic UDP Encapsulation.";
+            }
+            bit geneve {
+              position 26;
+              description
+                "Geneve encapsulation.";
+            }
+            bit nv-gre {
+              position 27;
+              description
+                "NV-GRE encapsulation.";
+            }
+            bit vxlan-gpe {
+              position 28;
+              description
+                "VXLAN-GPE encapsulation.";
+            }
+            bit vxlan {
+              position 29;
+              description
+                "VXLAN encapsulation.";
+            }
+            bit layer-2-lisp {
+              position 30;
+              description
+                "Layer 2 LISP encapsulation.";
+            }
+            bit layer-3-lisp {
+              position 31;
+              description
+                "Layer 3 LISP encapsulation.";
+            }
+          }
+          mandatory true;
+          description
+            "Supported encapsulation formats.";
+        }
+        leaf address {
+          type inet:ip-address;
+          mandatory true;
+          description
+            "IPv4 or IPv6 RLOC address.";
+        }
+      }
+      container vendor-specific {
+        when "../address-type = 'laddr:vendor-specific-lcaf'" {
+          description
+            "When LCAF type is Vendor-Specific.";
+        }
+        description
+          "Vendor-Specific LCAF type.";
+        reference
+          "draft-ietf-lisp-rfc8060bis: LISP Canonical Address Format
+            (LCAF), Section 4.16.";
+        leaf oui {
+          type yang:hex-string {
+            length "8"; // "aa:bb:cc"
+          }
+          mandatory true;
+          description
+            "A 24-bit IEEE Organizationally Unique Identifier.";
+          reference
+            "IEEE Std 802, subclause 8.2.2";
+        }
+        leaf internal-format {
+          type binary;
+          mandatory true;
+          description
+            "Vendor-defined internal-format data.";
         }
       }
     }
