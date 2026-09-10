@@ -9,6 +9,7 @@ module ietf-cmis-control {
 
   organization
     "IETF CCAMP Working Group";
+
   contact
     "WG Web:   <https://datatracker.ietf.org/wg/ccamp/>
     WG List:  <mailto:ccamp@ietf.org>
@@ -35,7 +36,6 @@ module ietf-cmis-control {
 
     Copyright (c) 2026 IETF Trust and the persons identified
     as authors of the code.  All rights reserved.
-
     Redistribution and use in source and binary forms, with or
     without modification, is permitted pursuant to, and
     subject to the license terms contained in, the Revised
@@ -49,12 +49,22 @@ module ietf-cmis-control {
 
 // RFC Ed.: replace XXXX with actual RFC number and remove this note
 
+  revision "2026-07-12" {
+    description
+      "Changed the key of the cmis-page list to 'page-num bank' to
+       support banked pages.  Renamed access-type enums to avoid
+       '/' in enum names.  Adopted inclusive terminology
+       (allowlist).";
+    reference
+      "I-D.hi-ccamp-cmis-control-yang-04";
+  }
+
   revision "2026-05-12" {
     description
-      "Revised control model to use whitelist approach.
+      "Revised control model to use an allowlist approach.
        Added remote-read-allowed-pages for granular access control.";
     reference
-      "RFC XXXX: A YANG Data Model for CMIS Access and Control";
+      "I-D.hi-ccamp-cmis-control-yang-02";
   }
 
   revision "2025-04-21" {
@@ -83,11 +93,11 @@ module ietf-cmis-control {
         enum wo {
           description "A write-only element.";
         }
-        enum wo/sc {
+        enum wo-sc {
           description "A write-only element with self-clearing side
           effect.";
         }
-        enum ro/cor {
+        enum ro-cor {
           description "A read-only element with clear-on-read side
           effect.";
         }
@@ -122,7 +132,6 @@ module ietf-cmis-control {
       config false;
       description "Access type of the CMIS page.";
     }
-
     leaf description {
       type string;
       description
@@ -179,10 +188,10 @@ module ietf-cmis-control {
       pluggable device accommodated into the interface.";
 
     list cmis-page {
-      key "page-num";
+      key "page-num bank";
       description "A CMIS page supported by the device.";
       uses cmis-page;
-      }
+    }
   }
 
   grouping cmis-control {
@@ -211,7 +220,7 @@ module ietf-cmis-control {
         enum disabled {
           description
             "Remote access is completely disabled for pages not
-             listed in the whitelists.";
+             listed in the allowlists.";
         }
         enum read-only {
           description
@@ -227,15 +236,19 @@ module ietf-cmis-control {
     list remote-read-allowed-pages {
       key "page-num";
       description
-        "A whitelist of pages that are allowed to be READ
+        "An allowlist of pages that are allowed to be READ
          by a remote controller, even if the default-policy
          is 'disabled'. This list is useful when
          'default-policy' is set to 'disabled' but specific
          pages need to be monitored.
 
-         Note: Lower Memory (Address 0-127) SHOULD NOT be included in
-         this list if it contains Clear-on-Read (CoR) registers that
-         are managed by the Host NOS.";
+         Note: this list authorizes access to pages only; it does not
+         extend to Lower Memory (Address 0-127), which is independent
+         of page selection. Care should be taken with remote reads of
+         Lower Memory, as it may contain Clear-on-Read (CoR)
+         registers managed by the Host NOS; see the Security
+         Considerations of
+         this document.";
 
       leaf page-num {
         type uint8;
@@ -246,24 +259,28 @@ module ietf-cmis-control {
     list remote-write-allowed-pages {
       key "page-num";
       description
-        "A whitelist of pages that are allowed to be modified by
+        "An allowlist of pages that are allowed to be modified by
          a remote controller (Read/Write).
          If a page is listed in both this list and
          'remote-read-allowed-pages', this list takes precedence,
          granting Read/Write access.
 
-         Note: Lower Memory (Address 0-127) MUST NOT be included in
-         this list as it contains critical Host management flags.
+         Note: inclusion of a page in this list does not authorize
+         writes to Lower Memory (Address 0-127), which is independent
+         of page selection and contains critical Host management
+         flags. Remote writes to Lower Memory MUST NOT be permitted;
+         see the Security Considerations of this document.
 
-         When a page is removed from this list, or when the
-         default-policy changes to 'disabled' (and the page is
-         not in the read-whitelist),
-         the Host NOS MUST strictly enforce its local configuration
-         (running-config) on the target CMIS pages.
-         Values modified by a remote controller MUST be
-         overwritten by the Host's local configuration or reset
-         to default values to maintain configuration
-         consistency.";
+         When a page is removed from this list, the write
+         delegation for that page is revoked and the Host NOS
+         MUST strictly enforce its local configuration
+         (running-config) on that page. Values modified by a
+         remote controller MUST be overwritten by the Host's
+         local configuration or reset to default values to
+         maintain configuration consistency. Note that
+         'default-policy' does not affect pages listed here;
+         it governs only pages that are not present in either
+         allowlist.";
 
       leaf page-num {
         type uint8;
