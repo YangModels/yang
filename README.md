@@ -104,7 +104,7 @@ The following directories are maintained for YANG models [license note in bracke
    * All issues entered into the trouble ticket system for this directory are considered to be IETF Contributions.
    * All pull requests submitted for this directory are considered to be IETF Contributions.
    * All IETF Contributions are submitted under the terms of the [IETF Note Well statement](http://www.ietf.org/about/note-well.html)
-   * All IETF Contributions are subject to the requirements and provisions of [BCP 78](http://tools.ietf.org/rfc/bcp/bcp78.txt) and [BCP 79](http://tools.ietf.org/rfc/bcp/bcp79.txt).
+   * All IETF Contributions are subject to the requirements and provisions of [BCP 78](https://www.rfc-editor.org/info/bcp78/) and [BCP 79](https://www.rfc-editor.org/info/bcp79/).
 
 **[2] OpenDaylight Eclipse License:**
 
