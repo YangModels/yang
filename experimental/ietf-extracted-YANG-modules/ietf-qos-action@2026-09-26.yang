@@ -6,10 +6,15 @@ module ietf-qos-action {
   import ietf-inet-types {
     prefix inet;
     reference
-      "RFC 6991: Common YANG Data Types";
+      "RFC 9911: Common YANG Data Types";
   }
   import ietf-qos-types {
     prefix qos-types;
+    reference
+      "RFC XXXX: YANG Model for Quality of Service (QoS).";
+  }
+  import ietf-traffic-policy {
+    prefix traffic-policy;
     reference
       "RFC XXXX: YANG Model for Quality of Service (QoS).";
   }
@@ -43,7 +48,7 @@ module ietf-qos-action {
      This version of this YANG module is part of RFC XXXX; see
      the RFC itself for full legal notices.";
 
-  revision 2025-07-06 {
+  revision 2026-09-26 {
     description
       "Initial version";
     reference
@@ -53,9 +58,14 @@ module ietf-qos-action {
   grouping rate-value-unit {
     leaf value {
       type uint64;
+      must "not(../unit = 'qos-types:percent') or (. <= 100)" {
+        error-message
+          "When unit is percent, value must be 0-100.";
+      }
       description
         "Value for the rate that is configured, either in
-         bits-per-second or percentage.";
+         bits-per-second or percentage. When unit is percent,
+         value must not exceed 100.";
     }
 
     leaf unit {
@@ -101,7 +111,7 @@ module ietf-qos-action {
            action-mark.";
       }
       description
-        "A unique name to mark as a traffic group.";
+        "A name to mark as a traffic group.";
     }
   }
 
@@ -174,6 +184,7 @@ module ietf-qos-action {
         reference
           "RFC 2697: A Single Rate Three Color Marker.";
       }
+
       container conform-action {
         uses meter-action;
         description
@@ -312,7 +323,7 @@ module ietf-qos-action {
       leaf name {
         type string;
         description
-          "A unique string to identify the meter.";
+          "A name to identify the meter.";
       }
       uses meter;
     }
@@ -345,35 +356,35 @@ module ietf-qos-action {
       "Grouping to define meter reference.";
   }
 
-  grouping count {
-    container count {
-    if-feature qos-types:count;
+  grouping qos-count {
+    container qos-count {
+    if-feature qos-types:qos-count;
 
-      leaf count-action {
+      leaf qos-count-action {
         type empty;
         description
           "Take an action if this is defined.";
       }
       description
-        "Container for whether to take an action for count.";
+        "Container for whether to take an action for QoS count.";
     }
     description
-      "The count action grouping.";
+      "The qos-count action grouping.";
   }
 
-  grouping named-counter {
-    container named-counter {
-    if-feature qos-types:named-counter;
-      leaf count-name-action {
+  grouping named-qos-count {
+    container named-qos-count {
+    if-feature qos-types:named-qos-count;
+      leaf name {
         type string;
         description
-          "A unique name for named counter.";
+          "A name for named QoS count.";
       }
       description
-        "The named counter action.";
+        "The named traffic counter action.";
     }
     description
-      "The named counter action grouping.";
+      "The named traffic counter action grouping.";
   }
 
   grouping discard {
@@ -433,7 +444,7 @@ module ietf-qos-action {
       leaf traffic-group {
         type string;
         description
-          "A unique name for traffic group.";
+          "A name for traffic group.";
       }
       description
         "Container for traffic group marking container.";
@@ -446,12 +457,24 @@ module ietf-qos-action {
     container child-policy {
       if-feature qos-types:child-policy;
       leaf name {
-        type string;
+        type leafref {
+          path "/traffic-policy:policies/traffic-policy:policy"
+             + "/traffic-policy:name";
+        }
+        must "not(. = ../../../../traffic-policy:name)" {
+          error-message
+            "Child policy must not reference the containing policy "
+          + "(self-reference is not allowed).";
+        }
         description
-          "A unique name for hierarchical policy.";
+          "Reference to a hierarchical (child) policy. The referenced
+           policy must exist and must not be the same as the containing
+           policy (no self-reference). Implementations MUST also reject
+           configurations that would create cyclic policy chains.";
       }
       description
-        "Hierarchical Policy configuration container.";
+        "Hierarchical Policy configuration container. Used to apply
+         a nested policy within a classifier action.";
     }
     description
       "Grouping of Hierarchical Policy configuration.";
@@ -499,7 +522,6 @@ module ietf-qos-action {
         "The unit for minimum RED threshold value, with the default
          of bytes.";
     }
-
     leaf max-threshold-val {
       type uint64;
       description
@@ -599,14 +621,18 @@ module ietf-qos-action {
           }
 
           case wred {
-            container wred {
-              list wred {
-                key "profile";
+            container wred-profiles {
+              list wred-profile {
+                key "id";
 
-                leaf profile {
+                leaf id {
                   type uint8;
                   description
-                    "Profile id of each WRED profile.";
+                    "Identifier for each WRED profile. Lower values
+                     indicate higher precedence when color ranges
+                     overlap. Packets matching overlapping color
+                     ranges are processed by the profile with the
+                     lowest id value.";
                 }
 
                 leaf color-type {
@@ -638,19 +664,21 @@ module ietf-qos-action {
                 }
                 uses red-config-parameters;
                 description
-                  "List of RED profiles each with its own
-                   threshold values.";
+                  "A WRED profile with its own threshold values.
+                   Multiple profiles can target different traffic
+                   colors with distinct drop parameters.";
               }
 
               leaf ecn-enabled {
                 type boolean;
                 default "false";
                 description
-                  "When configure as true, ECN is enabled on
+                  "When configured as true, ECN is enabled on
                    the queue.";
               }
               description
-                "Weighted Random Early Detect (WRED) configuration.";
+                "Weighted Random Early Detect (WRED) configuration
+                 containing one or more WRED profiles.";
             }
           }
 
@@ -714,7 +742,7 @@ module ietf-qos-action {
       leaf name {
         type string;
         description
-          "A unique name identifying this queue template";
+          "A name identifying this queue template";
       }
       uses queue;
     }
