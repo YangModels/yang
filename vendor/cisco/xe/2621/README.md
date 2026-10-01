@@ -418,14 +418,6 @@ listed below. As model content may differ based on platform capabilities, sample
 #### Other Models Modified
  
 * cisco-xe-openconfig-access-points-deviation.yang
-* cisco-xe-openconfig-isis-deviation.yang
-* cisco-xe-openconfig-network-instance-deviation.yang
-* cisco-xe-routing-isr-openconfig-platform-deviation.yang
-* cisco-xe-switching-openconfig-lacp-deviation.yang
-* openconfig-interfaces.yang
-* openconfig-isis-types.yang
-* openconfig-system.yang
-* openconfig-vlan-types.yang
 
 ### Backward Incompatible Changes
 
