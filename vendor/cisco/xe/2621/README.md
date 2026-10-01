@@ -61,7 +61,6 @@ listed below. As model content may differ based on platform capabilities, sample
 * Cisco-IOS-XE-ngfw.yang
 * Cisco-IOS-XE-sdwan-stats-events.yang
 * Cisco-IOS-XE-sla-policy.yang
-* Cisco-IOS-XE-webauth-banner-internal.yang
 * Cisco-IOS-XE-wireless-ld-cfg.yang
 * Cisco-IOS-XE-wireless-raf-cfg-rpc.yang
 * Cisco-IOS-XE-wireless-wat-oper.yang
