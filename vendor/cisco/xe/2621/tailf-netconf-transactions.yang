@@ -1,0 +1,146 @@
+module tailf-netconf-transactions {
+  yang-version 1.1;
+  namespace "http://tail-f.com/ns/netconf/transactions/1.0";
+  prefix tr;
+
+  import ietf-netconf {
+    prefix nc;
+  }
+
+  description
+    "This module introduces four new rpc methods that are used to
+     control a two-phase commit transaction on the NETCONF server.
+     The normal <edit-config> operation is used to write data in the
+     transaction, but the modifications are not applied until an
+     explicit <commit-transaction> is sent.
+
+     A typical sequence of operations looks like this:
+
+
+               C                           S
+               |                           |
+               |  capability exchange      |
+               |-------------------------->|
+               |<------------------------->|
+               |                           |
+               |   <start-transaction>     |
+               |-------------------------->|
+               |<--------------------------|
+               |         <ok/>             |
+               |                           |
+               |     <edit-config>         |
+               |-------------------------->|
+               |<--------------------------|
+               |         <ok/>             |
+               |                           |
+               |  <prepare-transaction>    |
+               |-------------------------->|
+               |<--------------------------|
+               |         <ok/>             |
+               |                           |
+               |   <commit-transaction>    |
+               |-------------------------->|
+               |<--------------------------|
+               |         <ok/>             |
+               |                           |
+
+
+
+     Copyright 2019 Cisco Systems, Inc.
+     All rights reserved.
+     Permission is hereby granted to redistribute this file without
+     modification.";
+
+  rpc start-transaction {
+    input {
+      container target {
+        description
+          "Name of the configuration datastore towards which the
+           transaction is started.";
+        choice target {
+          leaf startup {
+            if-feature nc:startup;
+            type empty;
+          }
+          leaf running {
+            type empty;
+          }
+          leaf candidate {
+            if-feature nc:candidate;
+            type empty;
+          }
+        }
+      }
+    }
+    description
+      "Starts a transaction towards a configuration datastore.  There
+       can be a single ongoing transaction per session at any time.
+
+       When a transaction has been started, the client can send any
+       NETCONF operation, but any <edit-config> or <copy-config>
+       operation sent from the client MUST specify the same <target>
+       as the <start-transaction>, and any <get-config> MUST specify
+       the same <source> as <start-transaction>.
+
+       If the server receives an <edit-config> or <copy-config> with
+       another <target>, or a <get-config> with another <source>, an
+       error MUST be returned with an <error-tag> set to 'invalid-value'.
+
+       The modifications sent in the <edit-config> operations are not
+       immediately applied to the configuration datastore.  Instead
+       they are kept in the transaction state of the server.  The
+       transaction state is only applied when a <commit-transaction>
+       is received.
+
+       The client sends a <prepare-transaction> when all modifications
+       have been sent.
+
+       If there is an ongoing transaction for this session already, an
+       error MUST be returned with <error-app-tag> set to 'bad-state'.";
+  }
+
+  rpc prepare-transaction {
+    description
+      "Prepares the transaction state for commit.  The server may reject
+       the prepare request for any reason, for example due to lack of
+       resources or if the combined changes would result in an invalid
+       configuration datastore.
+
+       After a successful <prepare-transaction>, the next transaction
+       related rpc operation must be <commit-transaction> or
+       <abort-transaction>.  Note that an <edit-config> cannot be sent
+       before the transaction is either committed or aborted.
+
+       Care must be taken by the server to make sure that if
+       <prepare-transaction> succeeds then the <commit-transaction>
+       SHOULD not fail, since this might result in an inconsistent
+       distributed state.  Thus, <prepare-transaction> should allocate
+       any resources needed to make sure the <commit-transaction> will
+       succeed.
+
+       If there is no ongoing transaction in this session, or if the
+       ongoing transaction already has been prepared, an error MUST be
+       returned with <error-app-tag> set to 'bad-state'.";
+  }
+
+  rpc commit-transaction {
+    description
+      "Applies the changes made in the transaction to the configuration
+       datatore.  The transaction is closed after a <commit-transaction>.
+
+       If there is no ongoing transaction in this session, or if the
+       ongoing transaction already has not been prepared, an error
+       MUST be returned with <error-app-tag> set to 'bad-state'.";
+  }
+
+  rpc abort-transaction {
+    description
+      "Aborts the ongoing transaction, and all pending changes are
+       discarded.  <abort-transaction> can be given at any time during an
+       ongoing transaction.
+
+       If there is no ongoing transaction in this session, an error MUST
+       be returned with <error-app-tag> set to 'bad-state'.";
+  }
+
+}
