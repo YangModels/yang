@@ -1,0 +1,422 @@
+module tailf-netconf-monitoring {
+  namespace "http://tail-f.com/yang/netconf-monitoring";
+  prefix tncm;
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  import ietf-netconf-monitoring {
+    prefix ncm;
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+
+  organization "Tail-f Systems";
+
+  description
+    "This module augments ietf-netconf-monitoring with extra
+     monitoring data.
+
+     Copyright 2010-2022 Cisco Systems, Inc.
+     All rights reserved.
+     Permission is hereby granted to redistribute this file without
+     modification.";
+
+  revision 2022-04-12 {
+    description
+      "Released as part of ConfD-7.8 / NCS-5.8.
+
+       Updated description for /netconf-state/streams/stream/subscriber.
+
+       Added /netconf-state/datastores/datastore/status.";
+  }
+
+  revision 2021-12-17 {
+    description
+      "Released as part of ConfD-7.7 / NCS-5.7.
+
+       Non-backwards-compatible changes have been introduced.
+
+       Added /netconf-state/streams/stream/subscriber/id.
+
+       Changed list key from 'session-id' to 'id' for
+       /netconf-state/streams/stream/subscriber.";
+  }
+
+  revision 2021-06-29 {
+    description
+      "Released as part of ConfD-7.6.
+
+       Added /netconf-state/sessions/session/transaction/lock.
+
+       Added enum 'read-write' to
+       /netconf-state/sessions/session/transaction/mode.
+
+       Obsoleted enum 'read_write' in
+       /netconf-state/sessions/session/transaction/mode.";
+  }
+
+  revision 2019-03-28 {
+    description
+      "Released as part of ConfD-6.5.10.
+
+       Added /netconf-state/sessions/session/transaction.";
+  }
+
+  revision 2016-11-24 {
+    description
+      "Released as part of ConfD-6.3.
+
+       Added /netconf-state/datastores/datastore/transaction-lock.";
+  }
+
+  revision 2014-11-13 {
+    description
+      "Released as part of ConfD-5.3.
+
+       Added the identity cli-tcp.";
+  }
+
+  revision 2014-08-29 {
+    description
+      "Released as part of ConfD-5.2.1.
+
+       Added /netconf-state/streams.";
+  }
+
+  revision 2012-06-14 {
+    description
+      "Released as part of ConfD-4.0.
+
+       Fixed a syntax error in a 'when' expression.";
+  }
+
+  revision 2012-03-08 {
+    description
+      "Released as part of ConfD-3.9.
+
+       Added the identities rest-http and rest-https.";
+  }
+
+  revision 2011-09-22 {
+    description
+      "Released as part of ConfD-3.7.
+
+       Added 'transaction-id' leaf.";
+  }
+
+  revision 2010-11-04 {
+    description
+      "Initial revision.
+
+       Released as part of ConfD-3.4.";
+  }
+
+  /*
+   * Transport Identities
+   */
+
+  identity cli-console {
+    base ncm:transport;
+    description
+      "CLI on the console.";
+  }
+
+  identity cli-ssh {
+    base ncm:transport;
+    description
+      "CLI over SSH.";
+  }
+
+  identity cli-tcp {
+    base ncm:transport;
+    description
+      "CLI over TCP.";
+  }
+
+  identity webui-http {
+    base ncm:transport;
+    description
+      "WebUI over HTTP.";
+  }
+
+  identity webui-https {
+    base ncm:transport;
+    description
+      "WebUI over HTTPS.";
+  }
+
+  identity netconf-tcp {
+    base ncm:transport;
+    description
+      "NETCONF over TCP.";
+  }
+
+  identity snmp-udp {
+    base ncm:transport;
+    description
+      "SNMP over UDP.";
+  }
+
+  identity rest-http {
+    base ncm:transport;
+    description
+      "REST over HTTP.";
+  }
+
+  identity rest-https {
+    base ncm:transport;
+    description
+      "REST over HTTPS.";
+  }
+
+  /*
+   * File listing for 'file' url.
+   */
+
+  augment /ncm:netconf-state {
+    container files {
+      config false;
+
+      description
+        "A list of files available on the server as a 'file' url source
+         parameter.";
+
+      tailf:info "files available on the NETCONF server";
+
+      list file {
+        key "name";
+        leaf name {
+          type string;
+          description
+            "The filename is an absolute path to the file, i.e. it
+             always starts with a '/'.";
+        }
+        leaf creator {
+          type string;
+          description
+            "The name of the user that created the file.  If this
+             element is not present, the info is not known to the
+             server.";
+        }
+        leaf created {
+          type yang:date-and-time;
+          description
+            "The time the file was created.  If this element is not
+             present, the info is not known to the server.";
+        }
+        leaf context {
+          type union {
+            type enumeration {
+              enum cli;
+              enum netconf;
+              enum webui;
+            }
+            type string;
+          }
+          description
+            "The context used when the file was created.  If this
+             element is not present, the info is not known to the
+             serber.";
+        }
+      }
+    }
+  }
+
+  /*
+   * Datastore augmentations
+   */
+
+  augment /ncm:netconf-state/ncm:datastores/ncm:datastore {
+    when "ncm:name = 'running'";
+
+    leaf transaction-id {
+      type string;
+      description
+        "An opaque string that uniquely identifies the last
+         transaction towards the datastore.
+
+         A client can use this to detect if the datastore is
+         modified.";
+    }
+    leaf status {
+      type enumeration {
+        enum valid;
+        enum invalid;
+      }
+      description
+        "The status of the datastore. Set to invalid if a transaction
+         failed in the commit() phase.";
+      default "valid";
+    }
+  }
+
+  augment /ncm:netconf-state/ncm:datastores/ncm:datastore/ncm:locks {
+    when "../ncm:name = 'running'";
+
+    container transaction-lock {
+      presence "Present if the (implicit) transaction lock is set";
+      description
+        "This container is set if a transaction is executing a
+         'validate' or 'commit' operation.";
+      leaf locked-by-session {
+        type uint32;
+        mandatory true;
+        description
+          "The session ID of the session that started the transaction
+           that has the transaction lock.";
+      }
+    }
+  }
+
+  /*
+   * Notification streams
+   */
+
+  augment /ncm:netconf-state {
+    container streams {
+      description
+        "This container contains exactly the same data as is
+         defined in RFC 5277 in XSD.  This structure makes the data
+         available in YANG, and thus available for non-NETCONF access,
+         and for augmentation.";
+      list stream {
+        key name;
+        leaf name {
+          type string;
+        }
+        leaf description {
+          type string;
+          mandatory true;
+        }
+        leaf replay-support {
+          type boolean;
+          mandatory true;
+        }
+        leaf replay-log-creation-time {
+          type yang:date-and-time;
+          mandatory true;
+        }
+        leaf replay-log-aged-time {
+          type yang:date-and-time;
+        }
+      }
+    }
+  }
+
+  /*
+   * Additional notification stream data, not available in the
+   * structure above.
+   */
+
+  augment /ncm:netconf-state/tncm:streams/tncm:stream {
+    list subscriber {
+      key id;
+      description
+        "Sessions that currently subscribe to this stream. This list
+         contains subscriptions from both NETCONF Notifications (RFC 5277)
+         and Subscribed Notifications (RFC 8639).";
+      leaf id {
+        type uint32;
+        description
+          "The subscriber id of the subscription.";
+      }
+      leaf start-time {
+        type yang:date-and-time;
+        mandatory true;
+        description
+          "The time the session started to subscribe to this stream.";
+      }
+      leaf stop-time {
+        type yang:date-and-time;
+        description
+          "Contains the stop time the session used to subscribe to this
+           stream.  If no stop time was given, this leaf is not present.";
+      }
+      leaf session-id {
+        // type leafref {
+        //   path "/ncm:netconf-state/ncm:sessions/ncm:session/ncm:session-id";
+        // }
+        type uint32;
+        description
+          "The session id of the subscription.";
+      }
+    }
+  }
+
+  tailf:annotate "/ncm:netconf-state/tncm:files" {
+    tailf:annotate "*" {
+      tailf:cli-suppress-show-path;
+    }
+  }
+
+  /*
+   * Transactions
+   */
+
+  augment /ncm:netconf-state/ncm:sessions/ncm:session {
+    list transaction {
+      key id;
+      description
+        "List of transactions bound to user session.";
+
+      leaf id {
+        type uint32;
+        description
+          "The transaction id of a transaction.";
+      }
+      leaf db {
+        type enumeration {
+          enum none;
+          enum running;
+          enum candidate;
+          enum startup;
+          enum operational;
+        }
+        description
+          "The database of transaction.";
+      }
+      leaf mode {
+        type enumeration {
+          enum read;
+          enum read_write {
+            status obsolete;
+            tailf:code-name read_write_obsoleted;
+            description
+              "This enum is obsolete and will never be reported.
+               The 'read-write' enum will be used instead.";
+          }
+          enum read-write;
+        }
+        description
+          "The mode of transaction.";
+      }
+      leaf config-mode {
+        type enumeration {
+          enum exclusive;
+          enum private;
+          enum shared;
+        }
+        description
+          "The config mode of transaction.";
+      }
+      container lock {
+        leaf requested {
+          type yang:date-and-time;
+          description
+            "The date and time of when the transaction lock was
+             requested.";
+        }
+        leaf acquired {
+          type yang:date-and-time;
+          description
+            "The date and time of when the transaction lock was
+             acquired.";
+        }
+      }
+    }
+  }
+}
