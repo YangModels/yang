@@ -1,0 +1,549 @@
+module ietf-entitlement-inventory {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-entitlement-inventory";
+  prefix ei;
+
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 9911: Common YANG Data Types";
+  }
+  import ietf-network-inventory {
+    prefix inv;
+    reference
+      "I-D.ietf-ivy-network-inventory-yang:
+       A Base YANG Data Model for Network Inventory";
+  }
+
+  organization
+    "IETF IVY Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/ivy/>
+     WG List:  <mailto:inventory-yang@ietf.org>
+
+     Author:  Marisol Palmero
+
+     Author:  Camilo Cardona
+
+     Author:  Diego Lopez
+
+     Author:  Italo Busi
+    ";
+  description
+    "This module defines a YANG data model for entitlement inventory.
+
+     Copyright (c) 2026 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     All revisions of IETF and IANA published modules can be found
+     at the YANG Parameters registry group
+     (https://www.iana.org/assignments/yang-parameters).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+     for full legal notices.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.
+    ";
+
+  revision 2026-09-02 {
+    description
+      "Initial revision of entitlement model.";
+    reference
+      "RFC XXXX: A YANG Module for Entitlement Inventory.";
+  }
+
+  identity capability-class {
+    description
+      "Base identity for capability classes.";
+  }
+
+  identity basic-capability {
+    base capability-class;
+    description
+      "Basic capability class for general capability descriptions.";
+  }
+
+  typedef entitlement-state {
+    type enumeration {
+      enum active {
+        description
+          "Entitlement is active.";
+      }
+      enum expired {
+        description
+          "Entitlement is expired.";
+      }
+      enum pending {
+        description
+          "Entitlement is pending activation.";
+      }
+      enum revoked {
+        description
+          "Entitlement is revoked.";
+      }
+    }
+    description
+      "State of the entitlement.";
+  }
+
+  grouping restriction-fields {
+    description
+      "Common fields for describing restrictions or limits.
+       Used both for capability-level restrictions and
+       entitlement-level global restrictions.";
+    leaf description {
+      type string;
+      description
+        "Human-readable description of the restriction.";
+    }
+    leaf resource-name {
+      type string;
+      description
+        "Optional name of the physical or network resource
+         being restricted (e.g., 'bandwidth', 'throughput',
+         'storage', 'memory').";
+    }
+    leaf units {
+      type string;
+      description
+        "Units for the restriction values (e.g., 'Mbps',
+         'connections', 'tunnels').";
+    }
+    leaf max-value {
+      type uint64;
+      description
+        "Maximum permitted value for this restriction.";
+    }
+    leaf current-value {
+      type uint64;
+      description
+        "Current usage or consumption of this restricted
+         resource at query time.";
+    }
+  }
+
+  grouping installed-entitlements-group {
+    description
+      "Grouping for installed entitlements that can be applied to
+       network elements or components (generally called asset
+       over this document).";
+    container installed-entitlements {
+      presence
+        "The presence of this container means the information system
+         that exposes this model knows of the installed entitlements
+         of the asset that it populates.
+         An empty list of entitlements would then mean
+         that no entitlement is installed in this asset.";
+      config false;
+      description
+        "Entitlements currently active and entitling this asset.";
+      list entitlement {
+        key "entitlement-id";
+        description
+          "List of entitlements actively entitling this asset.
+           Each entitlement references a global listed entitlement.";
+        leaf entitlement-id {
+          type leafref {
+            path "/inv:network-inventory/ei:entitlements"
+               + "/ei:entitlement/ei:entitlement-id";
+          }
+          description
+            "Reference to centralized entitlement.";
+        }
+        leaf in-use {
+          type boolean;
+          description
+            "Informs whether the entitlement is actively used,
+             besides being installed. If existing, and if the
+             capabilities list entry exists and the information system
+             supports setting their entitlement-state, this
+             information MUST be consistent with it. Meaning, this
+             should be in-use if any capability it supports is
+             in-use, or false otherwise.  The no presence of this
+             leaf means that the information system cannot express
+             this information";
+        }
+      }
+    }
+  }
+
+  grouping capabilities-group {
+    description
+      "Grouping for capabilities that can be applied to assets.
+       Capabilities represent what the
+       asset can do, potentially restricted by entitlements.";
+    container capabilities {
+      presence
+        "The presence of this container means the information system
+         that exposes this model is aware of and can report the
+         capabilities of this asset
+         (i.e. network element or component).
+         An empty list of capability classes would mean that the
+         element has no capabilities configured or available.";
+      config false;
+      description
+        "Container for capabilities of this asset.";
+      list capability-class {
+        key "capability-class";
+        description
+          "List of capability classes supported by this asset. Each
+           class groups related capabilities.";
+        leaf capability-class {
+          type identityref {
+            base capability-class;
+          }
+          description
+            "Identifier for the capability class using an identity
+             reference.";
+        }
+        list capability {
+          key "capability-id";
+          description
+            "Individual capability within this class. Represents a
+             specific function or feature that the element may
+             perform.";
+          leaf capability-id {
+            type string;
+            description
+              "Unique identifier for this capability.";
+          }
+          leaf extended-capability-description {
+            type string;
+            description
+              "Extended capability description.";
+          }
+          container entitlement-state {
+            presence
+              "The presence of this container indicates the system
+               can report whether this capability is allowed and/or
+               in use based on entitlement status.";
+            description
+              "Reports whether this capability is permitted by
+               entitlements and whether it is currently in active
+               use.";
+            leaf allowed {
+              type boolean;
+              description
+                "Whether the capability is allowed by entitlements.";
+            }
+            leaf in-use {
+              type boolean;
+              description
+                "Whether the capability is currently in use.";
+            }
+          }
+          container supporting-entitlements {
+            presence
+              "The presence of this container indicates the system
+               can report the entitlement(s) supporting
+               the use of this capability by the asset to its
+               current allowed state. This container
+               should not exist if the system cannot report this.
+               An empty list of supporting-entitlements means
+               the capability requires no special
+               entitlement to be provided.";
+            description
+              "List of installed entitlements that
+               enable or support this capability.";
+            list supporting-entitlement {
+              key "entitlement-id";
+              description
+                "List of installed entitlements
+                 that enable or support this capability. The
+                 capability may require one or more
+                 entitlements to be allowed and in use.";
+              leaf entitlement-id {
+                type leafref {
+                  path "../../../../../../installed-entitlements"
+                     + "/entitlement/entitlement-id";
+                }
+                description
+                  "Reference to an installed entitlement
+                   supporting this capability.";
+              }
+            }
+          }
+          container capability-restrictions {
+            presence
+              "The presence of this container indicates that the
+               system can report the current capability restrictions.
+               If present, an empty list of
+               capability-restriction means the capability
+               has no restriction.";
+            description
+              "Restrictions or limits imposed on this capability by
+               entitlements.";
+            list capability-restriction {
+              key "restriction-id";
+              description
+                "Restrictions or limits imposed on this capability by
+                 entitlements.";
+              leaf restriction-id {
+                type string;
+                description
+                  "Unique identifier for this
+                   capability restriction.";
+              }
+              uses restriction-fields;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  augment "/inv:network-inventory/inv:network-elements"
+        + "/inv:network-element" {
+    description
+      "Augments network elements with installed entitlements tracking
+       which entitlements are currently active and entitling the
+       device.";
+    uses installed-entitlements-group;
+  }
+
+  augment "/inv:network-inventory/inv:network-elements"
+        + "/inv:network-element/inv:components/inv:component" {
+    description
+      "Augments network element components with installed
+       entitlements for component-level tracking.";
+    uses installed-entitlements-group;
+  }
+
+  augment "/inv:network-inventory/inv:network-elements"
+        + "/inv:network-element" {
+    description
+      "Augments network elements with capabilities information,
+       describing what functions the element can perform and their
+       entitlement status.";
+    uses capabilities-group;
+  }
+
+  augment "/inv:network-inventory/inv:network-elements"
+        + "/inv:network-element/inv:components/inv:component" {
+    description
+      "Augments network element components with capabilities for
+       component-level feature tracking and entitlement
+       restrictions.";
+    uses capabilities-group;
+  }
+
+  augment "/inv:network-inventory" {
+    description
+      "Augments the network inventory with a centralized entitlements
+       catalog.  This provides organization-wide visibility of all
+       acquired entitlements, their holders, validity periods, and
+       asset associations.";
+    container entitlements {
+      presence
+        "The presence of this container indicates the system
+         maintains and can report the organizational entitlement
+         catalog. An empty list means the organization has no
+         entitlements defined.";
+      config false;
+      description
+        "Top-level container for organizational entitlements.";
+      list entitlement {
+        key "entitlement-id";
+        description
+          "List of entitlements owned or managed by the organization.
+           Each entitlement represents a license, right, or
+           permission to use specific capabilities, potentially with
+           restrictions on scope, time, or usage.";
+        leaf entitlement-id {
+          type string;
+          description
+            "Unique entitlement identifier.";
+        }
+        leaf product-id {
+          type string;
+          description
+            "Product identifier for this entitlement.";
+        }
+        leaf sku {
+          type string;
+          description
+            "Stock Keeping Unit (SKU) - vendor's catalog/ordering
+             number for this entitlement. Used for procurement and
+             asset management integration.";
+        }
+        leaf vendor {
+          type string;
+          description
+            "Vendor or issuer of this entitlement. Identifies the
+             license provider.";
+        }
+        leaf part-number {
+          type string;
+          description
+            "Manufacturer's part number. May differ from SKU in
+             distribution channels.";
+        }
+        leaf state {
+          type entitlement-state;
+          description
+            "Current state of the entitlement.";
+        }
+        container renewal-profile {
+          description
+            "Renewal and validity information for the entitlement.";
+          leaf activation-date {
+            type yang:date-and-time;
+            description
+              "Date when entitlement was activated.";
+          }
+          leaf start-date {
+            type yang:date-and-time;
+            description
+              "Start date of entitlement validity.";
+          }
+          leaf expiration-date {
+            type yang:date-and-time;
+            description
+              "Expiration date of the entitlement.";
+          }
+        }
+        container restrictions {
+          presence
+            "The presence of this container means the
+             system can provide information of global restrictions
+             for this entitlement. An empty list will then
+             mean that the entitlement has no global restriction.";
+          description
+            "Global restrictions imposed by this entitlement.";
+          list restriction {
+            key "restriction-id";
+            description
+              "List of restrictions that apply globally to this
+               entitlement across all assets and holders. These may
+               include usage limits, quotas, or other constraints on
+               how the entitlement can be utilized.";
+            leaf restriction-id {
+              type string;
+              description
+                "Unique restriction identifier.";
+            }
+            uses restriction-fields;
+          }
+        }
+        leaf parent-entitlement-id {
+          type leafref {
+            path "../../entitlement/entitlement-id";
+          }
+          must '. != ../entitlement-id' {
+            error-message
+              "An entitlement cannot reference itself as its
+               parent.";
+          }
+          description
+            "Reference to parent entitlement if this is derived or
+             child entitlement (e.g., an upgrade add-on referencing
+             its base license). Implementations MUST NOT create
+             circular references among entitlements. Although this
+             constraint cannot be fully enforced via YANG 'must'
+             statements due to XPath 1.0 limitations, management
+             systems SHOULD validate the full entitlement hierarchy
+             for cycles before committing changes.";
+        }
+        container entitlement-attachment {
+          must "not(universal-access = 'true') or
+                (not(holders) and not(assets))" {
+            error-message
+              "Holders and assets cannot be specified when
+               universal-access is true.";
+          }
+          description
+            "Defines how the entitlement is attached to holders and
+             assets.";
+          leaf universal-access {
+            type boolean;
+            description
+              "If true, the entitlement is not restricted to
+               any specific holder or asset.
+               Holders or assets MUST NOT be specified when
+               this leaf is true.";
+          }
+          container holders {
+            description
+              "Holders to which this entitlement
+               is attached.";
+            leaf-list organization {
+              type string;
+              description
+                "Organization holding this entitlement.";
+            }
+            leaf-list user {
+              type string;
+              description
+                "User holding this entitlement.";
+            }
+          }
+          container assets {
+            description
+              "Assets to which this entitlement is attached.";
+            container elements {
+              description
+                "Network elements covered by this entitlement.";
+              leaf-list network-elements {
+                type leafref {
+                  path "/inv:network-inventory"
+                     + "/inv:network-elements/inv:network-element"
+                     + "/inv:ne-id";
+                }
+                description
+                  "References to network elements covered by this
+                   entitlement.  When specified, this entitlement
+                   applies to the listed network elements.";
+              }
+            }
+            container components {
+              description
+                "Individual components covered by this entitlement.";
+              list component {
+                key "network-element component-id";
+                description
+                  "List of specific components to which this
+                   entitlement applies.  Allows fine-grained
+                   entitlement assignment at the component level
+                   rather than entire network elements.";
+                leaf network-element {
+                  type leafref {
+                    path "/inv:network-inventory"
+                       + "/inv:network-elements"
+                       + "/inv:network-element/inv:ne-id";
+                  }
+                  description
+                    "Reference to network element.";
+                }
+                leaf component-id {
+                  type leafref {
+                    path "/inv:network-inventory"
+                       + "/inv:network-elements"
+                       + "/inv:network-element"
+                       + "[inv:ne-id=current()/../network-element]"
+                       + "/inv:components/"
+                       + "inv:component/inv:component-id";
+                  }
+                  description
+                    "Reference to component within the specified
+                     network element.";
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
