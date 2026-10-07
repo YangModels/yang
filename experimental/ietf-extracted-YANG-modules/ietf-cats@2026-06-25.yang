@@ -81,9 +81,11 @@ module ietf-cats {
       type inet:ipv6-address;
     }
     description
-      "This type is for CATS CS-ID.";
+      "This type defines the CATS Service ID (CS-ID),
+       which uniquely identifies a service.";
     reference
-      "RFC XXXX: YANG Data Model for CATS";
+      "draft-ietf-cats-framework: A Framework for Computing-Aware
+                                  Traffic Steering (CATS)";
   }
 
   typedef csci-id {
@@ -93,9 +95,57 @@ module ietf-cats {
       type inet:ipv6-address;
     }
     description
-      "This type is for CATS CSCI-ID.";
+      "This type defines the CATS Service Contact Instance ID
+       (CSCI-ID), which uniquely identifies a service contact
+       instance.";
     reference
-      "RFC XXXX: YANG Data Model for CATS";
+      "draft-ietf-cats-framework: A Framework for Computing-Aware
+                                  Traffic Steering (CATS)";
+  }
+
+  /*
+   * Identities for source-type
+   */
+  identity source-type-base {
+    description
+      "Base identity for source types of service computing metrics.";
+  }
+
+  identity source-type-static {
+    base source-type-base;
+    description
+      "Static configuration. This identity is used when the
+       service metric information is configured statically
+       (not learned from a dynamic protocol).";
+  }
+
+  /*
+   * Identities for metric-type
+   */
+  identity metric-type-base {
+    description
+      "Base identity for service metric types.";
+  }
+
+  identity metric-delay {
+    base metric-type-base;
+    description
+      "Transmission delay metric. The metric value is the delay
+       time in milliseconds.";
+  }
+
+  identity metric-service-ratio {
+    base metric-type-base;
+    description
+      "Service capacity ratio metric. The metric value is the
+       current capacity percentage.";
+  }
+
+  identity metric-memory-ratio {
+    base metric-type-base;
+    description
+      "Memory utilization metric. The metric value is the current
+       memory utilization percentage.";
   }
 
   grouping service-policy-type {
@@ -153,12 +203,22 @@ module ietf-cats {
         leaf metric-limits {
           type uint32;
           description
-            "CATS metric entry limit";
+            "The maximum number of metric table entries that
+             can be maintained by the device. This limit prevents
+             resource exhaustion. The actual maximum value is
+             implementation-dependent and should be documented by the
+             vendor. A value of 0 indicates no configured limit
+             (subject to device capacity).";
         }
         leaf flow-limits {
           type uint32;
           description
-            "CATS flow entry limit";
+            "The maximum number of flow table entries that
+             can be maintained by the device. This limit prevents
+             resource exhaustion. The actual maximum value is
+             implementation-dependent and should be documented by the
+             vendor. A value of 0 indicates no configured limit
+             (subject to device capacity).";
         }
         leaf flow-timeout {
           type uint32;
@@ -171,14 +231,33 @@ module ietf-cats {
              explicitly (e.g., via signaling or administrative
              action).";
         }
+        leaf notify-interval {
+          type uint32;
+          units "seconds";
+          default "10";
+          description
+            "The minimum interval between consecutive notifications.
+             This is used to prevent notification flooding when
+             limits are reached and unreached in quick succession
+             (flapping). A value of 0 means notifications are
+             sent immediately without rate limiting.";
+        }
         list service-policy {
           key "cs-id";
           description
-            "CATS service policy";
+            "CATS service policy configuration for traffic steering.
+             Each entry defines the policy type for a specific
+             service identified by cs-id.";
           leaf cs-id {
             type cs-id;
             description
-              "The cs-id";
+              "The CATS Service ID (CS-ID) that uniquely
+               identifies a service. This identifier is used
+               by clients to access the service.";
+            reference
+              "draft-ietf-cats-framework: A Framework for
+                                          Computing-Aware Traffic
+                                          Steering (CATS)";
           }
           uses service-policy-type;
         }
@@ -186,20 +265,39 @@ module ietf-cats {
 
       container traffic-classifiers {
         description
-          "CATS traffic-classifier feature";
+          "CATS traffic-classifier entries for classifying
+           traffic by service. Each entry defines the matching
+           criteria for a specific service identified by cs-id.";
         list traffic-classifier {
           key "cs-id";
           description
-            "CATS traffic-classifier feature";
+            "A traffic classifier entry for a specific service.
+             The cs-id uniquely identifies the service to be
+             classified.";
           leaf cs-id {
             type cs-id;
             description
-              "CATS CS-ID";
+              "The CATS Service ID (CS-ID) that uniquely
+               identifies a service.";
+            reference
+              "draft-ietf-cats-framework: A Framework for
+                                          Computing-Aware Traffic
+                                          Steering (CATS)";
           }
           leaf description {
-            type string;
+            type string {
+              length "0..255";
+            }
             description
-              "The description of this service, example: http";
+              "A human-readable description of this service
+               (e.g., 'http', 'video-streaming'). The length
+               constraint provides a reasonable upper bound
+               for short descriptive text and avoids
+               unbounded-string risks. The value 255 follows
+               the historical SNMP SnmpAdminString convention
+               for management text. Note that length counts
+               Unicode characters, not UTF-8 octets.
+               Zero-length is permitted for empty descriptions.";
           }
           leaf server-port {
             type uint16;
@@ -211,7 +309,16 @@ module ietf-cats {
           leaf protocol {
             type uint8;
             description
-              "The protocol of the service.";
+              "The IP protocol number of the service. This value
+               matches the protocol field in the IP header of data
+               flows destined for the service. Common values include:
+               6 (Transmission Control Protocol), 17 (User Datagram
+               Protocol), and 132 (Stream Control Transmission
+               Protocol).";
+            reference
+              "IANA: Protocol Numbers Registry
+                     <https://www.iana.org/assignments/
+                     protocol-numbers/>";
           }
           leaf matched-packets {
             type yang:zero-based-counter64;
@@ -224,7 +331,7 @@ module ietf-cats {
             type yang:zero-based-counter64;
             config false;
             description
-              "The byte number of packets matching the specified
+              "The number of bytes in packets matching the specified
                service.";
           }
         }
@@ -232,86 +339,98 @@ module ietf-cats {
 
       container service-metrics {
         description
-          "CATS service metric entry";
+          "CATS service metric entries for controlling
+           delivery of service metrics from the control plane
+           to the forwarding plane.";
         list service-metric {
           key "cs-id csci-id source-type";
           description
-            "CATS service metric entry";
+            "A service metric entry for a specific service
+             instance. The combination of cs-id, csci-id,
+             and source-type uniquely identifies a service
+             metric entry.";
           leaf cs-id {
             type cs-id;
             description
-              "CATS cs-id";
+              "The CATS Service ID (CS-ID) that uniquely
+               identifies a service.";
+            reference
+              "draft-ietf-cats-framework: A Framework for
+                                          Computing-Aware Traffic
+                                          Steering (CATS)";
           }
           leaf csci-id {
             type csci-id;
             description
-              "CATS csci-id";
+              "The CATS Service Contact Instance ID (CSCI-ID)
+               that uniquely identifies a specific service contact
+               instance.";
+            reference
+              "draft-ietf-cats-framework: A Framework for
+                                          Computing-Aware Traffic
+                                          Steering (CATS)";
           }
           leaf source-type {
-            type enumeration {
-              enum static {
-                value 0;
-                description "Static configuration";
-              }
+            type identityref {
+              base source-type-base;
             }
             description
-              "The source type of the service computing metric";
+              "The source type of the service computing metric.
+               Indicates how the metric information was learned.
+               The base identity 'source-type-base' can be extended
+               by other modules to define additional source types.";
           }
           leaf priority {
             type uint8;
             description
-              "The server priority, the smaller the value,
-               the higher the priority.";
+              "The server priority. The smaller the value,
+               the higher the priority (i.e., 0 is the highest
+               priority). This convention follows common practice
+               in networking protocols (e.g., IP precedence,
+               administrative distance).";
           }
           leaf affinity {
             type uint8;
             description
-              "The server affinity, the higher the value,
-               the higher the affinity.";
+              "The server affinity. The higher the value,
+               the higher the affinity (i.e., 0 is the lowest
+               affinity). This convention follows common practice
+               for affinity or weight metrics in load balancing.";
           }
           leaf location {
             type inet:ip-address;
             description
-              "The server location";
+              "The IPv4 or IPv6 address of the service site where
+               this service contact instance resides. This address
+               represents the logical location of the service in
+               the network topology. CATS-enabled routers use this
+               location information to compute network distances
+               and make steering decisions based on proximity to
+               the service instance.";
           }
           container metrics {
             description
-              "The service metric";
+              "Service metrics for the service contact instance.
+               Each metric entry carries a metric type and its
+               associated value.";
             list metric {
               key "metric-type";
-              description "Different types of service.";
+              description "A service metric of a specific type.";
               leaf metric-type {
-                type enumeration {
-                  enum delay {
-                    value 0;
-                    description
-                      "Calculate the metric based on transmission
-                       delay, where the metric value is the delay
-                       time in milliseconds."; 
-                  }
-                  enum service-ratio {
-                    value 1;
-                    description
-                      "Calculate the metric based on business
-                       capacity, where the metric value is the
-                       current capacity percentage.";
-                  }
-                  enum memory-ratio {
-                    value 2;
-                    description
-                      "Calculate the metric based on memory
-                       utilization percentage, where the metric
-                       value is the current memory utilization
-                       percentage";
-                  }
+                type identityref {
+                  base metric-type-base;
                 }
-                description "The metric type";
+                description
+                  "The type of the service metric. The base identity
+                   'metric-type-base' can be extended by other
+                   modules to define additional metric types.";
                 reference
-                  "RFC YYYY: CATS Metrics Definition";
+                  "draft-ietf-cats-metric-definition: CATS Metrics
+                                                      Definition";
               }
               leaf metric-value {
                 type uint32;
-                description "The metric value";
+                description "The value of the service metric.";
               }
             }
           }
@@ -326,20 +445,123 @@ module ietf-cats {
             type yang:zero-based-counter64;
             config false;
             description
-              "The byte number of packets forwarded by the specified
-               service";
+              "The number of bytes in packets forwarded by the
+               specified service";
           }
         }
       }
-      notification notify {
-        description "The event notify";
-        leaf metric-limit-reached {
-          type boolean;
-          description "Metric entry limit reached";
+      notification metric-limit-exceeded {
+        description
+          "Event notification sent when the number of metric
+           entries exceeds the configured maximum limit.";
+        leaf timestamp {
+          type yang:date-and-time;
+          mandatory true;
+          description
+            "The time when the metric limit was exceeded.";
         }
-        leaf flow-limit-reached {
-          type boolean;
-          description "Flow entry limit reached";
+        leaf message {
+          type string {
+            length "1..255";
+          }
+          mandatory true;
+          description
+            "A human-readable message describing the event,
+             including the configured maximum limit.
+             The length constraint provides a reasonable upper
+             bound for short event messages and avoids
+             unbounded-string risks. The value 255 follows the
+             historical SNMP SnmpAdminString convention for
+             management text. Note that length counts Unicode
+             characters, not UTF-8 octets. Zero-length is
+             disallowed since this notification always carries
+             content.";
+        }
+      }
+      notification metric-limit-recovered {
+        description
+          "Event notification sent when the number of metric
+           entries returns to or falls below the configured
+           maximum limit after having exceeded it.";
+        leaf timestamp {
+          type yang:date-and-time;
+          mandatory true;
+          description
+            "The time when the metric limit was recovered.";
+        }
+        leaf message {
+          type string {
+            length "1..255";
+          }
+          mandatory true;
+          description
+            "A human-readable message describing the event,
+             including the configured maximum limit.
+             The length constraint provides a reasonable upper
+             bound for short event messages and avoids
+             unbounded-string risks. The value 255 follows the
+             historical SNMP SnmpAdminString convention for
+             management text. Note that length counts Unicode
+             characters, not UTF-8 octets. Zero-length is
+             disallowed since this notification always carries
+             content.";
+        }
+      }
+      notification flow-limit-exceeded {
+        description
+          "Event notification sent when the number of flow
+           entries exceeds the configured maximum limit.";
+        leaf timestamp {
+          type yang:date-and-time;
+          mandatory true;
+          description
+            "The time when the flow limit was exceeded.";
+        }
+        leaf message {
+          type string {
+            length "1..255";
+          }
+          mandatory true;
+          description
+            "A human-readable message describing the event,
+             including the configured maximum limit.
+             The length constraint provides a reasonable upper
+             bound for short event messages and avoids
+             unbounded-string risks. The value 255 follows the
+             historical SNMP SnmpAdminString convention for
+             management text. Note that length counts Unicode
+             characters, not UTF-8 octets. Zero-length is
+             disallowed since this notification always carries
+             content.";
+        }
+      }
+      notification flow-limit-recovered {
+        description
+          "Event notification sent when the number of flow
+           entries returns to or falls below the configured
+           maximum limit after having exceeded it.";
+        leaf timestamp {
+          type yang:date-and-time;
+          mandatory true;
+          description
+            "The time when the flow limit was recovered.";
+        }
+        leaf message {
+          type string {
+            length "1..255";
+          }
+          mandatory true;
+          description
+            "A human-readable message describing the event,
+             including the configured maximum limit.
+             The length constraint provides a reasonable upper
+             bound for short event messages and avoids
+             unbounded-string risks. The value 255 follows the
+             historical SNMP SnmpAdminString convention for
+             management text. Note that length counts Unicode
+             characters, not UTF-8 octets. Zero-length is
+             disallowed since this notification always carries
+             content.";
         }
       }
     }

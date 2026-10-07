@@ -1,0 +1,638 @@
+module Cisco-IOS-XE-ngfw {
+  yang-version 1.1;
+  namespace "http://cisco.com/ns/yang/Cisco-IOS-XE-ngfw";
+  prefix ios-ngfw;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import Cisco-IOS-XE-native {
+    prefix ios;
+  }
+  import Cisco-IOS-XE-policy {
+    prefix ios-policy;
+  }
+  import Cisco-IOS-XE-object-group {
+    prefix ios-og;
+  }
+
+  organization
+    "Cisco Systems, Inc.";
+  contact
+    "Cisco Systems, Inc.
+     Customer Service
+
+     Postal: 170 W Tasman Drive
+     San Jose, CA 95134
+
+     Tel: +1 1800 553-NETS
+
+     E-mail: cs-yang@cisco.com";
+  description
+    "Cisco XE Native Next-Generation Firewall (NGFW) Yang model.
+     Copyright (c) 2025-2026 by Cisco Systems, Inc.
+     All rights reserved.";
+
+  revision 2026-08-01 {
+    description
+      "- Initial model added
+       - Added update configuration for NGFW global settings
+       - Added refresh-token based authentication for the NGFW update server
+       - Removed unsupported NGFW logging host source-interface configuration
+       - Add length constraints to refresh-token leaf
+       - Added NGFW policy and parameter-map CLI ordering constraints";
+  }
+
+  grouping ngfw-refresh-token-grouping {
+    container refresh-token {
+      description
+        "Provide the refresh-token for authentication";
+      leaf type {
+        type enumeration {
+          enum 0 {
+            description
+              "Unencrypted refresh-token";
+          }
+          enum 6 {
+            description
+              "AES encrypted refresh-token";
+          }
+        }
+        default "0";
+      }
+      leaf secret {
+        description
+          "Provide the refresh-token for authentication";
+        mandatory true;
+        type string {
+          length "32..256";
+        }
+      }
+    }
+  }
+
+  grouping ngfw-username-password-grouping {
+    leaf username {
+      description
+        "Provide the username for authentication";
+      type string {
+        length "1..128";
+      }
+    }
+    container password {
+      description
+        "Provide the password for authentication";
+      when '../username';
+      leaf type {
+        type enumeration {
+          enum 0 {
+            description
+              "Unencrypted password";
+          }
+          enum 6 {
+            description
+              "AES encrypted password";
+          }
+        }
+        default "0";
+      }
+      leaf password {
+        description
+          "Password for authentication";
+        type string {
+          length "1..128";
+        }
+      }
+    }
+  }
+
+  grouping ngfw-update-server-grouping {
+    container server {
+      description
+        "Provide the update server information";
+      choice server-choice {
+        container cisco {
+          description
+            "Use Cisco site to provide updates";
+          uses ngfw-refresh-token-grouping;
+        }
+        container url {
+          description
+            "Enter the complete URL for the path to the update server";
+          leaf url-value {
+            description
+              "URL for update location (http/https). Example: http://1.2.3.4/path/";
+            mandatory true;
+            type string {
+              length "1..240";
+            }
+          }
+          uses ngfw-username-password-grouping;
+        }
+      }
+    }
+  }
+
+  grouping ngfw-hour-minute-grouping {
+    leaf hour {
+      description
+        "Hours of the day in 24-hr time, 0-23";
+      type uint8 {
+        range "0..23";
+      }
+    }
+    leaf minute {
+      description
+        "The minutes from the top of the hour";
+      type uint8 {
+        range "0..59";
+      }
+    }
+  }
+
+  grouping ngfw-global-grouping {
+    container global {
+      description
+        "NGFW global settings";
+      presence "true";
+      container logging {
+        description
+          "Provide logging server information";
+        list host {
+          description
+            "Log the alerts to a host";
+          key "name";
+          leaf name {
+            type string {
+              length "1..45";
+            }
+          }
+        }
+        leaf syslog {
+          description
+            "Log the alerts to IOS syslogs";
+          type empty;
+        }
+        container events {
+          description
+            "Enable logging for specific event types";
+          leaf connection {
+            description
+              "Enable logging for connection events";
+            type empty;
+          }
+        }
+      }
+      container threat-inspection {
+        description
+          "NGFW global threat-inspection config submode";
+        presence "true";
+        container custom-signature {
+          description
+            "NGFW global threat-inspection custom-signature config submode";
+          uses ngfw-threat-inspection-custom-signature-grouping;
+        }
+        container port-scan {
+          description
+            "NGFW global threat-inspection port-scan config submode";
+          presence "true";
+          container sense {
+            description
+              "Provide the sense level for port-scan";
+            leaf level {
+              description
+                "Provide the sense level";
+              type enumeration {
+                enum low;
+                enum medium;
+                enum high;
+              }
+              default "low";
+            }
+          }
+        }
+        leaf snort-ml {
+          description
+            "Enable snort-ml functionality";
+          type empty;
+        }
+      }
+      container encrypted-visibility {
+        description
+          "NGFW Global Encrypted Visibility Engine (EVE) config modes";
+        leaf policy-mode {
+          description
+            "Provide the Encrypted Visibility Engine mode";
+          type enumeration {
+            enum monitor;
+            enum protect;
+          }
+        }
+        leaf block-threat-confidence-level {
+          when "../policy-mode = 'protect'";
+          description
+            "Block Connection Based on EVE Threat Confidence Level (default=very-high)";
+          type enumeration {
+            enum very-high;
+            enum high;
+          }
+          default "very-high";
+        }
+        leaf block-exempt-rule-list {
+          when "../policy-mode = 'protect'";
+          description
+            "Associate an EVE Protection Exempt Rule List";
+          type leafref {
+            path "../../../encrypted-visibility/exempt-rule-list/name";
+          }
+        }
+      }
+      container update {
+        description
+          "Configure update settings";
+        container type {
+          description
+            "Specify the update type";
+          container lsp {
+            description
+              "Lightweight Security Package (LSP) updates";
+            uses ngfw-update-server-grouping;
+          }
+          container vdb {
+            description
+              "Vulnerability Database (VDB) updates";
+            uses ngfw-update-server-grouping;
+          }
+        }
+        container occur-at {
+          description
+            "Schedule update at the specified calendar time plus a randomized delay";
+          choice occur-at-choice {
+            leaf daily {
+              description
+                "Option for daily update";
+              type empty;
+            }
+            leaf monthly {
+              description
+                "Option for monthly update. Days of the month from 1-31, examples: 1,10,20,30 or 1-11";
+              type string {
+                length "1..96";
+                pattern '([1-9]|[12][0-9]|3[01])(-([1-9]|[12][0-9]|3[01]))?(,([1-9]|[12][0-9]|3[01])(-([1-9]|[12][0-9]|3[01]))?)*';
+              }
+            }
+            leaf weekly {
+              description
+                "Option for weekly update. Days of the week from 0-6, Sunday=0, examples: 0-2 or 1,3,5";
+              type string {
+                length "1..64";
+                pattern '([0-6](-[0-6])?(,[0-6](-[0-6])?)*)';
+              }
+            }
+          }
+          uses ngfw-hour-minute-grouping;
+        }
+      }
+    }
+  }
+
+  grouping ngfw-threat-inspection-custom-signature-grouping {
+    leaf file {
+      description
+        "Provide file for the custom-signature";
+      type string {
+        length "8..128";
+        pattern '(((bootflash:)|(flash:)|(harddisk:)).*[.](rules|txt))';
+      }
+    }
+  }
+
+  grouping ngfw-threat-inspection-signature-list-grouping {
+    list entry {
+      description
+        "Provide generator/signature tuples for the signature list";
+      max-elements 100;
+      key "generator-id signature-id";
+      leaf generator-id {
+        description
+          "Provide the generator ID for the signature list entry";
+        type uint32;
+      }
+      leaf signature-id {
+        description
+          "Provide the signature ID for the signature list entry";
+        type uint32;
+      }
+      leaf comment {
+        description
+          "Provide a comment for the signature list entry";
+        type string {
+          length "1..128";
+        }
+      }
+    }
+  }
+
+  grouping ngfw-threat-inspection-grouping {
+    container threat-inspection {
+      description
+        "NGFW threat-inspection (IPS/IDS) config modes";
+      container allow-list {
+        description
+          "NGFW threat-inspection allow-list profile";
+        list profile {
+          description
+            "NGFW allow-list profile";
+          key "name";
+          leaf name {
+            type string {
+              length "1..128";
+              pattern '[a-zA-Z0-9_-]+';
+            }
+          }
+          uses ngfw-threat-inspection-signature-list-grouping;
+        }
+      }
+      container custom-signature {
+        description
+          "NGFW threat-inspection custom-signature profile";
+        list profile {
+          description
+            "NGFW custom-signature profile";
+          key "name";
+          leaf name {
+            type string {
+              length "1..128";
+              pattern '[a-zA-Z0-9_-]+';
+            }
+          }
+          uses ngfw-threat-inspection-custom-signature-grouping;
+        }
+      }
+      list profile {
+        description
+          "NGFW threat-inspection profile";
+        key "name";
+        leaf name {
+          type string {
+            length "1..128";
+            pattern '[a-zA-Z0-9_-]+';
+          }
+        }
+        leaf threat {
+          description
+            "Provide the threat detection/protection option (default=detection)";
+          type enumeration {
+            enum detection;
+            enum protection;
+          }
+        }
+        leaf policy {
+          description
+            "Provide the policy option (default=balanced)";
+          type enumeration {
+            enum balanced;
+            enum connectivity;
+            enum security;
+            enum max-detect;
+            enum no-rules-active;
+          }
+        }
+        container logging {
+          description
+            "Provide logging level for the alerts for threat-inspection (IPS/IDS)";
+          leaf level {
+            description
+              "Provide the log level";
+            type enumeration {
+              enum emerg;
+              enum alert;
+              enum crit;
+              enum err;
+              enum warning;
+              enum notice;
+              enum info;
+              enum debug;
+            }
+            default "err";
+          }
+        }
+        container allow-list {
+          description
+            "Associate an allow-list profile with this threat-inspection profile";
+          leaf profile {
+            description
+              "NGFW allow-list profile";
+            type leafref {
+              path "../../../allow-list/profile/name";
+            }
+          }
+        }
+        container custom-signature {
+          description
+            "Associate a custom-signature profile with this threat-inspection profile";
+          leaf profile {
+            description
+              "NGFW custom-signature profile";
+            type leafref {
+              path "../../../custom-signature/profile/name";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  grouping ngfw-policy-grouping {
+    list policy {
+      description
+        "Enter NGFW policy configuration";
+      key "name";
+      leaf name {
+        type string {
+          length "1..128";
+          pattern '[a-zA-Z0-9_-]+';
+        }
+      }
+      container fail {
+        description
+          "Enter the NGFW engine fail mode operation";
+        leaf close {
+          description
+            "Drop all traffic on NGFW engine failure";
+          type empty;
+        }
+      }
+      container threat-inspection {
+        description
+          "Associate a threat-inspection profile with this policy";
+        leaf profile {
+          description
+            "Associate a threat-inspection profile with this policy";
+          type leafref {
+            path "../../../threat-inspection/profile/name";
+          }
+        }
+      }
+    }
+  }
+
+  grouping ngfw-eve-ipv4-match-grouping {
+    choice match-type {
+      case prefix-case {
+        list prefix {
+          description
+            "IPv4 prefix to be matched";
+          max-elements 100;
+          key "ipv4";
+          leaf ipv4 {
+            type inet:ipv4-prefix;
+          }
+        }
+      }
+      case object-group-case {
+        list object-group {
+          description
+            "Name of the IPv4 object-group to be matched";
+          max-elements 3;
+          key "name";
+          leaf name {
+            type leafref {
+              path "/ios:native/ios:object-group/ios-og:network/ios-og:name";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  grouping ngfw-eve-ipv6-match-grouping {
+    choice match-type {
+      case prefix-case {
+        list prefix {
+          description
+            "IPv6 prefix to be matched";
+          max-elements 100;
+          key "ipv6";
+          leaf ipv6 {
+            type inet:ipv6-prefix;
+          }
+        }
+      }
+      case object-group-case {
+        list object-group {
+          description
+            "Name of the IPv6 object-group to be matched";
+          max-elements 3;
+          key "name";
+          leaf name {
+            type leafref {
+              path "/ios:native/ios:object-group/ios-og:v6-network/ios-og:name";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  grouping ngfw-eve-exempt-rule-grouping {
+    list exempt-rule {
+      description
+        "EVE Protection Exempt Rule";
+      max-elements 100;
+      key "name";
+      leaf name {
+        type string {
+          length "1..128";
+        }
+      }
+      must 'string-length(process-name) > 0 or count(source-ipv4/prefix) > 0 or count(source-ipv4/object-group) > 0 or count(destination-ipv4/prefix) > 0 or count(destination-ipv4/object-group) > 0 or count(source-ipv6/prefix) > 0 or count(source-ipv6/object-group) > 0 or count(destination-ipv6/prefix) > 0 or count(destination-ipv6/object-group) > 0' {
+        error-message "At least process-name or IP address matching must be configured";
+      }
+      leaf process-name {
+        description
+          "Process name to exempt";
+        type string {
+          length "1..128";
+          pattern '[a-zA-Z0-9_.-]+([ ][a-zA-Z0-9_.-]+)*';
+        }
+      }
+      choice ip-af-choice {
+        case ipv4-case {
+          container source-ipv4 {
+            uses ngfw-eve-ipv4-match-grouping;
+          }
+          container destination-ipv4 {
+            uses ngfw-eve-ipv4-match-grouping;
+          }
+        }
+        case ipv6-case {
+          container source-ipv6 {
+            uses ngfw-eve-ipv6-match-grouping;
+          }
+          container destination-ipv6 {
+            uses ngfw-eve-ipv6-match-grouping;
+          }
+        }
+      }
+    }
+  }
+
+  grouping ngfw-eve-grouping {
+    container encrypted-visibility {
+      description
+        "NGFW Encrypted Visibility Engine (EVE) configuration";
+      list exempt-rule-list {
+        description
+          "EVE Protection Exempt Rule List";
+        key "name";
+        leaf name {
+          type string {
+            length "1..128";
+          }
+        }
+        uses ngfw-eve-exempt-rule-grouping;
+      }
+    }
+  }
+
+  grouping config-ngfw-grouping {
+    container ngfw {
+      container ngfw {
+        description
+          "Enable Next-Generation Firewall (NGFW)";
+        presence "true";
+        uses ngfw-eve-grouping;
+        uses ngfw-global-grouping;
+        uses ngfw-threat-inspection-grouping;
+        uses ngfw-policy-grouping;
+      }
+    }
+  }
+
+  grouping config-ngfw-parameter-map-grouping {
+    container ngfw-policy {
+      description
+        "Attach NGFW Policy";
+      leaf policy-name {
+        description
+          "NGFW Policy name";
+        type leafref {
+          path "/ios:native/ios-ngfw:ngfw/ios-ngfw:ngfw/ios-ngfw:policy/ios-ngfw:name";
+        }
+      }
+    }
+  }
+
+  augment "/ios:native" {
+    uses config-ngfw-grouping;
+  }
+
+  augment "/ios:native/ios:parameter-map/ios:type/ios-policy:inspect" {
+    uses config-ngfw-parameter-map-grouping;
+  }
+
+  augment "/ios:native/ios:parameter-map/ios:type/ios-policy:inspect-global" {
+    uses config-ngfw-parameter-map-grouping;
+  }
+}
