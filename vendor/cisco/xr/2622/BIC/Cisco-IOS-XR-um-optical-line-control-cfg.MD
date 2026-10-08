@@ -1,0 +1,32 @@
+## Cisco-IOS-XR-um-optical-line-control-cfg.yang
+
+- [XPaths Obsoleted](#xpaths-obsoleted)
+- [XPaths Deprecated](#xpaths-deprecated)
+- [XPaths Added](#xpaths-added)
+- [XPaths Removed](#xpaths-removed)
+- [XPaths Modified](#xpaths-modified)
+
+### Description
+
+Changed config model for partner band port configuration to accept IPv6 address in addition to IPv4 address.
+
+## XPaths Obsoleted
+
+N/A
+
+## XPaths Deprecated
+
+N/A
+
+## XPaths Added
+
+N/A
+
+## XPaths Removed
+
+- (L391)	/optical-line-control/controller/interfaces/interface[interface-name]/partner-band-port/ipv4
+
+## XPaths Modified
+
+N/A
+
