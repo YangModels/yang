@@ -5,12 +5,12 @@ module ietf-yang-package-types {
 
   import ietf-yang-revisions {
     prefix rev;
-    reference "XXXX: Updated YANG Module Revision Handling";
+    reference "RFC XXXX: Updated YANG Module Revision Handling";
   }
 
   import ietf-yang-semver  {
     prefix ys;
-    reference "XXXX: YANG Semantic Versioning";
+    reference "RFC XXXX: YANG Semantic Versioning";
   }
 
   import ietf-yang-types {
@@ -29,10 +29,10 @@ module ietf-yang-package-types {
     "IETF NETMOD (Network Modeling) Working Group";
 
   contact
-    "WG Web:   <http://tools.ietf.org/wg/netmod/>
+    "WG Web:   <https://datatracker.ietf.org/wg/netmod/>
      WG List:  <mailto:netmod@ietf.org>
 
-     Author:   Rob Wilton
+     Editor:   Robert Wilton
                <mailto:rwilton@cisco.com>";
 
   description
@@ -49,6 +49,10 @@ module ietf-yang-package-types {
      Relating to IETF Documents
      (https://trustee.ietf.org/license-info).
 
+     All revisions of IETF and IANA published modules can be found
+     at the YANG Parameters registry group
+     (https://www.iana.org/assignments/yang-parameters).
+
      This version of this YANG module is part of RFC XXXX; see
      the RFC itself for full legal notices.
 
@@ -57,11 +61,6 @@ module ietf-yang-package-types {
      'MAY', and 'OPTIONAL' in this document are to be interpreted as
      described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
      they appear in all capitals, as shown here.";
-
-  // RFC Ed.: update the date below with the date of RFC publication
-  // and remove this note.
-  // RFC Ed.: replace XXXX with actual RFC number and remove this
-  // note.
   revision 2026-07-06 {
     ys:version 0.10.0;
     description
@@ -84,6 +83,22 @@ module ietf-yang-package-types {
     type ys:version;
     description
       "Packages are versioned using YANG Semver version labels.";
+  }
+
+  typedef pkg-reference {
+    type string {
+      pattern '[a-zA-Z_][a-zA-Z0-9\-_.]*@'
+            + '[0-9]+[.][0-9]+[.][0-9]+(_(non_)?compatible)?'
+            + '(-[A-Za-z0-9.-]+)?([+][A-Za-z0-9.-]+)?';
+      pattern '[^@]+@.{5,128}';
+    }
+    description
+      "Identifies an exact package version as
+       '<package-name>@<version>'.
+       The name MUST conform to pkg-name and the version MUST conform
+       to pkg-version. Exactly one '@' separates the two components.
+       The reference does not include a filename extension
+       or location.";
   }
 
   typedef module-name {
@@ -110,26 +125,22 @@ module ietf-yang-package-types {
       "Represents a feature name scoped to a particular module,
        identified as the '<module-name>:<feature-name>', where both
        <module-name> and <feature-name> are YANG identifier strings,
-       as defined by Section 12 or RFC 6020.";
+       as defined by Section 12 of RFC 6020.";
     reference
-      "RFC XXXX, YANG Packages.";
+      "RFC XXXX: YANG Packages";
   }
 
-  typedef mount-ypath {
+  typedef pkg-ypath {
     type string;
 
     description
-      "A path that identifies a set of data nodes in the schema tree.
+      "A Ypath, as defined in draft-jgc-netmod-yang-path, that
+       identifies a set of data nodes in the schema tree.
 
-      This leaf is encoded as a JSON style encoded
-      instance-identifier (regardless of whether the format
-      used to encode the YANG instance data), as specified in
-      RFC 7951, section 6.11, except that keys are optional.
-
-      For optional keys, the name and value of the key is
-      excluded from the key list.
-
-      TODO - Check if this definition is sufficient.";
+       TODO - Check whether any further constraints on the Ypath
+       definition are required for use in YANG packages.";
+    reference
+      "draft-jgc-netmod-yang-path: YANG path format (ypath)";
   }
 
   /*
@@ -153,11 +164,9 @@ module ietf-yang-package-types {
       description
         "Uniquely identifies a particular version of a YANG package.
 
-         Follows the definition for YANG Semantic Version labels
-         defined in draft-ietf-netmod-yang-semver, section 4.2
-
-         XXXX, RFC Editor, please update reference and section to
-         the published YANG Semver RFC.";
+         Follows the definition of YANG Semver version identifiers.";
+      reference
+        "RFC XXXX: YANG Semantic Versioning, Section 4.3";
     }
   }
 
@@ -173,8 +182,12 @@ module ietf-yang-package-types {
 
       leaf-list module {
         type module-name;
+        must "not(. = ../../includes/module/name)" {
+          error-message
+            "A module cannot be both included and excluded.";
+        }
         description
-          "Lists implemented modules, of any version, that may have
+          "Lists implemented modules, of any version, that may
            have been brought in by included packages, but are
            explicitly excluded from this package definition.
 
@@ -190,9 +203,24 @@ module ietf-yang-package-types {
       }
 
       list import-only-module {
+        must
+          "not(../../includes/import-only-module"
+        + "[name = current()/name]"
+        + "[version = current()/version])" {
+          error-message
+            "An import-only module cannot be included and excluded"
+          + " with the same name and version values.";
+        }
+        must
+          "version or not(../../includes/import-only-module"
+        + "[name = current()/name])" {
+          error-message
+            "An exclusion of all versions conflicts with an included"
+          + " import-only module with the same name.";
+        }
         key "name";
         description
-          "Lists import-only modules that may have have been brought
+          "Lists import-only modules that may have been brought
            in by included packages, but are explicitly excluded from
            this package definition.
 
@@ -226,14 +254,19 @@ module ietf-yang-package-types {
 
       leaf-list feature {
         type scoped-feature;
+        must "not(. = ../../includes/feature)" {
+          error-message
+            "A feature cannot be both included and excluded.";
+        }
         description
-          "Lists features from the 'includes/feature' list exported
-          by an included package that are reclassified as being
-          OPTIONAL to support by any server implementing the package,
-          overriding the behavior specified by the included package.
+          "Lists features from the 'includes/feature' leaf-list
+          exported by an included package that are reclassified as
+          being OPTIONAL to support by any server implementing the
+          package, overriding the behavior specified by the included
+          package.
 
-          Features MUST NOT be specified both in this list and also
-          the 'includes/feature' list.";
+          It is an error to list a feature in both this leaf-list and
+          the 'includes/feature' leaf-list.";
       }
     }
   }
@@ -246,15 +279,14 @@ module ietf-yang-package-types {
       type inet:uri;
       ordered-by user;
       description
-        "Contains a URL that represents where an instance data file
-         (RFC 9195) for this YANG package can be found.
+        "Contains a URL that represents where a YANG package file
+         (.ypkg) for this YANG package can be found.
 
          This leaf will only be present if there is a URL available
          for retrieval of the schema for this entry.
 
-         If multiple locations are provided, then the first location
-         in the leaf-list SHOULD be the canonical location that
-         uniquely identifies this package.";
+         If a canonical location for this package is provided,
+         it MUST be the first entry in the leaf-list.";
     }
   }
 
@@ -262,12 +294,12 @@ module ietf-yang-package-types {
     description
       "Defines the data nodes for representing a submodule reference
        in a YANG package definition.";
+
     list submodule {
       key "name";
       description
         "Each entry represents one submodule within the
           parent module.";
-
       leaf name {
         type module-name;
         mandatory true;
@@ -295,9 +327,8 @@ module ietf-yang-package-types {
           "Contains a URL from where the YANG schema resource for
           this submodule can be retrieved.
 
-          If multiple locations are provided, then the first
-          location in the leaf-list SHOULD be the canonical
-          location that uniquely identifies this submodule.";
+          If a canonical location for this submodule is provided,
+          it MUST be the first entry in the leaf-list.";
       }
     }
   }
@@ -333,9 +364,8 @@ module ietf-yang-package-types {
          This leaf will only be present if there is a URL available
          for retrieval of the schema for this entry.
 
-         If multiple locations are provided, then the first location
-         in the leaf-list SHOULD be the canonical location that
-         uniquely identifies this module.";
+         If a canonical location for this module is provided,
+         it MUST be the first entry in the leaf-list.";
     }
 
     uses submodule-identification-leafs;
@@ -344,8 +374,7 @@ module ietf-yang-package-types {
   grouping yang-pkg-instance {
     description
       "Specifies the data node for a full YANG package instance
-       represented either on a server or as a YANG instance data
-       document.";
+       represented either on a server or in a YANG package file.";
     uses yang-pkg-identification-leafs;
 
     leaf version-description {
@@ -391,10 +420,12 @@ module ietf-yang-package-types {
       type boolean;
       default true;
       description
-        "Indicates whether the schema defined by this package is
+        "Indicates whether this package's resolved schema is
          referentially complete.  I.e. all module imports can be
-         resolved to a module explicitly defined in this package or
-         one of the included packages.";
+         resolved to a module version in the resolved package
+         schema.";
+      reference
+        "RFC XXXX: YANG Packages, Section 3.3";
     }
 
     container includes {
@@ -415,7 +446,7 @@ module ietf-yang-package-types {
            for example, to update location information for package
            versions included through other packages.";
         reference
-          "RFC XXXX: YANG Packages, Section 4.";
+          "RFC XXXX: YANG Packages, Section 4";
 
         uses yang-pkg-identification-leafs;
         uses yang-pkg-location;
@@ -459,15 +490,17 @@ module ietf-yang-package-types {
       leaf-list feature {
         type scoped-feature;
         description
-          "Lists features, defined in any modules included in the
-           package, that MUST be supported by any server
-           implementing the package.
+          "Lists features that MUST be supported by any server
+           implementing the package.  Each feature MUST be defined
+           by the selected implemented version of its named module
+           in the resolved package schema, including any selected
+           submodules.
 
            Enabled features specified by any directly included
            packages MUST also be supported by server
            implementations, unless excluded by an entry in the
-           'excludes/feature' list, and do not need to be repeated
-           in this list.
+           'excludes/feature' leaf-list, and do not need to be
+           repeated in this leaf-list.
 
            All other features defined in modules included in the
            package are OPTIONAL to implement.";
@@ -478,14 +511,19 @@ module ietf-yang-package-types {
 
     container depends-on {
       description
-        "Lists packages that this package depends on, but that do
-         not form part of the resolved package definition.
+        "Provides metadata identifying packages that
+         this package depends on, but that do not form part of the
+         resolved package schema.
+
+         Dependency metadata is not inherited from included packages,
+         so dependencies applicable to this package must be stated
+         explicitly in this list.
 
          For an incomplete package definition, this list can help a
          client resolve a complete schema in a machine readable
          way.";
       reference
-        "RFC XXXX: YANG Packages, Section 4.";
+        "RFC XXXX: YANG Packages, Section 3.2";
 
       list package {
         key "name version";
@@ -503,49 +541,34 @@ module ietf-yang-package-types {
       description
         "An entry in this list represents additions to the schema
          found at the specified mount point, or, if
-         'inherit-packages' is 'false', replacement of the
+         'inherit-mounted-schema' is 'false', replacement of the
          inherited schema found at the specified mount point.";
 
-      leaf "mount-path" {
-        type mount-ypath;
+      leaf mount-path {
+        type pkg-ypath;
         mandatory true;
         description
-          "This path identifies a mount point in the schema.
-
-           This leaf is encoded as a JSON style encoded
-           instance-identifier (regardless of whether the format
-           used to encode the YANG instance data), as specified in
-           RFC 7951, section 6.11, except that keys are optional.
-
-           For optional keys, the name and value of the key is
-           excluded from the key list.
+          "A Ypath, as defined in draft-jgc-netmod-yang-path, that
+           identifies a mount point within the package schema.  If
+           this package is itself mounted, the path is interpreted
+           within that mounted schema, with its mount point as the
+           root, as specified in RFC 8528, Sections 3.4 and 4.
 
            Mount paths MUST only be used for schema mount points
-           defined in the package schema.
-
-           For example, if an example module 'ex-module' defines a
-           mount point under list entry'/modules/module/' then a
-           mount path of
-
-           - '/modules/module[name=foo]' would indicate the mounted
-             package schema for only the 'foo' entry in the module
-             list.  Each entry in the list could have a different
-             mounted schema specified.
-
-           - '/modules/module[]' would indicate that the same
-             mounted package schema is available for all list
-             entries in the module list.";
+           defined in the package schema.";
+        reference
+          "RFC XXXX: YANG Packages, Section 4;
+           draft-jgc-netmod-yang-path: YANG path format (ypath);
+           RFC 8528: YANG Schema Mount";
       }
 
-      leaf inherit-packages {
+      leaf inherit-mounted-schema {
         type boolean;
         default true;
         description
-          "Indicates whether the packages, additional features, and
-           parent-references available at the mount point for this
-           package definition automatically include all packages,
-           additional features, and parent-references mounted at the
-           same mount path in any 'includes/package' entries.
+          "Indicates whether the mounted schema and all its
+           properties are inherited from mounts at the same
+           mount-path in 'includes/package' entries.
 
            If set to true (the default), the schema is defined
            as the union of the resolved package schema at the mount
@@ -553,17 +576,59 @@ module ietf-yang-package-types {
            combined with the resolved package schema of all packages
            listed in the 'package' list, plus any additional
            features and parent-references defined for the same
-           mount point.
+           mount point.  Read-only status and mount mode are also
+           inherited.
 
            If set to false, then the mounted schema starts from a
            blank slate and only packages, additional features, and
            parent-references listed in this 'mount' entry are
-           included.  This allows the definitions in the mounted
-           packages to be modified (e.g., remove or change module
-           versions).  To help conformance, the packages listed here
-           SHOULD include all the packages that would have been
-           automatically included.
+           included.  If no packages are listed, no schema is mounted
+           at this mount point.  This allows the definitions in the
+           mounted packages to be modified (e.g., remove or change
+           module versions).  To help conformance, the packages
+           listed here SHOULD include all the packages that would
+           have been automatically included.
           ";
+      }
+
+      leaf read-only {
+        type boolean;
+        description
+          "If true, all data nodes in the mounted schema are
+           read-only.  An explicit false value is a schema resolution
+           error if the inherited mount is read-only.  If no value is
+           inherited or specified, the mount is read-write, subject
+           to the configuration restrictions of RFC 8528.
+
+           See 'inherit-mounted-schema' for inheritance behavior.";
+        reference
+          "RFC XXXX: YANG Packages, Sections 3.5 and 4;
+           RFC 8528: YANG Schema Mount, Section 3.3";
+      }
+
+      leaf mount-mode {
+        type enumeration {
+          enum inline {
+            description
+              "Mount instances may use different schemas, as defined
+               by the 'inline' case in RFC 8528.";
+          }
+          enum shared-schema {
+            description
+              "All instances of the mount point use the same schema,
+               as defined by the 'shared-schema' case in RFC 8528.";
+          }
+        }
+        description
+          "The Schema Mount mode for this mount point.  An explicit
+           value that conflicts with an inherited mode is a schema
+           resolution error.  If no mode is inherited or specified,
+           'shared-schema' is used.
+
+           See 'inherit-mounted-schema' for inheritance behavior.";
+        reference
+          "RFC XXXX: YANG Packages, Section 4;
+           RFC 8528: YANG Schema Mount, Section 3.3";
       }
 
       list package {
@@ -579,34 +644,36 @@ module ietf-yang-package-types {
           for example, to update location information for package
           versions inherited from included packages.
 
-          If 'inherit-packages' is true, or absent, then these
-          packages are mounted in addition to the mounted packages
-          from the 'includes/package' list.
+          With mounted-package inheritance enabled (the default),
+          these packages are mounted in addition to the mounted
+          packages from the 'includes/package' list.
 
-          If 'inherit-packages' is false, then these packages,
-          together with any additional features and
-          parent-references in the same 'mount' entry, define the
-          mounted package schema at this mount point.
+          With mounted-package inheritance disabled, these packages,
+          together with any additional features and parent-references
+          in the same 'mount' entry, define the mounted package
+          schema at this mount point.
 
-          Also see the 'inherit-packages' leaf.";
+          Also see the 'inherit-mounted-schema' leaf.";
         reference
-          "RFC XXXX: YANG Packages, Section 4.";
+          "RFC XXXX: YANG Packages, Section 4";
         uses yang-pkg-identification-leafs;
         uses yang-pkg-location;
       }
 
-      leaf-list additional-feature {
+      leaf-list feature {
         type scoped-feature;
         description
-          "The name of YANG features enabled at the mount point in
-           addition to the enabled features from the resolved
-           mounted package definitions.
+          "Features listed here are enabled at the mount point in
+           addition to those enabled by the resolved mounted packages
+           and, when 'inherit-mounted-schema' is true, by inherited
+           'mount/feature' entries.
 
-           This list identifies additional features rather than the
-           complete set of supported features.
+           This list does not identify the complete set of supported
+           features but features already enabled by the resolved
+           inherited mounts MAY be listed.
 
-           The features listed here MUST be defined in modules
-           included in the resolved mounted package schema.
+           The features listed here MUST be defined by implemented
+           modules in the resolved mounted package schema.
 
            Features are identified using
            <module-name>:<feature-name>.
@@ -614,23 +681,20 @@ module ietf-yang-package-types {
       }
 
       leaf-list parent-reference {
-        type mount-ypath;
+        type pkg-ypath;
         description
-          "Represents paths in the parent schema that are accessible
-           from the mounted schema for the evaluation of XPath
-           expressions.
+          "A Ypath, as defined in draft-jgc-netmod-yang-path, that
+           identifies data nodes in the schema containing the mount
+           point, accessible from the mounted schema for the
+           evaluation of XPath expressions.
 
-           See Mount Point path and parent-reference in Schema Mount
-           (RFC 8528) for a more detailed description.
+           Parent-references apply only to shared-schema mounts.
 
-           Unlike the YANG module defined in RFC 8528, this leaf is
-           encoded as a JSON style encoded instance-identifier
-           (regardless of whether the format used to encode the YANG
-           instance data), as specified in RFC 7951, section 6.11,
-           except that keys are optional.
-
-           For optional keys, the name and value of the key is
-           excluded from the key list.";
+           See parent-reference in Schema Mount (RFC 8528) for a
+           more detailed description of the accessible data nodes.";
+        reference
+          "draft-jgc-netmod-yang-path: YANG path format (ypath);
+           RFC 8528: YANG Schema Mount";
       }
     }
   }
