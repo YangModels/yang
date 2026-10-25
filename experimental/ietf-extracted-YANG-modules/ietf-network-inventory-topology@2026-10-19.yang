@@ -55,13 +55,19 @@ module ietf-network-inventory-topology {
      (https://www.iana.org/assignments/yang-parameters).
 
      This version of this YANG module is part of RFC XXXX; see
-     the RFC itself for full legal notices.";
+     the RFC itself for full legal notices.
 
-  revision 2026-09-11 {
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.";
+
+  revision 2026-10-19 {
     description
       "Initial revision.";
     reference
-      "RFC XXXX: A Network Data Model for Inventory Topology
+      "RFC XXXX: A YANG Network Data Model for Inventory Topology
                  Mapping";
   }
 
@@ -116,7 +122,7 @@ module ietf-network-inventory-topology {
        cannot be classified into any of the other defined types.
 
        When a discovery system is unable to determine the media
-       type, it should use this identity rather than leaving the
+       type, it SHOULD use this identity rather than leaving the
        leaf unset. An unset leaf indicates that the link type has
        not been assessed, whereas unknown explicitly records that
        the medium could not be classified.";
@@ -158,23 +164,34 @@ module ietf-network-inventory-topology {
     when '../nw:network-types/nwit:inventory-topology';
     description
       "Augments the network topology node with inventory mapping
-       attributes. This enables correlation between the logical node
-       and its physical network element.";
+       attributes. This enables correlation between the physical node
+       and its corresponding network element in the inventory.";
     container inventory-mapping-attributes {
+      must 'ne-ref' {
+        error-message
+          "A physical node must include ne-ref to identify the
+           corresponding network element.";
+      }
       presence
-        "If present, it indicates this is a physical node, which
-         maps to a network element. If not present, it indicates it
-         is an abstract node.";
+        "If present, an inventory mapping is declared for this node.
+         If absent, no inventory mapping is declared.";
       description
-        "Container for inventory mapping attributes of a node.";
+        "Container for inventory mapping attributes of a node.
+
+         In typical deployments, the ne-ref leaf SHOULD be populated
+         through automatic discovery.  It SHOULD NOT be configured
+         manually except where discovery is not possible (e.g.,
+         Customer Premises Equipment (CPE) outside the operator's
+         management domain).";
       leaf ne-ref {
         type nwi:ne-ref;
         description
           "Reference to the NE in the inventory that corresponds to
            this topology node.
 
-           This reference establishes a 1:1 mapping between the
-           logical node and its physical NE.";
+           When the container inventory-mapping-attributes
+           is present, this reference identifies the NE that the
+           topology node maps to.";
       }
     }
   }
@@ -182,11 +199,17 @@ module ietf-network-inventory-topology {
   augment "/nw:networks/nw:network/nt:link" {
     when '../nw:network-types/nwit:inventory-topology';
     description
-      "Augments the network topology link with inventory-related
-       attributes.";
+      "Augments the physical network topology link with
+       inventory-related attributes.";
     container inventory-mapping-attributes {
-      presence "Indicates a physical link, at the lowest underlay
-                abstraction level.";
+      must 'link-type' {
+        error-message
+          "A physical link must include link-type to classify the
+           link media type.";
+      }
+      presence
+        "If present, an inventory mapping is declared for this link.
+         If absent, no inventory mapping is declared.";
       description
         "Container for inventory-related attributes of a link.
 
@@ -199,7 +222,12 @@ module ietf-network-inventory-topology {
            inventory
 
            Detailed inventory references may be added in future
-           modules.";
+           modules.
+
+           In typical deployments, the link-type leaf SHOULD be
+           populated through automatic discovery.  It SHOULD NOT be
+           configured manually except where discovery is not possible
+           (e.g., leased lines).";
       leaf link-type {
         type identityref {
           base link-type;
@@ -228,31 +256,52 @@ module ietf-network-inventory-topology {
       "Augments the termination point (TP) with inventory mapping
        and port breakout.";
     container inventory-mapping-attributes {
+      must "nwit:ne-ref =
+            ../../nwit:inventory-mapping-attributes/nwit:ne-ref" {
+        error-message
+          "A physical TP must have a ne-ref that matches the
+           ne-ref of its parent node, so that port-ref is
+           resolved within a single unambiguous network element
+           scope.";
+      }
       presence
-        "If present, it indicates this is a physical TP, which
-         maps to a port component. If not present, it indicates it
-         is a logical TP.";
+        "If present, an inventory mapping is declared for this TP.
+         If absent, no inventory mapping is declared.";
       description
-        "Container for inventory mapping attributes of a TP.";
+        "Container for inventory mapping attributes of a TP.
+
+         In typical deployments, the port-ref leaves SHOULD be
+         populated through automatic discovery.  They SHOULD NOT
+         be configured manually except where discovery is not
+         possible (e.g., CPE outside the operator's management
+         domain, leased lines).";
       uses nwi:port-ref {
         refine "port-ref" {
           description
             "Reference to the physical port component in the
-             network inventory. This reference establishes a 1:1
-             mapping between the logical TP and its physical port
-             component.";
+             network inventory.
+
+             When the container inventory-mapping-attributes
+             is present, this reference identifies the port
+             component that the TP maps to. The ne-ref leaf must
+             also be present, as component identifiers are scoped
+             to a network element.";
         }
       }
     }
     container port-breakout {
-      presence "Indicates the port supports channel breakout.";
+      presence
+        "Indicates the physical port supports channel breakout.";
       config false;
       description
         "Breakout capability of the physical port represented by
          this TP. One TP maps to one physical port; channels are
          listed here. This container is present only when the
          underlying hardware supports partitioning the port into
-         multiple independent channels (e.g., 400G to 4x100G).";
+         multiple independent channels (e.g., 400G to 4x100G).
+
+         This container is read-only (config false) as it reflects
+         hardware-determined state.";
       list breakout-channel {
         key "channel-id";
         description
