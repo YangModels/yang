@@ -1,0 +1,1114 @@
+module ietf-pm-collection {
+  yang-version 1.1;
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-pm-collection";
+  prefix pm-co;
+
+  import ietf-yang-types {
+    prefix yang;
+    reference "RFC 6991: Common YANG Data Types";
+  }
+
+  organization
+    "IETF IP Performance Metrics (ippm) Working Group";
+  contact
+    "WG Web: <https://datatracker.ietf.org/wg/ippm/>
+     Editor: Bin Yeong Yoon <mailto:byyun@etri.re.kr>";
+  description
+    "This YANG module defines a data model for the collection of
+     performance monitoring (PM) data in network equipment, based
+     on ITU-T G.7710.  It specifies three core collection types:
+     counts (cumulative events), snapshot (instantaneous values),
+     and tidemarks (extreme values).
+
+     The module enables proactive network monitoring through
+     configurable sampling and collection intervals, supporting
+     both high-frequency real-time monitoring and long-term trend
+     analysis.  It provides threshold event notifications for both
+     periodic collection and non-periodic events (BUT, EUT,
+     CSES).
+
+     The module defines the base identity 'performance-parameter'
+     from which the identities of specific performance parameters
+     are derived in other modules, and the 'collection-type'
+     typedef used by other modules to refer to the three
+     collection types.
+
+     The collected data can be retrieved by clients via
+     pull-based mechanisms (e.g., NETCONF get-data) or delivered
+     via push-based subscription mechanisms (e.g., YANG-Push).
+     The design supports AI-driven applications, network digital
+     twins, and dynamic network environments by enabling multiple
+     simultaneous views of the same performance parameter with
+     different temporal resolutions.
+
+     Copyright (c) 2026 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Revised BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC
+     itself for full legal notices.";
+
+  revision 2026-10-29 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX: A YANG Data Model for Performance Monitoring (PM)
+       Collection";
+  }
+
+  /*
+   * TYPEDEFs
+   */
+  typedef profile-names {
+    type string {
+      pattern '[a-zA-Z][a-zA-Z0-9_-]*-[a-zA-Z][a-zA-Z0-9_-]*-'
+            + '[a-zA-Z][a-zA-Z0-9_-]*(-[a-zA-Z][a-zA-Z0-9_-]*)?';
+    }
+    description
+      "Parameter profile name following the format:
+       <source>-<network>-<purpose>[-<characteristic>]
+
+       Where:
+       - <source>: Standards body or organization
+         (e.g., itu, ieee, ietf)
+       - <network>: Network domain or layer
+         (e.g., transport, access, core)
+       - <purpose>: Intended use or function
+         (e.g., maintenance, qos, availability)
+       - <characteristic>: Optional qualifying information
+         (e.g., 15min, 24hr, high-priority)
+
+       Examples:
+       - example-ip-qos-15min
+       - example-ip-qos-24hr
+       - example-mobile-availability-24hr";
+  }
+
+  typedef time-interval-unit {
+    type enumeration {
+      enum millisecond {
+        description "Time interval in milliseconds.";
+      }
+      enum second {
+        description "Time interval in seconds.";
+      }
+      enum minute {
+        description "Time interval in minutes.";
+      }
+      enum hour {
+        description "Time interval in hours.";
+      }
+      enum day {
+        description "Time interval in days.";
+      }
+    }
+    description "Units for expressing time intervals.";
+  }
+
+  typedef collection-type {
+    type enumeration {
+      enum counts {
+        description
+          "Counts collection type: cumulative number of events
+           over the collection interval.";
+      }
+      enum snapshot {
+        description
+          "Snapshot collection type: instantaneous value taken at
+           the uniform time within the collection interval.";
+      }
+      enum tidemarks {
+        description
+          "Tidemarks collection type: maximum and minimum values
+           reached during the collection interval.";
+      }
+    }
+    description
+      "The three collection types.  Used by other modules,
+       for example to advertise which collection types a server
+       supports for a parameter.";
+    reference
+      "ITU-T G.7710";
+  }
+
+  typedef interval-status {
+    type enumeration {
+      enum complete {
+        description
+          "The collection interval is complete: all expected
+           samples for the interval were available, so the
+           collected value represents a fully measured
+           interval.";
+      }
+      enum partial {
+        description
+          "The collection interval is partial: some expected
+           samples were missing (e.g., telemetry loss or partial
+           node support), but at least one valid sample was
+           collected.  A partial 'counts' value is a lower bound
+           on the true count for the interval.";
+      }
+      enum unavailable {
+        description
+          "The collection interval is unavailable: no valid
+           sample was collected for the interval.  In this case
+           the corresponding collection-value leaf is not
+           instantiated, so a reported value is never mistaken
+           for a measured zero.";
+      }
+    }
+    description
+      "Validity status of a collection interval.  It
+       distinguishes a fully measured interval from one computed
+       over an incomplete set of samples, so that a client can
+       interpret the collected value correctly.";
+  }
+
+  /*
+   * FEATURES
+   */
+  feature coverage-counters {
+    description
+      "Indicates that the server reports per-interval sample
+       coverage counters (expected-sample-count and
+       received-sample-count) within interval-data-status.";
+  }
+
+  /*
+   * PERFORMANCE PARAMETER IDENTITY
+   */
+  identity performance-parameter {
+    description
+      "Base identity for performance monitoring parameters.  The
+       key of each pm-parameter entry is an identity derived from
+       this base.  Specific parameters are defined as derived
+       identities in other modules, for example modules that
+       define the parameters of specific network technologies.";
+  }
+
+  /*
+   * EVENT IDENTITIES
+   */
+  identity periodic-events {
+    description
+      "Base identity for periodic event notifications.";
+  }
+
+  identity counts-transient {
+    base periodic-events;
+    description
+      "Notification for transient threshold events of the counts
+       collection type.";
+  }
+
+  identity counts-standing {
+    base periodic-events;
+    description
+      "Notification for standing threshold events of the counts
+       collection type.";
+  }
+
+  identity snapshot {
+    base periodic-events;
+    description
+      "Notification for threshold events of the snapshot
+       collection type.";
+  }
+
+  identity tidemarks {
+    base periodic-events;
+    description
+      "Notification for threshold events of the tidemarks
+       collection type.";
+  }
+
+  identity non-periodic-events {
+    description
+      "Base identity for non-periodic event notifications.";
+  }
+
+  identity but {
+    base non-periodic-events;
+    description
+      "Notification for Begin Unavailable Time (BUT) events.";
+  }
+
+  identity eut {
+    base non-periodic-events;
+    description
+      "Notification for End Unavailable Time (EUT) events.";
+  }
+
+  identity cses {
+    base non-periodic-events;
+    description
+      "Notification for Consecutive Severely Errored Seconds
+       (CSES) events.";
+  }
+
+  /*
+   * MEASUREMENT METHOD IDENTITIES (RFC 7799)
+   */
+  identity measurement-method {
+    description
+      "Base identity for the IPPM measurement method (RFC 7799)
+       by which the Stage 1 samples of a performance parameter
+       are produced.";
+    reference
+      "RFC 7799: Active and Passive Metrics and Methods (with
+       Hybrid Types In-Between)";
+  }
+
+  identity active {
+    base measurement-method;
+    description
+      "Active measurement method: dedicated synthetic test
+       traffic is generated and injected to observe network
+       behaviour, e.g., OWAMP (RFC 4656), TWAMP (RFC 5357),
+       STAMP (RFC 8762).";
+    reference
+      "RFC 7799, Section 3.4";
+  }
+
+  identity passive {
+    base measurement-method;
+    description
+      "Passive measurement method: observation relies solely on
+       traffic and signals already present, e.g., reading
+       protocol counters or observing physical-layer signals,
+       without generating test packets.";
+    reference
+      "RFC 7799, Section 3.6";
+  }
+
+  identity hybrid {
+    base measurement-method;
+    description
+      "Hybrid measurement method: existing user traffic is
+       augmented or observed in transit to obtain measurements,
+       e.g., IOAM (RFC 9197).";
+    reference
+      "RFC 7799, Section 3.8";
+  }
+
+  /*
+   * SUSPECT-REASON IDENTITIES
+   */
+  identity suspect-reason {
+    description
+      "Base identity for the reason a collection interval is
+       marked suspect (see suspect-interval-flag).";
+    reference
+      "ITU-T G.7710";
+  }
+
+  identity telemetry-loss {
+    base suspect-reason;
+    description
+      "One or more expected samples were lost in transit from
+       the Stage 1 sampling source.";
+  }
+
+  identity partial-node-support {
+    base suspect-reason;
+    description
+      "Some nodes or resources contributing to the parameter did
+       not report samples for the interval.";
+  }
+
+  identity state-reset {
+    base suspect-reason;
+    description
+      "Collection state was reset during the interval, so the
+       accumulated result does not cover the whole interval.";
+  }
+
+  identity restart {
+    base suspect-reason;
+    description
+      "The equipment or collection function restarted during
+       the interval.";
+  }
+
+  identity time-adjustment {
+    base suspect-reason;
+    description
+      "Interval timing changed during the interval, for example
+       due to a change of the sampling interval, reconfiguration,
+       or a clock adjustment, so the interval does not contain the
+       expected number of samples.";
+  }
+
+  identity measurement-suspended {
+    base suspect-reason;
+    description
+      "Data collection was intentionally suspended for part or
+       all of the interval, so the interval does not cover
+       continuous measurement.  This corresponds to the
+       case in which the interval belongs to a period during
+       which the measurement is suspended or resumed, for
+       example administrative disabling of the PM function, a
+       planned maintenance window, or reconfiguration of the
+       measurement.  It denotes an intentional pause of
+       collection, as distinct from unintended sample loss
+       (telemetry-loss), a counter reset (state-reset), or an
+       equipment or function restart (restart).";
+    reference
+      "ITU-T G.7710: suspect interval flag set when the
+       measurement is suspended or resumed";
+  }
+
+  identity measurement-boundary {
+    base suspect-reason;
+    description
+      "The interval is the first or last interval of the
+       measurement and does not cover the full nominal period,
+       because the measurement did not start or stop on an
+       interval boundary.  The value is otherwise valid, but the
+       interval is partial.";
+    reference
+      "ITU-T G.7710: suspect interval flag set for the first or
+       last interval of the measurement";
+  }
+
+  identity outage {
+    base suspect-reason;
+    description
+      "A fault or outage condition (e.g., equipment or power
+       failure, or resource unavailability) prevented the
+       measurement from being performed for part or all of the
+       interval, so a snapshot or tidemark may contain no data or
+       the periodical gauge measurements were not possible.  This
+       is distinct from telemetry-loss, in which the measurement
+       was performed but samples were lost in transit.";
+    reference
+      "ITU-T G.7710: suspect interval flag set when a snapshot or
+       tidemark contains no data due to outage conditions";
+  }
+
+  /*
+   * COMMON GROUPINGS
+   */
+  grouping threshold-config {
+    description
+      "Common threshold configuration for the snapshot and
+       tidemarks collection types (high and low thresholds).";
+    leaf high-threshold {
+      type uint32;
+      description
+        "High threshold that triggers alerts when exceeded.";
+    }
+    leaf low-threshold {
+      type uint32;
+      description
+        "Low threshold that triggers alerts when performance
+         falls below acceptable levels.";
+    }
+  }
+
+  grouping transient-threshold-config {
+    description
+      "Threshold configuration for transient conditions.
+       Transient thresholds only support high threshold crossings
+       and report immediately when the count value reaches or
+       crosses the configured transient threshold value.
+       Transient thresholds do not support low threshold
+       (underflow) conditions, unlike the snapshot and tidemarks
+       collection types, which support both high and low
+       thresholds.";
+    leaf transient-threshold {
+      type uint32;
+      description
+        "Transient threshold that triggers alerts when exceeded.
+         Transient thresholds report immediately when the count
+         value reaches or crosses this threshold value.";
+    }
+  }
+
+  grouping event-state-info {
+    description
+      "Common event state information for all event types.";
+    leaf event-occurred {
+      type boolean;
+      description
+        "Indicates whether a threshold crossing or performance
+         event has occurred.";
+    }
+    leaf event-time {
+      type yang:date-and-time;
+      description
+        "Precise timestamp of when the event occurred.";
+    }
+  }
+
+  grouping oor-event-type {
+    description
+      "Common out-of-range event type definition.";
+    leaf event-type {
+      type enumeration {
+        enum High-OOR-event {
+          description "High OOR threshold exceeded.";
+        }
+        enum Low-OOR-event {
+          description "Low OOR threshold crossed.";
+        }
+      }
+      description
+        "Specifies whether the high or low OOR threshold was
+         crossed.";
+    }
+  }
+
+  grouping triggered-oor-event-info {
+    description
+      "Combined threshold event type and event information.";
+    uses oor-event-type;
+    uses event-state-info;
+  }
+
+  grouping count-transient-event-type {
+    description
+      "Transient threshold event type definition for the counts
+       collection type.  Transient thresholds report immediately
+       when the count value reaches or crosses a configured
+       threshold value.";
+    leaf event-type {
+      type enumeration {
+        enum Threshold-Crossed-Event {
+          description
+            "Threshold crossing event generated when count value
+             reaches or crosses the configured threshold value.";
+        }
+      }
+      description
+        "Specifies that a threshold crossing event occurred.";
+    }
+  }
+
+  grouping triggered-count-transient-event-info {
+    description
+      "Combined transient threshold event type and event
+       information for the counts collection type.  Transient
+       thresholds are independent threshold mechanisms that
+       report immediately when count values cross configured
+       threshold values.";
+    uses count-transient-event-type;
+    uses event-state-info;
+  }
+
+  grouping time-interval-config {
+    description "Common time interval configuration.";
+    leaf interval-value {
+      type uint32;
+      description "Numeric value for the interval.";
+    }
+    leaf unit {
+      type time-interval-unit;
+      description "Time unit for the interval value.";
+    }
+  }
+
+  grouping interval-data-status {
+    description
+      "Validity and coverage metadata for a collection interval,
+       aligned with the suspect interval flag.  It lets a
+       client tell a fully measured interval from an incomplete
+       one, and a measured zero from an absent value.";
+    reference
+      "ITU-T G.7710";
+    leaf suspect-interval-flag {
+      type boolean;
+      default false;
+      description
+        "Set to 'false' at the start of a collection interval and
+         set to 'true' when the data stored for the interval may
+         be unreliable, for example when periodic samples are
+         missing, when collection state is reset, when the
+         equipment restarts, when interval timing changes, or
+         when collection is suspended.
+
+         For the snapshot collection type the initialization is
+         inverted: G.7710 initializes the flag to 'true' at the
+         start of the interval to indicate that no snapshot has
+         yet been taken, and clears it to 'false' once the single
+         snapshot has been taken at the uniform time.";
+      reference
+        "ITU-T G.7710";
+    }
+    leaf interval-status {
+      type interval-status;
+      description
+        "Validity status of the interval (complete, partial, or
+         unavailable).  When this leaf is not 'complete', the
+         suspect-interval-flag is 'true'.";
+    }
+    leaf-list suspect-reason {
+      type identityref {
+        base suspect-reason;
+      }
+      description
+        "Zero or more reasons the interval is suspect.  Present
+         only when known.";
+    }
+    leaf expected-sample-count {
+      if-feature coverage-counters;
+      type uint64;
+      description
+        "Number of Stage 1 samples expected during the collection
+         interval, i.e., the number a complete interval would
+         collect for the configured sampling interval (for
+         periodically sampled parameters, approximately the
+         collection interval divided by the sampling interval).
+         This is a sample-based coverage indicator that applies
+         to any sampled parameter and is most meaningful for
+         periodically sampled (gauge) parameters such as
+         tidemarks.  It is not defined by ITU-T G.7710, which
+         indicates counter coverage through 'elapsed-time' and
+         marks incompleteness with the suspect-interval-flag; the
+         sample counts generalize that notion for this model.";
+    }
+    leaf received-sample-count {
+      if-feature coverage-counters;
+      type uint64;
+      description
+        "Number of valid Stage 1 samples actually collected
+         during the collection interval.  Together with
+         expected-sample-count it gives the interval coverage: a
+         value equal to expected-sample-count indicates full
+         coverage, a smaller value a partial interval, and zero
+         an unavailable interval (no valid sample).";
+    }
+    leaf elapsed-time {
+      type uint32;
+      units "seconds";
+      description
+        "Elapsed time since the start of the current collection
+         interval.  This is the number of seconds of the interval
+         that have been processed by the measurement, not the sum
+         of available time; it advances during unavailable time
+         as well and falls short of the nominal interval only
+         when the measurement itself could not run (e.g., a
+         boundary interval, a clock adjustment, or an outage).";
+    }
+    leaf interval-start-time {
+      type yang:date-and-time;
+      description
+        "Timestamp marking the start of the collection interval
+         to which this status applies.";
+    }
+    leaf interval-end-time {
+      type yang:date-and-time;
+      description
+        "Timestamp marking the end of the collection interval to
+         which the reported values apply.  This is the
+         end-of-interval timestamp.  It is the authoritative
+         measurement time for the interval and should be used for
+         correlation in preference to the notification envelope
+         eventTime, which reflects when the notification was
+         generated rather than the measurement interval boundary.
+         It is present once the interval has completed.";
+      reference
+        "ITU-T G.7710";
+    }
+  }
+
+  /*
+   * COLLECTION TYPE GROUPINGS
+   *
+   * Each collection type is a presence container.  The presence
+   * of the container in a collection-interval entry indicates
+   * that the server collects that collection type for the
+   * parameter over that interval; its absence indicates that it
+   * does not.  This lets a profile select, for example, the
+   * counts collection type only.
+   */
+  grouping count-collection-gr {
+    description
+      "Counts collection type for cumulative event tracking over
+       a collection interval.  Supports transient and standing
+       threshold reporting.";
+    container counts {
+      presence
+        "Enables the counts collection type for this collection
+         interval.";
+      description
+        "Contains counts collection values and configuration.";
+      container transient-condition-config {
+        description
+          "Configuration for transient threshold conditions.
+           Transient thresholds report immediately when the
+           count value reaches or crosses the configured
+           transient threshold value.  Transient thresholds do
+           not support low threshold (underflow) conditions,
+           unlike the snapshot and tidemarks collection types,
+           which support both high and low thresholds.";
+        uses transient-threshold-config;
+      }
+      container standing-condition-config {
+        must "not(standing-threshold and reset-threshold) or "
+           + "standing-threshold >= reset-threshold" {
+          error-message
+            "Standing threshold must be >= reset threshold.";
+        }
+        description
+          "Configuration for standing condition monitoring.
+           When both thresholds are set, standing-threshold
+           must be greater than or equal to reset-threshold
+           (hysteresis).";
+        leaf standing-threshold {
+          type uint32;
+          description
+            "Threshold value that triggers standing condition
+             alerts.";
+        }
+        leaf reset-threshold {
+          type uint32;
+          description
+            "Reset threshold value that clears standing
+             conditions.";
+        }
+      }
+      leaf collection-value {
+        type uint32;
+        config false;
+        description
+          "Current cumulative count value for the collection
+           interval.";
+      }
+    }
+  }
+
+  grouping snapshot-collection-gr {
+    description
+      "Snapshot collection type for instantaneous values at the
+       uniform time within each collection interval.  Supports
+       high/low OOR threshold reporting.";
+    container snapshot {
+      presence
+        "Enables the snapshot collection type for this collection
+         interval.";
+      description
+        "Contains snapshot configuration and values.";
+      container uniform-time-config {
+        description
+          "Configuration of the uniform time: the fixed offset
+           from the start of the collection interval at which the
+           single snapshot is taken.  Taking snapshots at the same
+           uniform time across network elements lets their values
+           be correlated.";
+        leaf offset-value {
+          type uint32;
+          description
+            "Numeric value of the offset, measured from the start
+             of the collection interval, at which the snapshot is
+             taken.";
+        }
+        leaf unit {
+          type time-interval-unit;
+          description
+            "Time unit for the uniform-time offset.";
+        }
+      }
+      container threshold-config {
+        description
+          "Configuration for snapshot threshold monitoring.";
+        uses threshold-config;
+      }
+      leaf collection-value {
+        type uint32;
+        config false;
+        description
+          "Current instantaneous snapshot value.";
+      }
+    }
+  }
+
+  grouping tidemarks-collection-gr {
+    description
+      "Tidemarks collection type for maximum and minimum values
+       over the collection interval.  Supports high/low OOR
+       threshold reporting.";
+    container tidemarks {
+      presence
+        "Enables the tidemarks collection type for this
+         collection interval.";
+      description
+        "Contains tidemarks values and threshold
+         configuration.";
+      container threshold-config {
+        description
+          "Configuration for tidemarks threshold monitoring.";
+        uses threshold-config;
+      }
+      leaf high-collection-value {
+        type uint32;
+        config false;
+        description
+          "Current maximum value recorded during the collection
+           interval.";
+      }
+      leaf low-collection-value {
+        type uint32;
+        config false;
+        description
+          "Current minimum value recorded during the collection
+           interval.";
+      }
+    }
+  }
+
+  grouping collection-types-gr {
+    description
+      "Grouping for the three core collection types (counts,
+       snapshot, tidemarks).";
+    container collection-types {
+      description
+        "Container for the counts, snapshot, and tidemarks
+         collection types.  Each collection type is a presence
+         container; a collection type is collected for this
+         collection interval only when its container is
+         present.";
+      uses count-collection-gr;
+      uses snapshot-collection-gr;
+      uses tidemarks-collection-gr;
+    }
+  }
+
+  /*
+   * EVENT GROUPINGS
+   */
+  grouping counts-transient-event-gr {
+    description
+      "Transient threshold events for the counts collection
+       type.  Transient thresholds are independent threshold
+       mechanisms that report immediately when count values
+       cross configured threshold values.";
+    container counts-transient {
+      description
+        "Contains information about transient threshold events
+         for counts.";
+      uses triggered-count-transient-event-info;
+    }
+  }
+
+  grouping counts-standing-event-gr {
+    description
+      "Standing condition events for the counts collection
+       type.";
+    container counts-standing {
+      description
+        "Contains information about standing threshold events
+         for counts.";
+      leaf event-type {
+        type enumeration {
+          enum Threshold-Report {
+            description
+              "Threshold Report (TR) generated when the count
+               value reaches or exceeds the standing-threshold
+               configured in standing-condition-config.";
+          }
+          enum Reset-Threshold-Report {
+            description
+              "Reset Threshold Report (RTR) generated at the end
+               of the period when the count value is at or below
+               the reset-threshold (G.7710 standing condition
+               clear).  An RTR is not generated for an interval
+               whose suspect-interval-flag is set (equivalent to
+               the G.7710 'no unavailable time' condition).";
+          }
+        }
+        description
+          "Specifies the type of standing threshold event that
+           occurred.  A Threshold-Report
+           (TR) is generated when the collection-value reaches
+           or exceeds the standing-threshold.  A
+           Reset-Threshold-Report (RTR) is generated at the end
+           of the period when the collection-value is at or
+           below the reset-threshold.";
+      }
+      uses event-state-info;
+    }
+  }
+
+  grouping snapshot-events-gr {
+    description
+      "Threshold events for the snapshot collection type.";
+    container snapshot {
+      description
+        "Contains snapshot threshold event information.";
+      uses triggered-oor-event-info;
+    }
+  }
+
+  grouping tidemarks-events-gr {
+    description
+      "Threshold events for the tidemarks collection type.";
+    container tidemarks {
+      description
+        "Contains tidemarks threshold event information.";
+      uses triggered-oor-event-info;
+    }
+  }
+
+  /*
+   * COLLECTION INTERVAL STRUCTURES
+   */
+  grouping periodic-collection-intervals {
+    description
+      "Hierarchical structure for periodic collection timing
+       and collection types.";
+    list sampling-interval {
+      key "id";
+      description
+        "List of sampling intervals defining data collection
+         frequency.";
+      leaf id {
+        type string;
+        description
+          "Unique identifier for this sampling interval
+           configuration.";
+      }
+      leaf interval-value {
+        type uint32 {
+          range "1..max";
+        }
+        default 1;
+        description
+          "Numeric value for the sampling interval.";
+      }
+      leaf unit {
+        type time-interval-unit;
+        default second;
+        description "Time unit for the sampling interval value.";
+      }
+      list collection-interval {
+        key "id";
+        description
+          "List of collection intervals defining aggregation
+           periods.";
+        leaf id {
+          type string;
+          description
+            "Unique identifier for this collection interval
+             configuration.";
+        }
+        leaf interval-value {
+          type uint32 {
+            range "1..max";
+          }
+          default 15;
+          description
+            "Numeric value for the collection interval.";
+        }
+        leaf unit {
+          type time-interval-unit;
+          default minute;
+          description
+            "Time unit for the collection interval value.";
+        }
+        container interval-data-status {
+          config false;
+          description
+            "Operational validity and coverage status of this
+             collection interval (see the interval-data-status
+             grouping).  In push-based delivery this status
+             accompanies each streamed record; in pull-based
+             retrieval it is read alongside the collection
+             value.";
+          uses interval-data-status;
+        }
+        uses collection-types-gr;
+      }
+    }
+  }
+
+  grouping non-periodic-events-gr {
+    description
+      "Grouping for non-periodic performance event parameters
+       (BUT, EUT, CSES).";
+    container BUT-event {
+      description "Begin Unavailable Time (BUT) event.";
+      uses event-state-info;
+    }
+    container EUT-event {
+      description "End Unavailable Time (EUT) event.";
+      uses event-state-info;
+      leaf duration {
+        type uint32;
+        units "seconds";
+        description
+          "Total duration of unavailability in seconds.";
+      }
+    }
+    container CSES-event {
+      description
+        "Consecutive Severely Errored Seconds (CSES) event.";
+      leaf event-occurred {
+        type boolean;
+        description
+          "Indicates whether a CSES event was generated.";
+      }
+      leaf start {
+        type yang:date-and-time;
+        description
+          "Timestamp indicating when the CSES period began.";
+      }
+      leaf end {
+        type yang:date-and-time;
+        description
+          "Timestamp indicating when the CSES period ended.";
+      }
+      leaf duration {
+        type uint32;
+        units "seconds";
+        description "Duration of the CSES period in seconds.";
+      }
+      leaf error-count {
+        type uint32;
+        description
+          "Number of errors during the CSES period.";
+      }
+    }
+  }
+
+  grouping pm-periodic-collection-gr {
+    description
+      "Hierarchical structure for periodic PM collection.";
+    list parameter-profile {
+      key "name";
+      description "List of performance parameter profiles.";
+      leaf name {
+        type profile-names;
+        description "Name of the parameter profile.";
+      }
+      list pm-parameter {
+        key "name";
+        description
+          "List of PM parameters within the parameter profile.";
+        leaf name {
+          type identityref {
+            base performance-parameter;
+          }
+          description
+            "Identity of the performance parameter being
+             collected, derived from the performance-parameter
+             base identity.";
+        }
+        leaf measurement-method {
+          type identityref {
+            base measurement-method;
+          }
+          description
+            "IPPM measurement method (RFC 7799) by which this
+             parameter's Stage 1 samples are produced.  This leaf
+             is optional; when absent, the measurement method is
+             unspecified.  It carries interpretation metadata
+             only and does not affect Collection-stage behaviour.
+             Some parameters (e.g., environmental sensor
+             readings) are not classified by this axis.";
+          reference
+            "RFC 7799: Active and Passive Metrics and Methods
+             (with Hybrid Types In-Between);
+             RFC 6390, Section 5.4.4: method of measurement
+             metadata";
+        }
+        uses periodic-collection-intervals;
+      }
+    }
+  }
+
+  /*
+   * MAIN CONTAINER
+   */
+  container pm-periodic-collection {
+    description
+      "Main container for periodic PM collection.";
+    uses pm-periodic-collection-gr;
+  }
+
+  /*
+   * NOTIFICATIONS
+   */
+  notification pm-threshold-events {
+    description
+      "Notification for periodic threshold crossing events and
+       non-periodic performance events (BUT, EUT, CSES).";
+    container periodic-events {
+      description "Container for periodic threshold events.";
+      list parameter-profile {
+        key "name";
+        description
+          "List of performance parameter profiles for event
+           monitoring.";
+        leaf name {
+          type profile-names;
+          description "Name of the parameter profile.";
+        }
+        list pm-parameter {
+          key "name";
+          description
+            "List of PM parameters within the parameter
+             profile.";
+          leaf name {
+            type identityref {
+              base performance-parameter;
+            }
+            description
+              "Identity of the performance parameter being
+               monitored, derived from the performance-parameter
+               base identity.";
+          }
+          list sampling-interval {
+            key "id";
+            description
+              "List of sampling intervals for event monitoring.";
+            leaf id {
+              type string;
+              description
+                "Unique identifier for this sampling interval
+                 configuration.";
+            }
+            uses time-interval-config;
+            list collection-interval {
+              key "id";
+              description
+                "List of collection intervals for event
+                 aggregation.";
+              leaf id {
+                type string;
+                description
+                  "Unique identifier for this collection
+                   interval configuration.";
+              }
+              uses time-interval-config;
+              container event-types {
+                description
+                  "Container for different threshold event
+                   types.";
+                uses counts-transient-event-gr;
+                uses counts-standing-event-gr;
+                uses snapshot-events-gr;
+                uses tidemarks-events-gr;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    container non-periodic-events {
+      description
+        "Container for non-periodic performance events (BUT,
+         EUT, CSES).";
+      uses non-periodic-events-gr;
+    }
+  }
+}

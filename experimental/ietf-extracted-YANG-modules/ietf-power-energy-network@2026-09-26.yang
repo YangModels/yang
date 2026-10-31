@@ -1,0 +1,190 @@
+module ietf-power-energy-network {
+  yang-version 1.1;
+
+  namespace "urn:ietf:params:xml:ns:yang:ietf-power-energy-network";
+  prefix pen;
+
+  import ietf-network {
+    prefix nw;
+    reference
+      "RFC 8345: A YANG Data Model for Network Topologies";
+  }
+
+  import ietf-power-energy-base {
+    prefix peb;
+    reference
+      "RFC XXX: Energy Object YANG Data Model";
+  }
+
+  import ietf-network-inventory {
+    prefix nwi;
+    reference
+      "RFC XXXX: A YANG Data Model for Network Inventory";
+  }
+
+  organization
+    "IETF GREEN Working Group";
+
+  contact
+    "WG Web: <https://datatracker.ietf.org/wg/green/>
+     WG List: <mailto:green@ietf.org>";
+
+  description
+    "Augments the network inventory model with reusable power and
+     energy attributes for network components and defines a
+     network-wide energy flow view.";
+
+  revision 2026-09-26 {
+    description
+      "Initial revision.";
+    reference
+      "RFC XXX: Energy Object YANG Data Model";
+  }
+
+  grouping references {
+    description
+      "A set of optional identifiers for correlating an energy
+       node or component with external systems. Multiple
+       references may be present simultaneously.";
+
+    container references {
+      description
+        "External references for this object.";
+
+      leaf ref-string {
+        type string;
+        description
+          "Implementation-specific local or proprietary
+           identifier.";
+      }
+
+      leaf ref-ietf-hw {
+        type string;
+        description
+          "Identifier corresponding to a component known through
+           the ietf-hardware model.";
+      }
+      // Augment additional external references as needed here
+      // Augmentations would need to target each location where this
+      // grouping is used.
+    }
+  }
+
+  grouping relationship-set {
+    description
+      "Relationships from a local component to peer nodes and
+       zero or more peer components.";
+
+    list relationship {
+      key "type peer-node";
+      description
+        "Relationships for a local energy component.";
+
+      leaf type {
+        type identityref {
+          base peb:energy-relationship-type;
+        }
+        description
+          "The type of relationship the local component has with
+           the peer node or component(s).";
+      }
+
+      leaf peer-node {
+        type leafref {
+          path "../../../../../nw:node/nw:node-id";
+        }
+        description
+          "The peer energy node participating in this
+           relationship.";
+      }
+
+      list peer-component {
+        key "peer-component";
+        description
+          "One or more peer components within the peer node.
+           If this list is empty, the relationship applies to the
+           peer node as a whole.";
+
+        leaf peer-component {
+          type leafref {
+            path "../../../../../../nw:node[nw:node-id=current()/../../peer-node]"
+               + "/pen:energy-node-attributes/pen:component"
+               + "/pen:component-id";
+          }
+          description
+            "A peer component within the referenced peer node.";
+        }
+
+        leaf details {
+          type string;
+          description
+            "Additional implementation-specific details about the
+             relationship to this peer component.";
+        }
+      }
+    }
+  }
+
+  augment "/nw:networks/nw:network/nw:network-types" {
+    description
+      "Introduces a network type for representing energy flows
+       between network devices and components.";
+
+    container energy-network {
+      presence
+        "Indicates an energy-flow network.";
+      description
+        "This network type represents energy relationships, power
+         sourcing, and energy-consuming structures that may exist
+         alongside other network views such as physical or logical
+         topology.";
+    }
+  }
+
+  augment "/nw:networks/nw:network/nw:node" {
+    when '../nw:network-types/pen:energy-network';
+    description
+      "Adds energy modeling attributes to nodes in an energy
+       network.";
+
+    container energy-node-attributes {
+      presence
+        "Indicates that the node participates in the energy
+         network view.";
+      description
+        "Energy-related attributes for a node in the energy
+         network. The node may represent a router, phone, access
+         point, or another energy-relevant device.";
+
+      uses references;
+      uses peb:power-and-energy-attributes;
+
+      list component {
+        key "component-id";
+        description
+          "Energy-relevant components scoped locally to this node.
+           Component identifiers are unique only within the parent
+           node, avoiding network-wide naming collisions.";
+
+        leaf component-id {
+          type string;
+          description
+            "Identifier of the component within the parent energy
+             node.";
+        }
+
+        uses references;
+        uses peb:power-and-energy-attributes;
+
+        uses relationship-set;
+      }
+    }
+  }
+
+  augment "/nwi:network-inventory/nwi:network-elements/nwi:network-element/nwi:components/nwi:component" {
+    description
+      "Adds power and energy attributes to network inventory
+       components.";
+    uses peb:power-and-energy-attributes;
+  }
+}
