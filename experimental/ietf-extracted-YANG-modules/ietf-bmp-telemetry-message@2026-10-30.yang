@@ -1,0 +1,196 @@
+module ietf-bmp-telemetry-message {
+  yang-version 1.1;
+  namespace "urn:ietf:params:xml:ns:yang:ietf-bmp-telemetry-message";
+  prefix bmptm;
+
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 9911: Common YANG Data Types";
+  }
+  import ietf-yang-structure-ext {
+    prefix sx;
+    reference
+      "RFC 8791: YANG Data Structure Extensions";
+  }
+  import ietf-telemetry-message {
+    prefix tm;
+    reference
+      "draft-ietf-nmop-message-broker-telemetry-message: Extensible
+       YANG Model for Network Telemetry Messages";
+  }
+  import ietf-bmp-tlv {
+    prefix btlv;
+    reference
+      "RFC XXXX: YANG Model for BMP TLVs.";
+  }
+
+  organization
+    "IETF Draft";
+  contact
+    "Author:    Thomas Graf
+                <mailto:thomas.graf@swisscom.com>
+                Paolo Lucente
+                <mailto:paolo@ntt.net>
+                Leonardo Rodoni
+                <mailto:leonardo.rodoni@swisscom.com>
+                Maxence Younsi
+                <mailto:maxence.younsi4@swisscom.com>";
+
+  description
+    "Adds BMP specific session metadata to the data collection
+     protocol provenance of an ietf-telemetry-message message.
+     The BMP messages themselves are carried in its payload and
+     are defined in the ietf-bmp-message module.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
+     'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED',
+     'NOT RECOMMENDED', 'MAY', and 'OPTIONAL' in this document
+     are to be interpreted as described in BCP 14 (RFC 2119)
+     (RFC 8174) when, and only when, they appear in all
+     capitals, as shown here.
+
+     Copyright (c) 2026 IETF Trust and the persons identified as
+     authors of the code. All rights reserved.
+
+     Redistribution and use in source and binary forms, with or without
+     modification, is permitted pursuant to, and subject to the license
+     terms contained in, the Revised BSD License set forth in Section
+     4.c of the IETF Trust's Legal Provisions Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX; see the RFC
+     itself for full legal notices.";
+
+  revision 2026-10-30 {
+    description
+      "Redefined as the BMP extension of ietf-telemetry-message:
+       adds the bmp session-protocol identity and the
+       bmp-session container. The former content of this module
+       (the BMP message modeling) moved to the ietf-bmp-message
+       module.";
+    reference
+      "RFC XXXX";
+  }
+
+  identity bmp {
+    base tm:session-protocol;
+    description
+      "BGP Monitoring Protocol (BMP) used to collect the Network
+       Telemetry data from the network node.";
+    reference
+      "RFC 7854: BGP Monitoring Protocol (BMP)";
+  }
+
+  sx:augment-structure "/tm:message/tm:telemetry-message-metadata" {
+    description
+      "Augments telemetry-message-metadata with BMP specific session
+       metadata.";
+    container bmp-session {
+      when "derived-from-or-self(../tm:session-protocol, 'bmptm:bmp')" {
+        description
+          "BMP session metadata is present only when the Network
+           Telemetry data was collected with BMP.";
+      }
+      presence
+        "Indicates that the Network Telemetry data was collected
+         with BMP.";
+      description
+        "BMP session metadata maintained by the data collector for
+         the BMP session over which the message was received.";
+      leaf session-start-timestamp {
+        type yang:date-and-time;
+        mandatory true;
+        description
+          "Time at which the data collector established the BMP
+           session (TCP connection) with the monitored router. All
+           messages received over the same BMP session carry the same
+           value. A new value indicates a new BMP session, for
+           instance after a reconnect, and allows a consumer to
+           interpret the Peer Up and the following Route Monitoring
+           messages as the synchronization of a new session rather
+           than as route changes. The value is not part of the
+           Message Key.";
+        reference
+          "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.6.";
+      }
+      container initiation-information {
+        presence
+          "BMP Initiation message information cached by the data
+           collector for this BMP session.";
+        description
+          "Information from the BMP Initiation message of this BMP
+           session, cached by the data collector so that every
+           message is self-contained for consumers that did not
+           process or store the Initiation message. Absent when the
+           collector has not yet received or cached the Initiation
+           message.";
+        uses btlv:initiation-information;
+      }
+
+      container bgp-session {
+        presence
+          "The data collector tracks the monitored BGP session the
+           message relates to.";
+        description
+          "Per-message metadata, maintained by the data collector,
+           about the monitored BGP session (between the monitored
+           router and its peer) the message relates to. Unlike the
+           other nodes of bmp-session, the content can differ from
+           message to message. Absent for messages without a peer
+           (Initiation, Termination).";
+        reference
+          "RFC 7854: BGP Monitoring Protocol (BMP), Section 4.10.";
+        leaf peer-up-timestamp {
+          type yang:date-and-time;
+          description
+            "Time of the Peer Up message that started the monitored
+             BGP session, taken from that Peer Up message: the
+             Timestamp TLV of type trigger-time if present; otherwise
+             the Per-Peer Header Timestamp if non-zero; otherwise the
+             time at which the data collector received it. For a Peer
+             Up sent when the BMP session comes up, this can be the
+             time of the BMP session rather than of the BGP session.
+             In a Peer Down message, it refers to the BGP session
+             that went down.";
+          reference
+            "RFC 7854: BGP Monitoring Protocol (BMP), Sections 4.2
+             and 4.10.
+             draft-ietf-grow-bmp-tlv: BMP TLV Support for BMP Route
+             Monitoring and Peer Down Messages, Timestamp TLV.
+             ietf-bgp: neighbor last-established leaf.";
+        }
+        leaf rib-sync-state {
+          type enumeration {
+            enum initial-sync {
+              description
+                "The message is part of the initial synchronization:
+                 received after Peer Up and before the End-of-RIB
+                 marker of the same peer, AFI-SAFI and RIB.";
+            }
+            enum end-of-rib {
+              description
+                "The message is the End-of-RIB marker that completes
+                 the initial synchronization.";
+            }
+            enum synchronized {
+              description
+                "The message was received after the End-of-RIB
+                 marker, i.e. it is an update of an already
+                 synchronized RIB.";
+            }
+          }
+          description
+            "Synchronization state of the RIB (AFI-SAFI and RIB type
+             of this BGP session) the message belongs to, as tracked
+             by the data collector. Present only for Route Monitoring
+             messages. Absent if the collector cannot determine it,
+             e.g. when the router does not send End-of-RIB markers.";
+          reference
+            "RFC 7854: BGP Monitoring Protocol (BMP), Sections 3.3
+             and 5.";
+        }
+      }
+    }
+  }
+}
