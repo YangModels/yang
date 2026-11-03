@@ -3,6 +3,11 @@ module ietf-bgp-ls {
   namespace "urn:ietf:params:xml:ns:yang:ietf-bgp-ls";
   prefix bgp-ls;
 
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 9911: Common YANG Data Types.";
+  }
   import ietf-yang-types {
     prefix yang;
     reference
@@ -14,20 +19,47 @@ module ietf-bgp-ls {
       "RFC 8349, A YANG Data Model for Routing Management
        (NMDA Version).";
   }
+  import ietf-routing-types {
+    prefix ietf-rt-t;
+    reference
+      "RFC 8294: Common YANG Data Types for the Routing Area.";
+  }
+  import ietf-isis {
+    prefix ietf-isis-t;
+    reference
+      "RFC 9130: YANG Data Model for IS-IS Protocol.";
+  }
+  import ietf-ospf {
+    prefix ietf-ospf-t;
+    reference
+      "RFC 9129: YANG Data Model for the OSPF Protocol.";
+  }
   import ietf-bgp {
     prefix bgp;
     reference
       "I-D.ietf-idr-bgp-model: BGP YANG Model for Service Provider
                                Networks.";
   }
-  import iana-bgp-types {
-    prefix bt;
+  import iana-bgp-afi-safi-types {
+    prefix bast;
+    reference
+      "I-D.ietf-idr-bgp-model: BGP YANG Model for Service Provider
+                               Networks.";
+  }
+  import ietf-bgp-types {
+    prefix ibt;
     reference
       "I-D.ietf-idr-bgp-model: BGP YANG Model for Service Provider
                                Networks.";
   }
   import ietf-bgp-lsdb {
     prefix bgp-lsdb;
+    reference
+      "RFC XXXX: A YANG model for BGP-LS, BGP-LS-VPN,
+                 and BGP-LS-SPF.";
+  }
+  import ietf-bgp-ls-topo-types {
+    prefix bgp-ls-topo-t;
     reference
       "RFC XXXX: A YANG model for BGP-LS, BGP-LS-VPN,
                  and BGP-LS-SPF.";
@@ -42,7 +74,6 @@ module ietf-bgp-ls {
      Authors: Mahesh Jethanandani (mjethanandani at gmail.com),
               Keyur Patel (keyur at arrcus.com),
               Aravind Babu MahendraBabu (aramahen at cisco.com)";
-
   description
     "This module contains contains management
      information for BGP-LS database.
@@ -66,7 +97,8 @@ module ietf-bgp-ls {
      'MAY', and 'OPTIONAL' in this document are to be interpreted as
      described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
      they appear in all capitals, as shown here.";
-  revision 2026-06-29 {
+
+  revision 2026-11-02 {
     description
       "Initial Version";
     reference
@@ -75,7 +107,7 @@ module ietf-bgp-ls {
 
   // Identities.
   identity bgp-ls {
-    base bt:afi-safi-type;
+    base bast:afi-safi-type;
     description
       "BGP Link-State.";
     reference
@@ -84,7 +116,7 @@ module ietf-bgp-ls {
   }
 
   identity bgp-ls-vpn {
-    base bt:afi-safi-type;
+    base bast:afi-safi-type;
     description
       "BGP Link-State VPN.";
     reference
@@ -93,7 +125,7 @@ module ietf-bgp-ls {
   }
 
   identity bgp-ls-spf {
-    base bt:afi-safi-type;
+    base bast:afi-safi-type;
     description
       "BGP Link-State Shortest Path First (BGP-LS-SPF).";
     reference
@@ -210,13 +242,14 @@ module ietf-bgp-ls {
           "Metric associated with the corresponding link to
            be used in the SPF graph computation.";
       }
+
       leaf status {
         type enumeration {
           enum reachable {
             description
               "The link is reachable in the current SPF topology.";
           }
-          enum uncreachable {
+          enum unreachable {
             description
               "The link is unreachable in the current SPF
                topology.";
@@ -291,6 +324,533 @@ module ietf-bgp-ls {
     }
   }
 
+  grouping bgp-ls-rib-route-key {
+    description
+      "Grouping for the key that identifies a Link-State NLRI in
+       the BGP RIB.";
+
+    leaf nlri {
+      type yang:hex-string;
+      description
+        "The Link-State NLRI, encoded as specified in RFC 9552,
+         starting with the NLRI Type field. For BGP-LS-VPN, the
+         NLRI includes the Route Distinguisher.
+
+         The encoded NLRI is used as the key because RFC 9552
+         identifies an NLRI by a binary comparison of its encoding,
+         including any sub-TLVs unknown to the implementation. The
+         decoded descriptors of the NLRI are provided as non-key
+         leaves.";
+      reference
+        "RFC 9552: Distribution of Link-State and Traffic
+         Engineering Information Using BGP, Section 5.2.";
+    }
+  }
+
+  grouping bgp-ls-rib-node-descriptors {
+    description
+      "Decoded Node Descriptor sub-TLVs of a Link-State NLRI.
+       Leaves are present only when the corresponding sub-TLV is
+       present in the NLRI.";
+    reference
+      "RFC 9552: Distribution of Link-State and Traffic
+       Engineering Information Using BGP, Section 5.2.1.4.";
+
+    leaf as {
+      type inet:as-number;
+      description
+        "Autonomous System (AS) number associated with the BGP
+         process originating the link-state information.";
+    }
+    leaf bgp-ls-identifier {
+      type uint32;
+      status deprecated;
+      description
+        "BGP-LS Identifier. Deprecated by RFC 9552, and present
+         only for compatibility with RFC 7752 implementations.";
+    }
+
+    leaf area-id {
+      type ietf-ospf-t:area-id-type;
+      description
+        "OSPF Area ID to which the information advertised in the
+         NLRI belongs.";
+    }
+
+    choice igp-router-id {
+      description
+        "Decoded IGP Router-ID. The form of the Router-ID depends
+         on the protocol from which the NLRI was learned.";
+
+      case isis {
+        leaf system-id {
+          type ietf-isis-t:system-id;
+          description
+            "IS-IS System ID of the node, or of the Designated
+             Intermediate System (DIS) for a pseudonode.";
+        }
+
+        leaf psn-id {
+          type uint8 {
+            range "1..255";
+          }
+          description
+            "Pseudonode (PSN) identifier. Present only for an IS-IS
+             pseudonode.";
+        }
+      }
+
+      case ospf {
+        leaf router-id {
+          type ietf-rt-t:router-id;
+          description
+            "OSPF Router ID of the node, or of the Designated
+             Router (DR) for a pseudonode.";
+        }
+
+        leaf dr-identifier {
+          type inet:ipv4-address;
+          description
+            "IPv4 address of the DR's interface to the LAN.
+             Present only for an OSPFv2 pseudonode.";
+        }
+
+        leaf dr-interface-id {
+          type uint32;
+          description
+            "Interface identifier of the DR's interface to the LAN.
+             Present only for an OSPFv3 pseudonode.";
+        }
+      }
+
+      case direct-or-static {
+        leaf router-address {
+          type inet:ip-address;
+          description
+            "IPv4 or IPv6 address configured on the node, used as
+             the Router-ID for 'Direct' or 'Static configuration'.";
+        }
+      }
+    }
+
+    leaf bgp-router-id {
+      type yang:dotted-quad;
+      description
+        "BGP Router-ID of the node, for NLRIs whose protocol is
+         BGP.";
+      reference
+        "RFC 9086: Border Gateway Protocol - Link State (BGP-LS)
+         Extensions for Segment Routing BGP Egress Peer
+         Engineering, Section 4.1.";
+    }
+
+    leaf member-as {
+      type inet:as-number;
+      description
+        "AS number of the BGP confederation member, for NLRIs
+         whose protocol is BGP.";
+      reference
+        "RFC 9086: Border Gateway Protocol - Link State (BGP-LS)
+         Extensions for Segment Routing BGP Egress Peer
+         Engineering, Section 4.1.";
+    }
+  }
+
+  grouping bgp-ls-rib-nlri-descriptors {
+    description
+      "Decoded descriptors of a Link-State NLRI. These are derived
+       from the 'nlri' key of the route and are provided for
+       readability.";
+    reference
+      "RFC 9552: Distribution of Link-State and Traffic
+       Engineering Information Using BGP, Section 5.2.";
+
+    leaf route-distinguisher {
+      when "derived-from-or-self(ancestor::bgp:afi-safi/bgp:name, "
+         + "'bgp-ls:bgp-ls-vpn')" {
+        description
+          "Include this leaf only for BGP-LS-VPN.";
+      }
+      type ietf-rt-t:route-distinguisher;
+      description
+        "Route Distinguisher of a BGP-LS-VPN NLRI.";
+    }
+
+    container local-node-descriptors {
+      when "../nlri-type = 'node' or ../nlri-type = 'link' or "
+         + "../nlri-type = 'ipv4-prefix' or "
+         + "../nlri-type = 'ipv6-prefix'" {
+        description
+          "Include this container for Node, Link, and Prefix
+           NLRIs.";
+      }
+      description
+        "Descriptors of the node anchoring the local end of the
+         link, or the node itself for a Node NLRI.";
+      reference
+        "RFC 9552: Distribution of Link-State and Traffic
+         Engineering Information Using BGP, Section 5.2.1.2.";
+      uses bgp-ls-rib-node-descriptors;
+    }
+
+    container remote-node-descriptors {
+      when "../nlri-type = 'link'" {
+        description
+          "Include this container only for Link NLRIs.";
+      }
+      description
+        "Descriptors of the node anchoring the remote end of the
+         link.";
+      reference
+        "RFC 9552: Distribution of Link-State and Traffic
+         Engineering Information Using BGP, Section 5.2.1.3.";
+      uses bgp-ls-rib-node-descriptors;
+    }
+    container link-descriptors {
+      when "../nlri-type = 'link'" {
+        description
+          "Include this container only for Link NLRIs.";
+      }
+      description
+        "Descriptors that uniquely identify a link among multiple
+         parallel links between a pair of anchor nodes. Leaves are
+         present only when the corresponding TLV is present in the
+         NLRI.";
+      reference
+        "RFC 9552: Distribution of Link-State and Traffic
+         Engineering Information Using BGP, Section 5.2.2.";
+
+      leaf link-local-identifier {
+        type uint32;
+        description
+          "Link Local Identifier.";
+      }
+
+      leaf link-remote-identifier {
+        type uint32;
+        description
+          "Link Remote Identifier.";
+      }
+
+      leaf ipv4-interface-address {
+        type inet:ipv4-address;
+        description
+          "IPv4 interface address.";
+      }
+
+      leaf ipv4-neighbor-address {
+        type inet:ipv4-address;
+        description
+          "IPv4 neighbor address.";
+      }
+
+      leaf ipv6-interface-address {
+        type inet:ipv6-address;
+        description
+          "IPv6 interface address.";
+      }
+
+      leaf ipv6-neighbor-address {
+        type inet:ipv6-address;
+        description
+          "IPv6 neighbor address.";
+      }
+
+      leaf multi-topology-id {
+        type uint16 {
+          range "0..4095";
+        }
+        description
+          "Multi-Topology Identifier of the topology in which the
+           link is reachable.";
+        reference
+          "RFC 9552: Distribution of Link-State and Traffic
+           Engineering Information Using BGP, Section 5.2.2.1.";
+      }
+    }
+
+    container prefix-descriptors {
+      when "../nlri-type = 'ipv4-prefix' or "
+         + "../nlri-type = 'ipv6-prefix'" {
+        description
+          "Include this container only for IPv4 and IPv6 Prefix
+           NLRIs.";
+      }
+      description
+        "Descriptors that uniquely identify a prefix originated by
+         a node. Leaves are present only when the corresponding TLV
+         is present in the NLRI.";
+      reference
+        "RFC 9552: Distribution of Link-State and Traffic
+         Engineering Information Using BGP, Section 5.2.3.";
+
+      leaf multi-topology-id {
+        type uint16 {
+          range "0..4095";
+        }
+        description
+          "Multi-Topology Identifier of the topology in which the
+           prefix is reachable.";
+        reference
+          "RFC 9552: Distribution of Link-State and Traffic
+           Engineering Information Using BGP, Section 5.2.2.1.";
+      }
+
+      leaf ospf-route-type {
+        type bgp-ls-topo-t:ospf-route-type;
+        description
+          "OSPF route type of the prefix.";
+        reference
+          "RFC 9552: Distribution of Link-State and Traffic
+           Engineering Information Using BGP, Section 5.2.3.1.";
+      }
+
+      leaf ip-reachability-information {
+        type inet:ip-prefix;
+        description
+          "The IPv4 or IPv6 prefix originally advertised in the IGP
+           topology.";
+        reference
+          "RFC 9552: Distribution of Link-State and Traffic
+           Engineering Information Using BGP, Section 5.2.3.2.";
+      }
+    }
+  }
+
+  grouping bgp-ls-rib-route-state {
+    description
+      "Grouping for the state associated with a Link-State NLRI
+       in the BGP RIB.";
+
+    leaf nlri-type {
+      type bgp-ls-topo-t:nlri-type;
+      description
+        "The type of Link-State NLRI.";
+      reference
+        "RFC 9552: Distribution of Link-State and Traffic
+         Engineering Information Using BGP, Section 5.2.";
+    }
+
+    leaf protocol-id {
+      type bgp-ls-topo-t:protocol;
+      description
+        "The protocol from which the Link-State information
+         carried in the NLRI was learned.";
+      reference
+        "RFC 9552: Distribution of Link-State and Traffic
+         Engineering Information Using BGP, Section 5.2.";
+    }
+
+    leaf identifier {
+      type uint64;
+      description
+        "Instance identifier identifying the IGP routing domain
+         where the NLRI belongs.";
+      reference
+        "RFC 9552: Distribution of Link-State and Traffic
+         Engineering Information Using BGP, Section 5.2.";
+    }
+    uses bgp-ls-rib-nlri-descriptors;
+
+    leaf ls-attribute {
+      type yang:hex-string;
+      description
+        "The BGP-LS Attribute associated with the NLRI, encoded as
+         a set of TLVs. The decoded contents of the attribute are
+         available in the Link-State database.";
+      reference
+        "RFC 9552: Distribution of Link-State and Traffic
+         Engineering Information Using BGP, Section 5.3.";
+    }
+
+    leaf sequence-number {
+      when "derived-from-or-self(ancestor::bgp:afi-safi/bgp:name, "
+         + "'bgp-ls:bgp-ls-spf')" {
+        description
+          "Include this leaf only for BGP-LS-SPF.";
+      }
+      type uint64;
+      description
+        "The sequence number carried in the BGP-LS-SPF Sequence
+         Number TLV. The TLV is mandatory for BGP-LS-SPF
+         NLRIs, and an NLRI received without it is treated as
+         withdrawn.  This leaf is therefore present for every
+         BGP-LS-SPF route, except one received without a BGP-LS
+         Attribute, which is preserved and propagated but not used
+         in the SPF calculation.";
+      reference
+        "RFC 9815: BGP Link-State SPF Routing, Sections 5.2.4,
+         6.1, and 7.1.";
+    }
+
+    uses bgp:bgp-common-route-annotations-state;
+    uses bgp:bgp-unknown-attr-top;
+    uses bgp:rib-ext-route-annotations;
+  }
+
+  grouping bgp-ls-adj-rib-common {
+    description
+      "Common structural grouping for each Link-State Adj-RIB
+       table.";
+
+    container routes {
+      config false;
+      description
+        "Enclosing container for the list of Link-State routes in
+         the table.";
+      list route {
+        key "nlri path-id";
+        description
+          "List of Link-State routes in the table, keyed by the
+           NLRI and path-id, to distinguish multiple routes
+           received from a neighbor for the same NLRI.";
+
+        uses bgp-ls-rib-route-key;
+        uses bgp:bgp-adj-rib-attr-state;
+        uses bgp:bgp-adj-rib-common-attr-refs;
+        uses bgp-ls-rib-route-state;
+      }
+    }
+  }
+
+  grouping bgp-ls-adj-rib-in-post {
+    description
+      "Structural grouping for the Link-State Adj-RIB-In
+       post-policy table.";
+
+    uses bgp-ls-adj-rib-common {
+      augment "routes/route" {
+        description
+          "Add best-path annotation to Adj-RIB-In post-policy
+           routes.";
+        uses bgp:bgp-adj-rib-in-post-route-annotations-state;
+      }
+    }
+  }
+
+  grouping bgp-ls-rib {
+    description
+      "Grouping for the BGP-LS, BGP-LS-VPN, and BGP-LS-SPF
+       routing tables.";
+
+    container link-state {
+      when "derived-from-or-self(../bgp:name, 'bgp-ls:bgp-ls') or "
+         + "derived-from-or-self(../bgp:name, 'bgp-ls:bgp-ls-vpn') or "
+         + "derived-from-or-self(../bgp:name, 'bgp-ls:bgp-ls-spf')" {
+        description
+          "Include this container for the BGP-LS, BGP-LS-VPN, and
+           BGP-LS-SPF RIBs.";
+      }
+      description
+        "Routing tables for Link-State -- active when the afi-safi
+         name is bgp-ls, bgp-ls-vpn, or bgp-ls-spf.";
+      reference
+        "RFC 9552: Distribution of Link-State and Traffic
+         Engineering Information Using BGP, Section 5.2.
+         RFC 9815: BGP Link-State SPF Routing.";
+
+      container loc-rib {
+        config false;
+        description
+          "Container for the Link-State BGP Loc-RIB data.";
+
+        container routes {
+          description
+            "Enclosing container for the list of Link-State routes
+             in the routing table.";
+
+          list route {
+            key "nlri origin path-id";
+            description
+              "List of Link-State routes in the table, keyed by the
+               NLRI, the route origin, and path-id. The route origin
+               can be either the neighbor address from which the
+               route was learned, or the source protocol that
+               injected the route. The path-id distinguishes routes
+               for the same NLRI received from a neighbor (e.g., if
+               add-paths is enabled).";
+
+            uses bgp-ls-rib-route-key;
+            uses bgp:bgp-loc-rib-common-keys;
+            uses bgp:bgp-loc-rib-common-attr-refs;
+            uses bgp-ls-rib-route-state;
+          }
+        }
+      }
+
+      container neighbors {
+        config false;
+        description
+          "Enclosing container for neighbor list.";
+
+        list neighbor {
+          key "neighbor-address";
+          description
+            "List of neighbors (peers) of the local BGP speaker.";
+
+          leaf neighbor-address {
+            type inet:ip-address;
+            description
+              "IP address of the BGP neighbor or peer.";
+          }
+
+          container adj-rib-in-pre {
+            description
+              "Per-neighbor table containing the Link-State routes
+               received from the neighbor before any local input
+               policy rules or filters have been applied.";
+            uses bgp-ls-adj-rib-common;
+            uses bgp:clear-routes {
+              description
+                "Clears the adj-rib-in state for the containing
+                 neighbor.";
+            }
+          }
+
+          container adj-rib-in-post {
+            description
+              "Per-neighbor table containing the Link-State routes
+               received from the neighbor that are eligible for
+               best-path selection after local input policy rules
+               have been applied.";
+            uses bgp-ls-adj-rib-in-post;
+            uses bgp:clear-routes {
+              description
+                "Clears the adj-rib-in state for the containing
+                 neighbor.";
+            }
+          }
+
+          container adj-rib-out-pre {
+            description
+              "Per-neighbor table containing Link-State routes
+               eligible for sending (advertising) to the neighbor
+               before output policy rules have been applied.";
+            uses bgp-ls-adj-rib-common;
+            uses bgp:clear-routes {
+              description
+                "Clears the adj-rib-out state for the containing
+                 neighbor.";
+            }
+          }
+
+          container adj-rib-out-post {
+            description
+              "Per-neighbor table containing Link-State routes
+               eligible for sending (advertising) to the neighbor
+               after output policy rules have been applied.";
+            uses bgp-ls-adj-rib-common;
+            uses bgp:clear-routes {
+              description
+                "Clears the adj-rib-out state for the containing
+                 neighbor.";
+            }
+          }
+        }
+      }
+    }
+  }
+
   augment "/rt:routing/rt:control-plane-protocols" +
           "/rt:control-plane-protocol/bgp:bgp/bgp:global" +
           "/bgp:afi-safis/bgp:afi-safi" {
@@ -336,7 +896,7 @@ module ietf-bgp-ls {
             "The local node is reachable in the current SPF
              topology.";
         }
-        enum unreacable {
+        enum unreachable {
           description
             "The local node is unreachable in the current SPF
              topology.";
@@ -525,7 +1085,7 @@ module ietf-bgp-ls {
     }
 
     action clear {
-      if-feature "bt:clear-statistics";
+      if-feature "ibt:clear-statistics";
       description
         "Clear statistics action command.
 
@@ -663,10 +1223,9 @@ module ietf-bgp-ls {
     }
 
     action clear {
-      if-feature "bt:clear-statistics";
+      if-feature "ibt:clear-statistics";
       description
         "Clear statistics action command.
-
         Execution of this command should result in all the
         counters to be cleared and set to 0.";
 
@@ -706,5 +1265,14 @@ module ietf-bgp-ls {
     description
       "Augmentation of the BGP peer-groups to add BGL-LS.";
     uses bgp-neighbor-ls-common;
+  }
+
+  augment "/rt:routing/rt:control-plane-protocols" +
+          "/rt:control-plane-protocol/bgp:bgp/bgp:rib" +
+          "/bgp:afi-safis/bgp:afi-safi" {
+    description
+      "Augmentation of the BGP RIB to add the BGP-LS, BGP-LS-VPN,
+       and BGP-LS-SPF routing tables.";
+    uses bgp-ls-rib;
   }
 }

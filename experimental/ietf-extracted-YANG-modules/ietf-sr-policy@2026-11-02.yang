@@ -76,6 +76,15 @@ module ietf-sr-policy {
 
     // RFC Editor: replace XXXX with actual RFC number and remove
     // this note
+  revision "2026-11-02" {
+    description
+      "Add reusable computation templates, common explicit
+       segment-list operational state, data-plane reporting, input and
+       output counters, and clarified Binding-SID and forwarding-path
+       references.";
+    reference "RFC 9256";
+  }
+
   revision "2026-07-06" {
     description
       "Maximize reuse of optimization objectives and path
@@ -124,6 +133,7 @@ module ietf-sr-policy {
      // RFC Editor: replace XXXX with actual RFC number and remove
      // this note
   }
+
   revision "2022-03-28" {
     description
       "Alignment with SR policy architecture";
@@ -163,6 +173,31 @@ module ietf-sr-policy {
     base te-types:route-usage-type;
     description
       "Includes a path only if all configured SRLG values are
+       present.";
+  }
+
+  identity path-ip-address-usage-type {
+    description
+      "Base identity for IP-address path constraint usage.";
+  }
+
+  identity path-ip-address-exclude-any {
+    base path-ip-address-usage-type;
+    description
+      "Excludes a path if any configured IP address is present.";
+  }
+
+  identity path-ip-address-include-any {
+    base path-ip-address-usage-type;
+    description
+      "Includes a path if at least one configured IP address is
+       present.";
+  }
+
+  identity path-ip-address-include-all {
+    base path-ip-address-usage-type;
+    description
+      "Includes a path only if all configured IP addresses are
        present.";
   }
 
@@ -211,7 +246,6 @@ module ietf-sr-policy {
       uses srv6-types:srv6-sid-structure-grouping;
     }
   }
-
   grouping segment_config {
     description "Segment properties grouping";
     leaf index {
@@ -410,23 +444,67 @@ module ietf-sr-policy {
     uses segment_config;
   }
 
+  grouping path-ip-address-constraints {
+    description
+      "IP-address path constraints for SR Policy.";
+
+    container path-ip-address-values {
+      description
+        "IP-address path constraints represented as values.";
+      list path-ip-address-value {
+        key "usage";
+        description
+          "List of IP-address value constraints.";
+        leaf usage {
+          type identityref {
+            base path-ip-address-usage-type;
+          }
+          description
+            "Identifies whether all, any, or none of the configured
+             IP addresses are required in the computed path.";
+        }
+        leaf-list value {
+          type inet:ip-address;
+          description
+            "IP addresses to which the usage constraint applies.";
+        }
+      }
+    }
+
+    container path-ip-address-names {
+      description
+        "IP-address path constraints represented as names.";
+      list path-ip-address-name {
+        key "usage";
+        description
+          "List of named IP-address constraints.";
+        leaf usage {
+          type identityref {
+            base path-ip-address-usage-type;
+          }
+          description
+            "Identifies whether all, any, or none of the named IP
+             addresses are required in the computed path.";
+        }
+        list ip-address-name {
+          key "name";
+          description
+            "List of named IP addresses.";
+          leaf name {
+            type string;
+            description
+              "Identifies a named IP-address entry.";
+          }
+        }
+      }
+    }
+  }
+
   grouping template-path-constraints {
     description
       "Constraints of optimization template.";
 
     uses template-constraints-base;
-
-    container ip-address {
-      description
-        "IP address constraints on the computed dynamic path";
-
-      leaf-list exclude {
-        type inet:ip-address;
-        description
-          "Must exclude the links that has any of these IP
-           addresses.";
-      }
-    }
 
     container segment-rules {
       description
@@ -435,6 +513,31 @@ module ietf-sr-policy {
       leaf sid-protection-eligibility {
         type sr-policy-types:sid-protection-eligibility-type;
         description "SID protection eligibility";
+      }
+    }
+  }
+
+  grouping computation-templates {
+    description
+      "Globally reusable computation content.";
+
+    container computation-templates {
+      description
+        "Named computation objectives and constraints that can be
+         reused by optimization templates and configured dynamic
+         candidate paths.";
+
+      list computation-template {
+        key "name";
+        description
+          "Reusable computation objectives and constraints.";
+
+        leaf name {
+          type string;
+          description "Computation template name.";
+        }
+        uses candidate-path-optimization;
+        uses candidate-path-constraints;
       }
     }
   }
@@ -455,23 +558,43 @@ module ietf-sr-policy {
           description "Template identifier as a policy color";
         }
 
-        container candidate-paths {
-          description "A list of candidate paths representing the
-                       optimization objectives and constraints";
+        container computation-options {
+          description
+            "Reusable computation intents associated with the
+             template color.";
 
-          list candidate-path {
+          list computation-option {
             key "discriminator";
-            description "Candidate paths representing the
-                         optimization objectives and constraints";
+            description
+              "A reusable computation intent which is a combination of optimization objectives and
+               constraints.";
             leaf discriminator {
               type uint32;
-              description "Candidate path distinguisher";
+              description
+                "Template local key that distinguishes computation
+                 options associated with the same color.";
             }
-            uses candidate-path-optimization;
-            container constraints {
-              description "Constraints of a path optimization template";
-
-              uses template-path-constraints;
+            leaf preference {
+              type uint32 {
+                range "1..65535";
+              }
+              description
+                "Candidate-path preference to use when this option
+                 instantiates an on-demand candidate path.";
+            }
+            leaf computation-template-ref {
+              type leafref {
+                path "/rt:routing/"
+                   + "sr-policy:segment-routing/"
+                   + "sr-policy:traffic-engineering/"
+                   + "sr-policy:computation-templates/"
+                   + "sr-policy:computation-template/"
+                   + "sr-policy:name";
+              }
+              mandatory true;
+              description
+                "Reference to the reusable computation content for
+                 this computation option.";
             }
           }
         }
@@ -492,22 +615,77 @@ module ietf-sr-policy {
     }
   }
 
+  grouping packet-octet-counters {
+    description
+      "Aggregate packet and octet counters.";
+    leaf pkts {
+      type yang:counter64;
+      description
+        "Aggregate number of packets accounted for at the measurement
+         point.";
+    }
+    leaf octets {
+      type yang:counter64;
+      units "byte";
+      description
+        "Aggregate number of octets accounted for at the measurement
+         point.";
+    }
+  }
+
+  grouping input-packet-octet-counters {
+    description
+      "Aggregate input counters and the transit subset.";
+    uses packet-octet-counters;
+    leaf transit-pkts {
+      type yang:counter64;
+      description
+        "Number of transit packets steered into the SR Policy using
+         its Binding SID.  These packets are included in pkts.";
+    }
+    leaf transit-octets {
+      type yang:counter64;
+      units "byte";
+      description
+        "Number of octets in transit traffic steered into the SR
+         Policy using its Binding SID.  These octets are included in
+         octets.";
+    }
+  }
+
   grouping forwarding-counters {
     description
       "Grouping for counters";
     container counters {
       config false;
       description
-        "Counters containing stats related to forwarding";
+        "Forwarding counters for the model node where this container
+         is instantiated.";
 
-      leaf pkts {
-        type yang:counter64;
-        description "Number of packets forwarded";
+      container in-counters {
+        description
+          "Aggregate and transit-only counters at the input accounting
+           point, immediately before the SR Policy imposes its outgoing
+           SR encapsulation.  The pkts and octets leaves report all
+           input traffic.  The transit-pkts and transit-octets leaves
+           report the subset steered into the policy using its Binding
+           SID.  Octet counts include packet headers and payload at
+           this point and exclude MPLS labels and any outer IPv6 and
+           SRH headers added by this policy.";
+
+        uses input-packet-octet-counters;
       }
-      leaf octets {
-        type yang:counter64;
-        units "byte";
-        description "Number of bytes forwarded";
+      container out-counters {
+        description
+          "Aggregate counters at the output accounting point, after
+           the SR Policy imposes its outgoing SR encapsulation.  The
+           pkts and octets leaves report all output traffic.  Octet
+           counts include MPLS labels and any outer IPv6 and SRH
+           headers added by this policy.  A transit-only breakdown is
+           not provided because retaining the input steering
+           classification is not generally feasible at this point.";
+
+        uses packet-octet-counters;
       }
     }
   }
@@ -548,7 +726,6 @@ module ietf-sr-policy {
         description "MPLS binding SID value";
       }
     }
-
     container srv6-sids {
       description "SRv6 binding SIDs";
 
@@ -597,12 +774,29 @@ module ietf-sr-policy {
       uses binding-sid_config;
     }
   }
-
   grouping path-forwarding_state {
     description "Policy Forwarding path information";
     leaf path-id {
       type uint8;
-      description "Primary path id";
+      description
+        "Headend-assigned identifier that is unique within the
+         candidate path while this forwarding-path entry exists.";
+    }
+    leaf segment-list-ref {
+      when "../../../segment-lists or "
+         + "../../../computed-segment-lists";
+      type instance-identifier {
+        require-instance true;
+      }
+      mandatory true;
+      description
+        "Instance-identifier of the operational segment-list entry
+         from which this forwarding path was derived.  The target MUST
+         be either the segment-lists/segment-list entry for an explicit
+         candidate path or the computed-segment-lists/segment-list
+         entry for a dynamic candidate path.  The target MUST belong to
+         the same candidate path as this forwarding path.  With
+         require-instance true, the identified entry must exist.";
     }
     leaf next-hop-address {
       type inet:ip-address;
@@ -621,8 +815,12 @@ module ietf-sr-policy {
       description "Is this path protected ?";
     }
     leaf backup-path-id {
-      type uint8;
-      description "Backup path id";
+      type leafref {
+        path "../../forwarding-path/path-id";
+      }
+      description
+        "Reference to a backup forwarding path within the same
+         candidate path.";
     }
     leaf is-pure-backup {
       type boolean;
@@ -685,9 +883,20 @@ module ietf-sr-policy {
     container segment-lists {
       description
         "Path segment list(s) properties";
-      list segment-list {
+      leaf dataplane-type {
+        type sr-policy-types:dataplane-type;
+        config false;
+        description
+          "Data plane derived from the segment types of the explicit
+           candidate path.  This leaf is present only when the
+           constituent segment lists identify one common data plane.";
+      }
+      list referenced-segment-list {
         key "name-ref";
-        description "SR policy candidate path segment lists";
+        description
+          "Local configuration references to globally defined segment
+           lists.  Effective operational segment-list properties are
+           reported in the sibling segment-list list.";
 
         leaf name-ref {
           type leafref {
@@ -699,20 +908,41 @@ module ietf-sr-policy {
               + "sr-policy:segment-list/"
               + "sr-policy:name";
           }
-          description "Reference to segment-list name";
+          description
+            "Reference to the name of a globally defined segment
+             list.";
         }
         leaf weight {
           type uint32;
           default 1;
           description "Segment-list weighted loadshare";
         }
-        leaf is-valid {
-          type boolean;
-          config false;
+      }
+      list segment-list {
+        key "local-id";
+        config false;
+        description
+          "Effective segment lists for the explicit candidate path,
+           including lists derived from local configuration references
+           and lists supplied by external clients or protocols.";
+        leaf local-id {
+          type uint32;
           description
-            "True if the segment-list is valid, False otherwise";
+            "Headend-assigned identifier that is unique within the
+             candidate path while this operational entry exists.";
+
         }
-        uses forwarding-counters;
+        leaf referenced-segment-list-ref {
+          type leafref {
+            path "../../referenced-segment-list/name-ref";
+          }
+          description
+            "Reference to the local referenced-segment-list
+             configuration entry from which this operational segment
+             list was derived.  This leaf is absent when no local YANG
+             configuration entry is the source.";
+        }
+        uses operational-segment-list-properties;
       }
     }
   }
@@ -785,6 +1015,7 @@ module ietf-sr-policy {
       uses te-types:generic-path-metric-bounds;
       uses te-types:generic-path-affinities;
       uses te-types:generic-path-srlgs;
+      uses path-ip-address-constraints;
     }
   }
 
@@ -800,6 +1031,7 @@ module ietf-sr-policy {
       uses te-types:generic-path-affinities;
       uses te-types:generic-path-srlgs;
       uses te-types:generic-path-disjointness;
+      uses path-ip-address-constraints;
     }
   }
 
@@ -873,30 +1105,6 @@ module ietf-sr-policy {
 
       uses candidate-constraints-base;
 
-      container ip-address {
-        description
-          "IP address constraints on the computed dynamic path";
-
-        leaf-list exclude {
-          type inet:ip-address;
-          description
-            "Must exclude the links that has any of these IP
-             addresses.";
-        }
-        leaf-list include-any {
-          type inet:ip-address;
-          description
-            "Must include atleast 1 link (or possibly more) with
-             any of these IP addresses.";
-        }
-        leaf-list include-all {
-          type inet:ip-address;
-          description
-            "Must include all the links that have any of these IP
-             addresses.";
-        }
-      }
-
       container segment-rules {
         description
           "Constraints on the segments to be used in the path";
@@ -944,29 +1152,91 @@ module ietf-sr-policy {
     }
   }
 
+  grouping operational-segment-list-properties {
+    description
+      "Operational properties shared by explicit and
+       dynamic segment lists.";
+    leaf weight {
+      type uint32;
+      description "Segment-list weighted loadshare";
+    }
+    leaf is-valid {
+      type boolean;
+      description
+        "True if the segment list is valid, false otherwise.";
+    }
+    container segments {
+      description "Segments in this segment list.";
+      list segment {
+        key "index";
+        description "Segment at the specified index.";
+        uses segment-properties;
+      }
+    }
+    uses forwarding-counters;
+  }
+
   grouping dynamic-path-properties {
     description
       "Dynamic path properties of the candidate path";
-    container segment-list {
+    leaf dataplane-type {
+      type sr-policy-types:dataplane-type;
+      mandatory true;
       description
-        "Segment-list properties";
-      leaf segment-list-dataplane-type {
-        type sr-policy-types:dataplane-type;
-        mandatory true;
-        description
-          "The dataplane type for the segment-list";
-      }
-      leaf is-valid {
-        type boolean;
+        "Data plane used to compute the dynamic path and its
+         segment-list results.";
+    }
+    container computed-segment-lists {
+      description "Computed segment-list results.";
+      list segment-list {
+        key "local-id";
         config false;
         description
-          "True if the segment-list is valid, False otherwise";
+          "A segment list produced by the dynamic path computation.";
+        leaf local-id {
+          type uint32;
+          description
+            "Headend-assigned identifier that is unique within the
+             candidate path while this operational entry exists.  A
+             released value may be reused; consumers must not infer
+             continuity across deletion and recreation.";
+        }
+        uses operational-segment-list-properties {
+          refine "weight" {
+            mandatory true;
+          }
+          refine "is-valid" {
+            mandatory true;
+          }
+        }
       }
-      uses forwarding-counters;
     }
 
-    uses candidate-path-optimization;
-    uses candidate-path-constraints;
+    choice computation-intent {
+      mandatory true;
+      description
+        "Selects globally reusable or inline computation content.";
+      case template {
+        leaf computation-template-ref {
+          type leafref {
+            path "/rt:routing/"
+               + "sr-policy:segment-routing/"
+               + "sr-policy:traffic-engineering/"
+               + "sr-policy:computation-templates/"
+               + "sr-policy:computation-template/"
+               + "sr-policy:name";
+          }
+          mandatory true;
+          description
+            "Reference to globally reusable computation objectives
+             and constraints.";
+        }
+      }
+      case inline {
+        uses candidate-path-optimization;
+        uses candidate-path-constraints;
+      }
+    }
   }
   grouping composite-path-properties {
     description
@@ -1276,6 +1546,7 @@ module ietf-sr-policy {
       }
     }
   }
+
   grouping policies {
     description "SR policy grouping";
     container policies {
@@ -1298,21 +1569,20 @@ module ietf-sr-policy {
 
   grouping explicit-binding-sid-rules {
     description
-      "Grouping for explicit binding sid rules";
+      "Grouping for the global explicit Binding-SID rule.";
 
-    list explicit-binding-sid-rules {
-      key "index";
+    leaf explicit-binding-sid-rule {
+      type sr-policy-types:explicit-binding-sid-rule-type;
       description
-        "Explicit binding sid rules applicable for all policies";
-      leaf index {
-        type uint32;
-        description "Explicit binding SID rules list index";
-      }
-      leaf rule {
-        type sr-policy-types:explicit-binding-sid-rule-type;
-        mandatory true;
-        description "Explicit binding sid rule";
-      }
+        "Global rule for handling explicit SR-MPLS Binding-SID
+         requests.  The selected value applies to every SR Policy and
+         candidate path that requests an explicit Binding-SID.
+         The enforce-srlb value rejects a requested explicit label
+         outside the configured SRLB or when no SRLB is configured.
+         The fallback-dynamic value permits dynamic Binding-SID
+         allocation when the requested explicit label is unavailable.
+         When this leaf is absent, neither additional behavior is
+         enabled.";
     }
   }
 
@@ -1324,6 +1594,8 @@ module ietf-sr-policy {
       description "Main segment routing container";
       container traffic-engineering {
         description "Traffic-engineering container";
+
+        uses computation-templates;
         uses optimization-templates;
         uses attributes;
         uses policies;
@@ -1558,7 +1830,6 @@ module ietf-sr-policy {
       "Notification event when binding sid of requested candidate
       path is different from the binding sid of the existing
       candidate path";
-
     leaf policy-color-ref {
       type leafref {
         path "/rt:routing/"

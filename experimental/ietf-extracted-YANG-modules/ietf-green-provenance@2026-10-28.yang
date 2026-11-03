@@ -4,11 +4,17 @@ module ietf-green-provenance {
     "urn:ietf:params:xml:ns:yang:ietf-green-provenance";
   prefix igp;
 
-  import ietf-power-and-energy {
-    prefix eo;
+  import ietf-network {
+    prefix nw;
     reference
-      "I-D.ietf-green-power-and-energy-yang: Power and Energy
-       YANG Module";
+      "RFC 8345: A YANG Data Model for Network Topologies";
+  }
+
+  import ietf-power-energy-network {
+    prefix pen;
+    reference
+      "I-D.swepcarl-green-controller-yang: A YANG Data Model
+       for GREEN Network Controllers";
   }
 
   import ietf-yang-types {
@@ -25,17 +31,18 @@ module ietf-green-provenance {
      WG List: <mailto:green@ietf.org>";
 
   description
-    "This module augments the GREEN Power and Energy YANG module
-     (ietf-power-and-energy) with provenance traceability leaves
-     for each Energy Object, exposing the outcome of COSE
-     signature verification performed by the controller.
+    "This module augments the GREEN controller YANG model
+     (ietf-power-energy-network) with provenance traceability
+     leaves for each energy node and component, exposing the
+     outcome of COSE signature verification performed by the
+     controller.
 
      The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL',
      'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT
-     RECOMMENDED', 'MAY', and 'OPTIONAL' in this document are
-     to be interpreted as described in BCP 14 (RFC 2119)
-     (RFC 8174) when, and only when, they appear in all
-     capitals, as shown here.
+     RECOMMENDED', 'MAY', and 'OPTIONAL' in this document are to
+     be interpreted as described in BCP 14 (RFC 2119) (RFC 8174)
+     when, and only when, they appear in all capitals, as shown
+     here.
 
      Copyright (c) 2026 IETF Trust and the persons identified as
      authors of the code.  All rights reserved.
@@ -51,12 +58,12 @@ module ietf-green-provenance {
      (https://www.rfc-editor.org/info/rfcXXXX); see the RFC
      itself for full legal notices.";
 
-  revision 2026-06-26 {
+  revision 2026-10-28 {
     description
       "Initial revision.";
     reference
       "RFC XXXX: Provenance Traceability Augmentation for the
-       GREEN Power and Energy YANG Module";
+       GREEN Controller YANG Model";
   }
 
   /* Identities */
@@ -72,7 +79,9 @@ module ietf-green-provenance {
     base key-owner-type;
     description
       "The Energy Object generated and manages its own key pair
-       and self-attests its own telemetry.";
+       and self-attests its own telemetry.  The controller
+       records this value after verifying the signature; the
+       Energy Object does not set it.";
   }
 
   identity key-owner-controller {
@@ -93,14 +102,13 @@ module ietf-green-provenance {
        service.";
   }
 
-  /* Augmentation */
+  /* Grouping */
 
-  augment "/eo:energy-objects/eo:energy-entry" {
+  grouping provenance-state {
     description
-      "Adds provenance traceability metadata to each Energy
-       Object entry.  All leaves are set by the controller after
-       verifying a COSE provenance signature associated with this
-       Energy Object's telemetry, per
+      "Provenance traceability state. All leaves are set by the
+       controller after verifying a COSE provenance signature
+       associated with the node or component, per
        I-D.ietf-opsawg-yang-provenance.  The provenance-signature
        value itself is not stored here; see Section 3.2 of this
        document.";
@@ -113,7 +121,7 @@ module ietf-green-provenance {
       description
         "The Key Identifier (kid) from the COSE_Sign1 protected
          header of the most recently verified provenance
-         signature associated with this Energy Object.  Absent if
+         signature associated with this node or component.  Absent if
          no provenance signature has been received and verified.";
       reference
         "RFC 9052: CBOR Object Signing and Encryption (COSE),
@@ -138,8 +146,8 @@ module ietf-green-provenance {
       config false;
       description
         "Whether the most recently received provenance signature
-         for this Energy Object passed COSE verification.  A
-         controller SHOULD NOT use this Energy Object's data in
+         for this node or component passed COSE verification.  A
+         controller SHOULD NOT use its data in
          any reporting or control pipeline while this leaf is
          false.  Absent if no verification has been attempted.";
     }
@@ -150,11 +158,12 @@ module ietf-green-provenance {
       description
         "The date and time at which the controller last
          successfully verified a provenance signature for this
-         Energy Object.  Absent if no successful verification has
+         node or component.  Absent if no successful verification has
          occurred.";
     }
 
     leaf traceability-failure-reason {
+      when "../traceability-verified = 'false'";
       type string {
         length "0..512";
       }
@@ -164,5 +173,21 @@ module ietf-green-provenance {
          provenance verification failure.  Present only when
          traceability-verified is false.";
     }
+  }
+
+  /* Augmentations */
+
+  augment "/nw:networks/nw:network/nw:node"
+        + "/pen:energy-node-attributes" {
+    description
+      "Adds provenance state at node level.";
+    uses provenance-state;
+  }
+
+  augment "/nw:networks/nw:network/nw:node"
+        + "/pen:energy-node-attributes/pen:component" {
+    description
+      "Adds provenance state at component level.";
+    uses provenance-state;
   }
 }

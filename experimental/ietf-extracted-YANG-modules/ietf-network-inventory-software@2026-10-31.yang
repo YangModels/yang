@@ -1,0 +1,250 @@
+module ietf-network-inventory-software {
+  yang-version 1.1;
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-network-inventory-software";
+  prefix nwis;
+
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 9911: Common YANG Data Types, Section 3";
+  }
+  import ietf-network-inventory {
+    prefix nwi;
+    reference
+      "RFC AAAA: A YANG Data Model for Network Inventory";
+  }
+
+  organization
+    "IETF Network Inventory YANG (ivy) Working Group";
+  contact
+    "WG Web:   https://datatracker.ietf.org/wg/ivy
+     WG List:  <mailto:ivy@ietf.org>
+
+     Editor: Bo Wu
+             <lana.wubo@huawei.com>
+     Editor: Cheng Zhou
+             <zhouchengyjy@chinamobile.com>
+     Editor: Qin Wu
+             <bill.wu@huawei.com>
+     Editor: Mohamed Boucadair
+             <mohamed.boucadair@orange.com>";
+  description
+    "This module defines a YANG model for network inventory software.
+
+     Copyright (c) 2026 IETF Trust and the persons
+     identified as authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Revised BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.
+
+     All revisions of IETF and IANA published modules can be found
+     at the YANG Parameters registry group
+     (https://www.iana.org/assignments/yang-parameters).
+
+     This version of this YANG module is part of RFC XXXX; see
+     the RFC itself for full legal notices.";
+
+  revision 2026-10-31 {
+    description
+      "Initial version";
+    reference
+      "RFC XXXX: A YANG Data Model for Network Inventory Software";
+  }
+
+  identity ne-software-based {
+    base nwi:ne-type;
+    description
+      "Any network element (NE) implemented purely in software.
+       It performs protocol or forwarding functions but
+       does not correspond to a distinguishable hardware
+       chassis. It can be hosted on a bare-metal server,
+       in a virtual machine (VM), in a container, or on
+       cloud instance.";
+  }
+
+  identity software-component {
+    base nwi:non-hardware-component-class;
+    description
+      "Base identity for software components in a managed NE.";
+  }
+
+  identity operating-system {
+    base software-component;
+    description
+      "Operating system (OS) software type.";
+  }
+
+  identity bios {
+    base software-component;
+    description
+      "System firmware responsible for hardware initialization
+       and system boot.";
+  }
+
+  identity boot-loader {
+    base software-component;
+    description
+      "Software layer responsible for loading and booting the
+       device OS or network OS.";
+  }
+
+  identity software-module {
+    base software-component;
+    description
+      "Installable unit smaller than a full OS image,
+       e.g., feature package.";
+  }
+
+  identity software-status {
+    description
+      "Base identity for the lifecycle status of non-running
+       software.  This identity is used only by the
+       'installed-software' list. Running software is identified
+       by its presence in the base 'software-rev' list and does
+       not carry a 'status' leaf.";
+  }
+
+  identity software-installed {
+    base software-status;
+    description
+      "Software or patch is installed on the network element or
+       component but not yet administratively active.";
+  }
+
+  identity software-activated-pending-reload {
+    base software-status;
+    description
+      "Software or patch is administratively activated but not
+       yet running; a reload is required for it to take effect
+       (e.g., cold patch or cold upgrade).
+       After the reload completes, this installed entry is removed,
+       and the corresponding running version appears in
+       'software-rev'.";
+  }
+
+  grouping installed-software-grouping {
+    description
+      "Attributes of software that is present on the NE but
+       not currently running.";
+    leaf name {
+      type string;
+      description
+        "Name of the software.";
+    }
+    leaf revision {
+      type string;
+      description
+        "Revision of the software.";
+    }
+    leaf status {
+      type identityref {
+        base software-status;
+      }
+      must "derived-from-or-self(., 'software-installed') or "
+         + "derived-from-or-self(., "
+         + "'software-activated-pending-reload')" {
+        error-message
+          "Only 'software-installed' or "
+        + "'software-activated-pending-reload' are allowed "
+        + "for non-running software.";
+      }
+      description
+        "Lifecycle status of this non-running software.";
+    }
+    leaf installation-time {
+      type yang:date-and-time;
+      description
+        "Time when this software or patch was first installed.";
+    }
+  }
+
+  /* Main blocks */
+
+  augment "/nwi:network-inventory/nwi:network-elements"
+        + "/nwi:network-element/nwi:software-rev" {
+    description
+      "Adds installation-time and activation-time to the
+       base NE software revision.
+       The base list reports running software only; presence in
+       this list implies that the software is running.";
+    leaf installation-time {
+      type yang:date-and-time;
+      description
+        "Time when this running software revision was first
+         installed.";
+    }
+    leaf activation-time {
+      type yang:date-and-time;
+      description
+        "Time when this running software revision first entered
+         the activated state.";
+    }
+  }
+
+  augment "/nwi:network-inventory/nwi:network-elements"
+        + "/nwi:network-element" {
+    description
+      "Adds the installed-software list at the NE level.";
+    list installed-software {
+      key "name revision";
+      description
+        "Software that is present on the NE but not currently
+         running.  This includes software that is installed but
+         not administratively activated, and software that
+         has been administratively activated but requires
+         a reload to take effect (e.g., cold patch or
+         cold upgrade).  Entries in this list MUST NOT
+         appear in the base 'software-rev' list.  When an entry
+         becomes running, the corresponding version appears in
+         'software-rev', and this installed-software entry
+         is removed.";
+      uses installed-software-grouping;
+    }
+  }
+
+  augment "/nwi:network-inventory/nwi:network-elements/"
+        + "nwi:network-element/nwi:components/nwi:component" {
+    description
+      "Adds the installed-software list at the component level.";
+    list installed-software {
+      key "name revision";
+      description
+        "Software that is present on the component but not
+         currently running.";
+      uses installed-software-grouping;
+    }
+  }
+
+  augment "/nwi:network-inventory/nwi:network-elements/"
+        + "nwi:network-element/nwi:components/nwi:component/"
+        + "nwi:software-rev" {
+    description
+      "Adds installation-time and activation-time to
+       component-level running software revisions.  The base
+       list reports running software only; presence in this list
+       implies that the software is running.";
+    leaf installation-time {
+      type yang:date-and-time;
+      description
+        "Time when this running software revision was first
+         installed.";
+    }
+    leaf activation-time {
+      type yang:date-and-time;
+      description
+        "Time when this running software revision first entered
+         the activated state.";
+    }
+  }
+}

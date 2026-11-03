@@ -33,15 +33,6 @@ module ietf-yang-push-2 {
     reference
       "RFC 8525: YANG Library";
   }
-  import ietf-yp-notification {
-    prefix iypn;
-    reference
-     "draft-ietf-netconf-notif-envelope: Extensible YANG Model for
-      YANG-Push Notifications
-
-      TODO: RFC Editor please replace with latest draft/RFC version
-     at publication time.";
-  }
 
   organization
     "IETF NETCONF (Network Configuration) Working Group";
@@ -76,7 +67,7 @@ module ietf-yang-push-2 {
      (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
      for full legal notices.";
 
-  revision 2025-08-03 {
+  revision 2026-04-21 {
     description
       "Initial revision.";
     reference
@@ -230,26 +221,6 @@ module ietf-yang-push-2 {
 
   /* Identities for encodings */
 
-  identity configurable-encoding {
-    description
-      "If a transport identity derives from this identity, it means
-       that it supports configurable encodings.  An example of a
-       configurable encoding might be a new identity such as
-       'encode-cbor'.  Such an identity could use
-       'configurable-encoding' as its base.  This would allow a
-       dynamic subscription encoded in JSON (RFC 8259) to request
-       that notification messages be encoded via the Concise Binary
-       Object Representation (CBOR) (RFC 7049).  Further details for
-       any specific configurable encoding would be explored in a
-       transport document based on this specification.
-
-       TODO - Clear up this text or use YANG-CBOR reference";
-    reference
-      "RFC 8259: The JavaScript Object Notation (JSON) Data
-                 Interchange Format
-       RFC 7049: Concise Binary Object Representation (CBOR)";
-  }
-
   identity encoding {
     description
       "Base identity to represent data encodings.";
@@ -274,20 +245,20 @@ module ietf-yang-push-2 {
   identity cbor {
     base encoding;
     description
-      "Encode data using CBOR as described in RFC 9245,
-       without using YANG SIDs";
+      "Encode data using CBOR as described in RFC 9254,
+       using text identifiers instead of YANG SIDs.";
     reference
-      "RFC 9245: Encoding of Data Modeled with YANG in the
+      "RFC 9254: Encoding of Data Modeled with YANG in the
        Concise Binary Object Representation (CBOR).";
   }
 
   identity cbor-sids {
     base encoding;
     description
-      "Encode data using JSON as described in RFC 7951, using YANG
-       SIDs.";
+      "Encode data using CBOR as described in RFC 9254, using YANG
+       SIDs allocated as described in RFC 9595.";
     reference
-      "RFC 9245: Encoding of Data Modeled with YANG in the
+      "RFC 9254: Encoding of Data Modeled with YANG in the
        Concise Binary Object Representation (CBOR).
 
        RFC 9595: YANG Schema Item iDentifier (YANG SID).";
@@ -462,7 +433,10 @@ module ietf-yang-push-2 {
         messages (e.g., processor 1 on line card 1). This field
         is used to notify the receiver which publisher processes
         are going to publish. The identifiers are locally unique to
-        the Network Node.";
+        the Network Node. A publisher removed from and re-added to a
+        subscription MUST be allocated a new identifier. Removed
+        identifiers MUST NOT be reused within that subscription's
+        lifetime.";
     }
   }
 
@@ -483,7 +457,7 @@ module ietf-yang-push-2 {
            fixed value for list keys.  Each format is TODO";
       }
       anydata subtree {
-        //if-feature "yp2:subtree";
+        if-feature "yp2:subtree";
         mandatory true;
         description
           "This parameter identifies the portions of the
@@ -647,7 +621,7 @@ module ietf-yang-push-2 {
         "Indicates the version of the YANG schema used for this
         subscription.  The schema-id MUST change if the schema
         associated with the subscription changes.  The schema-id
-        MAY change if the device schema changes, even if the 
+        MAY change if the device schema changes, even if the
         change does not affect the subscription.";
     }
 
@@ -735,7 +709,12 @@ module ietf-yang-push-2 {
         type encoding;
         mandatory true;
         description
-          "The encoding to use for the subscription notifications.";
+          "The encoding for the entire notification, including its
+           envelope and contents. This MUST match the encoding of
+           this establish-subscription RPC. An unsupported encoding
+           MUST be rejected with encoding-unsupported. This applies
+           to all notifications for the subscription, including
+           subscription lifecycle notifications.";
       }
 
       uses dscp;
@@ -957,10 +936,20 @@ module ietf-yang-push-2 {
     }
 
     leaf path-prefix {
-      type string;
+      type string {
+        length '2..max';
+        pattern '/[^/].*' {
+          error-message
+            "path-prefix must start with '/' and contain at least "
+          + "one path segment.";
+        }
+      }
       description
-        "Specifies the common prefix that all other paths and data
-         are encoded relative to.
+        "If present, this MUST be an absolute path from the
+         schema root, starting with '/' and containing at least
+         one path segment.  Neither an empty string nor '/'
+         is permitted.  It specifies the common prefix for all
+         target values in this notification.
 
          TODO - This should be a JSONified instance data path.";
     }
@@ -971,18 +960,10 @@ module ietf-yang-push-2 {
           description
             "The update message is due to a periodic update.";
         }
-        enum "on-change-update" {
+        enum "on-change" {
           description
-            "The update message is due to an on-change update.  This
-             means that one or more fields have changed under the
-             snapshot path.
-
-             TODO - Split this into a on-change-delete msg?";
-        }
-        enum "on-change-delete" {
-          description
-            "The update message is due to an on-change event where
-             the data node at the target path has been delete.";
+            "The update message is due to an on-change event and
+             may contain both update and delete operations.";
         }
         enum "resync" {
           description
@@ -996,11 +977,7 @@ module ietf-yang-push-2 {
 
              These messages can be used to ensure that all state
              has been sent to the client, and can be used to purge
-             stale data.
-
-             TODO - In the distributed notification case, need a
-             notification to indicate that all child subscriptions
-             have been sent.";
+             stale data.";
         }
       }
       mandatory true;
@@ -1012,74 +989,127 @@ module ietf-yang-push-2 {
     leaf observation-time {
       type yang:date-and-time;
       description
-        "The time that the update was observed by the publisher.";
+        "The most accurate available time when the reported data
+         was sampled for a periodic or resynchronization update,
+         or when the underlying creation, modification, or deletion
+         event first occurred for an on-change update.";
     }
 
     list updates {
-      key "target-path";
+      key "target";
       description
-        "This list contains the updated data.  It constitutes a
-         snapshot at the time of update of the set of data that has
-         been subscribed to.  The snapshot corresponds to the same
-         snapshot that would be returned in a corresponding 'get'
-         operation with the same selection filter parameters
-         applied.";
+        "Each entry reports updated values or the deletion of the
+         data node identified by target.  A notification may
+         contain a partial snapshot of the subscribed data.
 
-      leaf target-path {
-        type string;
+         Receivers MAY process the updates list entries in any
+         order.  Consequently, the list MUST NOT contain duplicate
+         target values within a single notification.  The
+         target is the list key, so duplicate values are
+         invalid YANG.  The list MUST NOT contain both a delete
+         entry for a data node and an update entry whose
+         target identifies a descendant of that deleted
+         node.";
+
+      leaf target {
+        type string {
+          length "1..max";
+        }
+        must "../../path-prefix or "
+           + "starts-with(., '/')" {
+          error-message
+            "Without a path-prefix, target must be an "
+          + "absolute path starting with '/'.";
+        }
+        must "not(../../path-prefix) or "
+           + "not(starts-with(., '/'))" {
+          error-message
+            "With a path-prefix, target must be relative "
+          + "and must not start with '/'.";
+        }
         description
-          "The target path of the data that is being replaced, i.e.,
-           updated or deleted.  The path is given relative to the
-           path-prefix.";
+          "Identifies the data being updated or deleted.  As the
+           updates list key, target MUST be present in every entry
+           and MUST NOT be empty.  When path-prefix is absent,
+           target MUST be an
+           absolute path from the schema root, starting with '/'.
+           When path-prefix is present, target MUST be relative
+           and MUST NOT start with '/'.
+
+           With a path-prefix, the full target path is
+           formed by appending the target path segments to the
+           prefix, using a single '/' between path segments.
+           Otherwise, target itself is the full target path.
+           A full target path of '/' identifies the entire
+           datastore and MUST be represented by omitting
+           path-prefix and setting target to '/'.";
       }
 
       choice data {
+        mandatory true;
         description
-          "This choice indicates the type of update that is being
-           performed at the target path.";
-        anydata merge {
+          "Selects either an update of the supplied data or deletion
+           of the data node at the target path.";
+        anydata update {
           description
-            "This contains the updated data that is to be merged with
-            the existing data at the target path.  It constitutes a
-            snapshot at the time of update of the set of data that
-            has been subscribed to.  The snapshot corresponds to the
-            same snapshot that would be returned in a corresponding
-            'get' operation with the same selection filter parameters
-            applied.
+            "The current values of the supplied data nodes.  The
+             receiver creates data nodes that do not yet exist and
+             replaces the values of existing leaf and leaf-list
+             nodes that are supplied.  Containers and list entries
+             are updated recursively, with list entries identified
+             by their keys.  Required list keys are included.
 
-            The snapshot is encoded relative to the combined path
-            defined by the common path-prefix and target-path";
-        }
-        anydata replaced-by {
-          description
-            "This contains the updated data that is to replace all
-            existing data at the target path.   It constitutes a
-            snapshot at the time of update of the set of data that
-            has been subscribed to.  The snapshot corresponds to the
-            same snapshot that would be returned in a corresponding
-            'get' operation with the same selection filter parameters
-            applied.
+             For on-change notifications, omitted descendant data
+             nodes are unchanged; their absence does not imply
+             deletion.
 
-            The snapshot is encoded relative to the combined path
-            defined by the common path-prefix and target-path";
+             For periodic and resynchronization collections,
+             absence is used to infer deletion only after the
+             complete snapshot of
+             the subscribed data has been received, as indicated
+             by complete or update-complete.
+
+             The data is encoded relative to the full target path,
+             formed by combining path-prefix and target.";
         }
-        leaf deleted {
-          type empty;
+        leaf delete {
+          when "../../snapshot-type = 'on-change'" {
+            description
+              "Deletion is only permitted in on-change
+               notifications, never in periodic or resync
+               snapshots.";
+          }
+          type boolean;
+          default "false";
           description
-            "This indicates that the data at the target path has been
-             deleted.";
+            "When true, the data node at the target path and all its
+             descendants have been deleted.  This operation also
+             removes the corresponding data from the receiver's
+             view.  If the data is already absent, no action is
+             required. When false, no deletion is indicated.
+             This operation MUST only be used for
+             on-change deletion events and MUST NOT be used in
+             periodic or resync snapshots.";
         }
       }
     }
 
     leaf complete {
+      when "../snapshot-type = 'periodic' or "
+         + "../snapshot-type = 'resync'";
       type boolean;
       default "false";
       description
-        "This flag indicates that this is the last
-         notification in a series of notifications that together
-         constitute a complete snapshot of the subscribed data at
-         the event-time.
+        "This flag applies only to periodic and resynchronization
+         collections. When true, it indicates the end of this
+         publisher's contribution to the collection identified by the
+         subscription id and the envelope's event-time. The
+         publisher is identified by the envelope's publisher-id.
+         Receivers MUST track completion per publisher and MUST NOT
+         consider the full collection complete until all publishers
+         serving the subscription for that collection have indicated
+         completion.
+         The data need not have been sampled at a single instant.
 
          The 'update-complete' notification MAY be used as an
          alternative to setting this flag, and is semantically
@@ -1089,12 +1119,17 @@ module ietf-yang-push-2 {
 
   notification update-complete {
     description
-      "This notification indicates the end of a periodic collection
-       or resync event for an on-change subscription, and can be used
-       to indicate that the receiver has a complete snapshot of the
-       subscribed data at the event-time, and hence the client MAY
-       use this as a signal that it can purge stale state
-       information.
+      "This notification indicates the end of this publisher's
+       contribution to a periodic or resynchronization collection,
+       identified by the subscription id and the envelope's
+       event-time.
+
+       The publisher is identified by the envelope's publisher-id.
+       Receivers MUST track completion per publisher and MUST NOT
+       consider the full collection complete until all publishers
+       serving the subscription for that collection have indicated
+       completion. The receiver MAY then purge stale state within
+       the complete snapshot's scope.
 
        Alternatively, the 'complete' flag in the update
        notification MAY be used instead of sending this notification
@@ -1107,7 +1142,29 @@ module ietf-yang-push-2 {
     }
   }
 
-  sx:augment-structure "/iypn:envelope" {
+  sx:structure envelope {
+    description
+      "Encapsulates each YANG Push v2 notification, including
+       datastore updates, update-complete notifications, and
+       subscription lifecycle notifications.";
+    leaf event-time {
+      type yang:date-and-time;
+      mandatory true;
+      description
+        "The time the telemetry infrastructure began processing the
+         collection, on-change event, or subscription lifecycle
+         event. All notifications for the same collection or
+         on-change event MUST use the same value, including any
+         update-complete notification.";
+    }
+    leaf hostname {
+      type inet:host-name;
+      mandatory true;
+      description
+        "The hostname of the network node. This value is usually
+        configured on the node by the administrator to identify
+        the node in the network uniquely.";
+    }
     leaf publisher-id {
       type uint32;
       default 0;
@@ -1116,7 +1173,36 @@ module ietf-yang-push-2 {
          messages (e.g., processor 1 on line card 1). This field
          is used to notify the receiver which publisher process
          published which message. The identifier is locally unique to
-         the Network Node.";
+         the Network Node. A publisher removed from and re-added to a
+         subscription MUST be allocated a new identifier. Removed
+         identifiers MUST NOT be reused within that subscription's
+         lifetime.";
+    }
+    leaf sequence-number {
+      type yang:counter32;
+      mandatory true;
+      description
+        "Sequence number maintained independently for each
+         publisher-id within a subscription. The first notification
+         from each newly created or re-added publisher uses 1
+         under its new publisher-id.
+         Each subsequent notification from that publisher-id for
+         that subscription increments the value by 1, wrapping from
+         4294967295 to 0 and continuing. The counter
+         MUST NOT be reset during the lifetime of the subscription.";
+    }
+    container extensions {
+      description
+        "This container is reserved for future extensions to the
+         notification envelope.";
+    }
+    anydata contents {
+      mandatory true;
+      description
+        "Contains exactly one notification, identified by the name
+         of its YANG 'notification' statement and the namespace of
+         the module defining that statement. The notification's
+         data node values are carried unchanged.";
     }
   }
 }
