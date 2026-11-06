@@ -1,0 +1,860 @@
+module ietf-power-and-energy {
+  yang-version 1.1;
+
+  namespace "urn:ietf:params:xml:ns:yang:ietf-power-and-energy";
+  prefix eo;
+
+  import ietf-hardware {
+    prefix hw;
+    reference
+      "RFC 8348: A YANG Data Model for Hardware Management";
+  }
+
+  import iana-power-and-energy {
+    prefix ianaeo;
+    reference
+      "RFC XXXX: Power and Energy YANG Module";
+  }
+
+  organization
+    "IETF GREEN Working Group";
+
+  contact
+    "WG Web:  <https://datatracker.ietf.org/wg/green/>
+     WG List: <mailto:green@ietf.org>
+
+     Author:  Benoit Claise
+              <mailto:benoit@everything-ops.net>
+     Author:  Gen Chen
+              <mailto:chengen@huawei.com>
+     Author:  Marisol Palmero
+              <mailto:marisol.ietf@gmail.com>
+     Author:  Jan Lindblad
+              <mailto:jan.lindblad@for.eco>";
+
+  description
+    "This YANG module defines a data model for Power and Energy
+     monitoring and control of devices within or connected to
+     communication networks.
+
+     The capitalized terms used in this module (for example,
+     Power, Energy, Energy Object, Component, Power State,
+     Nameplate Power, and Power Inlet) are defined in
+     I-D.ietf-green-terminology, except Power Cap, which is
+     defined in RFC XXXX.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.
+
+     Copyright (c) 2026 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+     for full legal notices.";
+
+  revision 2026-11-01 {
+    description
+      "Initial revision";
+    reference
+      "RFC XXXX: Power and Energy YANG Module";
+  }
+
+  identity data-source-accuracy {
+    description
+      "Base identity for all possible data accuracy types.
+       This identity serves as the root for a hierarchy of accuracy
+       types, allowing for extensibility while maintaining alignment
+       with current and future industry standards.
+
+       The hierarchy, as defined in this YANG module, is as follows.
+       Other modules may extend this hierarchy with additional
+       accuracy base- and sub-types as needed.
+
+       data-source-accuracy
+        +-- accuracy-like-parent
+        +-- accuracy-unknown
+        |    +-- accuracy-unavailable
+        +-- accuracy-estimated
+        |    +-- accuracy-static
+        |    +-- accuracy-historic
+        |    +-- accuracy-learned
+        +-- accuracy-measured
+             +-- accuracy-measured-bronze
+             |    +-- accuracy-measured-bronze-1
+             |    +-- accuracy-measured-bronze-10
+             |    +-- accuracy-measured-bronze-100
+             |    +-- accuracy-measured-bronze-1000
+             +-- accuracy-measured-silver
+             |    +-- accuracy-measured-silver-...
+             +-- accuracy-measured-gold
+             |    +-- accuracy-measured-gold-...
+             +-- accuracy-measured-red
+             |    +-- accuracy-measured-red-...
+             +-- accuracy-measured-ones
+
+       The accuracy levels under accuracy-measured are based on
+       percent-wise accuracy classes:
+          bronze:  +/- 30%
+          silver:  +/- 10%
+          gold:    +/- 5%
+          red:     +/- 2%
+
+       In addition, the accuracy-measured-ones identity indicates
+       a Power or Energy measurement with all digits valid, except 
+       trailing zeros.
+
+       Since percent-wise accuracy works poorly for very small
+       values, standards such as IEC 62053, IEC 61850-7-4 and
+       IEEE 1451 define accuracy classes based on a combination of
+       percent-wise accuracy and absolute accuracy thresholds.
+       E.g. +/-1 % of reading  +  +/-0.05 absolute units.
+
+       Similarly, for each percent-wise accuracy class, this module
+       defines a few absolute tolerance classes, indicated by
+       suffixes to the accuracy identity names. The suffixes indicate
+       absolute accuracy thresholds:
+          no suffix:   +/-0.5  absolute units
+          -1:          +/-1    absolute unit
+          -10:         +/-10   absolute units
+          -100:        +/-100  absolute units
+          -1000:       +/-1000 absolute units
+       Thus, for example, accuracy-measured-gold-10 indicates
+       a Power data measurement with an accuracy of either
+       +/-5% or +/-10 absolute units, whichever is larger.
+
+       For example, a power sensor reading might report a value
+       of 16250 milliwatts, under accuracy-measured-gold-10. This 
+       indicates that the actual Power value is between 15437.5 and 
+       17062.5 milliwatts, since 5% of 16250 milliwatts is 812.5 
+       milliwatts, which is greater than the absolute threshold of 
+       10 milliwatts.
+
+       At another time, the same sensor might report a value
+       of 150 milliwatts, under accuracy-measured-gold-10. This 
+       indicates that the actual Power value is between 140 and 160 
+       milliwatts, since 5% of 150 milliwatts is only 7.5 milliwatts,
+       which is less than the absolute threshold of 10 milliwatts.";
+  }
+  identity accuracy-unknown {
+    base data-source-accuracy;
+    description
+      "The accuracy of the Power or Energy data is unknown.";
+  }
+  identity accuracy-unavailable {
+    base accuracy-unknown;
+    description
+      "The Power or Energy data is not available for some reason,
+       such as a sensor failure or a Component being powered off.";
+  }
+  identity accuracy-like-parent {
+    base data-source-accuracy;
+    description
+      "The accuracy of the Power or Energy data is the same as the
+       accuracy of the same data for the parent Energy Object. The
+       parent Energy Object is found by following the 'parent' leaf
+       of ietf-hardware up the containment tree towards the root,
+       starting from the Component that this Energy Object
+       describes (see source-component-id): it is the Energy Object
+       of the first Component found that has one. This identity is
+       useful for hierarchical Energy Objects where child objects
+       inherit the accuracy characteristics. If there is no parent
+       Energy Object, the accuracy is unknown, as for
+       accuracy-unknown.";
+    reference
+      "RFC 8348: A YANG Data Model for Hardware Management
+       RFC 6933: Entity MIB (Version 4)";
+  }
+  identity accuracy-estimated {
+    base data-source-accuracy;
+    description
+      "The Power or Energy data is estimated, perhaps based on a
+       model, history or calculation rather than a direct
+       measurement.";
+  }
+  identity accuracy-static {
+    base accuracy-estimated;
+    description
+      "The Power or Energy data is based on static data, such as
+       manufacturer specifications, datasheet of typical Power values
+       or nameplate ratings, rather than real-time measurements.";
+  }
+  identity accuracy-historic {
+    base accuracy-estimated;
+    description
+      "The Power or Energy data is based on historical measurement
+       data for this specific system and usage pattern.";
+  }
+  identity accuracy-learned {
+    base accuracy-estimated;
+    description
+      "The Power or Energy data is based on a machine learning model
+       prediction.";
+  }
+  identity accuracy-measured {
+    base data-source-accuracy;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor.";
+  }
+  identity accuracy-measured-bronze {
+    base accuracy-measured;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 30% OR |actual-sensor| <= 0.5";
+  }
+  identity accuracy-measured-bronze-1 {
+    base accuracy-measured-bronze;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 30% OR |actual-sensor| <= 1";
+  }  
+  identity accuracy-measured-bronze-10 {
+    base accuracy-measured-bronze;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 30% OR |actual-sensor| <= 10";
+  }  
+  identity accuracy-measured-bronze-100 {
+    base accuracy-measured-bronze;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 30% OR |actual-sensor| <= 100";
+  }  
+  identity accuracy-measured-bronze-1000 {
+    base accuracy-measured-bronze;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 30% OR |actual-sensor| <= 1000";
+  }  
+  identity accuracy-measured-silver {
+    base accuracy-measured;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 10% OR |actual-sensor| <= 0.5";
+  }  
+  identity accuracy-measured-silver-1 {
+    base accuracy-measured-silver;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 10% OR |actual-sensor| <= 1";
+  }  
+  identity accuracy-measured-silver-10 {
+    base accuracy-measured-silver;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 10% OR |actual-sensor| <= 10";
+  }  
+  identity accuracy-measured-silver-100 {
+    base accuracy-measured-silver;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 10% OR |actual-sensor| <= 100  ";
+  }  
+  identity accuracy-measured-silver-1000 {
+    base accuracy-measured-silver;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 10% OR |actual-sensor| <= 1000";
+  }  
+  identity accuracy-measured-gold {
+    base accuracy-measured;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 5% OR |actual-sensor| <= 0.5";
+  }
+  identity accuracy-measured-gold-1 {
+    base accuracy-measured-gold;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 5% OR |actual-sensor| <= 1";
+  }  
+  identity accuracy-measured-gold-10 {
+    base accuracy-measured-gold;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 5% OR |actual-sensor| <= 10";
+  }  
+  identity accuracy-measured-gold-100 {
+    base accuracy-measured-gold;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 5% OR |actual-sensor| <= 100";
+  }  
+  identity accuracy-measured-gold-1000 {
+    base accuracy-measured-gold;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 5% OR |actual-sensor| <= 1000";
+  }  
+  identity accuracy-measured-red {
+    base accuracy-measured;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 2% OR |actual-sensor| <= 0.5";
+  }
+  identity accuracy-measured-red-1 {
+    base accuracy-measured-red;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 2% OR |actual-sensor| <= 1";
+  }  
+  identity accuracy-measured-red-10 {
+    base accuracy-measured-red;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 2% OR |actual-sensor| <= 10";
+  }  
+  identity accuracy-measured-red-100 {
+    base accuracy-measured-red;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 2% OR |actual-sensor| <= 100";
+  }  
+  identity accuracy-measured-red-1000 {
+    base accuracy-measured-red;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with precision and accuracy such that
+       |actual-sensor| <= sensor * 2% OR |actual-sensor| <= 1000";
+  }  
+  identity accuracy-measured-ones {
+    base accuracy-measured;
+    description
+      "The Power or Energy data is a direct, real-time measurement
+       from a sensor with all digits valid, except trailing zeros.
+       For example, a sensor reading of 12300 represents a sensor
+       value between 12250 and 12350.";
+  }
+
+  typedef power-factor {
+    type uint8 {
+      range "0 .. 100";
+    }
+    default 100;
+    description
+      "The percent value of the power factor measurement.
+       Leaf often omitted, implying 100%.";
+  }
+
+  identity power-state {
+    description
+      "Base identity for all possible Power States. This identity
+       serves as the root for a hierarchy of Power States, allowing
+       for extensibility while maintaining alignment with the IANA
+       Power State Set Registry.";
+    reference
+      "IANA: Power State Set Registry:
+       https://www.iana.org/assignments/power-state-sets/";
+  }
+  identity power-state-on {
+    base power-state;
+    description "full power on.";
+    reference
+      "IANA: Power State Set Registry (ieee1621-power-state-set):
+       https://www.iana.org/assignments/power-state-sets/";
+  }
+  identity power-state-off {
+    base power-state;
+    description "power off.";
+    reference
+      "IANA: Power State Set Registry (ieee1621-power-state-set):
+       https://www.iana.org/assignments/power-state-sets/";
+  }
+  identity power-state-sleep {
+    base power-state;
+    description "low-power state.";
+    reference
+      "IANA: Power State Set Registry (ieee1621-power-state-set):
+       https://www.iana.org/assignments/power-state-sets/";
+  }
+  identity energy-relationship-type {
+    description "Base identity for Energy Object relationships";
+  }
+  identity powered-by {
+    base energy-relationship-type;
+    description "Energy Object A is powered by Energy Object B";
+  }
+  identity powering {
+    base energy-relationship-type;
+    description "Energy Object A is powering Energy Object B";
+  }
+  identity metered-by {
+    base energy-relationship-type;
+    description "Energy Object A is metered by Energy Object B";
+  }
+  identity metering {
+    base energy-relationship-type;
+    description "Energy Object A is metering Energy Object B";
+  }
+  identity aggregated-by {
+    base energy-relationship-type;
+    description "Energy Object A is aggregated by Energy Object B";
+  }
+  identity aggregating {
+    base energy-relationship-type;
+    description "Energy Object A is aggregating Energy Object B";
+  }
+  identity enabled-by {
+    base energy-relationship-type;
+    description
+      "Energy Object A is enabled by Energy Object B. B must be 
+       operational for A to function correctly";
+  }
+  identity enabling {
+    base energy-relationship-type;
+    description
+      "Energy Object A is enabling Energy Object B. A must be 
+       operational for B to function correctly.
+       The inverse relationship is 'enabled-by'.";
+  }
+
+  grouping power-values {
+    description
+      "A set of Power measurement values that are associated with an 
+       Energy Object. 
+       This grouping is defined so that other modules, for example
+       a controller-side module collecting and aggregating Power
+       data from devices, can reuse the same leaf definitions
+       instead of redefining them.";
+    container power {
+      description
+        "Container for Power measurement attributes.";
+
+      leaf instantaneous-power-received {
+        type uint64;
+        units "milliwatts";
+        mandatory false;
+        description
+          "The Power that the Energy Object receives right now,
+           summed over all its Power Inlets. It includes the Power
+           that the Energy Object uses itself and the Power that it
+           converts, passes on, or stores, for example in a power
+           supply or a charging battery. If the device can measure
+           this value, it MUST report it.";
+      }
+
+      leaf instantaneous-power-provided {
+        type uint64;
+        units "milliwatts";
+        mandatory false;
+        description
+          "The Power that the Energy Object provides right now to
+           other Energy Objects, summed over all its Power Outlets,
+           for example the output of a power supply, Power over
+           Ethernet, or a discharging battery. The difference
+           between the received and the provided Power is the
+           Power that the Energy Object dissipates or stores. An
+           Energy Object without Power Outlets does not report this
+           leaf; otherwise, if the device can measure this value,
+           it MUST report it.";
+      }
+
+      leaf nameplate-power {
+        type uint32;
+        units "watts";
+        description
+          "The Nameplate Power of the Energy Object: the maximum
+           continuous Power the Energy Object is designed to consume
+           or deliver, as specified by the manufacturer. For an
+           Energy Object that provides Power, such as a power
+           supply, it is the rated provided Power. It is a
+           rated design value, not an expected operating value or an
+           observed maximum, and does not change during operation.
+           Used for power budget calculations and capacity
+           planning.";
+        reference
+          "I-D.ietf-green-terminology: Terminology for Energy
+           Efficiency Network Management";
+      }
+
+      leaf data-source-accuracy {
+        type identityref {
+          base data-source-accuracy;
+        }
+        default accuracy-like-parent;
+        description
+          "The accuracy of the Power data source. Indicates
+           whether the data source is a direct measurement, an
+           estimate, or unavailable and also the accuracy level of
+           the data source. By default, the accuracy is inherited
+           from the parent Energy Object (see accuracy-like-parent),
+           facilitating hierarchical accuracy definitions without
+           the need to specify accuracy at every level. An Energy
+           Object without a parent Energy Object, such as the one
+           at the top of the containment tree, SHOULD report this
+           leaf explicitly. A module that reuses this grouping
+           outside a device can refine the default, for example to
+           accuracy-unknown. It applies to both the received and the
+           provided Power; when their accuracy differs, it reports
+           the accuracy of the less accurate of the two. This
+           metadata is crucial for network management applications
+           to assess the reliability and accuracy of the Power
+           data.";
+      }
+
+      leaf power-factor {
+        type power-factor;
+        description
+          "The percent value of the power factor measured at the
+           Power Inlets of the Energy Object. This information is
+           important for understanding the electrical
+           characteristics of the Energy Object and for correctly
+           interpreting the received Power data.";
+      }
+      leaf measurement-local {
+        type boolean;
+        description
+          "Indicates whether the Power measurement is local (true) 
+           or remote (false). A local measurement is taken 
+           directly at the Energy Object, while a remote 
+           measurement is collected from an external source. 
+           This information can be useful for troubleshooting and 
+           understanding the data source.";
+      }
+      container power-cap {
+        presence
+          "A Power Cap is enforced for this Energy Object. When this
+           container is absent, no cap is enforced and the Nameplate
+           Power is the upper limit.";
+        description
+          "Container for the Power Cap in effect for this Energy
+           Object.";
+        leaf limit {
+          type uint64;
+          units "milliwatts";
+          mandatory true;
+          description
+            "The upper limit on the Power that this Energy Object
+             receives, currently enforced: the Energy Object does
+             not draw more Power than this limit, whether or not the
+             cap is constraining it at this time (see 'limiting').
+             It differs from the requested limit when the requested
+             limit is outside the range that the Energy Object
+             supports.";
+        }
+        leaf limiting {
+          type boolean;
+          description
+            "True if the cap is currently constraining the Energy
+             Object: without the cap, it would draw more Power than
+             the limit, so its operation (for example, its clock
+             frequency) is reduced to stay within the limit. False
+             if the Energy Object would not draw more Power than the
+             limit even without the cap, so the cap has no effect
+             at this time. Absent if the device cannot determine
+             whether the cap is constraining the Energy Object.";
+        }
+      }
+    }
+  }
+
+  grouping energy-values {
+    description
+      "A set of Energy measurement values that are associated with an 
+       Energy Object. 
+       This grouping is defined so that other modules, for example
+       a controller-side module collecting and aggregating Energy
+       data from devices, can reuse the same leaf definitions
+       instead of redefining them.";
+    container energy {
+      description
+        "Container for Energy measurement attributes.";
+
+      leaf total-energy-received {
+        type uint64;
+        units "milliwatt-hours";
+        description
+          "The total cumulative Energy received by the Energy
+           Object since the last reset, in the same direction as
+           instantaneous-power-received. This value is useful for
+           tracking overall Energy usage over time for billing,
+           reporting, or optimization purposes. If the device can
+           measure this value, it MUST report it.";
+      }
+
+      leaf total-energy-provided {
+        type uint64;
+        units "milliwatt-hours";
+        description
+          "The total cumulative Energy provided by the Energy
+           Object to other Energy Objects since the last reset, in
+           the same direction as instantaneous-power-provided.
+           This value is relevant for Energy Objects that provide
+           Energy, such as power supplies, PoE switches,
+           batteries, or renewable energy sources. An Energy Object
+           without Power Outlets does not report this leaf;
+           otherwise, if the device can measure this value, it MUST
+           report it.";
+      }
+      leaf data-source-accuracy {
+        type identityref {
+          base data-source-accuracy;
+        }
+        default accuracy-like-parent;
+        description
+          "The accuracy of the Energy data source. Indicates
+           whether the data source is a direct measurement, an
+           estimate, or unavailable and also the accuracy level of
+           the data source. By default, the accuracy is inherited
+           from the parent Energy Object (see accuracy-like-parent),
+           facilitating hierarchical accuracy definitions without
+           the need to specify accuracy at every level. An Energy
+           Object without a parent Energy Object, such as the one
+           at the top of the containment tree, SHOULD report this
+           leaf explicitly. A module that reuses this grouping
+           outside a device can refine the default, for example to
+           accuracy-unknown. It applies to both the received and the
+           provided Energy; when their accuracy differs, it reports
+           the accuracy of the less accurate of the two. This
+           metadata is crucial for network management applications
+           to assess the reliability and accuracy of the Energy
+           data.";
+      }
+      leaf measurement-local {
+        type boolean;
+        description
+          "Indicates whether the Energy measurement is local 
+           (true) or remote (false). A local measurement is taken 
+           directly at the Energy Object, while a remote 
+           measurement is collected from an external source. 
+           This information can be useful for troubleshooting and 
+           understanding the data source.";
+      }
+    }
+  }
+
+  grouping certifications {
+    description
+      "The certifications that apply to an Energy Object. Defined
+       as a separate grouping so that it can be reused independently
+       of the Power and Energy values.";
+    leaf-list certifications {
+      type identityref {
+        base ianaeo:certification-type;
+      }
+      description
+        "List of certifications applicable to this Energy Object.
+         If this list is empty, the Energy Object has no
+         certifications.";
+    }
+  }
+
+  grouping relationships {
+    description
+      "A set of relationships between an Energy Object and its peer 
+       Energy Objects.
+       A device uses this grouping to report relationships such as
+       powering, powered-by, metering, metered-by, aggregating, 
+       aggregated-by, enabling and enabled-by.  A controller uses 
+       this grouping to represent the relationships collected from 
+       devices. 
+       This grouping is defined so that other modules, for example
+       a controller-side module collecting relationships from
+       devices, can reuse the same relationship structure instead
+       of redefining it.";
+    list relationship {
+      key "type";
+      description 
+        "Relationships for this Energy Object.";
+
+      leaf type {
+        type identityref {
+          base energy-relationship-type; 
+          // powered-by, powering, metered-by, metering, etc.
+        }
+        description
+          "The type of relationship this Energy Object has with 
+           peer objects.";
+      }
+
+      list peer {
+        key "id";
+        description 
+          "Multiple peers for this relationship type.";
+
+        leaf id {
+          type string;
+          description 
+            "The identifier of the peer Energy Object that this
+             Energy Object is powering/powered-by/metering/
+             metered-by, etc., preferably its Universally Unique
+             Identifier (UUID). If the UUID is not known, another
+             identifier MAY be used, together with human-readable
+             details in the 'details' leaf.";
+          reference
+            "RFC 9562: Universally Unique IDentifiers (UUIDs)";
+        }
+        leaf details {
+          type string;
+          description 
+            "Additional details about the relationship.";
+        }
+      }
+    }
+  }
+
+  container energy-objects {
+    config false;
+    description
+      "Energy Objects container for Power and Energy attributes.";
+
+    list energy-object {
+      key "id";
+      description
+        "Power and Energy entry for an Energy Object, indexed by 
+         Energy Object id. Each entry contains the complete set of 
+         Power and Energy attributes for a specific physical 
+         component.";
+
+      leaf id {
+        type string;
+        description
+          "An identifier that uniquely identifies the Energy Object";
+      }
+
+      leaf source-component-id {
+        type leafref {
+          path "/hw:hardware/hw:component/hw:name";
+        }
+        description
+          "Reference to the component name in the ietf-hardware 
+           model. This leaf creates a direct semantic link between 
+           the Power/Energy attributes and the physical component 
+           they describe.";
+        reference
+          "RFC 8348: A YANG Data Model for Hardware Management";
+      }
+
+      uses power-values;
+      uses energy-values;
+      uses certifications;
+
+      container power-state {
+        description
+          "Container for Power State monitoring.";
+        leaf oper {
+          type identityref {
+            base power-state;
+          }
+          description
+            "The current operational Power State of this Component, 
+             as reported by the device. The leaf reflects the actual 
+             observed Power State.";
+        }
+      }
+
+      uses relationships;
+    }
+  }
+
+  container energy-control {
+    description
+      "Energy control configuration, mirroring monitored objects. 
+       The operational tree ('list energy-object' in 
+       /energy-objects) will typically contain a significantly 
+       larger number of instances than the configuration tree here. 
+       The configuration tree represents the administrator's intent 
+       and is limited to explicitly provisioned entries.";
+    container energy-objects {
+      description
+        "Configuration container for the list of administratively 
+         provisioned Energy Objects.";
+      list energy-object {
+        key "id";
+        description
+          "Control entry for a specific Energy Object.";
+
+        leaf id {
+          type leafref {
+          path "/energy-objects/energy-object/id";
+          require-instance false;
+        }
+          description 
+            "An identifier that uniquely identifies the Energy 
+             Object.";
+        }
+        container power-state {
+          description
+            "Container for Power State management.";
+
+          leaf admin {
+            type identityref {
+              base power-state;
+            }
+            description
+              "The administratively requested Power State for this 
+               Component. This leaf represents the management system 
+               intended Power State. When the 'admin' and the 
+               respective 'oper' YANG leaf values differ, a 
+               transition toward the 'admin' Power State is in 
+               progress. Absence of a configured value indicates that 
+               the Component operates at its default Power State.";
+          }
+
+          leaf oper {
+            type leafref {
+              path "/energy-objects/energy-object/power-state/oper";
+              require-instance false;
+            }
+            description
+              "The current operational Power State of this Component, 
+               as reported by the device. 
+               References the corresponding operational Energy Object 
+               instance in the monitoring tree.";
+          }
+        }
+
+        container power-cap {
+          description
+            "Container for the Power Cap of this Energy Object.";
+          leaf limit {
+            type uint64;
+            units "milliwatts";
+            description
+              "The administratively requested upper limit on the
+               Power that this Energy Object may receive. The device
+               enforces it by adjusting the operation of the Energy
+               Object, for example by lowering its clock frequency.
+               Absence of a configured value means that no cap is
+               requested. If the requested limit is outside the
+               range that the Energy Object supports, the device
+               enforces the closest supported value, which is
+               reported in the power-cap container in
+               /energy-objects.";
+          }
+        }
+      }
+    }
+  }
+}
+

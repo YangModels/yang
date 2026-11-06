@@ -1,0 +1,152 @@
+module ietf-detnet-preof-loss-matrix {
+  yang-version 1.1;
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-detnet-preof-loss-matrix";
+  prefix rpo;
+
+  organization
+    "IETF Deterministic Networking (DetNet) Working Group";
+  contact
+    "Zhiqiang Li <lizhiqiangyjy@chinamobile.com>";
+  description
+    "ietf-detnet-preof-loss-matrix data model.
+     Copyright (c) 2026 IETF Trust and the persons identified as
+     authors of the code. All rights reserved.
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Revised BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+     This version of this YANG module is part of RFC XXXX; see
+     the RFC itself for full legal notices.";
+  revision 2026-10-30 {
+    description "Initial revision.";
+    reference "draft-li-detnet-preof-correlated-outcomes-yang-00";
+  }
+
+  typedef outcome {
+    type enumeration {
+      enum on-time {
+        description "Certainly at or before deadline.";
+      }
+      enum late {
+        description "Certainly late, observed by closure.";
+      }
+      enum missing { description "Not observed by valid closure."; }
+      enum indeterminate {
+        description "Evidence is insufficient.";
+      }
+    }
+    description "Mutually exclusive outcome for one branch.";
+  }
+  container replication-outcomes {
+    config false;
+    description "Retained, finalized paired observation windows.";
+    list window {
+      must "branch-a != branch-b" {
+        error-message "Two distinct branches are required.";
+      }
+      key "id";
+      description "An immutable final report, never a partial
+         update.";
+      leaf id {
+        type binary { length "16"; }
+        description "Unique identifier, including across restarts.";
+      }
+      leaf population-id {
+        type string { length "1..256"; }
+        mandatory true;
+        description
+          "Reference to the exact original-packet manifest and its
+           correlation generation within the measurement domain.";
+      }
+      leaf contract-id {
+        type string { length "1..256"; }
+        mandatory true;
+        description
+          "Immutable, version-specific measurement contract
+             identifier
+           in a provisioned namespace. Equality alone does not prove
+           two populations are disjoint.";
+      }
+      leaf branch-a {
+        type string { length "1..128"; }
+        mandatory true;
+        description "First replication branch at the merge
+           observer.";
+      }
+      leaf branch-b {
+        type string { length "1..128"; }
+        mandatory true;
+        description "Second, distinct branch at the merge
+           observer.";
+      }
+      leaf deadline-budget {
+        type uint64;
+        units "nanoseconds";
+        mandatory true;
+        description "Budget from source emission to merge
+           observation.";
+      }
+      leaf closure-wait {
+        type uint64;
+        units "nanoseconds";
+        mandatory true;
+        description
+          "Wait after the latest deadline before final
+             classification.
+           This is not permission to extend the deadline.";
+      }
+      choice evidence {
+        mandatory true;
+        description "Complete accounting or unavailable
+           population.";
+        case unavailable {
+          leaf unavailable-reason {
+            type string { length "1..512"; }
+            description "Why a closed original-packet set is
+               unknown.";
+          }
+        }
+        case accounted {
+          container counts {
+            must "sum(cell/packets) = expected" {
+              error-message "Outcome counts must sum to
+                 population.";
+            }
+            presence "The original-packet population is known.";
+            description "Exactly one pair outcome per original
+               packet.";
+            leaf expected {
+              type uint32 { range "1..max"; }
+              mandatory true;
+              description "Size of the source-declared population.";
+            }
+            list cell {
+              key "a b";
+              min-elements 16;
+              max-elements 16;
+              description "All 16 outcome pairs, including zero
+                 cells.";
+              leaf a {
+                type outcome;
+                description "Outcome on branch A.";
+              }
+              leaf b {
+                type outcome;
+                description "Outcome on branch B.";
+              }
+              leaf packets {
+                type uint32;
+                mandatory true;
+                description "Original packets with this outcome
+                   pair.";
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
