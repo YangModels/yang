@@ -1,0 +1,212 @@
+module ietf-yang-push-causal-ordering {
+  yang-version 1.1;
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-yang-push-causal-ordering";
+  prefix yp-co;
+
+  import ietf-yang-types {
+    prefix yang;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+
+  import ietf-subscribed-notifications {
+    prefix sn;
+    reference
+      "RFC 8639: Subscription to YANG Notifications";
+  }
+
+  import ietf-yang-structure-ext {
+    prefix sx;
+    reference
+      "RFC 8791: YANG Data Structure Extensions";
+  }
+
+  import ietf-system-capabilities {
+    prefix sysc;
+    reference
+      "RFC 9196: YANG Modules Describing Capabilities for Systems
+       and Behavioral Change Management";
+  }
+
+  import ietf-notification-capabilities {
+    prefix notc;
+    reference
+      "RFC 9196: YANG Modules Describing Capabilities for Systems
+       and Behavioral Change Management";
+  }
+
+  import ietf-yp-notification {
+    prefix ypn;
+    reference
+      "I-D.ietf-netconf-notif-envelope: Extensible YANG Model for
+       YANG-Push Notifications";
+  }
+
+  organization
+    "IETF NETCONF (Network Configuration) Working Group";
+  contact
+    "WG Web:   <https://ietf.org>
+     WG List:  <mailto:netconf@ietf.org>
+
+     Author:   Saumya Dikshit
+               <mailto:saumya.dikshit@hpe.com>";
+  description
+    "This module defines YANG extensions for opt-in cross-publisher
+     causal ordering in YANG-Push datastore telemetry without
+     requiring synchronous locking across distributed publishers.
+
+     Copyright (c) 2026 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+     for full legal notices.";
+
+  revision 2026-11-20 {
+    description
+      "Initial revision adding opt-in subscription causal ordering
+       configuration and lock-free notification envelope metadata.";
+    reference
+      "draft-dikshit-netconf-yang-push-causal-ordering-02";
+  }
+
+  feature causal-ordering {
+    description
+      "Indicates that the publisher supports opt-in cross-publisher
+       causal ordering metadata on YANG-Push notifications.";
+  }
+
+  grouping causal-ordering-subscription-config {
+    description
+      "Subscription-level opt-in parameters for cross-publisher
+       causal ordering.";
+    leaf enable-causal-ordering {
+      if-feature "causal-ordering";
+      type boolean;
+      default "false";
+      description
+        "When set to 'true', publishers serving this subscription
+         include cross-publisher causal ordering metadata in
+         emitted notification envelopes.  Disabled by default to
+         incur zero overhead on single-publisher subscriptions.";
+    }
+    leaf comparability-scope-id {
+      when "../enable-causal-ordering = 'true'";
+      if-feature "causal-ordering";
+      type string {
+        length "1..64";
+      }
+      description
+        "Identifier defining the multi-publisher comparability
+         group.  Notifications sharing the same scope identifier
+         can be causally ordered by a collector.";
+    }
+    leaf max-skew-window {
+      when "../enable-causal-ordering = 'true'";
+      if-feature "causal-ordering";
+      type uint32;
+      units "milliseconds";
+      default "50";
+      description
+        "Recommended bounded reordering window hint for collectors
+         processing interleaved streams within this comparability
+         scope.";
+    }
+  }
+
+  grouping causal-ordering-envelope-metadata {
+    description
+      "Lightweight, coordination-free metadata carried in the
+       YANG-Push notification envelope when causal ordering is
+       enabled.";
+    leaf comparability-scope-id {
+      type string {
+        length "1..64";
+      }
+      mandatory true;
+      description
+        "The comparability scope identifier shared by all
+         publishers participating in the same causal ordering
+         domain.";
+    }
+    leaf causal-epoch {
+      type yang:counter64;
+      mandatory true;
+      description
+        "Coarse logical epoch shared across publishers within the
+         comparability scope.  Increments only upon causal state
+         hand-off across publishers, avoiding per-message locks.";
+    }
+    leaf local-sequence-number {
+      type yang:counter64;
+      mandatory true;
+      description
+        "Strictly monotonic per-publisher sequence counter used to
+         detect packet loss and duplicates within a given
+         (publisher, causal-epoch) tuple.";
+    }
+  }
+
+  augment "/sn:subscriptions/sn:subscription" {
+    description
+      "Adds opt-in cross-publisher causal ordering controls to
+       configured and dynamic subscriptions.";
+    uses causal-ordering-subscription-config;
+  }
+
+  augment "/sn:establish-subscription/sn:input" {
+    description
+      "Allows dynamic subscription RPC requests to opt into
+       cross-publisher causal ordering.";
+    uses causal-ordering-subscription-config;
+  }
+
+  augment "/sn:modify-subscription/sn:input" {
+    description
+      "Allows dynamic subscription modifications to update
+       causal ordering parameters.";
+    uses causal-ordering-subscription-config;
+  }
+
+  sx:augment-structure "/ypn:envelope" {
+    description
+      "Augments the extensible YANG-Push notification envelope with
+       coordination-free cross-publisher causal ordering metadata
+       when enabled for the subscription.";
+    container causal-ordering {
+      if-feature "causal-ordering";
+      presence
+        "Present when cross-publisher causal ordering is enabled
+         for the subscription.";
+      description
+        "Cross-publisher causal ordering metadata carried alongside
+         event-time in the notification header.";
+      uses causal-ordering-envelope-metadata;
+    }
+  }
+
+  augment "/sysc:system-capabilities/notc:subscription-capabilities"
+        + "/ypn:notification-metadata/ypn:metadata" {
+    if-feature "causal-ordering";
+    description
+      "Allows a client to discover whether the publisher supports
+       cross-publisher causal ordering metadata in the notification
+       envelope.";
+    leaf causal-ordering-supported {
+      type boolean;
+      default "false";
+      description
+        "Indicates whether the publisher supports emitting
+         cross-publisher causal ordering metadata in the
+         ietf-yp-notification envelope.";
+    }
+  }
+}

@@ -1,0 +1,236 @@
+module ietf-power-state-capabilities {
+  yang-version 1.1;
+  namespace
+    "urn:ietf:params:xml:ns:yang:ietf-power-state-capabilities";
+  prefix pscap;
+
+  import ietf-system-capabilities {
+    prefix sysc;
+    reference
+      "RFC 9196: YANG Modules Describing Capabilities for Systems
+       and Datastore Update Notifications";
+  }
+  import ietf-yang-semver {
+    prefix ysv;
+    reference
+      "I-D.ietf-netmod-yang-semver: YANG Semantic Versioning";
+  }
+  import ietf-power-and-energy {
+    prefix eo;
+    reference
+      "I-D.ietf-green-power-and-energy-yang: Power and Energy YANG
+       Module";
+  }
+
+  organization
+    "IETF GREEN (Getting Ready for Energy-Efficient Networking)
+     Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/green/>
+     WG List:  <mailto:green@ietf.org>
+     Author:   Benoit Claise <mailto:benoit@everything-ops.net>
+     Author:   Nils Warnke <mailto:Nils.Warnke@telekom.de>
+     Author:   Reshad Rahman <mailto:reshad@yahoo.com>
+     Author:   Gen Chen <mailto:chengen@huawei.com>
+     Author:   Gary Woodward
+               <mailto:gary.woodward1@virginmediao2.co.uk>";
+  description
+    "This module augments the system capabilities model defined in
+     RFC 9196 to allow a server to advertise, per hardware Component,
+     the set of Power States that the Component supports together
+     with a static characterization of each such state (the
+     expected and maximum Power the Component draws in it, and the
+     time to enter and exit it).
+
+     The capability is anchored, via the RFC 9196 per-node capability
+     mechanism, to a Component of the hardware inventory defined in
+     RFC 8348. It reuses the 'power-state' identities defined in
+     ietf-power-and-energy.
+
+     Copyright (c) 2026 IETF Trust and the persons identified as
+     authors of the code. All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject to
+     the license terms contained in, the Revised BSD License set
+     forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC XXXX
+     (https://www.rfc-editor.org/info/rfcXXXX); see the RFC itself
+     for full legal notices.";
+
+  // RFC Ed.: update the ysv:version to "1.0.0" at publication
+  // and remove this note.
+  revision 2026-11-23 {
+    ysv:version "0.1.0";
+    description
+      "Initial revision.";
+    reference
+      "RFC XXXX: A YANG Data Model for Power State Capability
+       Discovery";
+  }
+
+  typedef transition-time-ms {
+    type uint32;
+    units "milliseconds";
+    description
+      "The duration of a transition between Power States, in
+       milliseconds. The specific Power States and the direction
+       are given by the leaf that uses this type.";
+  }
+
+  grouping power-state-capability {
+    description
+      "Static characterization of the Power States that a Component
+       supports. This grouping is reusable: it is used both at the
+       system-wide level and at the per-Component level of the
+       RFC 9196 capabilities model.";
+
+    list supported-power-state {
+      key "power-state";
+      description
+        "The set of Power States supported by the Component, with one
+         entry per supported state.";
+
+      leaf power-state {
+        type identityref {
+          base eo:power-state;
+        }
+        description
+          "A Power State that the Component supports,
+           identified by an identity derived from the
+           'power-state' base identity of ietf-power-and-energy
+           (for example 'power-state-on', 'power-state-off', or
+           'power-state-sleep'). Additional low-power depths are
+           represented by further identities derived from
+           'power-state-sleep'.";
+      }
+
+      leaf nominal-power {
+        type uint32;
+        units "watts";
+        description
+          "The nominal Power drawn by the Component while it
+           is in this Power State.
+           The Power Savings Potential of a low-power state is
+           the difference between the 'nominal-power' of
+           'power-state-on' and the 'nominal-power' of that
+           low-power state.";
+      }
+
+      leaf max-power {
+        type uint32;
+        units "watts";
+        description
+          "The maximum sustained (continuous) Power that the
+           Component may draw while in this Power State: a rated
+           ceiling for this particular state, not a transient or
+           inrush peak. It is the per-Power-State counterpart of
+           the Component's Nameplate Power; for 'power-state-on',
+           the most power-consuming Power State, it is less than or
+           equal to that Nameplate Power when the latter is
+           reported.";
+      }
+
+      leaf typical-exit-time {
+        type transition-time-ms;
+        description
+          "The typical time to transition the Component from this
+           Power State back to 'power-state-on', under normal
+           conditions, measured from when the transition to
+           'power-state-on' is initiated until the Component is
+           fully operational (able to carry traffic). It is a key
+           input when weighing the Power a low-power state saves
+           against the service impact of the delay to leave it.
+           Not meaningful for 'power-state-on'.";
+      }
+
+      leaf max-exit-time {
+        type transition-time-ms;
+        description
+          "The worst-case time to transition the Component from
+           this Power State back to 'power-state-on'. It bounds the
+           service-restoration delay an operator must budget for; a
+           state is usable for hitless operation only if this value
+           is within the applicable threshold. Not meaningful for
+           'power-state-on'.";
+      }
+
+      leaf typical-entry-time {
+        type transition-time-ms;
+        description
+          "The typical time to transition the Component from
+           'power-state-on' into this Power State, under normal
+           conditions. Together with the exit time it determines
+           the minimum idle interval for which entering this state
+           is worthwhile. Not meaningful for 'power-state-on'.";
+      }
+
+      leaf max-entry-time {
+        type transition-time-ms;
+        description
+          "The worst-case time to transition the Component from
+           'power-state-on' into this Power State. Not meaningful
+           for 'power-state-on'.";
+      }
+    }
+
+    container supported-power-cap {
+      description
+        "The range of Power Cap limits that the Component accepts
+         for the requested Power Cap of ietf-power-and-energy. The
+         Device enforces a requested limit, or the closest value
+         that the Component supports; this range tells a Consumer,
+         before making the request, which limits are supported. It
+         applies to the Component as a whole, not to a particular
+         Power State. The leaves are absent when the Component does
+         not support a Power Cap or when the range is not known.";
+      leaf min-limit {
+        type uint64;
+        units "milliwatts";
+        description
+          "The lowest Power Cap limit that the Component accepts.";
+      }
+      leaf max-limit {
+        type uint64;
+        units "milliwatts";
+        must "not(../min-limit) or . >= ../min-limit" {
+          error-message
+            "max-limit must be greater than or equal to min-limit.";
+        }
+        description
+          "The highest Power Cap limit that the Component accepts.";
+      }
+    }
+  }
+
+  augment "/sysc:system-capabilities" {
+    description
+      "System-wide Power State capabilities that apply to each
+       Component unless overridden by a per-Component entry.";
+    container power-state-capabilities {
+      description
+        "Default Power State capabilities of each Component that has
+         no per-Component entry. These are the figures of an
+         individual Component, not a total for the Device.";
+      uses power-state-capability;
+    }
+  }
+
+  augment "/sysc:system-capabilities"
+        + "/sysc:datastore-capabilities"
+        + "/sysc:per-node-capabilities" {
+    description
+      "Per-Component Power State capabilities. The 'node-selector' of
+       the enclosing RFC 9196 'per-node-capabilities' entry selects
+       the Component to which these capabilities apply, typically a
+       '/hw:hardware/hw:component' entry of RFC 8348.";
+    container power-state-capabilities {
+      description
+        "Power State capabilities of the selected Component(s).";
+      uses power-state-capability;
+    }
+  }
+}
